@@ -1,1 +1,182 @@
-Hello World 3
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Myopia Simulation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 800px;
+            width: 90%;
+        }
+        h1, h2 {
+            text-align: center;
+        }
+        .scene-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .scene-wrapper {
+            width: 48%;
+        }
+        .scene {
+            width: 100%;
+            height: 300px;
+            background: linear-gradient(to bottom, #87CEEB, #90EE90);
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .object {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: filter 0.3s ease;
+        }
+        .object-icon {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 50%;
+            margin-bottom: 5px;
+            font-size: 24px;
+        }
+        .object-text {
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .controls {
+            margin-top: 20px;
+        }
+        .slider {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .info {
+            background-color: #e6f3ff;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Myopia Simulation</h1>
+        <div class="scene-container">
+            <div class="scene-wrapper">
+                <h2>Normal Vision</h2>
+                <div id="normal-scene" class="scene"></div>
+            </div>
+            <div class="scene-wrapper">
+                <h2>Myopic Vision</h2>
+                <div id="myopic-scene" class="scene"></div>
+            </div>
+        </div>
+        <div class="controls">
+            <label for="myopia-slider">Adjust Myopia Level: <span id="myopia-level">0</span></label>
+            <input type="range" id="myopia-slider" class="slider" min="0" max="10" step="0.1" value="0">
+        </div>
+        <button id="info-toggle">Show Info</button>
+        <div id="info" class="info">
+            <h3>What is Myopia?</h3>
+            <p>Myopia, or nearsightedness, is a vision condition where nearby objects are clear, but distant ones appear blurry. 
+            It occurs when the eye grows too long, causing light to focus in front of the retina instead of directly on it.
+            Importantly, myopia does not cause objects to appear smaller, only less clear at a distance.</p>
+            <h3>Symptoms:</h3>
+            <ul>
+                <li>Distant objects and text appear blurry, but not smaller</li>
+                <li>Squinting to see clearly</li>
+                <li>Eye strain and headaches</li>
+                <li>Difficulty seeing while driving, especially at night</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const objects = [
+            { name: 'Mountain', distance: 100, color: '#228B22', icon: '🏔️', text: '100m' },
+            { name: 'House', distance: 50, color: '#FF0000', icon: '🏠', text: '50m' },
+            { name: 'Tree', distance: 20, color: '#008000', icon: '🌳', text: '20m' },
+            { name: 'Car', distance: 10, color: '#0000FF', icon: '🚗', text: '10m' },
+            { name: 'Person', distance: 5, color: '#FFD700', icon: '👤', text: '5m' },
+        ];
+
+        function createScene(elementId, applyBlur = false) {
+            const scene = document.getElementById(elementId);
+            objects.forEach((obj, index) => {
+                const objectElement = document.createElement('div');
+                objectElement.className = 'object';
+                objectElement.style.left = `${index * 20}%`;
+                objectElement.style.bottom = `${10 + index * 10}%`;
+
+                const iconElement = document.createElement('div');
+                iconElement.className = 'object-icon';
+                iconElement.style.backgroundColor = obj.color;
+                iconElement.textContent = obj.icon;
+
+                const textElement = document.createElement('div');
+                textElement.className = 'object-text';
+                textElement.textContent = obj.text;
+
+                objectElement.appendChild(iconElement);
+                objectElement.appendChild(textElement);
+                scene.appendChild(objectElement);
+            });
+        }
+
+        function updateBlur(myopiaLevel) {
+            const myopicScene = document.getElementById('myopic-scene');
+            const objectElements = myopicScene.getElementsByClassName('object');
+            Array.from(objectElements).forEach((objElement, index) => {
+                const blur = Math.max(0, (myopiaLevel * objects[index].distance) / 20);
+                objElement.style.filter = `blur(${blur}px)`;
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            createScene('normal-scene');
+            createScene('myopic-scene', true);
+
+            const slider = document.getElementById('myopia-slider');
+            const myopiaLevelDisplay = document.getElementById('myopia-level');
+            slider.addEventListener('input', (e) => {
+                const level = e.target.value;
+                myopiaLevelDisplay.textContent = level;
+                updateBlur(level);
+            });
+
+            const infoToggle = document.getElementById('info-toggle');
+            const info = document.getElementById('info');
+            infoToggle.addEventListener('click', () => {
+                if (info.style.display === 'none') {
+                    info.style.display = 'block';
+                    infoToggle.textContent = 'Hide Info';
+                } else {
+                    info.style.display = 'none';
+                    infoToggle.textContent = 'Show Info';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
