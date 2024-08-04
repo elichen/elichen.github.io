@@ -151,7 +151,7 @@ function endPuzzle(isWin) {
 
 function showNextPuzzleButton() {
     const nextButton = document.createElement('button');
-    nextButton.textContent = 'Next Puzzle';
+    nextButton.textContent = 'Next';
     nextButton.onclick = moveToNextPuzzle;
     nextButton.id = 'next-puzzle-button';
     document.getElementById('game-container').appendChild(nextButton);
