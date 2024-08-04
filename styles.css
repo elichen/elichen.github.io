@@ -44,7 +44,7 @@ h1, h2 {
     border-radius: 5px;
 }
 
-#featured-puzzle, #progress {
+#featured-puzzle, #progress, #puzzle-container, #ai-concept {
     background-color: #fff;
     padding: 1rem;
     margin-bottom: 1rem;
@@ -60,4 +60,35 @@ footer {
     position: fixed;
     bottom: 0;
     width: 100%;
+}
+
+/* New styles for puzzle page */
+#code-editor {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+.CodeMirror {
+    height: auto;
+    min-height: 300px;
+}
+
+#submit-btn {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+#result-message {
+    font-weight: bold;
+    margin-top: 1rem;
 }
