@@ -172,8 +172,7 @@ function updateProgressAfterSolve(points) {
     updateProgress();
 
     // Check if all puzzles are solved
-    // if (solved === allPuzzles.length) {
-    if (solved > 0) {        
+    if (solved === allPuzzles.length) {
         setTimeout(() => {
             alert("Congratulations! You've completed all puzzles. Prepare for a special bonus! Press ESC to exit the animation.");
             startBonusAnimation();
