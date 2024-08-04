@@ -170,6 +170,15 @@ function updateProgressAfterSolve(points) {
     localStorage.setItem('knowledgePoints', totalPoints.toString());
 
     updateProgress();
+
+    // Check if all puzzles are solved
+    // if (solved === allPuzzles.length) {
+    if (solved > 0) {        
+        setTimeout(() => {
+            alert("Congratulations! You've completed all puzzles. Prepare for a special bonus! Press ESC to exit the animation.");
+            startBonusAnimation();
+        }, 1000);
+    }
 }
 
 // Start a new game when the page loads

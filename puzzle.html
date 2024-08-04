@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Wordle - Guess the AI Term!</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        #animation-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1000;
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <main>
@@ -37,7 +48,11 @@
         </section>
     </main>
 
+    <div id="animation-container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="puzzleData.js"></script>
     <script src="script.js"></script>
+    <script src="neuralNetworkAnimation.js"></script>
 </body>
 </html>
