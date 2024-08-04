@@ -145,21 +145,21 @@ function endPuzzle(isWin) {
     document.getElementById('explanation-container').style.display = 'block';
     document.getElementById('explanation').textContent = currentPuzzle.explanation;
     
-    // Show Next Puzzle button
-    showNextPuzzleButton();
+    // Show Next button
+    showNextButton();
 }
 
-function showNextPuzzleButton() {
+function showNextButton() {
     const nextButton = document.createElement('button');
     nextButton.textContent = 'Next';
-    nextButton.onclick = moveToNextPuzzle;
-    nextButton.id = 'next-puzzle-button';
-    document.getElementById('game-container').appendChild(nextButton);
+    nextButton.onclick = handleNextAction;
+    nextButton.id = 'next-button';
+    document.getElementById('next-puzzle-container').appendChild(nextButton);
 }
 
-function moveToNextPuzzle() {
-    // Remove the Next Puzzle button
-    const nextButton = document.getElementById('next-puzzle-button');
+function handleNextAction() {
+    // Remove the Next button
+    const nextButton = document.getElementById('next-button');
     if (nextButton) {
         nextButton.remove();
     }
@@ -209,6 +209,26 @@ function endRound() {
 function restartGame() {
     document.getElementById('restart-button').style.display = 'none';
     startNewRound();
+}
+
+function startNewPuzzle() {
+    currentPuzzle = currentRoundPuzzles[currentPuzzleIndex];
+    attempts = 0;
+    document.getElementById('guess-board').innerHTML = '';
+    document.getElementById('explanation-container').style.display = 'none';
+    document.getElementById('guess-input').value = '';
+    document.getElementById('guess-input').disabled = false;
+    
+    updateUI();
+    displayAnswerLength();
+}
+
+function updateUI() {
+    document.getElementById('domain').textContent = currentPuzzle.domain;
+    document.getElementById('hint').textContent = currentPuzzle.hint;
+    document.getElementById('attempts').textContent = `${attempts}/${MAX_ATTEMPTS}`;
+    document.getElementById('round-progress').textContent = `Puzzle ${currentPuzzleIndex + 1} of 5`;
+    document.getElementById('round-score').textContent = roundScore;
 }
 
 // Start a new round when the page loads
