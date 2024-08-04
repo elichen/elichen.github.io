@@ -1,42 +1,49 @@
 // Initialize progress if not already set
-if (!localStorage.getItem('puzzlesSolved')) {
-    localStorage.setItem('puzzlesSolved', '0');
+if (!localStorage.getItem('totalPuzzlesSolved')) {
+    localStorage.setItem('totalPuzzlesSolved', '0');
 }
-if (!localStorage.getItem('knowledgePoints')) {
-    localStorage.setItem('knowledgePoints', '0');
-}
-
-// Update progress display
-function updateProgress() {
-    document.getElementById('puzzles-solved').textContent = localStorage.getItem('puzzlesSolved');
-    document.getElementById('knowledge-points').textContent = localStorage.getItem('knowledgePoints');
+if (!localStorage.getItem('totalPoints')) {
+    localStorage.setItem('totalPoints', '0');
 }
 
 let currentPuzzle;
 let attempts;
 const MAX_ATTEMPTS = 6;
-let remainingPuzzles = [...allPuzzles];
+let currentRoundPuzzles = [];
+let currentPuzzleIndex = 0;
+let roundScore = 0;
 
-function startNewGame() {
-    if (remainingPuzzles.length === 0) {
-        remainingPuzzles = [...allPuzzles];
-    }
-    const randomIndex = Math.floor(Math.random() * remainingPuzzles.length);
-    currentPuzzle = remainingPuzzles[randomIndex];
-    remainingPuzzles.splice(randomIndex, 1);
+function updateProgress() {
+    document.getElementById('total-puzzles-solved').textContent = localStorage.getItem('totalPuzzlesSolved');
+    document.getElementById('total-points').textContent = localStorage.getItem('totalPoints');
+}
 
+function startNewRound() {
+    // Reset round-specific variables
+    currentRoundPuzzles = getRandomPuzzles(5);
+    currentPuzzleIndex = 0;
+    roundScore = 0;
+    
+    // Update UI for new round
+    document.getElementById('round-progress').textContent = `Puzzle 1 of 5`;
+    document.getElementById('round-score').textContent = '0';
+    
+    startNewPuzzle();
+}
+
+function getRandomPuzzles(count) {
+    let shuffled = [...allPuzzles].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
+}
+
+function startNewPuzzle() {
+    currentPuzzle = currentRoundPuzzles[currentPuzzleIndex];
     attempts = 0;
     document.getElementById('guess-board').innerHTML = '';
     document.getElementById('explanation-container').style.display = 'none';
     document.getElementById('guess-input').value = '';
     document.getElementById('guess-input').disabled = false;
     
-    // Remove any existing "Next Puzzle" button
-    const existingNextButton = document.getElementById('next-puzzle-button');
-    if (existingNextButton) {
-        existingNextButton.remove();
-    }
-
     updateUI();
     displayAnswerLength();
 }
@@ -45,6 +52,8 @@ function updateUI() {
     document.getElementById('domain').textContent = currentPuzzle.domain;
     document.getElementById('hint').textContent = currentPuzzle.hint;
     document.getElementById('attempts').textContent = `${attempts}/${MAX_ATTEMPTS}`;
+    document.getElementById('round-progress').textContent = `Puzzle ${currentPuzzleIndex + 1} of 5`;
+    document.getElementById('round-score').textContent = roundScore;
 }
 
 function displayAnswerLength() {
@@ -70,9 +79,9 @@ function makeGuess() {
     displayGuess(guess, feedback);
 
     if (guess === currentPuzzle.term) {
-        endGame(true);
+        endPuzzle(true);
     } else if (attempts >= MAX_ATTEMPTS) {
-        endGame(false);
+        endPuzzle(false);
     }
 
     guessInput.value = '';
@@ -121,14 +130,14 @@ function displayGuess(guess, feedback) {
     guessBoard.appendChild(guessRow);
 }
 
-function endGame(isWin) {
+function endPuzzle(isWin) {
     const guessInput = document.getElementById('guess-input');
     guessInput.disabled = true;
     
     if (isWin) {
         const points = calculatePoints(attempts);
-        alert(`Congratulations! You've guessed the term: ${currentPuzzle.term}\nYou earned ${points} points!`);
-        updateProgressAfterSolve(points);
+        roundScore += points;
+        alert(`Correct! You've guessed the term: ${currentPuzzle.term}\nYou earned ${points} points!`);
     } else {
         alert(`Game over. The correct term was: ${currentPuzzle.term}`);
     }
@@ -136,18 +145,16 @@ function endGame(isWin) {
     document.getElementById('explanation-container').style.display = 'block';
     document.getElementById('explanation').textContent = currentPuzzle.explanation;
     
-    // Add a "Next Puzzle" button if it doesn't exist
-    if (!document.getElementById('next-puzzle-button')) {
-        const nextButton = document.createElement('button');
-        nextButton.textContent = 'Next Puzzle';
-        nextButton.id = 'next-puzzle-button';
-        nextButton.onclick = startNewGame;
-        document.getElementById('game-container').appendChild(nextButton);
+    // Move to next puzzle or end round
+    currentPuzzleIndex++;
+    if (currentPuzzleIndex < currentRoundPuzzles.length) {
+        setTimeout(startNewPuzzle, 3000);
+    } else {
+        endRound();
     }
 }
 
 function calculatePoints(attempts) {
-    // Award points based on the number of attempts
     switch (attempts) {
         case 1: return 60;
         case 2: return 50;
@@ -159,29 +166,37 @@ function calculatePoints(attempts) {
     }
 }
 
-function updateProgressAfterSolve(points) {
-    let solved = parseInt(localStorage.getItem('puzzlesSolved'));
-    let totalPoints = parseInt(localStorage.getItem('knowledgePoints'));
+function endRound() {
+    let totalSolved = parseInt(localStorage.getItem('totalPuzzlesSolved'));
+    let totalPoints = parseInt(localStorage.getItem('totalPoints'));
     
-    solved++;
-    totalPoints += points;
+    totalSolved += 5;
+    totalPoints += roundScore;
 
-    localStorage.setItem('puzzlesSolved', solved.toString());
-    localStorage.setItem('knowledgePoints', totalPoints.toString());
+    localStorage.setItem('totalPuzzlesSolved', totalSolved.toString());
+    localStorage.setItem('totalPoints', totalPoints.toString());
 
     updateProgress();
 
-    // Check if all puzzles are solved
-    if (solved === allPuzzles.length) {
+    if (roundScore === 300) {  // Perfect score: 60 points * 5 puzzles
         setTimeout(() => {
-            alert("Congratulations! You've completed all puzzles. Prepare for a special bonus! Press ESC to exit the animation.");
+            alert("Perfect score! You've mastered these AI concepts. Enjoy a special bonus animation!");
             startBonusAnimation();
         }, 1000);
+    } else {
+        alert(`Round complete! Your score: ${roundScore} out of 300 possible points.`);
     }
+
+    document.getElementById('restart-button').style.display = 'block';
 }
 
-// Start a new game when the page loads
+function restartGame() {
+    document.getElementById('restart-button').style.display = 'none';
+    startNewRound();
+}
+
+// Start a new round when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    startNewGame();
+    startNewRound();
     updateProgress();
 });
