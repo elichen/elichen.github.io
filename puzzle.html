@@ -23,8 +23,10 @@
         
         <section id="game-container">
             <div id="progress-display">
-                <p>Puzzles Solved: <span id="puzzles-solved">0</span></p>
-                <p>Knowledge Points: <span id="knowledge-points">0</span></p>
+                <p>Total Puzzles Solved: <span id="total-puzzles-solved">0</span></p>
+                <p>Total Points: <span id="total-points">0</span></p>
+                <p>Round Progress: <span id="round-progress">Puzzle 1 of 5</span></p>
+                <p>Round Score: <span id="round-score">0</span></p>
             </div>
 
             <h2>Guess the AI Term</h2>
@@ -40,6 +42,8 @@
             
             <input type="text" id="guess-input" placeholder="Enter your guess">
             <button onclick="makeGuess()">Submit Guess</button>
+            
+            <button id="restart-button" onclick="restartGame()" style="display: none;">Start New Round</button>
         </section>
 
         <section id="explanation-container" style="display: none;">
