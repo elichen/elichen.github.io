@@ -3,42 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Code Challenge</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>AI Conceptle - An AI-Generated Word Game</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f0f5f9;
+            color: #2c3e50;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .container {
+            text-align: center;
+            background-color: #ffffff;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 90%;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #3498db;
+        }
+        p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+        .play-button {
+            display: inline-block;
+            background-color: #2ecc71;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 1.2rem;
+            transition: background-color 0.3s ease;
+        }
+        .play-button:hover {
+            background-color: #27ae60;
+        }
+        .floating-shapes {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+        }
+        .shape {
+            position: absolute;
+            opacity: 0.6;
+            animation: float 15s infinite ease-in-out;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <nav>
-            <ul>
-                <li><a href="index.html">Home</a></li>
-                <li><a href="puzzle.html">Today's Puzzle</a></li>
-                <li><a href="learning-hub.html">AI Learning Hub</a></li>
-                <li><a href="about.html">About</a></li>
-            </ul>
-        </nav>
-    </header>
-
-    <main>
-        <h1>Welcome to AI Code Challenge</h1>
-        <p>Enhance your AI knowledge and coding skills with daily challenges!</p>
-        
-        <section id="featured-puzzle">
-            <h2>Today's Challenge</h2>
-            <p>Neural Network Basics: Complete the code for a simple perceptron</p>
-            <a href="puzzle.html" class="button">Start Puzzle</a>
-        </section>
-
-        <section id="progress">
-            <h2>Your Progress</h2>
-            <p>Puzzles solved: <span id="puzzles-solved">0</span>/10</p>
-            <p>AI Knowledge Points: <span id="knowledge-points">0</span></p>
-        </section>
-    </main>
-
-    <footer>
-        <p>&copy; 2024 AI Code Challenge. All rights reserved.</p>
-    </footer>
-
-    <script src="script.js"></script>
+    <div class="floating-shapes">
+        <svg class="shape" style="left: 10%; top: 10%;" width="50" height="50" viewBox="0 0 50 50">
+            <circle cx="25" cy="25" r="20" fill="#3498db" />
+        </svg>
+        <svg class="shape" style="right: 15%; top: 20%;" width="40" height="40" viewBox="0 0 40 40">
+            <rect width="30" height="30" fill="#e74c3c" />
+        </svg>
+        <svg class="shape" style="left: 20%; bottom: 15%;" width="60" height="60" viewBox="0 0 60 60">
+            <polygon points="30,5 55,50 5,50" fill="#f1c40f" />
+        </svg>
+        <svg class="shape" style="right: 10%; bottom: 10%;" width="45" height="45" viewBox="0 0 45 45">
+            <ellipse cx="22.5" cy="22.5" rx="20" ry="15" fill="#2ecc71" />
+        </svg>
+    </div>
+    <div class="container">
+        <h1>AI Conceptle</h1>
+        <p>Embark on a journey through the world of Artificial Intelligence with this AI-generated word game. Test your knowledge of AI concepts in a fun, Wordle-inspired challenge!</p>
+        <a href="puzzle.html" class="play-button">Play Now</a>
+    </div>
 </body>
 </html>

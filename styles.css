@@ -2,53 +2,47 @@ body {
     font-family: Arial, sans-serif;
     line-height: 1.6;
     margin: 0;
-    padding: 0;
+    padding: 20px;
     background-color: #f4f4f4;
 }
 
-header {
-    background-color: #333;
-    color: #fff;
-    padding: 1rem;
-}
-
-nav ul {
-    list-style-type: none;
-    padding: 0;
-}
-
-nav ul li {
-    display: inline;
-    margin-right: 10px;
-}
-
-nav ul li a {
-    color: #fff;
-    text-decoration: none;
-}
-
 main {
-    padding: 2rem;
-    max-width: 800px;
+    max-width: 600px;
     margin: 0 auto;
-}
-
-h1, h2 {
-    color: #333;
-}
-
-#progress-container {
-    background-color: #e9f5e9;
-    padding: 1rem;
-    border-radius: 8px;
-    margin-bottom: 1rem;
-}
-
-#game-container {
     background-color: #fff;
     padding: 2rem;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+h1, h2 {
+    color: #333;
+    text-align: center;
+}
+
+#progress-display {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    font-weight: bold;
+}
+
+#game-container {
+    margin-bottom: 2rem;
+}
+
+#answer-length {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin-bottom: 1rem;
+}
+
+.answer-box {
+    width: 30px;
+    height: 30px;
+    border: 2px solid #ccc;
+    border-radius: 4px;
 }
 
 #guess-board {
@@ -60,6 +54,7 @@ h1, h2 {
 
 .guess-row {
     display: flex;
+    justify-content: center;
     gap: 5px;
 }
 
@@ -72,6 +67,7 @@ h1, h2 {
     border: 1px solid #ccc;
     font-weight: bold;
     text-transform: uppercase;
+    border-radius: 4px;
 }
 
 .correct {
@@ -94,6 +90,8 @@ h1, h2 {
     padding: 0.5rem;
     margin-bottom: 1rem;
     font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
 }
 
 button {
@@ -103,9 +101,9 @@ button {
     padding: 10px 20px;
     text-align: center;
     text-decoration: none;
-    display: inline-block;
+    display: block;
     font-size: 16px;
-    margin: 4px 2px;
+    margin: 4px auto;
     cursor: pointer;
     border-radius: 4px;
 }
@@ -115,14 +113,4 @@ button {
     background-color: #e9f5e9;
     padding: 1rem;
     border-radius: 8px;
-}
-
-footer {
-    background-color: #333;
-    color: #fff;
-    text-align: center;
-    padding: 1rem;
-    position: fixed;
-    bottom: 0;
-    width: 100%;
 }
