@@ -1,5 +1,7 @@
 // Neural Network Animation
 let scene, camera, renderer, neurons = [], synapses = [];
+let animationId;
+let rotationSpeed = 0.001;
 
 function initAnimation() {
     scene = new THREE.Scene();
@@ -49,7 +51,11 @@ function initAnimation() {
 }
 
 function animate() {
-    requestAnimationFrame(animate);
+    animationId = requestAnimationFrame(animate);
+
+    // Rotate the entire scene
+    scene.rotation.x += rotationSpeed;
+    scene.rotation.y += rotationSpeed;
 
     // Rotate neurons
     neurons.forEach(neuron => {
@@ -98,6 +104,11 @@ function exitAnimation() {
     document.getElementById('game-container').style.display = 'block';
     document.getElementById('explanation-container').style.display = 'block';
     
+    // Stop the animation
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+    }
+    
     // Remove the renderer and clean up Three.js resources
     if (renderer) {
         renderer.dispose();
@@ -110,3 +121,11 @@ function exitAnimation() {
     neurons = [];
     synapses = [];
 }
+
+// Make startBonusAnimation globally accessible
+window.startBonusAnimation = startBonusAnimation;
+
+// Function to change rotation speed (can be called from console)
+window.changeRotationSpeed = function(speed) {
+    rotationSpeed = speed;
+};
