@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Code Challenge - Today's Puzzle</title>
+    <title>AI Conceptle - Guess the AI Term!</title>
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
 </head>
 <body>
     <header>
         <nav>
             <ul>
                 <li><a href="index.html">Home</a></li>
-                <li><a href="puzzle.html">Today's Puzzle</a></li>
+                <li><a href="puzzle.html">Play AI Conceptle</a></li>
                 <li><a href="learning-hub.html">AI Learning Hub</a></li>
                 <li><a href="about.html">About</a></li>
             </ul>
@@ -20,31 +19,32 @@
     </header>
 
     <main>
-        <h1>Today's AI Code Challenge</h1>
+        <h1>AI Conceptle</h1>
         
-        <section id="puzzle-container">
-            <h2 id="puzzle-title"></h2>
-            <p id="puzzle-description"></p>
+        <section id="game-container">
+            <h2>Guess the AI Term</h2>
+            <p>Domain: <span id="domain"></span></p>
+            <p>Hint: <span id="hint"></span></p>
+            <p>Attempts: <span id="attempts"></span></p>
             
-            <div id="code-editor"></div>
+            <div id="guess-board">
+                <!-- Guesses will be displayed here -->
+            </div>
             
-            <button id="submit-btn" onclick="checkSolution()">Submit Solution</button>
-            <p id="result-message"></p>
+            <input type="text" id="guess-input" placeholder="Enter your guess">
+            <button onclick="makeGuess()">Submit Guess</button>
         </section>
 
-        <section id="ai-concept">
-            <h2>AI Concept Explanation</h2>
-            <p id="ai-explanation"></p>
+        <section id="explanation-container" style="display: none;">
+            <h2>Explanation</h2>
+            <p id="explanation"></p>
         </section>
     </main>
 
     <footer>
-        <p>&copy; 2024 AI Code Challenge. All rights reserved.</p>
+        <p>&copy; 2024 AI Conceptle. All rights reserved.</p>
     </footer>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
     <script src="script.js"></script>
-    <script src="puzzle.js"></script>
 </body>
 </html>
