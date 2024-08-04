@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Code Challenge - Today's Puzzle</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="puzzle.html">Today's Puzzle</a></li>
+                <li><a href="learning-hub.html">AI Learning Hub</a></li>
+                <li><a href="about.html">About</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h1>Today's AI Code Challenge</h1>
+        
+        <section id="puzzle-container">
+            <h2 id="puzzle-title"></h2>
+            <p id="puzzle-description"></p>
+            
+            <div id="code-editor"></div>
+            
+            <button id="submit-btn" onclick="checkSolution()">Submit Solution</button>
+            <p id="result-message"></p>
+        </section>
+
+        <section id="ai-concept">
+            <h2>AI Concept Explanation</h2>
+            <p id="ai-explanation"></p>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 AI Code Challenge. All rights reserved.</p>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+    <script src="script.js"></script>
+    <script src="puzzle.js"></script>
+</body>
+</html>
