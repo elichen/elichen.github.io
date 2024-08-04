@@ -96,6 +96,10 @@ const MAX_ATTEMPTS = 6;
 function startNewGame() {
     currentPuzzle = puzzles[Math.floor(Math.random() * puzzles.length)];
     attempts = 0;
+    document.getElementById('guess-board').innerHTML = '';
+    document.getElementById('explanation-container').style.display = 'none';
+    document.getElementById('guess-input').value = '';
+    document.getElementById('guess-input').disabled = false;
     updateUI();
 }
 
@@ -103,12 +107,11 @@ function updateUI() {
     document.getElementById('domain').textContent = currentPuzzle.domain;
     document.getElementById('hint').textContent = currentPuzzle.hint;
     document.getElementById('attempts').textContent = `${attempts}/${MAX_ATTEMPTS}`;
-    // Clear previous guesses and set up new guess slots
-    // ... (implement this part)
 }
 
 function makeGuess() {
-    const guess = document.getElementById('guess-input').value.toUpperCase();
+    const guessInput = document.getElementById('guess-input');
+    const guess = guessInput.value.toUpperCase();
     if (guess.length !== currentPuzzle.term.length) {
         alert(`Your guess must be ${currentPuzzle.term.length} letters long.`);
         return;
@@ -124,27 +127,71 @@ function makeGuess() {
         endGame(false);
     }
 
+    guessInput.value = '';
     updateUI();
 }
 
 function provideFeedback(guess) {
-    // Implement Wordle-style feedback (correct letter & position, correct letter wrong position, incorrect)
-    // ... (implement this part)
+    const feedback = [];
+    const termLetters = [...currentPuzzle.term];
+    
+    // First pass: mark correct letters
+    for (let i = 0; i < guess.length; i++) {
+        if (guess[i] === termLetters[i]) {
+            feedback[i] = 'correct';
+            termLetters[i] = null;
+        }
+    }
+    
+    // Second pass: mark present letters
+    for (let i = 0; i < guess.length; i++) {
+        if (feedback[i]) continue;
+        const index = termLetters.indexOf(guess[i]);
+        if (index !== -1) {
+            feedback[i] = 'present';
+            termLetters[index] = null;
+        } else {
+            feedback[i] = 'absent';
+        }
+    }
+    
+    return feedback;
 }
 
 function displayGuess(guess, feedback) {
-    // Display the guess and its feedback on the game board
-    // ... (implement this part)
+    const guessBoard = document.getElementById('guess-board');
+    const guessRow = document.createElement('div');
+    guessRow.className = 'guess-row';
+    
+    for (let i = 0; i < guess.length; i++) {
+        const letterBox = document.createElement('div');
+        letterBox.className = `guess-letter ${feedback[i]}`;
+        letterBox.textContent = guess[i];
+        guessRow.appendChild(letterBox);
+    }
+    
+    guessBoard.appendChild(guessRow);
 }
 
 function endGame(isWin) {
+    const guessInput = document.getElementById('guess-input');
+    guessInput.disabled = true;
+    
     if (isWin) {
         alert(`Congratulations! You've guessed the term: ${currentPuzzle.term}`);
         updateProgressAfterSolve();
     } else {
         alert(`Game over. The correct term was: ${currentPuzzle.term}`);
     }
+    
+    document.getElementById('explanation-container').style.display = 'block';
     document.getElementById('explanation').textContent = currentPuzzle.explanation;
+    
+    // Add a "Next Puzzle" button
+    const nextButton = document.createElement('button');
+    nextButton.textContent = 'Next Puzzle';
+    nextButton.onclick = startNewGame;
+    document.getElementById('game-container').appendChild(nextButton);
 }
 
 function updateProgressAfterSolve() {
@@ -161,4 +208,7 @@ function updateProgressAfterSolve() {
 }
 
 // Start a new game when the page loads
-document.addEventListener('DOMContentLoaded', startNewGame);
+document.addEventListener('DOMContentLoaded', () => {
+    startNewGame();
+    updateProgress();
+});
