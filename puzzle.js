@@ -140,10 +140,28 @@ function endPuzzle(isWin) {
     document.getElementById('explanation-container').style.display = 'block';
     document.getElementById('explanation').textContent = currentPuzzle.explanation;
     
-    // Move to next puzzle or end round
+    // Show Next Puzzle button
+    showNextPuzzleButton();
+}
+
+function showNextPuzzleButton() {
+    const nextButton = document.createElement('button');
+    nextButton.textContent = 'Next Puzzle';
+    nextButton.onclick = moveToNextPuzzle;
+    nextButton.id = 'next-puzzle-button';
+    document.getElementById('game-container').appendChild(nextButton);
+}
+
+function moveToNextPuzzle() {
+    // Remove the Next Puzzle button
+    const nextButton = document.getElementById('next-puzzle-button');
+    if (nextButton) {
+        nextButton.remove();
+    }
+
     currentPuzzleIndex++;
     if (currentPuzzleIndex < currentRoundPuzzles.length) {
-        setTimeout(startNewPuzzle, 3000);
+        startNewPuzzle();
     } else {
         endRound();
     }
