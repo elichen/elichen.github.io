@@ -29,27 +29,79 @@ nav ul li a {
 
 main {
     padding: 2rem;
+    max-width: 800px;
+    margin: 0 auto;
 }
 
 h1, h2 {
     color: #333;
 }
 
-.button {
-    display: inline-block;
-    background-color: #333;
-    color: #fff;
-    padding: 10px 20px;
-    text-decoration: none;
-    border-radius: 5px;
+#game-container {
+    background-color: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-#featured-puzzle, #progress, #puzzle-container, #ai-concept {
-    background-color: #fff;
-    padding: 1rem;
+#guess-board {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(30px, 1fr));
+    gap: 5px;
     margin-bottom: 1rem;
-    border-radius: 5px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.guess-letter {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 1px solid #ccc;
+    font-weight: bold;
+}
+
+.correct {
+    background-color: #6aaa64;
+    color: white;
+}
+
+.present {
+    background-color: #c9b458;
+    color: white;
+}
+
+.absent {
+    background-color: #787c7e;
+    color: white;
+}
+
+#guess-input {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+}
+
+button {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+#explanation-container {
+    margin-top: 2rem;
+    background-color: #e9f5e9;
+    padding: 1rem;
+    border-radius: 8px;
 }
 
 footer {
@@ -60,35 +112,4 @@ footer {
     position: fixed;
     bottom: 0;
     width: 100%;
-}
-
-/* New styles for puzzle page */
-#code-editor {
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    margin-bottom: 1rem;
-}
-
-.CodeMirror {
-    height: auto;
-    min-height: 300px;
-}
-
-#submit-btn {
-    background-color: #4CAF50;
-    border: none;
-    color: white;
-    padding: 15px 32px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
-    margin: 4px 2px;
-    cursor: pointer;
-    border-radius: 4px;
-}
-
-#result-message {
-    font-weight: bold;
-    margin-top: 1rem;
 }
