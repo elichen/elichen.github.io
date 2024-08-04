@@ -7,30 +7,21 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <ul>
-                <li><a href="index.html">Home</a></li>
-                <li><a href="puzzle.html">Play AI Conceptle</a></li>
-                <li><a href="learning-hub.html">AI Learning Hub</a></li>
-                <li><a href="about.html">About</a></li>
-            </ul>
-        </nav>
-    </header>
-
     <main>
         <h1>AI Conceptle</h1>
         
-        <section id="progress-container">
-            <p>Puzzles Solved: <span id="puzzles-solved">0</span></p>
-            <p>Knowledge Points: <span id="knowledge-points">0</span></p>
-        </section>
-        
         <section id="game-container">
+            <div id="progress-display">
+                <p>Puzzles Solved: <span id="puzzles-solved">0</span></p>
+                <p>Knowledge Points: <span id="knowledge-points">0</span></p>
+            </div>
+
             <h2>Guess the AI Term</h2>
             <p>Domain: <span id="domain"></span></p>
             <p>Hint: <span id="hint"></span></p>
             <p>Attempts: <span id="attempts"></span></p>
+            
+            <div id="answer-length"></div>
             
             <div id="guess-board">
                 <!-- Guesses will be displayed here -->
@@ -45,10 +36,6 @@
             <p id="explanation"></p>
         </section>
     </main>
-
-    <footer>
-        <p>&copy; 2024 AI Conceptle. All rights reserved.</p>
-    </footer>
 
     <script src="script.js"></script>
 </body>

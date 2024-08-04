@@ -12,9 +12,6 @@ function updateProgress() {
     document.getElementById('knowledge-points').textContent = localStorage.getItem('knowledgePoints');
 }
 
-// Call updateProgress when the page loads
-document.addEventListener('DOMContentLoaded', updateProgress);
-
 // AI Conceptle puzzle data
 const puzzles = [
     {
@@ -101,12 +98,23 @@ function startNewGame() {
     document.getElementById('guess-input').value = '';
     document.getElementById('guess-input').disabled = false;
     updateUI();
+    displayAnswerLength();
 }
 
 function updateUI() {
     document.getElementById('domain').textContent = currentPuzzle.domain;
     document.getElementById('hint').textContent = currentPuzzle.hint;
     document.getElementById('attempts').textContent = `${attempts}/${MAX_ATTEMPTS}`;
+}
+
+function displayAnswerLength() {
+    const answerLength = document.getElementById('answer-length');
+    answerLength.innerHTML = '';
+    for (let i = 0; i < currentPuzzle.term.length; i++) {
+        const box = document.createElement('div');
+        box.className = 'answer-box';
+        answerLength.appendChild(box);
+    }
 }
 
 function makeGuess() {
