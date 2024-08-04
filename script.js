@@ -145,10 +145,28 @@ function endPuzzle(isWin) {
     document.getElementById('explanation-container').style.display = 'block';
     document.getElementById('explanation').textContent = currentPuzzle.explanation;
     
-    // Move to next puzzle or end round
+    // Show Next Puzzle button
+    showNextPuzzleButton();
+}
+
+function showNextPuzzleButton() {
+    const nextButton = document.createElement('button');
+    nextButton.textContent = 'Next Puzzle';
+    nextButton.onclick = moveToNextPuzzle;
+    nextButton.id = 'next-puzzle-button';
+    document.getElementById('game-container').appendChild(nextButton);
+}
+
+function moveToNextPuzzle() {
+    // Remove the Next Puzzle button
+    const nextButton = document.getElementById('next-puzzle-button');
+    if (nextButton) {
+        nextButton.remove();
+    }
+
     currentPuzzleIndex++;
     if (currentPuzzleIndex < currentRoundPuzzles.length) {
-        setTimeout(startNewPuzzle, 3000);
+        startNewPuzzle();
     } else {
         endRound();
     }
@@ -176,8 +194,6 @@ function endRound() {
     localStorage.setItem('totalPuzzlesSolved', totalSolved.toString());
     localStorage.setItem('totalPoints', totalPoints.toString());
 
-    updateProgress();
-
     if (roundScore === 300) {  // Perfect score: 60 points * 5 puzzles
         setTimeout(() => {
             alert("Perfect score! You've mastered these AI concepts. Enjoy a special bonus animation!");
@@ -198,5 +214,4 @@ function restartGame() {
 // Start a new round when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     startNewRound();
-    updateProgress();
 });
