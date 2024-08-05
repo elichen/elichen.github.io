@@ -1,0 +1,276 @@
+/* Base styles */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Roboto', Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f0f0f0;
+}
+
+header {
+    background-color: #2c3e50;
+    color: #ecf0f1;
+    padding: 1rem;
+    margin-bottom: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+nav ul {
+    list-style-type: none;
+    display: flex;
+}
+
+nav ul li {
+    margin-right: 1rem;
+}
+
+nav ul li a {
+    text-decoration: none;
+    color: #ecf0f1;
+    transition: color 0.3s ease;
+}
+
+nav ul li a:hover {
+    color: #3498db;
+}
+
+h1, h2, h3 {
+    margin-bottom: 1rem;
+}
+
+/* Game tiles */
+.game-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 2rem;
+}
+
+.game-tile {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.game-tile:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.game-tile img {
+    max-width: 100%;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+.game-tile h3 {
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+    color: #2c3e50;
+}
+
+.game-tile p {
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    color: #7f8c8d;
+}
+
+/* Improved Button Styles */
+.btn {
+    display: inline-block;
+    background-color: #3498db;
+    color: #fff;
+    padding: 0.7rem 1.5rem;
+    text-decoration: none;
+    border-radius: 30px;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.btn:hover {
+    background-color: #2980b9;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 3px rgba(0, 0, 0, 0.2);
+}
+
+.btn.disabled {
+    background-color: #95a5a6;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.btn.disabled:hover {
+    transform: none;
+}
+
+.btn.secondary {
+    background-color: #2ecc71;
+}
+
+.btn.secondary:hover {
+    background-color: #27ae60;
+}
+
+/* Featured game */
+.featured {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #ecf0f1;
+    padding: 2rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.featured img {
+    max-width: 300px;
+    margin-bottom: 1rem;
+}
+
+/* Python Puzzle Game Styles */
+#game-container {
+    background-color: #fff;
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#game-info {
+    margin-bottom: 2rem;
+}
+
+#puzzle-area {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+}
+
+#code-blocks, #solution-area {
+    width: 48%;
+    min-height: 300px;
+    border: 2px solid #3498db;
+    border-radius: 8px;
+    padding: 1rem;
+    background-color: #ecf0f1;
+}
+
+.code-block {
+    background-color: #fff;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    cursor: move;
+    transition: background-color 0.3s ease;
+}
+
+.code-block:hover {
+    background-color: #e0e0e0;
+}
+
+.drop-zone {
+    min-height: 40px;
+    border: 2px dashed #bdc3c7;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    transition: background-color 0.3s ease;
+}
+
+.drop-zone:hover {
+    background-color: #d0d3d4;
+}
+
+#controls {
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 1rem;
+}
+
+#feedback {
+    margin-bottom: 1rem;
+    font-weight: bold;
+    color: #2c3e50;
+    padding: 1rem;
+    border-radius: 4px;
+    background-color: #e8f6f3;
+    border-left: 4px solid #1abc9c;
+}
+
+#explanation {
+    background-color: #e8f6f3;
+    border-left: 4px solid #1abc9c;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-top: 1rem;
+}
+
+footer {
+    margin-top: 2rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #7f8c8d;
+}
+
+/* Responsive design */
+@media (min-width: 768px) {
+    .featured {
+        flex-direction: row;
+        justify-content: space-around;
+        text-align: left;
+    }
+
+    .featured img {
+        margin-right: 2rem;
+        margin-bottom: 0;
+    }
+}
+
+/* Additional styles for better button layout */
+#check-solution {
+    background-color: #3498db;
+}
+
+#next-puzzle {
+    background-color: #2ecc71;
+}
+
+#hint {
+    background-color: #f39c12;
+}
+
+#check-solution:hover {
+    background-color: #2980b9;
+}
+
+#next-puzzle:hover {
+    background-color: #27ae60;
+}
+
+#hint:hover {
+    background-color: #d35400;
+}

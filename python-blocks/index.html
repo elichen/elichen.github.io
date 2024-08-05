@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python Puzzle Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <main id="game-container">
+        <section id="game-info">
+            <h2>Objective: <span id="puzzle-objective"></span></h2>
+            <p>Round: <span id="current-round"></span> / <span id="total-rounds"></span></p>
+            <p>Score: <span id="score"></span></p>
+        </section>
+
+        <section id="puzzle-area">
+            <div id="code-blocks">
+                <h3>Available Code Blocks</h3>
+                <!-- Code blocks will be dynamically inserted here -->
+            </div>
+            <div id="solution-area">
+                <h3>Your Solution</h3>
+                <!-- Drop zones for the solution will be dynamically inserted here -->
+            </div>
+        </section>
+
+        <section id="controls">
+            <button id="check-solution" class="btn">Check Solution</button>
+            <button id="next-puzzle" class="btn" style="display: none;">Next Puzzle</button>
+            <button id="hint" class="btn secondary">Get Hint</button>
+        </section>
+
+        <section id="feedback">
+            <p id="feedback-text"></p>
+        </section>
+
+        <section id="explanation" style="display: none;">
+            <h3>Explanation</h3>
+            <p id="explanation-text"></p>
+        </section>
+    </main>
+
+    <script src="data.js"></script>
+    <script src="life.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
