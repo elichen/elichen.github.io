@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Powered Flappy Bird</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-wrapper">
+        <h1>Flappy Loss Curve</h1>
+        <div id="game-container">
+            <canvas id="game-canvas" width="800" height="400"></canvas>
+            <div id="game-ui">
+                <div id="game-controls">
+                    <button id="start-button">Start Game</button>
+                    <button id="restart-button" style="display: none;">Restart</button>
+                </div>
+                <div id="game-stats">
+                    <p>Score: <span id="score">0</span></p>
+                    <p>High Score: <span id="high-score">0</span></p>
+                </div>
+            </div>
+        </div>
+        <div id="game-explanation">
+            <h2>How to Play</h2>
+            <p>Navigate the AI bird through the loss function chart. Click or press spacebar to make the bird fly upwards. Avoid spikes in the loss curve and try to follow the ideal path!</p>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
