@@ -1,28 +1,28 @@
-// Surface data
+let scene, camera, renderer, saddleGrid, marble, hoveredPosition;
+let marbleVelocity = new THREE.Vector3();
+let isSimulationRunning = false;
+let rotationAngle = 0;
+
 const surfaceData = {
-    size: 40,
+    size: 25,
     divisions: 20,
     getHeight: function(x, z) {
         return (x * x / 25) - (z * z / 25);
     }
 };
 
-let scene, camera, renderer, saddleGrid, marble;
-let marbleVelocity = new THREE.Vector3();
-
-function initGame() {
-    console.log("Initializing game...");
+function initSimulation() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87CEEB);
     
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const aspect = window.innerWidth / window.innerHeight;
+    const frustumSize = 20;
+    camera = new THREE.OrthographicCamera(frustumSize * aspect / -2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / -2, 0.1, 1000);
     camera.position.set(0, 30, 30);
     camera.lookAt(0, 0, 0);
     
     renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true });
-    renderer.setSize(document.getElementById('game-area').offsetWidth, document.getElementById('game-area').offsetHeight);
-
-    console.log("Canvas size:", renderer.domElement.width, renderer.domElement.height);
+    renderer.setSize(800, 600); // Set to fixed size
 
     generateSaddleGrid();
     createMarble();
@@ -34,9 +34,9 @@ function initGame() {
     directionalLight.position.set(10, 20, 10);
     scene.add(directionalLight);
 
-    console.log("Scene setup complete");
-
-    document.addEventListener('keydown', handleKeyDown);
+    document.getElementById('reset-button').addEventListener('click', resetSimulation);
+    renderer.domElement.addEventListener('mousemove', onMouseMove);
+    renderer.domElement.addEventListener('click', onMouseClick);
 
     animate();
 }
@@ -87,77 +87,88 @@ function createMarble() {
     const geometry = new THREE.SphereGeometry(0.5, 32, 32);
     const material = new THREE.MeshPhongMaterial({ color: 0xFFFFFF });
     marble = new THREE.Mesh(geometry, material);
-    marble.position.set(0, surfaceData.getHeight(0, 0), 0);
+    marble.visible = false;
     scene.add(marble);
-    console.log("Marble added to scene");
 }
 
 function updateMarblePhysics() {
-    const gravity = 9.8;
+    if (!isSimulationRunning) return;
+
+    const gravity = 3;
     const friction = 0.98;
 
-    // Calculate gradient at current position
     const gradientX = -(marble.position.x / 12.5);
     const gradientZ = (marble.position.z / 12.5);
 
-    // Apply forces
     marbleVelocity.x += gradientX * 0.1;
     marbleVelocity.z += gradientZ * 0.1;
     
     marbleVelocity.y = 0;
-
-    // Apply friction
     marbleVelocity.multiplyScalar(friction);
 
-    // Update position
     marble.position.add(marbleVelocity);
-
-    // Keep marble on the surface
     marble.position.y = surfaceData.getHeight(marble.position.x, marble.position.z);
 
-    // Boundary check
     const maxDistance = surfaceData.size / 2 - 1;
     if (marble.position.length() > maxDistance) {
         marble.position.setLength(maxDistance);
-        marbleVelocity.multiplyScalar(0.5); // Reduce velocity on collision
+        marbleVelocity.multiplyScalar(0.5);
+    }
+
+    if (marbleVelocity.length() < 0.001) {
+        isSimulationRunning = false;
+        console.log("Marble came to rest at:", marble.position);
     }
 }
 
-function handleKeyDown(event) {
-    const force = 0.1;
-    switch(event.key) {
-        case 'ArrowUp':
-            marbleVelocity.z -= force;
-            break;
-        case 'ArrowDown':
-            marbleVelocity.z += force;
-            break;
-        case 'ArrowLeft':
-            marbleVelocity.x -= force;
-            break;
-        case 'ArrowRight':
-            marbleVelocity.x += force;
-            break;
+function onMouseMove(event) {
+    if (isSimulationRunning) return;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+
+    const intersects = raycaster.intersectObject(saddleGrid);
+    if (intersects.length > 0) {
+        hoveredPosition = intersects[0].point;
+        marble.position.copy(hoveredPosition);
+        marble.visible = true;
+    } else {
+        marble.visible = false;
     }
 }
 
-let rotationAngle = 0;
+function onMouseClick() {
+    if (isSimulationRunning || !hoveredPosition) return;
+
+    marble.position.copy(hoveredPosition);
+    marble.visible = true;
+    marbleVelocity.set(0, 0, 0);
+    isSimulationRunning = true;
+}
+
+function resetSimulation() {
+    isSimulationRunning = false;
+    marble.visible = false;
+    marbleVelocity.set(0, 0, 0);
+}
 
 function animate() {
     requestAnimationFrame(animate);
-
-    // Update marble physics
-    updateMarblePhysics();
-
+    
     // Rotate camera
     rotationAngle += 0.005; // Adjust this value to change rotation speed
-    const radius = 40; // Adjust this value to change camera distance
+    const radius = 80; // Adjust this value to change camera distance
     camera.position.x = radius * Math.cos(rotationAngle);
     camera.position.z = radius * Math.sin(rotationAngle);
     camera.lookAt(0, 0, 0);
-
+    
+    updateMarblePhysics();
     renderer.render(scene, camera);
 }
 
-// Initialize the game when the page loads
-window.onload = initGame;
+window.onload = initSimulation;
+
