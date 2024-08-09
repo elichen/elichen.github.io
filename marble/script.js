@@ -1,9 +1,9 @@
 // Surface data
 const surfaceData = {
-    size: 50,
-    divisions: 50,
+    size: 40,
+    divisions: 20,
     getHeight: function(x, z) {
-        return (x * x / 15) - (z * z / 15); // Changed from 25 to 15 to increase curvature
+        return (x * x / 25) - (z * z / 25);
     }
 };
 
@@ -42,38 +42,37 @@ function initGame() {
 }
 
 function generateSaddleGrid() {
+    if (saddleGrid) {
+        scene.remove(saddleGrid);
+    }
+    
     const geometry = new THREE.BufferGeometry();
     const material = new THREE.LineBasicMaterial({ color: 0xffffff });
 
     const vertices = [];
     const step = surfaceData.size / surfaceData.divisions;
 
-    // Create saddle shape
+    // Create horizontal lines
     for (let i = 0; i <= surfaceData.divisions; i++) {
-        const x = (i * step) - (surfaceData.size / 2);
-        for (let j = 0; j <= surfaceData.divisions; j++) {
-            const z = (j * step) - (surfaceData.size / 2);
-            const y = surfaceData.getHeight(x, z);
-            vertices.push(x, y, z);
+        const z = (i * step) - (surfaceData.size / 2);
+        for (let j = 0; j < surfaceData.divisions; j++) {
+            const x1 = (j * step) - (surfaceData.size / 2);
+            const x2 = ((j + 1) * step) - (surfaceData.size / 2);
+            const y1 = surfaceData.getHeight(x1, z);
+            const y2 = surfaceData.getHeight(x2, z);
+            vertices.push(x1, y1, z, x2, y2, z);
         }
     }
 
-    // Create grid lines
-    for (let i = 0; i <= surfaceData.divisions; i++) {
-        for (let j = 0; j <= surfaceData.divisions; j++) {
-            const index = (i * (surfaceData.divisions + 1) + j) * 3;
-            if (i < surfaceData.divisions) {
-                vertices.push(
-                    vertices[index], vertices[index + 1], vertices[index + 2],
-                    vertices[index + 3], vertices[index + 4], vertices[index + 5]
-                );
-            }
-            if (j < surfaceData.divisions) {
-                vertices.push(
-                    vertices[index], vertices[index + 1], vertices[index + 2],
-                    vertices[index + (surfaceData.divisions + 1) * 3], vertices[index + (surfaceData.divisions + 1) * 3 + 1], vertices[index + (surfaceData.divisions + 1) * 3 + 2]
-                );
-            }
+    // Create vertical lines
+    for (let j = 0; j <= surfaceData.divisions; j++) {
+        const x = (j * step) - (surfaceData.size / 2);
+        for (let i = 0; i < surfaceData.divisions; i++) {
+            const z1 = (i * step) - (surfaceData.size / 2);
+            const z2 = ((i + 1) * step) - (surfaceData.size / 2);
+            const y1 = surfaceData.getHeight(x, z1);
+            const y2 = surfaceData.getHeight(x, z2);
+            vertices.push(x, y1, z1, x, y2, z2);
         }
     }
 
@@ -94,18 +93,17 @@ function createMarble() {
 }
 
 function updateMarblePhysics() {
-    const gravity = 9.8; // Changed to positive
+    const gravity = 9.8;
     const friction = 0.98;
 
     // Calculate gradient at current position
-    const gradientX = -(marble.position.x / 12.5); // Negated
-    const gradientZ = (marble.position.z / 12.5);  // Removed negation
+    const gradientX = -(marble.position.x / 12.5);
+    const gradientZ = (marble.position.z / 12.5);
 
     // Apply forces
     marbleVelocity.x += gradientX * 0.1;
     marbleVelocity.z += gradientZ * 0.1;
     
-    // Remove vertical velocity component
     marbleVelocity.y = 0;
 
     // Apply friction
@@ -143,9 +141,21 @@ function handleKeyDown(event) {
     }
 }
 
+let rotationAngle = 0;
+
 function animate() {
     requestAnimationFrame(animate);
+
+    // Update marble physics
     updateMarblePhysics();
+
+    // Rotate camera
+    rotationAngle += 0.005; // Adjust this value to change rotation speed
+    const radius = 40; // Adjust this value to change camera distance
+    camera.position.x = radius * Math.cos(rotationAngle);
+    camera.position.z = radius * Math.sin(rotationAngle);
+    camera.lookAt(0, 0, 0);
+
     renderer.render(scene, camera);
 }
 
