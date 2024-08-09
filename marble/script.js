@@ -94,27 +94,34 @@ function createMarble() {
 function updateMarblePhysics() {
     if (!isSimulationRunning) return;
 
-    const gravity = 3;
+    const gravity = 2;
     const friction = 0.98;
 
+    // Calculate gradient at current position
     const gradientX = -(marble.position.x / 12.5);
     const gradientZ = (marble.position.z / 12.5);
 
-    marbleVelocity.x += gradientX * 0.1;
-    marbleVelocity.z += gradientZ * 0.1;
-    
-    marbleVelocity.y = 0;
+    // Apply forces (including gravity)
+    marbleVelocity.x += gradientX * gravity * 0.01;
+    marbleVelocity.z += gradientZ * gravity * 0.01;
+
+    // Apply friction
     marbleVelocity.multiplyScalar(friction);
 
+    // Update position
     marble.position.add(marbleVelocity);
+
+    // Keep marble on the surface
     marble.position.y = surfaceData.getHeight(marble.position.x, marble.position.z);
 
+    // Boundary check
     const maxDistance = surfaceData.size / 2 - 1;
     if (marble.position.length() > maxDistance) {
         marble.position.setLength(maxDistance);
-        marbleVelocity.multiplyScalar(0.5);
+        marbleVelocity.multiplyScalar(0.5); // Reduce velocity on collision
     }
 
+    // Check if marble has come to rest
     if (marbleVelocity.length() < 0.001) {
         isSimulationRunning = false;
         console.log("Marble came to rest at:", marble.position);
