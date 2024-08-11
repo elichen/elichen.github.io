@@ -16,10 +16,41 @@ function initGame() {
     nextImageButton.style.display = 'none';
 }
 
+function countInversions(arr) {
+    let invCount = 0;
+    for (let i = 0; i < arr.length - 1; i++) {
+        for (let j = i + 1; j < arr.length; j++) {
+            if (arr[i] && arr[j] && arr[i] > arr[j]) {
+                invCount++;
+            }
+        }
+    }
+    return invCount;
+}
+
+function isSolvable(arr) {
+    return countInversions(arr) % 2 === 0;
+}
+
+function swapPair(arr) {
+    let index1 = 0, index2 = 1;
+    while (arr[index1] === 0 || arr[index2] === 0) {
+        index1++;
+        index2++;
+    }
+    [arr[index1], arr[index2]] = [arr[index2], arr[index1]];
+}
+
 function shuffleTiles() {
-    for (let i = tiles.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+    do {
+        for (let i = tiles.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+        }
+    } while (!isSolvable(tiles));
+
+    if (!isSolvable(tiles)) {
+        swapPair(tiles);
     }
 }
 
