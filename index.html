@@ -63,32 +63,40 @@
             overflow: hidden;
             z-index: -1;
         }
-        .shape {
-            position: absolute;
-            opacity: 0.6;
-            animation: float 15s infinite ease-in-out;
+    .shape {
+        position: absolute;
+        font-size: 80px;
+        opacity: 0; /* Start fully transparent */
+        animation: meteor 10s linear infinite;
+        --translate-x: 0px;
+        --translate-y: 0px;
+        --rotation: 0deg;
+        animation-delay: var(--delay, 0s);
+    }
+    @keyframes meteor {
+        0% {
+            transform: translate(0, 0) rotate(0deg);
+            opacity: 0; /* Start transparent */
         }
-        @keyframes float {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(180deg); }
+        10% {
+            opacity: 0.8; /* Fade in quickly */
         }
+        100% {
+            transform: translate(var(--translate-x), var(--translate-y)) rotate(var(--rotation));
+            opacity: 0; /* Fade out at the end */
+        }
+    }
     </style>
 </head>
 <body>
     <div class="floating-shapes">
-        <svg class="shape" style="left: 10%; top: 10%;" width="50" height="50" viewBox="0 0 50 50">
-            <circle cx="25" cy="25" r="20" fill="#3498db" />
-        </svg>
-        <svg class="shape" style="right: 15%; top: 20%;" width="40" height="40" viewBox="0 0 40 40">
-            <rect width="30" height="30" fill="#e74c3c" />
-        </svg>
-        <svg class="shape" style="left: 20%; bottom: 15%;" width="60" height="60" viewBox="0 0 60 60">
-            <polygon points="30,5 55,50 5,50" fill="#f1c40f" />
-        </svg>
-        <svg class="shape" style="right: 10%; bottom: 10%;" width="45" height="45" viewBox="0 0 45 45">
-            <ellipse cx="22.5" cy="22.5" rx="20" ry="15" fill="#2ecc71" />
-        </svg>
-    </div>
+        <span class="shape" style="left: 10%; top: 10%; --translate-x: 1000px; --translate-y: 700px; --rotation: 720deg; --delay: 0s;">🤖</span>
+        <span class="shape" style="left: 20%; top: 20%; --translate-x: -800px; --translate-y: 500px; --rotation: -360deg; --delay: 2s;">🧠</span>
+        <span class="shape" style="left: 30%; top: 30%; --translate-x: 600px; --translate-y: -400px; --rotation: 360deg; --delay: 4s;">💻</span>
+        <span class="shape" style="left: 40%; top: 40%; --translate-x: -700px; --translate-y: -500px; --rotation: -720deg; --delay: 6s;">🔬</span>
+        <span class="shape" style="left: 50%; top: 50%; --translate-x: 800px; --translate-y: 1000px; --rotation: 360deg; --delay: 8s;">📡</span>
+        <span class="shape" style="left: 60%; top: 60%; --translate-x: -1000px; --translate-y: 700px; --rotation: -720deg; --delay: 10s;">📊</span>
+        </div>
     <div class="container">
         <div class="game-box">
             <h2>AI Wordle</h2>
