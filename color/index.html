@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Cascade</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <h1>Color Cascade</h1>
+        <div id="game-board"></div>
+        <div class="game-info">
+            <p>Moves: <span id="move-count">0</span></p>
+            <p>Best Score: <span id="best-score">-</span></p>
+        </div>
+        <div class="color-picker">
+            <button class="color-btn" data-color="red"></button>
+            <button class="color-btn" data-color="blue"></button>
+            <button class="color-btn" data-color="green"></button>
+            <button class="color-btn" data-color="yellow"></button>
+            <button class="color-btn" data-color="purple"></button>
+        </div>
+        <button id="new-game-btn">New Game</button>
+    </div>
+    <div class="instructions">
+        <h2>How to Play</h2>
+        <p>Start from the top-left corner. Click on a color to flood-fill the board. Try to fill the entire grid with one color in the fewest moves!</p>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
