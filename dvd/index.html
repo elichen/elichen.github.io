@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DVD Gravity Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <h1>DVD Gravity Game</h1>
+        <div class="game-area">
+            <canvas id="gameCanvas" width="700" height="500"></canvas>
+        </div>
+        <div class="game-info">
+            <p>Score: <span id="score">0</span></p>
+            <p>High Score: <span id="highScore">0</span></p>
+        </div>
+        <div class="game-instructions">
+            <h2>How to Play</h2>
+            <p>Watch the DVD logo bounce around and score points when it hits a corner!</p>
+            <p>Click to add a gravity well. Click an existing well to remove it.</p>
+            <p>Maximum 3 gravity wells allowed.</p>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
