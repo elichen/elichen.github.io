@@ -237,7 +237,7 @@ function drawParticles() {
 }
 
 function updateTimeDisplay() {
-    document.getElementById('timeValue').textContent = (10 - time / 1000).toFixed(2);
+    document.getElementById('timeValue').textContent = time;
 }
 
 window.addEventListener('load', initializeSimulation);
