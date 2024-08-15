@@ -59,3 +59,23 @@ button:hover {
     font-size: 18px;
     color: #ccc; /* Lighter color for secondary info */
 }
+
+.legend {
+    margin-top: 20px;
+    font-size: 14px;
+    text-align: left;
+    color: #ccc;
+}
+
+.legend p {
+    margin: 5px 0;
+}
+
+.color-box {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+    vertical-align: middle;
+}
+

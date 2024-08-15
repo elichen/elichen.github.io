@@ -2,10 +2,10 @@ let gl;
 let program;
 let positionBuffer;
 let densityBuffer;
-let particleCount = 3000;
+let particleCount = 2000;
 let isRunning = false;
 let time = 0;
-let gravityStrength = 0.001;
+let gravityStrength = 0.0002;
 let hubbleConstant = 0.0000;
 
 let positions;
@@ -53,10 +53,13 @@ function initializeSimulation() {
 
     initBuffers();
 
-    document.getElementById('startPauseBtn').addEventListener('click', toggleSimulation);
     document.getElementById('resetBtn').addEventListener('click', resetSimulation);
 
     resetSimulation();
+
+    // Start the simulation immediately
+    isRunning = true;
+    requestAnimationFrame(updateSimulation);
 }
 
 function createShader(gl, type, source) {
@@ -96,7 +99,7 @@ function resetSimulation() {
     velocities = new Float32Array(particleCount * 2);
     densities = new Float32Array(particleCount);
 
-    // Create a uniform distribution across the square
+    // Initialize particles with random positions and velocities
     for (let i = 0; i < particleCount; i++) {
         positions[i * 2] = Math.random() * gl.canvas.width;
         positions[i * 2 + 1] = Math.random() * gl.canvas.height;
@@ -112,17 +115,8 @@ function resetSimulation() {
     gl.bufferData(gl.ARRAY_BUFFER, densities, gl.DYNAMIC_DRAW);
 
     time = 0;
-    isRunning = false;
-    document.getElementById('startPauseBtn').textContent = 'Start';
+    isRunning = true;
     updateTimeDisplay();
-}
-
-function toggleSimulation() {
-    isRunning = !isRunning;
-    document.getElementById('startPauseBtn').textContent = isRunning ? 'Pause' : 'Start';
-    if (isRunning) {
-        requestAnimationFrame(updateSimulation);
-    }
 }
 
 function updateSimulation() {
