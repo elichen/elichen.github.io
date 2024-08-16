@@ -1,59 +1,110 @@
+/* General body styling */
 body {
-       font-family: Arial, sans-serif;
-       line-height: 1.6;
-       margin: 0;
-       padding: 0;
-       background-color: #f4f4f4;
-   }
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background-color: #f0f5f9;
+    color: #2c3e50;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+}
 
-   header {
-       background-color: #333;
-       color: #fff;
-       text-align: center;
-       padding: 1rem;
-   }
+/* Wrapper to center the container */
+.outer-wrapper {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
 
-   main {
-       padding: 2rem;
-   }
+/* Container styling */
+.container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 20px;
+    max-width: 1000px;
+    margin: 0 auto;
+}
 
-   #games-list {
-       display: flex;
-       flex-wrap: wrap;
-       justify-content: center;
-       gap: 2rem;
-   }
+/* Styling for individual game boxes */
+.game-box {
+    background-color: #ffffff;
+    border-radius: 15px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    width: 250px;  /* Set width */
+    height: 250px; /* Set height to make it square */
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* Space between title, description, and button */
+}
 
-   .game-card {
-       background-color: #fff;
-       border-radius: 8px;
-       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-       padding: 1.5rem;
-       width: 300px;
-       text-align: center;
-   }
+/* Set the title color to blue */
+.game-box h2 {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+    color: #3498db; /* Blue color for titles */
+}
 
-   .play-button {
-       display: inline-block;
-       background-color: #4CAF50;
-       color: white;
-       padding: 10px 20px;
-       text-decoration: none;
-       border-radius: 5px;
-       transition: background-color 0.3s;
-   }
+.game-box p {
+    margin-bottom: 1rem;
+    flex-grow: 1; /* Allows the text to take up available space */
+    overflow: hidden; /* Prevent overflow if the content is too large */
+}
 
-   .play-button:hover {
-       background-color: #45a049;
-   }
+/* Play button styling */
+.play-button {
+    display: inline-block;
+    background-color: #2ecc71;
+    color: white;
+    text-decoration: none;
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-size: 1rem;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+    align-self: center; /* Center the button horizontally */
+    margin-top: auto; /* Push the button to the bottom */
+}
 
-   footer {
-       background-color: #333;
-       color: #fff;
-       text-align: center;
-       padding: 1rem;
-       position: fixed;
-       bottom: 0;
-       width: 100%;
-   }
-   
+.play-button:hover {
+    background-color: #27ae60;
+    transform: translateY(-2px);
+}
+
+/* Floating shapes animation */
+.floating-shapes {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: -1;
+}
+
+.shape {
+    position: absolute;
+    font-size: 80px;
+    opacity: 0; /* Start fully transparent */
+    animation: meteor 10s linear infinite;
+    --translate-x: 0px;
+    --translate-y: 0px;
+    --rotation: 0deg;
+    animation-delay: var(--delay, 0s);
+}
+
+@keyframes meteor {
+    0% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 0; /* Start transparent */
+    }
+    10% {
+        opacity: 0.8; /* Fade in quickly */
+    }
+    100% {
+        transform: translate(var(--translate-x), var(--translate-y)) rotate(var(--rotation));
+        opacity: 0; /* Fade out at the end */
+    }
+}
