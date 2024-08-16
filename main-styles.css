@@ -78,8 +78,10 @@ body {
 /* Floating shapes animation */
 .floating-shapes {
     position: fixed;
+    top: -50px; /* Move the entire container slightly up to avoid clipping */
+    left: 0;
     width: 100%;
-    height: 100%;
+    height: calc(100% + 100px); /* Increase the height to allow for more space at the top */
     overflow: hidden;
     z-index: -1;
 }
