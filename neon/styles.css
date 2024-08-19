@@ -17,11 +17,15 @@ body {
     color: var(--text-color);
     line-height: 1.6;
     padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .game-container {
+    width: 100%;
     max-width: 800px;
-    margin: 0 auto;
+    margin-bottom: 20px;
 }
 
 h1, h2 {
@@ -60,10 +64,15 @@ h1, h2 {
     z-index: 2;
 }
 
-button {
-    display: block;
+.button-container {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
     width: 100%;
-    padding: 10px;
+}
+
+button {
+    padding: 10px 20px;
     background-color: var(--button-color);
     color: var(--text-color);
     border: none;
@@ -78,10 +87,12 @@ button:hover {
 }
 
 .instructions {
-    margin-top: 40px;
+    width: 100%;
+    max-width: 800px;
     background-color: rgba(255, 255, 255, 0.1);
     padding: 20px;
     border-radius: 10px;
+    margin-top: 20px;
 }
 
 @media (min-width: 768px) {

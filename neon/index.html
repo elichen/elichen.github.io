@@ -12,12 +12,16 @@
         <div id="game-board">
             <svg id="connections"></svg>
         </div>
-        <button id="reset-network">Reset Network</button>
+        <div class="button-container">
+            <button id="reset-network">Reset Network</button>
+            <button id="toggle-mode">Switch to Automatic</button>
+        </div>
     </div>
     <div class="instructions">
         <h2>How to Play</h2>
-        <p>Click on neurons to activate them. Watch as the activation spreads through the network!</p>
-        <p>Enjoy the visual patterns created by the neural activations.</p>
+        <p>Manual Mode: Click on neurons to activate them and watch as the activation spreads through the network!</p>
+        <p>Automatic Mode: Watch as neurons randomly activate at varying intervals, creating dynamic patterns across the network.</p>
+        <p>Use the toggle button to switch between manual and automatic modes.</p>
     </div>
     <script src="script.js"></script>
 </body>
