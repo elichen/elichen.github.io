@@ -2,9 +2,13 @@ const NUM_NEURONS = 40;
 const ACTIVATION_THRESHOLD = 0.5;
 const DECAY_RATE = 0.95;
 const NEURON_RADIUS = 6; // pixels
+const MIN_INTERVAL = 500; // Minimum time between activations (ms)
+const MAX_INTERVAL = 3000; // Maximum time between activations (ms)
 
 let neurons = [];
 let boardWidth, boardHeight;
+let isAutoMode = false;
+let autoTimeout;
 
 function initializeNetwork() {
     const gameBoard = document.getElementById('game-board');
@@ -62,7 +66,9 @@ function initializeNetwork() {
         neuronElement.className = 'neuron';
         neuronElement.style.left = `${neuron.x}px`;
         neuronElement.style.top = `${neuron.y}px`;
-        neuronElement.addEventListener('click', () => activateNeuron(neuron.id));
+        neuronElement.addEventListener('click', () => {
+            if (!isAutoMode) activateNeuron(neuron.id);
+        });
         gameBoard.appendChild(neuronElement);
     });
 
@@ -106,12 +112,48 @@ function decayActivations() {
     updateDisplay();
 }
 
+function toggleMode() {
+    isAutoMode = !isAutoMode;
+    const toggleButton = document.getElementById('toggle-mode');
+    toggleButton.textContent = isAutoMode ? 'Switch to Manual' : 'Switch to Automatic';
+    
+    if (isAutoMode) {
+        startAutoMode();
+    } else {
+        stopAutoMode();
+    }
+}
+
+function startAutoMode() {
+    function activateRandomNeuron() {
+        const randomNeuronId = Math.floor(Math.random() * neurons.length);
+        activateNeuron(randomNeuronId);
+        const randomInterval = Math.random() * (MAX_INTERVAL - MIN_INTERVAL) + MIN_INTERVAL;
+        autoTimeout = setTimeout(activateRandomNeuron, randomInterval);
+    }
+    activateRandomNeuron();
+}
+
+function stopAutoMode() {
+    clearTimeout(autoTimeout);
+}
+
 // Initialize network
-window.addEventListener('load', initializeNetwork);
+window.addEventListener('load', () => {
+    initializeNetwork();
+    const toggleButton = document.getElementById('toggle-mode');
+    toggleButton.addEventListener('click', toggleMode);
+});
+
 window.addEventListener('resize', initializeNetwork);
 
 // Set up decay interval
 setInterval(decayActivations, 100);
 
 // Reset network button
-document.getElementById('reset-network').addEventListener('click', initializeNetwork);
+document.getElementById('reset-network').addEventListener('click', () => {
+    stopAutoMode();
+    isAutoMode = false;
+    document.getElementById('toggle-mode').textContent = 'Switch to Automatic';
+    initializeNetwork();
+});
