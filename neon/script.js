@@ -1,10 +1,10 @@
 const NUM_NEURONS = {
     cloud: 40,
-    feedforward: { input: 10, hidden: [15, 15, 15], output: 10 },
+    feedforward: { input: 10, hidden: [15], output: 10 },
     transformer: { embedding: 10, attention: 6, ffn: 8, output: 10 }
 };
-const ACTIVATION_THRESHOLD = 0.5;
-const DECAY_RATE = 0.95;
+const ACTIVATION_THRESHOLD = 0.9;
+const DECAY_RATE = 0.7;
 const NEURON_RADIUS = 6;
 const MIN_INTERVAL = 100;
 const MAX_INTERVAL = 500;
@@ -61,8 +61,8 @@ function initializeCloudNetwork() {
             let targetId;
             do {
                 targetId = Math.floor(Math.random() * NUM_NEURONS.cloud);
-            } while (targetId === neuron.id || neuron.connections.includes(targetId));
-            neuron.connections.push(targetId);
+            } while (targetId === neuron.id || neuron.connections.some(conn => conn.target === targetId));
+            neuron.connections.push({ target: targetId, weight: Math.random() });
         }
     });
 }
@@ -86,20 +86,18 @@ function initializeFeedforwardNetwork() {
         }
     });
 
-    // Connect layers from left to right
     for (let i = 0; i < neurons.length; i++) {
-        if (neurons[i].layer < layerSizes.length - 1) { // Not an output neuron
+        if (neurons[i].layer < layerSizes.length - 1) {
             let nextLayerStart = layerSizes.slice(0, neurons[i].layer + 1).reduce((a, b) => a + b, 0);
             let nextLayerEnd = nextLayerStart + layerSizes[neurons[i].layer + 1];
             for (let j = nextLayerStart; j < nextLayerEnd; j++) {
-                neurons[i].connections.push(j);
+                neurons[i].connections.push({ target: j, weight: Math.random() });
             }
         }
     }
 }
 
 function initializeTransformerNetwork() {
-    // Simplified transformer decoder architecture
     let layers = [
         { name: 'embedding', size: NUM_NEURONS.transformer.embedding },
         { name: 'attention1', size: NUM_NEURONS.transformer.attention },
@@ -127,7 +125,6 @@ function initializeTransformerNetwork() {
         }
     });
 
-    // Connect layers from left to right
     for (let i = 0; i < layers.length - 1; i++) {
         let currentLayerStart = layers.slice(0, i).reduce((a, b) => a + b.size, 0);
         let currentLayerEnd = currentLayerStart + layers[i].size;
@@ -136,19 +133,18 @@ function initializeTransformerNetwork() {
 
         for (let j = currentLayerStart; j < currentLayerEnd; j++) {
             for (let k = nextLayerStart; k < nextLayerEnd; k++) {
-                neurons[j].connections.push(k);
+                neurons[j].connections.push({ target: k, weight: Math.random() });
             }
         }
     }
 
-    // Add self-attention connections
     layers.forEach((layer, layerIndex) => {
         if (layer.name.includes('attention')) {
             let layerStart = layers.slice(0, layerIndex).reduce((a, b) => a + b.size, 0);
             let layerEnd = layerStart + layer.size;
             for (let i = layerStart; i < layerEnd; i++) {
                 for (let j = layerStart; j < layerEnd; j++) {
-                    if (i !== j) neurons[i].connections.push(j);
+                    if (i !== j) neurons[i].connections.push({ target: j, weight: Math.random() });
                 }
             }
         }
@@ -158,8 +154,8 @@ function initializeTransformerNetwork() {
 function drawConnections() {
     const svg = document.getElementById('connections');
     neurons.forEach(neuron => {
-        neuron.connections.forEach(targetId => {
-            const target = neurons[targetId];
+        neuron.connections.forEach(conn => {
+            const target = neurons[conn.target];
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             line.setAttribute('x1', neuron.x);
             line.setAttribute('y1', neuron.y);
@@ -190,21 +186,21 @@ function activateNeuron(id) {
     const neuron = neurons[id];
     neuron.activation = 1;
     updateDisplay();
-    setTimeout(() => propagateActivation(id, 1), 50); // Short delay before propagation starts
+    setTimeout(() => propagateActivation(id, 1), 50);
 }
 
 function propagateActivation(id, depth) {
-    if (depth > 5) return; // Increased max depth for longer propagation chains
+    if (depth > 5) return;
     const neuron = neurons[id];
-    neuron.connections.forEach(targetId => {
-        const target = neurons[targetId];
-        const newActivation = Math.min(1, target.activation + (1 / (depth + 1)));
+    neuron.connections.forEach(conn => {
+        const target = neurons[conn.target];
+        const newActivation = Math.min(1, target.activation + (neuron.activation * conn.weight) / depth);
         if (newActivation > target.activation) {
             target.activation = newActivation;
             setTimeout(() => {
                 updateDisplay();
-                propagateActivation(targetId, depth + 1);
-            }, 50); // Shorter delay for faster propagation
+                propagateActivation(conn.target, depth + 1);
+            }, 50);
         }
     });
 }
@@ -226,18 +222,6 @@ function decayActivations() {
     updateDisplay();
 }
 
-function toggleMode() {
-    isAutoMode = !isAutoMode;
-    const toggleButton = document.getElementById('toggle-mode');
-    toggleButton.textContent = isAutoMode ? 'Switch to Manual' : 'Switch to Automatic';
-    
-    if (isAutoMode) {
-        startAutoMode();
-    } else {
-        stopAutoMode();
-    }
-}
-
 function startAutoMode() {
     function activateRandomNeuron() {
         let randomNeuronId;
@@ -246,11 +230,9 @@ function startAutoMode() {
                 randomNeuronId = Math.floor(Math.random() * neurons.length);
                 break;
             case 'feedforward':
-                // Only activate input layer neurons
                 randomNeuronId = Math.floor(Math.random() * NUM_NEURONS.feedforward.input);
                 break;
             case 'transformer':
-                // Only activate embedding layer neurons
                 randomNeuronId = Math.floor(Math.random() * NUM_NEURONS.transformer.embedding);
                 break;
         }
@@ -263,6 +245,18 @@ function startAutoMode() {
 
 function stopAutoMode() {
     clearTimeout(autoTimeout);
+}
+
+function toggleMode() {
+    isAutoMode = !isAutoMode;
+    const toggleButton = document.getElementById('toggle-mode');
+    toggleButton.textContent = isAutoMode ? 'Switch to Manual' : 'Switch to Automatic';
+    
+    if (isAutoMode) {
+        startAutoMode();
+    } else {
+        stopAutoMode();
+    }
 }
 
 function changeNetworkType(type) {
