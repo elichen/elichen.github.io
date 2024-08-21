@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interval Explorer</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/vexflow/build/cjs/vexflow.js"></script>
+    <style>
+        #staff-container {
+            width: 100%;
+            height: 140px;
+            margin-bottom: 10px;
+        }
+
+        #vexflow-staff {
+            width: 100%;
+            height: 100%;
+        }
+
+        #instruction-text {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        #piano-container {
+            margin-bottom: 10px;
+        }
+
+        .game-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        #feedback, #score {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .mode-selection {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .mode-selection label {
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        #game-mode {
+            padding: 5px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Interval Explorer</h1>
+        <div class="mode-selection">
+            <label for="game-mode">Mode:</label>
+            <select id="game-mode">
+                <option value="identify">Identify Interval</option>
+                <option value="create">Create Interval</option>
+                <option value="ear-training">Ear Training</option>
+            </select>
+        </div>
+        <div id="staff-container">
+            <div id="vexflow-staff"></div>
+        </div>
+        <p id="instruction-text">Click "Play Interval" to hear the interval, then select your answer from the dropdown.</p>
+        <div id="piano-container"></div>
+        <div class="game-controls">
+            <button id="play-interval">Play Interval</button>
+            <select id="interval-select" style="display: none;">
+                <option value="">Select Interval</option>
+            </select>
+        </div>
+        <div id="feedback"></div>
+        <div id="score">Score: <span id="score-value">0</span></div>
+    </div>
+    <div class="instructions">
+        <h2>How to Play</h2>
+        <p>Explore musical intervals in three different modes:</p>
+        <ul>
+            <li>Identify Interval: Name the interval shown on the staff.</li>
+            <li>Create Interval: Select the correct note to create the given interval.</li>
+            <li>Ear Training: Listen to an interval and identify it.</li>
+        </ul>
+        <p>Click on piano keys or use your computer keyboard to select notes. Earn points for correct answers!</p>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
