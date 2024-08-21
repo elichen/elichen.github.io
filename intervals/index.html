@@ -8,39 +8,41 @@
     <script src="https://cdn.jsdelivr.net/npm/vexflow/build/cjs/vexflow.js"></script>
 </head>
 <body>
-    <div class="game-container">
-        <h1>Interval Explorer</h1>
-        <div class="mode-selection">
-            <label for="game-mode">Mode:</label>
-            <select id="game-mode">
-                <option value="identify">Identify Interval</option>
-                <option value="create">Create Interval</option>
-                <option value="ear-training">Ear Training</option>
-            </select>
+    <div class="page-wrapper">
+        <div class="game-container">
+            <h1>Interval Explorer</h1>
+            <div class="mode-selection">
+                <label for="game-mode">Mode:</label>
+                <select id="game-mode">
+                    <option value="identify">Identify Interval</option>
+                    <option value="create">Create Interval</option>
+                    <option value="ear-training">Ear Training</option>
+                </select>
+            </div>
+            <div id="staff-container">
+                <div id="vexflow-staff"></div>
+            </div>
+            <p id="instruction-text"></p>
+            <div id="piano-container"></div>
+            <div class="game-controls">
+                <button id="play-interval">Play Interval</button>
+                <select id="interval-select" style="display: none;">
+                    <option value="">Select Interval</option>
+                </select>
+            </div>
+            <div id="feedback"></div>
+            <div id="score">Score: <span id="score-value">0</span></div>
         </div>
-        <div id="staff-container">
-            <div id="vexflow-staff"></div>
+        <div class="instructions">
+            <h2>How to Play</h2>
+            <p>Explore musical intervals in three different modes:</p>
+            <ul>
+                <li>Identify Interval: Listen to and view the interval, then select the correct name from the dropdown.</li>
+                <li>Create Interval: Click on piano keys to create the requested interval.</li>
+                <li>Ear Training: Listen to an interval and identify it without visual cues.</li>
+            </ul>
+            <p>Use the on-screen controls to play intervals and make your selections. Earn points for correct answers!</p>
         </div>
-        <p id="instruction-text"></p>
-        <div id="piano-container"></div>
-        <div class="game-controls">
-            <button id="play-interval">Play Interval</button>
-            <select id="interval-select" style="display: none;">
-                <option value="">Select Interval</option>
-            </select>
-        </div>
-        <div id="feedback"></div>
-        <div id="score">Score: <span id="score-value">0</span></div>
-    </div>
-    <div class="instructions">
-        <h2>How to Play</h2>
-        <p>Explore musical intervals in three different modes:</p>
-        <ul>
-            <li>Identify Interval: Listen to and view the interval, then select the correct name from the dropdown.</li>
-            <li>Create Interval: Click on piano keys to create the requested interval.</li>
-            <li>Ear Training: Listen to an interval and identify it without visual cues.</li>
-        </ul>
-        <p>Use the on-screen controls to play intervals and make your selections. Earn points for correct answers!</p>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="script.js"></script>
