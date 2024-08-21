@@ -63,7 +63,23 @@ function setGameMode() {
         staffContainer.style.display = 'none';
     }
     
+    updateInstructions();
     newRound();
+}
+
+function updateInstructions() {
+    const instructionText = document.getElementById('instruction-text');
+    switch(gameMode) {
+        case 'identify':
+            instructionText.textContent = 'Click "Play Interval" to hear the interval, then select your answer from the "Identify Interval" dropdown.';
+            break;
+        case 'create':
+            instructionText.textContent = 'Click on the piano keys to create the requested interval.';
+            break;
+        case 'ear-training':
+            instructionText.textContent = 'Click "Play Interval" to hear the interval, then select your answer from the "Identify Interval" dropdown. The staff will not be shown.';
+            break;
+    }
 }
 
 function newRound() {
@@ -90,9 +106,7 @@ function displayInterval() {
     const endNote = getNoteForInterval(startNote, currentInterval);
     drawNotes(startNote, endNote);
     
-    // Update the instruction text instead of creating a new element
-    const instructionText = document.getElementById('instruction-text');
-    instructionText.textContent = 'Click "Play Interval" to hear the interval, then select your answer from the dropdown.';
+    updateInstructions();
 }
 
 function displayEarTrainingPrompt() {
@@ -100,11 +114,13 @@ function displayEarTrainingPrompt() {
     const promptElement = document.createElement('p');
     promptElement.textContent = 'Click "Play Interval" to hear the interval, then select your answer from the dropdown.';
     staffContainer.appendChild(promptElement);
+    updateInstructions();
 }
 
 function displayCreatePrompt() {
     const startNote = Math.floor(Math.random() * 12);
     staffContainer.innerHTML = `<p>Create a ${INTERVALS[currentInterval]} starting from ${NOTES[startNote]}</p>`;
+    updateInstructions();
 }
 
 function handleNoteClick(note) {
