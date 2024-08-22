@@ -3,17 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI News Hub</title>
+    <title>AI News Feed</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <header>
-        <h1>AI News Hub</h1>
-    </header>
-    <main id="news-container"></main>
-    <footer>
+        <h1>AI News Feed</h1>
         <p>Last updated: <span id="last-update"></span></p>
-    </footer>
+        <button id="refresh-button">Refresh News</button>
+    </header>
+    <div class="search-container">
+        <input type="text" id="search-input" placeholder="Search news...">
+        <button id="search-button">Search</button>
+    </div>
+    <div id="loading" class="loading">Loading...</div>
+    <main id="news-container"></main>
     <script src="script.js"></script>
 </body>
 </html>
