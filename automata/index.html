@@ -4,15 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cellular Automata - Game of Life</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>Conway's Game of Life</h1>
-    <canvas id="gameCanvas"></canvas>
-    <div class="controls">
-        <button id="startStop">Start/Stop</button>
-        <button id="reset">Reset</button>
-    </div>
+    <main>
+        <canvas id="gameCanvas"></canvas>
+        <p class="hint">Click on the board to add or remove cells</p>
+        <div class="controls">
+            <button id="startStop">Start/Stop</button>
+            <button id="reset">Reset</button>
+        </div>
+        <div class="rules-container">
+            <h2>Rules</h2>
+            <div id="rulesDisplay"></div>
+        </div>
+    </main>
     <script src="script.js"></script>
 </body>
 </html>
