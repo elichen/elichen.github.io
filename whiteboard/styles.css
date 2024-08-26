@@ -15,11 +15,13 @@ body {
 }
 
 #controls {
-    padding: 10px;
+    padding: 15px;
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
+    background-color: #f0f0f0;
+    border-top: 1px solid #ccc;
 }
 
 #camera {
@@ -64,3 +66,62 @@ body {
 .bottom { bottom: -2px; }
 .left { left: -2px; }
 .right { right: -2px; }
+
+button {
+    padding: 8px 16px;
+    font-size: 14px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.1s;
+}
+
+button:hover {
+    transform: translateY(-1px);
+}
+
+button:active {
+    transform: translateY(1px);
+}
+
+#clearBtn {
+    background-color: #ff6b6b;
+    color: white;
+}
+
+#clearBtn:hover {
+    background-color: #ff5252;
+}
+
+#cameraBtn {
+    background-color: #4ecdc4;
+    color: white;
+}
+
+#cameraBtn:hover {
+    background-color: #45b7aa;
+}
+
+#saveBtn {
+    background-color: #45aaf2;
+    color: white;
+}
+
+#saveBtn:hover {
+    background-color: #3498db;
+}
+
+#colorPicker {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+#brushSize {
+    width: 100px;
+    cursor: pointer;
+}
