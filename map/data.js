@@ -35,56 +35,33 @@ function parseCSV(csv) {
                 entry[headers[j]] = values[j].replace(/"/g, '').trim();
             }
             data.push(entry);
-        } else {
-            // console.log(`Skipping line ${i}: ${lines[i]}`);
         }
     }
 
-    // console.log("Total parsed entries:", data.length);
     return data;
 }
 
 // Function to extract the most recent population data
 function extractPopulationData(data) {
     const populationData = {};
-    const currentYear = new Date().getFullYear();
+    data.forEach(country => {
+        const countryCode = country['Country Code'];
+        const countryName = country['Country Name'];
+        const yearlyData = {};
 
-    data.forEach((entry, index) => {
-        const countryName = entry['Country Name'];
-        const countryCode = entry['Country Code'];
-        
-        if (!countryName || !countryCode) {
-            // console.log("Skipping entry due to missing name or code:", entry);
-            return;
-        }
-
-        // Find the most recent year with data
-        let recentYear = currentYear;
-        while (recentYear > 1960 && (!entry[recentYear.toString()] || entry[recentYear.toString()] === '')) {
-            recentYear--;
-        }
-
-        if (recentYear > 1960) {
-            const populationString = entry[recentYear.toString()].replace(/,/g, '');
-            const population = parseInt(populationString, 10);
-            if (isNaN(population)) {
-                // console.log(`Invalid population data for ${countryName}: ${populationString}`);
-                return;
+        // Extract data for each year from 1960 to 2023
+        for (let year = 1960; year <= 2023; year++) {
+            const population = parseInt(country[year.toString()]);
+            if (!isNaN(population)) {
+                yearlyData[year] = population;
             }
-            populationData[countryCode] = {
-                name: countryName,
-                population: population,
-                year: recentYear
-            };
-            // if (index < 5) console.log("Added country data:", countryCode, populationData[countryCode]);
-        } else {
-            // console.log("No recent data found for:", countryName);
         }
+
+        populationData[countryCode] = {
+            name: countryName,
+            data: yearlyData
+        };
     });
-
-    // console.log("Total countries processed:", Object.keys(populationData).length);
-    // console.log("Sample population data entries:", Object.entries(populationData).slice(0, 5));
-
     return populationData;
 }
 

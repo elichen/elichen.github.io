@@ -20,6 +20,11 @@ window.addEventListener('populationDataReady', () => {
         'Taiwan': 'TWN',
     };
 
+    // Add these variables at the beginning of your script
+    let currentYear = 2023;
+    const yearSlider = document.getElementById('yearSlider');
+    const yearDisplay = document.getElementById('yearDisplay');
+
     function initMap() {
         map = L.map('map').setView([0, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -54,7 +59,7 @@ window.addEventListener('populationDataReady', () => {
         let countryCode = feature.id || feature.properties.name;
         countryCode = findCountryCode(countryCode);
         const populationData = window.populationData[countryCode];
-        const population = populationData ? populationData.population : 0;
+        const population = populationData ? populationData.data[currentYear] : 0;
 
         return {
             fillColor: population > 0 ? getColor(population) : '#D3D3D3',
@@ -68,9 +73,11 @@ window.addEventListener('populationDataReady', () => {
 
     function formatPopulation(population) {
         if (population >= 1000000000) {
-            return (population / 1000000000).toFixed(1) + 'B';
+            return (population / 1000000000).toFixed(2) + 'B';
         } else if (population >= 1000000) {
-            return (population / 1000000).toFixed(1) + 'M';
+            return (population / 1000000).toFixed(2) + 'M';
+        } else if (population >= 1000) {
+            return (population / 1000).toFixed(2) + 'K';
         } else {
             return population.toLocaleString();
         }
@@ -86,6 +93,9 @@ window.addEventListener('populationDataReady', () => {
             mouseout: resetHighlight,
             click: zoomToFeature
         });
+        
+        const population = findPopulationForYear(feature.properties.name, currentYear);
+        layer.bindPopup(`${feature.properties.name}<br>Population: ${formatPopulation(population)}`);
     }
 
     function highlightFeature(e) {
@@ -113,7 +123,7 @@ window.addEventListener('populationDataReady', () => {
     function getPopulationLabel(countryCode) {
         const populationData = window.populationData[countryCode];
         if (populationData) {
-            return formatPopulation(populationData.population);
+            return formatPopulation(populationData.data[currentYear]);
         }
         return 'N/A';
     }
@@ -132,8 +142,8 @@ window.addEventListener('populationDataReady', () => {
         };
 
         info.update = function (props) {
-            this._div.innerHTML = '<h4>Population Info</h4>' + (props ?
-                '<b>' + props.name + '</b><br />Population: ' + getPopulationLabel(findCountryCode(props.name))
+            this._div.innerHTML = '<h4>World Population</h4>' + (props ?
+                '<b>' + props.name + '</b><br />' + formatPopulation(findPopulationForYear(props.name, currentYear)) + ' people'
                 : 'Hover over a country');
         };
 
@@ -145,7 +155,7 @@ window.addEventListener('populationDataReady', () => {
 
         legend.onAdd = function (map) {
             const div = L.DomUtil.create('div', 'info legend');
-            const grades = [0, 10000000, 20000000, 50000000, 100000000, 200000000, 500000000, 1000000000];
+            const grades = [0, 1000000, 10000000, 50000000, 100000000, 500000000, 1000000000];
             const labels = [];
 
             for (let i = 0; i < grades.length; i++) {
@@ -197,6 +207,42 @@ window.addEventListener('populationDataReady', () => {
         return mapping;
     }
 
+    function updateMapForYear(year) {
+        currentYear = year;
+        yearDisplay.textContent = `Year: ${year}`;
+        if (geojson) {
+            geojson.eachLayer(function (layer) {
+                const countryName = layer.feature.properties.name;
+                const population = findPopulationForYear(countryName, year);
+                layer.setStyle({
+                    fillColor: getColor(population),
+                    weight: 2,
+                    opacity: 1,
+                    color: 'white',
+                    dashArray: '3',
+                    fillOpacity: 0.7
+                });
+                layer.bindPopup(`${countryName}<br>Population: ${formatPopulation(population)}`);
+            });
+        }
+        if (info) {
+            info.update();
+        }
+    }
+
+    function findPopulationForYear(countryName, year) {
+        const countryCode = findCountryCode(countryName);
+        const countryData = window.populationData[countryCode];
+        if (countryData && countryData.data[year]) {
+            return countryData.data[year];
+        }
+        return 0;
+    }
+
+    yearSlider.addEventListener('input', function() {
+        updateMapForYear(parseInt(this.value));
+    });
+
     initMap();
     initInfo();
     initLegend();
@@ -209,8 +255,17 @@ window.addEventListener('populationDataReady', () => {
                 style: style,
                 onEachFeature: onEachFeature
             }).addTo(map);
+            updateMapForYear(currentYear); // Update the map once the GeoJSON data is loaded
         })
         .catch(error => {
             console.error("Error loading or processing GeoJSON data:", error);
         });
+});
+
+// Add this code outside of the 'populationDataReady' event listener
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.populationData) {
+        // If the data is already loaded, dispatch the event
+        window.dispatchEvent(new Event('populationDataReady'));
+    }
 });

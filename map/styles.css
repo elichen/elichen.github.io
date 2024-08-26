@@ -60,3 +60,27 @@ body, html {
 .legend h4 {
     margin-top: 0;
 }
+
+#controls {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: white;
+    padding: 10px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+}
+
+#yearSlider {
+    width: 300px;
+    margin: 0 10px;
+}
+
+#yearDisplay {
+    font-weight: bold;
+    min-width: 80px;
+    text-align: center;
+}
