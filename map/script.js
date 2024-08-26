@@ -1,17 +1,23 @@
 window.addEventListener('populationDataReady', () => {
     let map;
     let geojson;
-    let currentYear = new Date().getFullYear();
+    let info;
 
     const countryCodeMapping = {
-        'USA': 'US',
-        'GBR': 'GB',
+        'USA': 'USA',
+        'GBR': 'GBR',
         'GRL': 'GRL',
         'NOR': 'NOR',
         'RUS': 'RUS',
         'United States of America': 'USA',
         'United States': 'USA',
+        'United Kingdom': 'GBR',
         'Antarctica': 'ATA',
+        'French Southern and Antarctic Lands': 'ATF',
+        'Falkland Islands': 'FLK',
+        'French Guiana': 'GUF',
+        'Western Sahara': 'ESH',
+        'Taiwan': 'TWN',
     };
 
     function initMap() {
@@ -33,10 +39,15 @@ window.addEventListener('populationDataReady', () => {
     }
 
     function findCountryCode(name) {
-        return countryCodeMapping[name] || 
-               reverseMapping[name.toLowerCase()] || 
-               Object.keys(reverseMapping).find(key => name.toLowerCase().includes(key)) ||
-               name;
+        let code = countryCodeMapping[name] || 
+                   reverseMapping[name.toLowerCase()] || 
+                   Object.keys(reverseMapping).find(key => name.toLowerCase().includes(key)) ||
+                   name;
+        
+        if (code === 'GB') code = 'GBR';
+        if (code === '-99' || code === 'CS-KM') code = null;
+
+        return code;
     }
 
     function style(feature) {
@@ -65,66 +76,90 @@ window.addEventListener('populationDataReady', () => {
         }
     }
 
+    function zoomToFeature(e) {
+        map.fitBounds(e.target.getBounds());
+    }
+
     function onEachFeature(feature, layer) {
-        let countryCode = findCountryCode(feature.id || feature.properties.name);
-        const populationData = window.populationData[countryCode];
-
-        if (populationData) {
-            let center = layer.getBounds().getCenter();
-            let population = formatPopulation(populationData.population);
-            let label = L.marker(center, {
-                icon: L.divIcon({
-                    className: 'population-label',
-                    html: population,
-                    iconSize: [50, 20]
-                })
-            }).addTo(map);
-
-            layer.on({
-                mouseover: (e) => {
-                    layer.setStyle({
-                        weight: 5,
-                        color: '#666',
-                        dashArray: '',
-                        fillOpacity: 0.7
-                    });
-                    layer.bringToFront();
-                    showPopup(e, feature, populationData);
-                },
-                mouseout: (e) => {
-                    geojson.resetStyle(e.target);
-                    map.closePopup();
-                }
-            });
-        }
-    }
-
-    function showPopup(e, feature, populationData) {
-        let popupContent = `
-            <h4>${feature.properties.name}</h4>
-            <p>Population: ${populationData.population.toLocaleString()}</p>
-            <p>Year: ${populationData.year}</p>
-        `;
-        L.popup()
-            .setLatLng(e.latlng)
-            .setContent(popupContent)
-            .openOn(map);
-    }
-
-    function updateMap() {
-        if (geojson) {
-            geojson.setStyle(style);
-        }
-        document.getElementById('yearDisplay').textContent = `Year: ${currentYear}`;
-    }
-
-    function simulatePopulationChange() {
-        Object.values(window.populationData).forEach(country => {
-            const growthRate = Math.random() * 0.02 - 0.01;
-            country.population = Math.round(country.population * (1 + growthRate));
+        layer.on({
+            mouseover: highlightFeature,
+            mouseout: resetHighlight,
+            click: zoomToFeature
         });
-        currentYear++;
-        updateMap();
+    }
+
+    function highlightFeature(e) {
+        var layer = e.target;
+
+        layer.setStyle({
+            weight: 5,
+            color: '#666',
+            dashArray: '',
+            fillOpacity: 0.7
+        });
+
+        if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+            layer.bringToFront();
+        }
+
+        updateInfo(layer.feature.properties);
+    }
+
+    function resetHighlight(e) {
+        geojson.resetStyle(e.target);
+        updateInfo();
+    }
+
+    function getPopulationLabel(countryCode) {
+        const populationData = window.populationData[countryCode];
+        if (populationData) {
+            return formatPopulation(populationData.population);
+        }
+        return 'N/A';
+    }
+
+    function updateInfo(props) {
+        info.update(props);
+    }
+
+    function initInfo() {
+        info = L.control();
+
+        info.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info');
+            this.update();
+            return this._div;
+        };
+
+        info.update = function (props) {
+            this._div.innerHTML = '<h4>Population Info</h4>' + (props ?
+                '<b>' + props.name + '</b><br />Population: ' + getPopulationLabel(findCountryCode(props.name))
+                : 'Hover over a country');
+        };
+
+        info.addTo(map);
+    }
+
+    function initLegend() {
+        const legend = L.control({position: 'bottomright'});
+
+        legend.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'info legend');
+            const grades = [0, 10000000, 20000000, 50000000, 100000000, 200000000, 500000000, 1000000000];
+            const labels = [];
+
+            for (let i = 0; i < grades.length; i++) {
+                labels.push(
+                    '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' +
+                    formatPopulation(grades[i]) + (grades[i + 1] ? '&ndash;' + formatPopulation(grades[i + 1]) : '+')
+                );
+            }
+
+            div.innerHTML = '<h4>Population</h4>' + labels.join('<br>');
+            return div;
+        };
+
+        legend.addTo(map);
     }
 
     function createReverseMapping() {
@@ -135,9 +170,13 @@ window.addEventListener('populationDataReady', () => {
             
             if (data.name === 'United States') {
                 mapping['united states of america'] = code;
+                mapping['usa'] = code;
             }
             if (data.name === 'United Kingdom') {
                 mapping['united kingdom of great britain and northern ireland'] = code;
+                mapping['uk'] = code;
+                mapping['great britain'] = code;
+                mapping['gbr'] = code;
             }
             if (data.name === 'Korea, Rep.') {
                 mapping['south korea'] = code;
@@ -148,30 +187,30 @@ window.addEventListener('populationDataReady', () => {
             if (data.name === 'Congo, Rep.') {
                 mapping['republic of the congo'] = code;
             }
+            if (data.name === 'Russian Federation') {
+                mapping['russia'] = code;
+            }
+            if (data.name === 'Egypt, Arab Rep.') {
+                mapping['egypt'] = code;
+            }
         });
         return mapping;
     }
 
     initMap();
+    initInfo();
+    initLegend();
 
     fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
             reverseMapping = createReverseMapping();
             geojson = L.geoJson(data, {
                 style: style,
                 onEachFeature: onEachFeature
             }).addTo(map);
-            updateMap();
         })
         .catch(error => {
             console.error("Error loading or processing GeoJSON data:", error);
         });
-
-    document.getElementById('simulateBtn').addEventListener('click', simulatePopulationChange);
 });
