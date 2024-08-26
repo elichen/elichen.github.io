@@ -34,6 +34,8 @@ let isCropping = false;
 let startX, startY;
 let activeCorner = null;
 let activeEdge = null;
+let startAngle;
+let initialRotation;
 
 // Set canvas size
 canvas.width = window.innerWidth;
@@ -163,6 +165,10 @@ photoOverlay.addEventListener('mousedown', (e) => {
     if (target.classList.contains('corner')) {
         isRotating = true;
         activeCorner = target;
+        const centerX = currentPhoto.x + currentPhoto.width / 2;
+        const centerY = currentPhoto.y + currentPhoto.height / 2;
+        startAngle = Math.atan2(startY - centerY, startX - centerX);
+        initialRotation = currentPhoto.rotation;
     } else if (target.classList.contains('edge')) {
         isCropping = true;
         activeEdge = target;
@@ -183,8 +189,9 @@ document.addEventListener('mousemove', (e) => {
     } else if (isRotating && activeCorner) {
         const centerX = currentPhoto.x + currentPhoto.width / 2;
         const centerY = currentPhoto.y + currentPhoto.height / 2;
-        const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
-        currentPhoto.rotation = angle;
+        const currentAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+        const angleDelta = currentAngle - startAngle;
+        currentPhoto.rotation = initialRotation + angleDelta;
     } else if (isCropping && activeEdge) {
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
