@@ -1,0 +1,66 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+#whiteboard {
+    width: 100vw;
+    height: 80vh;
+    position: relative;
+}
+
+#canvas {
+    border: 1px solid #ccc;
+}
+
+#controls {
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+#camera {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 10;
+}
+
+#photoOverlay {
+    position: absolute;
+    border: 2px dashed #000;
+    cursor: move;
+}
+
+.corner {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background-color: #fff;
+    border: 1px solid #000;
+    border-radius: 50%;
+}
+
+.top-left { top: -5px; left: -5px; cursor: nw-resize; }
+.top-right { top: -5px; right: -5px; cursor: ne-resize; }
+.bottom-left { bottom: -5px; left: -5px; cursor: sw-resize; }
+.bottom-right { bottom: -5px; right: -5px; cursor: se-resize; }
+
+.edge {
+    position: absolute;
+    background-color: #fff;
+    border: 1px solid #000;
+}
+
+.top, .bottom { height: 4px; left: 10px; right: 10px; cursor: ns-resize; }
+.left, .right { width: 4px; top: 10px; bottom: 10px; cursor: ew-resize; }
+.top { top: -2px; }
+.bottom { bottom: -2px; }
+.left { left: -2px; }
+.right { right: -2px; }

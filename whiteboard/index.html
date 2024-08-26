@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Whiteboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="whiteboard">
+        <canvas id="canvas"></canvas>
+        <div id="photoOverlay" style="display: none;">
+            <div class="corner top-left"></div>
+            <div class="corner top-right"></div>
+            <div class="corner bottom-left"></div>
+            <div class="corner bottom-right"></div>
+            <div class="edge top"></div>
+            <div class="edge right"></div>
+            <div class="edge bottom"></div>
+            <div class="edge left"></div>
+        </div>
+    </div>
+    <div id="controls">
+        <button id="clearBtn">Clear</button>
+        <input type="color" id="colorPicker" value="#000000">
+        <input type="range" id="brushSize" min="1" max="20" value="5">
+        <button id="cameraBtn">Open Camera</button>
+        <button id="saveBtn">Save Drawing</button>
+    </div>
+    <video id="camera" style="display: none;"></video>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    
+    <script src="app.js"></script>
+</body>
+</html>
