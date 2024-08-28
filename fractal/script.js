@@ -57,11 +57,11 @@ const fragmentShaderSource = `
 
     float sierpinski(vec2 p) {
         float scale = 1.0;
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 20; i++) { // Increased from 10 to 20 iterations
             p *= 2.0;
             p -= floor(p * 0.5) * 2.0;
             if (p.x > 1.0 && p.y > 1.0) {
-                return float(i) / 10.0;
+                return float(i) / 20.0; // Updated to match the new iteration count
             }
             scale *= 2.0;
         }
@@ -199,6 +199,9 @@ function handleFractalTypeChange(event) {
     if (fractalType === 'mandelbrot') {
         zoomCenter = { x: -0.745, y: 0.1 };
         zoomLevel = 0.5;
+    } else if (fractalType === 'sierpinski') {
+        zoomCenter = { x: 0, y: -0.2 }; // Adjusted center for Sierpinski
+        zoomLevel = 1.5; // Zoomed out a bit to show more of the pattern
     } else {
         zoomCenter = { x: 0, y: 0 };
         zoomLevel = 1;
