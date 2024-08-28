@@ -1,11 +1,11 @@
 // Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyCdLbg2SCbBOFkt_GpsrbC_EWocU78BMg8",
-    authDomain: "whiteboard-add02.firebaseapp.com",
-    projectId: "whiteboard-add02",
-    storageBucket: "whiteboard-add02.appspot.com",
-    messagingSenderId: "665632893952",
-    appId: "1:665632893952:web:70b8df6b52e5ef72053ce5"
+  apiKey: "AIzaSyBY5S4KJ5rLtPLDgFJN6iJFcIifIJCN1pQ",
+  authDomain: "whiteboard-83579.firebaseapp.com",
+  projectId: "whiteboard-83579",
+  storageBucket: "whiteboard-83579.appspot.com",
+  messagingSenderId: "928410851622",
+  appId: "1:928410851622:web:5aa0eb8e4a131ff11f89e7"
 };
 
 // Initialize Firebase
