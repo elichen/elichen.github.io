@@ -33,6 +33,9 @@ const camera = {
     y: 0
 };
 
+// Add this constant for maximum turn rate (in radians per frame)
+const MAX_TURN_RATE = 0.1;
+
 // Player class
 class Player {
     constructor(id, x, y, color) {
@@ -42,31 +45,61 @@ class Player {
         this.color = color;
         this.segments = [{x, y}];
         this.radius = 10;
-        this.angle = 0; // Add this to keep track of the player's direction
+        this.angle = 0;
+        this.speed = 3; // Always set to initial speed
     }
 
     draw() {
         ctx.fillStyle = this.color;
         if (this.segments && Array.isArray(this.segments)) {
-            this.segments.forEach(segment => {
+            this.segments.forEach((segment) => {
                 const screenX = (segment.x - camera.x + mapWidth) % mapWidth;
                 const screenY = (segment.y - camera.y + mapHeight) % mapHeight;
                 ctx.beginPath();
                 ctx.arc(screenX, screenY, this.radius, 0, Math.PI * 2);
                 ctx.fill();
             });
-        } else {
-            const screenX = (this.x - camera.x + mapWidth) % mapWidth;
-            const screenY = (this.y - camera.y + mapHeight) % mapHeight;
+            
+            // Draw eyes
+            const headX = (this.segments[0].x - camera.x + mapWidth) % mapWidth;
+            const headY = (this.segments[0].y - camera.y + mapHeight) % mapHeight;
+            const eyeOffset = this.radius * 0.3;
+            const eyeRadius = this.radius * 0.2;
+            
+            ctx.fillStyle = 'white';
             ctx.beginPath();
-            ctx.arc(screenX, screenY, this.radius, 0, Math.PI * 2);
+            ctx.arc(headX + Math.cos(this.angle) * eyeOffset, headY + Math.sin(this.angle) * eyeOffset, eyeRadius, 0, Math.PI * 2);
+            ctx.arc(headX + Math.cos(this.angle + 0.5) * eyeOffset, headY + Math.sin(this.angle + 0.5) * eyeOffset, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(headX + Math.cos(this.angle) * eyeOffset, headY + Math.sin(this.angle) * eyeOffset, eyeRadius * 0.5, 0, Math.PI * 2);
+            ctx.arc(headX + Math.cos(this.angle + 0.5) * eyeOffset, headY + Math.sin(this.angle + 0.5) * eyeOffset, eyeRadius * 0.5, 0, Math.PI * 2);
             ctx.fill();
         }
     }
 
-    move() {
-        const dx = Math.cos(this.angle) * PLAYER_SPEED;
-        const dy = Math.sin(this.angle) * PLAYER_SPEED;
+    move(targetAngle) {
+        // Calculate the difference between current angle and target angle
+        let angleDiff = targetAngle - this.angle;
+
+        // Normalize the angle difference to be between -PI and PI
+        angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+
+        // Limit the turn rate
+        if (angleDiff > MAX_TURN_RATE) {
+            angleDiff = MAX_TURN_RATE;
+        } else if (angleDiff < -MAX_TURN_RATE) {
+            angleDiff = -MAX_TURN_RATE;
+        }
+
+        // Update the angle
+        this.angle += angleDiff;
+
+        // Move the player using this.speed instead of PLAYER_SPEED
+        const dx = Math.cos(this.angle) * this.speed;
+        const dy = Math.sin(this.angle) * this.speed;
         this.x = (this.x + dx + mapWidth) % mapWidth;
         this.y = (this.y + dy + mapHeight) % mapHeight;
         this.segments.unshift({x: this.x, y: this.y});
@@ -80,36 +113,28 @@ class Player {
             this.segments.push({...this.segments[this.segments.length - 1]});
         }
         this.radius += 0.5;
-    }
-
-    checkCollision(otherPlayer) {
-        const dx = this.x - otherPlayer.x;
-        const dy = this.y - otherPlayer.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        return distance < this.radius + otherPlayer.radius;
+        // Optionally, increase speed slightly as the player grows
+        // this.speed += 0.01;
     }
 }
 
-// Add this constant for player speed
-const PLAYER_SPEED = 3;
-
 // Game initialization
 function init() {
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+    }
+
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     
-    // Try to retrieve the player's data from localStorage
-    const savedPlayerData = localStorage.getItem('playerData');
-    if (savedPlayerData) {
-        const parsedData = JSON.parse(savedPlayerData);
-        player = new Player(parsedData.id, parsedData.x, parsedData.y, parsedData.color);
-        player.segments = parsedData.segments;
-        player.radius = parsedData.radius;
-    } else {
-        // If no saved data, create a new player
-        const playerId = Math.random().toString(36).substr(2, 9);
-        player = new Player(playerId, Math.random() * mapWidth, Math.random() * mapHeight, getRandomColor());
-    }
+    // Always create a new player with initial speed
+    const playerId = Math.random().toString(36).substr(2, 9);
+    player = new Player(playerId, Math.random() * mapWidth, Math.random() * mapHeight, getRandomColor());
+    
+    // Ensure speed is reset to initial value
+    player.speed = 3;
+    player.radius = 10;
+    player.segments = [{x: player.x, y: player.y}];
     
     // Set up Firebase listeners
     setupFirebaseListeners();
@@ -119,13 +144,20 @@ function init() {
     
     // Start game loop
     gameLoop();
+
+    // Start periodic cleanup of stale players
+    setInterval(cleanupStalePlayers, PLAYER_TIMEOUT);
 }
+
+// Add these variables near the top of the file
+const HEARTBEAT_INTERVAL = 5000; // 5 seconds
+const PLAYER_TIMEOUT = 10000; // 10 seconds
 
 function setupFirebaseListeners() {
     const playersRef = database.ref('players');
     const foodRef = database.ref('food');
     
-    // Update player position and size
+    // Update player position and heartbeat
     setInterval(() => {
         const playerData = {
             x: player.x,
@@ -133,7 +165,9 @@ function setupFirebaseListeners() {
             color: player.color,
             radius: player.radius,
             segments: player.segments,
-            angle: player.angle // Add this line
+            angle: player.angle,
+            speed: player.speed,
+            lastHeartbeat: firebase.database.ServerValue.TIMESTAMP
         };
         playersRef.child(player.id).set(playerData);
         
@@ -142,19 +176,30 @@ function setupFirebaseListeners() {
             id: player.id,
             ...playerData
         }));
-    }, 50);
+    }, HEARTBEAT_INTERVAL);
+    
+    // Set up onDisconnect handler
+    playersRef.child(player.id).onDisconnect().remove();
     
     // Listen for other players
     playersRef.on('value', (snapshot) => {
         players = {};
+        const now = Date.now();
         snapshot.forEach((childSnapshot) => {
             const id = childSnapshot.key;
             const data = childSnapshot.val();
             if (id !== player.id) {
-                const otherPlayer = new Player(id, data.x, data.y, data.color);
-                otherPlayer.radius = data.radius || 10;
-                otherPlayer.segments = Array.isArray(data.segments) ? data.segments : [{x: data.x, y: data.y}];
-                players[id] = otherPlayer;
+                if (now - data.lastHeartbeat < PLAYER_TIMEOUT) {
+                    const otherPlayer = new Player(id, data.x, data.y, data.color);
+                    otherPlayer.radius = data.radius || 10;
+                    otherPlayer.segments = Array.isArray(data.segments) ? data.segments : [{x: data.x, y: data.y}];
+                    otherPlayer.angle = data.angle || 0;
+                    otherPlayer.speed = data.speed || 3;
+                    players[id] = otherPlayer;
+                } else {
+                    // Remove stale player
+                    playersRef.child(id).remove();
+                }
             }
         });
     });
@@ -174,7 +219,8 @@ function initializeFood() {
                 const foodId = Math.random().toString(36).substr(2, 9);
                 newFood[foodId] = {
                     x: Math.random() * mapWidth,
-                    y: Math.random() * mapHeight
+                    y: Math.random() * mapHeight,
+                    color: getRandomColor() // Add random color to food
                 };
             }
             foodRef.set(newFood);
@@ -185,17 +231,17 @@ function initializeFood() {
 function gameLoop() {
     update();
     draw();
-    requestAnimationFrame(gameLoop);
+    animationFrameId = requestAnimationFrame(gameLoop);
 }
 
 function update() {
-    // Update player angle based on mouse position
+    // Calculate target angle based on mouse position
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
-    player.angle = Math.atan2(mouseY - centerY, mouseX - centerX);
+    const targetAngle = Math.atan2(mouseY - centerY, mouseX - centerX);
 
-    // Move player with fixed speed
-    player.move();
+    // Move player with gradual turning
+    player.move(targetAngle);
 
     // Update camera position
     camera.x = player.x - canvas.width / 2;
@@ -213,13 +259,34 @@ function update() {
     });
 
     // Check for collision with other players
-    Object.values(players).forEach(otherPlayer => {
-        if (player.checkCollision(otherPlayer)) {
-            if (player.radius > otherPlayer.radius) {
-                player.grow();
-                database.ref('players').child(otherPlayer.id).remove();
-            } else {
-                gameOver();
+    Object.entries(players).forEach(([id, otherPlayer]) => {
+        if (id !== player.id) {
+            // Check collision with head
+            const dx = (player.x - otherPlayer.x + mapWidth / 2) % mapWidth - mapWidth / 2;
+            const dy = (player.y - otherPlayer.y + mapWidth / 2) % mapHeight - mapHeight / 2;
+            const distance = Math.hypot(dx, dy);
+
+            if (distance < player.radius + otherPlayer.radius) {
+                if (player.segments.length > otherPlayer.segments.length) {
+                    player.grow();
+                    database.ref('players').child(id).remove();
+                } else {
+                    gameOver();
+                    return;
+                }
+            }
+
+            // Check collision with body segments
+            for (let i = 1; i < otherPlayer.segments.length; i++) {
+                const segment = otherPlayer.segments[i];
+                const segDx = (player.x - segment.x + mapWidth / 2) % mapWidth - mapWidth / 2;
+                const segDy = (player.y - segment.y + mapHeight / 2) % mapHeight - mapHeight / 2;
+                const segDistance = Math.hypot(segDx, segDy);
+
+                if (segDistance < player.radius + otherPlayer.radius) {
+                    gameOver();
+                    return;
+                }
             }
         }
     });
@@ -230,7 +297,8 @@ function spawnNewFood() {
     const newFoodId = Math.random().toString(36).substr(2, 9);
     const newFood = {
         x: Math.random() * mapWidth,
-        y: Math.random() * mapHeight
+        y: Math.random() * mapHeight,
+        color: getRandomColor() // Add random color to food
     };
     foodRef.child(newFoodId).set(newFood);
 }
@@ -238,15 +306,39 @@ function spawnNewFood() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
+    // Draw background
+    ctx.fillStyle = '#004080'; // Slightly lighter blue for the game area
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw grid
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.lineWidth = 1;
+    const gridSize = 50;
+    for (let x = -camera.x % gridSize; x < canvas.width; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+    }
+    for (let y = -camera.y % gridSize; y < canvas.height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+    }
+    
     // Draw food
-    ctx.fillStyle = 'green';
     Object.values(food).forEach(f => {
         const screenX = (f.x - camera.x + mapWidth) % mapWidth;
         const screenY = (f.y - camera.y + mapHeight) % mapHeight;
         if (screenX >= 0 && screenX <= canvas.width && screenY >= 0 && screenY <= canvas.height) {
+            ctx.fillStyle = f.color || 'rgba(0, 255, 0, 0.7)'; // Use food color if available
             ctx.beginPath();
             ctx.arc(screenX, screenY, foodSize, 0, Math.PI * 2);
             ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
         }
     });
 
@@ -265,6 +357,9 @@ function drawMinimap() {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillRect(minimapX, minimapY, minimapSize, minimapSize);
     
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.strokeRect(minimapX, minimapY, minimapSize, minimapSize);
+    
     const playerX = (player.x / mapWidth) * minimapSize + minimapX;
     const playerY = (player.y / mapHeight) * minimapSize + minimapY;
     
@@ -275,13 +370,32 @@ function drawMinimap() {
 }
 
 function gameOver() {
-    alert('Game Over!');
+    // Cancel the animation frame
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+    }
+
+    // Show "YOU DIED" message
+    const overlay = document.createElement('div');
+    overlay.id = 'gameOverlay';
+    overlay.style.opacity = '1'; // Set opacity to 1 for immediate display
+    const text = document.createElement('div');
+    text.id = 'gameOverText';
+    text.textContent = 'YOU DIED';
+    overlay.appendChild(text);
+    document.body.appendChild(overlay);
+
     // Remove the player from the database
     database.ref('players').child(player.id).remove();
+    
     // Clear the saved player data
     localStorage.removeItem('playerData');
-    // Restart the game
-    init();
+    
+    // Restart the game after a short delay
+    setTimeout(() => {
+        document.body.removeChild(overlay);
+        init();
+    }, 2000); // Show message for 2 seconds
 }
 
 // Helper functions
@@ -309,3 +423,23 @@ window.addEventListener('beforeunload', () => {
 
 // Start the game
 window.addEventListener('load', init);
+
+let animationFrameId;
+
+// Add this function to periodically clean up stale players
+function cleanupStalePlayers() {
+    const playersRef = database.ref('players');
+    const now = Date.now();
+    playersRef.once('value', (snapshot) => {
+        snapshot.forEach((childSnapshot) => {
+            const id = childSnapshot.key;
+            const data = childSnapshot.val();
+            if (now - data.lastHeartbeat > PLAYER_TIMEOUT) {
+                playersRef.child(id).remove();
+            }
+        });
+    });
+}
+
+// Call cleanupStalePlayers periodically
+setInterval(cleanupStalePlayers, PLAYER_TIMEOUT);
