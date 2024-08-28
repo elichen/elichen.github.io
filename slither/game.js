@@ -19,9 +19,19 @@ const ctx = canvas.getContext('2d');
 let player;
 let players = {};
 let food = {};
-const foodCount = 50;
+const foodCount = 200; // Increased food count for larger map
 const foodSize = 5;
 const growthRate = 2;
+
+// Map size (larger than canvas)
+const mapWidth = 5000;
+const mapHeight = 5000;
+
+// Camera
+const camera = {
+    x: 0,
+    y: 0
+};
 
 // Player class
 class Player {
@@ -32,27 +42,33 @@ class Player {
         this.color = color;
         this.segments = [{x, y}];
         this.radius = 10;
+        this.angle = 0; // Add this to keep track of the player's direction
     }
 
     draw() {
         ctx.fillStyle = this.color;
         if (this.segments && Array.isArray(this.segments)) {
             this.segments.forEach(segment => {
+                const screenX = (segment.x - camera.x + mapWidth) % mapWidth;
+                const screenY = (segment.y - camera.y + mapHeight) % mapHeight;
                 ctx.beginPath();
-                ctx.arc(segment.x, segment.y, this.radius, 0, Math.PI * 2);
+                ctx.arc(screenX, screenY, this.radius, 0, Math.PI * 2);
                 ctx.fill();
             });
         } else {
-            // Fallback if segments are not available
+            const screenX = (this.x - camera.x + mapWidth) % mapWidth;
+            const screenY = (this.y - camera.y + mapHeight) % mapHeight;
             ctx.beginPath();
-            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.arc(screenX, screenY, this.radius, 0, Math.PI * 2);
             ctx.fill();
         }
     }
 
-    move(dx, dy) {
-        this.x += dx;
-        this.y += dy;
+    move() {
+        const dx = Math.cos(this.angle) * PLAYER_SPEED;
+        const dy = Math.sin(this.angle) * PLAYER_SPEED;
+        this.x = (this.x + dx + mapWidth) % mapWidth;
+        this.y = (this.y + dy + mapHeight) % mapHeight;
         this.segments.unshift({x: this.x, y: this.y});
         if (this.segments.length > this.radius * 2) {
             this.segments.pop();
@@ -74,6 +90,9 @@ class Player {
     }
 }
 
+// Add this constant for player speed
+const PLAYER_SPEED = 3;
+
 // Game initialization
 function init() {
     canvas.width = window.innerWidth;
@@ -89,7 +108,7 @@ function init() {
     } else {
         // If no saved data, create a new player
         const playerId = Math.random().toString(36).substr(2, 9);
-        player = new Player(playerId, Math.random() * canvas.width, Math.random() * canvas.height, getRandomColor());
+        player = new Player(playerId, Math.random() * mapWidth, Math.random() * mapHeight, getRandomColor());
     }
     
     // Set up Firebase listeners
@@ -113,7 +132,8 @@ function setupFirebaseListeners() {
             y: player.y,
             color: player.color,
             radius: player.radius,
-            segments: player.segments
+            segments: player.segments,
+            angle: player.angle // Add this line
         };
         playersRef.child(player.id).set(playerData);
         
@@ -153,8 +173,8 @@ function initializeFood() {
             for (let i = 0; i < foodCount; i++) {
                 const foodId = Math.random().toString(36).substr(2, 9);
                 newFood[foodId] = {
-                    x: Math.random() * canvas.width,
-                    y: Math.random() * canvas.height
+                    x: Math.random() * mapWidth,
+                    y: Math.random() * mapHeight
                 };
             }
             foodRef.set(newFood);
@@ -169,14 +189,23 @@ function gameLoop() {
 }
 
 function update() {
-    // Move player based on mouse position
-    const dx = (mouseX - player.x) * 0.1;
-    const dy = (mouseY - player.y) * 0.1;
-    player.move(dx, dy);
+    // Update player angle based on mouse position
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    player.angle = Math.atan2(mouseY - centerY, mouseX - centerX);
+
+    // Move player with fixed speed
+    player.move();
+
+    // Update camera position
+    camera.x = player.x - canvas.width / 2;
+    camera.y = player.y - canvas.height / 2;
 
     // Check for food collision
     Object.entries(food).forEach(([foodId, f]) => {
-        if (Math.hypot(player.x - f.x, player.y - f.y) < player.radius + foodSize) {
+        const dx = (player.x - f.x + mapWidth / 2) % mapWidth - mapWidth / 2;
+        const dy = (player.y - f.y + mapHeight / 2) % mapHeight - mapHeight / 2;
+        if (Math.hypot(dx, dy) < player.radius + foodSize) {
             player.grow();
             database.ref(`food/${foodId}`).remove();
             spawnNewFood();
@@ -187,12 +216,9 @@ function update() {
     Object.values(players).forEach(otherPlayer => {
         if (player.checkCollision(otherPlayer)) {
             if (player.radius > otherPlayer.radius) {
-                // Player wins, grow based on other player's size
                 player.grow();
-                // Remove the defeated player
                 database.ref('players').child(otherPlayer.id).remove();
             } else {
-                // Game over for the current player
                 gameOver();
             }
         }
@@ -203,8 +229,8 @@ function spawnNewFood() {
     const foodRef = database.ref('food');
     const newFoodId = Math.random().toString(36).substr(2, 9);
     const newFood = {
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height
+        x: Math.random() * mapWidth,
+        y: Math.random() * mapHeight
     };
     foodRef.child(newFoodId).set(newFood);
 }
@@ -215,13 +241,37 @@ function draw() {
     // Draw food
     ctx.fillStyle = 'green';
     Object.values(food).forEach(f => {
-        ctx.beginPath();
-        ctx.arc(f.x, f.y, foodSize, 0, Math.PI * 2);
-        ctx.fill();
+        const screenX = (f.x - camera.x + mapWidth) % mapWidth;
+        const screenY = (f.y - camera.y + mapHeight) % mapHeight;
+        if (screenX >= 0 && screenX <= canvas.width && screenY >= 0 && screenY <= canvas.height) {
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, foodSize, 0, Math.PI * 2);
+            ctx.fill();
+        }
     });
 
     player.draw();
     Object.values(players).forEach(p => p.draw());
+
+    // Draw minimap
+    drawMinimap();
+}
+
+function drawMinimap() {
+    const minimapSize = 150;
+    const minimapX = canvas.width - minimapSize - 10;
+    const minimapY = canvas.height - minimapSize - 10;
+    
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(minimapX, minimapY, minimapSize, minimapSize);
+    
+    const playerX = (player.x / mapWidth) * minimapSize + minimapX;
+    const playerY = (player.y / mapHeight) * minimapSize + minimapY;
+    
+    ctx.fillStyle = player.color;
+    ctx.beginPath();
+    ctx.arc(playerX, playerY, 3, 0, Math.PI * 2);
+    ctx.fill();
 }
 
 function gameOver() {
