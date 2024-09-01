@@ -9,42 +9,65 @@ let spinning = false;
 
 spinButton.addEventListener('click', spin);
 
+// Initialize reels
+reels.forEach(initializeReel);
+
+function initializeReel(reel) {
+    // Create a long strip of emojis
+    const reelStrip = [...emojis, ...emojis, ...emojis, ...emojis, ...emojis];
+    reelStrip.forEach(emoji => {
+        const div = document.createElement('div');
+        div.textContent = emoji;
+        reel.appendChild(div);
+    });
+}
+
 function spin() {
-    if (spinning || balance < 1) {
-        return;
-    }
+    if (spinning || balance < 1) return;
 
     spinning = true;
     balance -= 1;
     updateBalance();
     winMessageElement.textContent = '';
+    spinButton.disabled = true;
 
-    const spinDuration = 2000; // 2 seconds
-    const fps = 30; // Frames per second
-    const totalFrames = (spinDuration / 1000) * fps;
+    const spinDuration = 3000; // 3 seconds
 
-    let frame = 0;
-    const spinInterval = setInterval(() => {
-        reels.forEach((reel) => {
-            const randomIndex = Math.floor(Math.random() * emojis.length);
-            reel.textContent = emojis[randomIndex];
+    reels.forEach((reel, index) => {
+        // Remove previous spin classes
+        reel.classList.remove('spin-animation', 'stop-animation');
+        
+        // Trigger reflow
+        void reel.offsetWidth;
+        
+        // Add spin animation with delay
+        reel.style.animationDelay = `${index * 0.2}s`;
+        reel.classList.add('spin-animation');
+    });
+
+    // Stop the reels and check for win
+    setTimeout(() => {
+        reels.forEach((reel, index) => {
+            reel.classList.remove('spin-animation');
+            reel.classList.add('stop-animation');
+            
+            // Randomize final position
+            const finalPosition = -Math.floor(Math.random() * emojis.length) * 80;
+            reel.style.transform = `translateY(${finalPosition}px)`;
         });
 
-        frame++;
-
-        if (frame >= totalFrames) {
-            clearInterval(spinInterval);
-            checkWin();
-            spinning = false;
-            spinButton.disabled = false;
-        }
-    }, 1000 / fps);
-
-    spinButton.disabled = true;
+        setTimeout(checkWin, 200);
+    }, spinDuration);
 }
 
 function checkWin() {
-    const results = reels.map(reel => reel.textContent);
+    const results = reels.map(reel => {
+        const transform = getComputedStyle(reel).getPropertyValue('transform');
+        const matrix = new DOMMatrix(transform);
+        const currentPosition = Math.abs(matrix.m42);
+        const visibleIndex = Math.round(currentPosition / 80) % emojis.length;
+        return emojis[visibleIndex];
+    });
 
     if (results[0] === results[1] && results[1] === results[2]) {
         if (results[0] === '🍒') {
@@ -62,6 +85,8 @@ function checkWin() {
     }
 
     updateBalance();
+    spinning = false;
+    spinButton.disabled = false;
 }
 
 function displayWinMessage(message) {

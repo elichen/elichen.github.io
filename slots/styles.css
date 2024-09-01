@@ -29,18 +29,43 @@ h1 {
     margin: 20px 0;
 }
 
-.reel {
-    font-size: 48px;
+.reel-container {
     width: 80px;
     height: 80px;
     margin: 0 10px;
     background-color: white;
     border: 2px solid #333;
     border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.reel {
+    display: flex;
+    flex-direction: column;
+}
+
+.reel div {
+    font-size: 48px;
+    width: 80px;
+    height: 80px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0; /* Prevent emoji shrinking */
+}
+
+@keyframes spin {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-400px); } /* Adjust based on total height of emojis */
+}
+
+.spin-animation {
+    animation: spin 0.5s linear infinite;
+}
+
+.stop-animation {
+    transition: transform 0.5s ease-out;
 }
 
 button {
