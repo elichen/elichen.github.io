@@ -1,0 +1,98 @@
+body {
+    font-family: 'Arial', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f0f0f0;
+    background-image: linear-gradient(45deg, #f3ec78, #af4261);
+}
+
+.container {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    min-height: 500px; /* Adjust this value as needed */
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 20px;
+}
+
+#slot-machine {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+
+.reel {
+    font-size: 48px;
+    width: 80px;
+    height: 80px;
+    margin: 0 10px;
+    background-color: white;
+    border: 2px solid #333;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+button {
+    font-size: 18px;
+    padding: 10px 20px;
+    cursor: pointer;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+#balance, #win-message {
+    font-size: 18px;
+    margin: 10px 0;
+}
+
+#win-message {
+    font-weight: bold;
+    color: #4CAF50;
+    height: 1.2em; /* Reserve space for one line of text */
+    line-height: 1.2em;
+    margin: 10px 0;
+}
+
+#rules {
+    margin-top: 20px;
+    border-collapse: collapse;
+    width: 100%;
+}
+
+#rules th, #rules td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+
+#rules th {
+    background-color: #f2f2f2;
+    color: #333;
+}
+
+#rules tr:nth-child(even) {
+    background-color: #f9f9f9;
+}

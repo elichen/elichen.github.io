@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emoji Slot Machine</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Emoji Slot Machine</h1>
+        <div id="slot-machine">
+            <div id="reel1" class="reel">🍎</div>
+            <div id="reel2" class="reel">🍋</div>
+            <div id="reel3" class="reel">🍒</div>
+        </div>
+        <button id="spin-button">Spin ($1)</button>
+        <p id="balance">Balance: $<span>10</span></p>
+        <p id="win-message"></p>
+        <table id="rules">
+            <tr>
+                <th>Combination</th>
+                <th>Prize</th>
+            </tr>
+            <tr>
+                <td>Any 2 matching</td>
+                <td>$2</td>
+            </tr>
+            <tr>
+                <td>Any 3 matching</td>
+                <td>$5</td>
+            </tr>
+            <tr>
+                <td>3 🍒</td>
+                <td>$10</td>
+            </tr>
+        </table>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
