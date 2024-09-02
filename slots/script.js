@@ -4,7 +4,7 @@ const spinButton = document.getElementById('spin-button');
 const balanceElement = document.getElementById('balance').querySelector('span');
 const winMessageElement = document.getElementById('win-message');
 
-let balance = 10;
+let balance = 100; // Starting balance changed to $100
 let spinning = false;
 
 spinButton.addEventListener('click', spin);
@@ -71,11 +71,11 @@ function checkWin() {
 
     if (results[0] === results[1] && results[1] === results[2]) {
         if (results[0] === '🍒') {
-            balance += 10;
-            displayWinMessage('Jackpot! You won $10!');
+            balance += 100;
+            displayWinMessage('Jackpot! You won $100!');
         } else {
-            balance += 5;
-            displayWinMessage('You won $5! (3 matching)');
+            balance += 10;
+            displayWinMessage('You won $10! (3 matching)');
         }
     } else if (results[0] === results[1] || results[1] === results[2] || results[0] === results[2]) {
         balance += 2;
