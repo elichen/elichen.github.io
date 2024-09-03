@@ -12,6 +12,19 @@ const firebaseConfig = {
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
+const auth = firebase.auth();
+
+// Authenticate anonymously
+auth.signInAnonymously().catch(error => {
+  console.error("Error during anonymous authentication:", error);
+});
+
+// Wait for authentication before starting the game
+auth.onAuthStateChanged(user => {
+  if (user) {
+    init();
+  }
+});
 
 // Game variables
 const canvas = document.getElementById('gameCanvas');
@@ -127,8 +140,8 @@ function init() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     
-    // Always create a new player with initial speed
-    const playerId = Math.random().toString(36).substr(2, 9);
+    // Create a new player with initial speed
+    const playerId = auth.currentUser.uid;
     player = new Player(playerId, Math.random() * mapWidth, Math.random() * mapHeight, getRandomColor());
     
     // Ensure speed is reset to initial value
@@ -159,27 +172,31 @@ function setupFirebaseListeners() {
     
     // Update player position and heartbeat
     setInterval(() => {
-        const playerData = {
-            x: player.x,
-            y: player.y,
-            color: player.color,
-            radius: player.radius,
-            segments: player.segments,
-            angle: player.angle,
-            speed: player.speed,
-            lastHeartbeat: firebase.database.ServerValue.TIMESTAMP
-        };
-        playersRef.child(player.id).set(playerData);
-        
-        // Save player data to localStorage
-        localStorage.setItem('playerData', JSON.stringify({
-            id: player.id,
-            ...playerData
-        }));
+        if (auth.currentUser) {
+            const playerData = {
+                x: player.x,
+                y: player.y,
+                color: player.color,
+                radius: player.radius,
+                segments: player.segments,
+                angle: player.angle,
+                speed: player.speed,
+                lastHeartbeat: firebase.database.ServerValue.TIMESTAMP
+            };
+            playersRef.child(auth.currentUser.uid).set(playerData);
+            
+            // Save player data to localStorage
+            localStorage.setItem('playerData', JSON.stringify({
+                id: auth.currentUser.uid,
+                ...playerData
+            }));
+        }
     }, HEARTBEAT_INTERVAL);
     
     // Set up onDisconnect handler
-    playersRef.child(player.id).onDisconnect().remove();
+    if (auth.currentUser) {
+        playersRef.child(auth.currentUser.uid).onDisconnect().remove();
+    }
     
     // Listen for other players
     playersRef.on('value', (snapshot) => {
@@ -188,7 +205,7 @@ function setupFirebaseListeners() {
         snapshot.forEach((childSnapshot) => {
             const id = childSnapshot.key;
             const data = childSnapshot.val();
-            if (id !== player.id) {
+            if (auth.currentUser && id !== auth.currentUser.uid) {
                 if (now - data.lastHeartbeat < PLAYER_TIMEOUT) {
                     const otherPlayer = new Player(id, data.x, data.y, data.color);
                     otherPlayer.radius = data.radius || 10;
@@ -260,7 +277,7 @@ function update() {
 
     // Check for collision with other players
     Object.entries(players).forEach(([id, otherPlayer]) => {
-        if (id !== player.id) {
+        if (id !== auth.currentUser.uid) {
             // Check collision with head
             const dx = (player.x - otherPlayer.x + mapWidth / 2) % mapWidth - mapWidth / 2;
             const dy = (player.y - otherPlayer.y + mapWidth / 2) % mapHeight - mapHeight / 2;
@@ -293,14 +310,16 @@ function update() {
 }
 
 function spawnNewFood() {
-    const foodRef = database.ref('food');
-    const newFoodId = Math.random().toString(36).substr(2, 9);
-    const newFood = {
-        x: Math.random() * mapWidth,
-        y: Math.random() * mapHeight,
-        color: getRandomColor() // Add random color to food
-    };
-    foodRef.child(newFoodId).set(newFood);
+    if (auth.currentUser) {
+        const foodRef = database.ref('food');
+        const newFoodId = Math.random().toString(36).substr(2, 9);
+        const newFood = {
+            x: Math.random() * mapWidth,
+            y: Math.random() * mapHeight,
+            color: getRandomColor()
+        };
+        foodRef.child(newFoodId).set(newFood);
+    }
 }
 
 function draw() {
@@ -386,7 +405,9 @@ function gameOver() {
     document.body.appendChild(overlay);
 
     // Remove the player from the database
-    database.ref('players').child(player.id).remove();
+    if (auth.currentUser) {
+        database.ref('players').child(auth.currentUser.uid).remove();
+    }
     
     // Clear the saved player data
     localStorage.removeItem('playerData');
@@ -418,27 +439,28 @@ window.addEventListener('resize', () => {
 // Add an event listener for when the page is about to unload
 window.addEventListener('beforeunload', () => {
     // Remove the player from the database when the page closes
-    database.ref('players').child(player.id).remove();
+    if (auth.currentUser) {
+        database.ref('players').child(auth.currentUser.uid).remove();
+    }
 });
-
-// Start the game
-window.addEventListener('load', init);
 
 let animationFrameId;
 
 // Add this function to periodically clean up stale players
 function cleanupStalePlayers() {
-    const playersRef = database.ref('players');
-    const now = Date.now();
-    playersRef.once('value', (snapshot) => {
-        snapshot.forEach((childSnapshot) => {
-            const id = childSnapshot.key;
-            const data = childSnapshot.val();
-            if (now - data.lastHeartbeat > PLAYER_TIMEOUT) {
-                playersRef.child(id).remove();
-            }
+    if (auth.currentUser) {
+        const playersRef = database.ref('players');
+        const now = Date.now();
+        playersRef.once('value', (snapshot) => {
+            snapshot.forEach((childSnapshot) => {
+                const id = childSnapshot.key;
+                const data = childSnapshot.val();
+                if (now - data.lastHeartbeat > PLAYER_TIMEOUT) {
+                    playersRef.child(id).remove();
+                }
+            });
         });
-    });
+    }
 }
 
 // Call cleanupStalePlayers periodically
