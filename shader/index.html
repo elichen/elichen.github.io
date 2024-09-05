@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cool WebGL Shaders</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <canvas id="glCanvas"></canvas>
+        <div class="controls">
+            <button id="prevShader">&lt;</button>
+            <span id="shaderName">Ripple</span>
+            <button id="nextShader">&gt;</button>
+        </div>
+        <div id="shaderExplanation"></div>
+        <div id="webglExplanation">
+            <h3>WebGL Shader Programming Primer</h3>
+            <p>WebGL shaders are programs that run on the GPU, allowing for efficient and complex graphical effects. There are two types of shaders:</p>
+            <ul>
+                <li><strong>Vertex Shaders:</strong> Process vertex data, determining the position of each vertex on the screen.</li>
+                <li><strong>Fragment Shaders:</strong> Determine the color of each pixel within the shapes defined by the vertex shader.</li>
+            </ul>
+            <p>Shaders are written in GLSL (OpenGL Shading Language), which is similar to C. They use uniforms for input values that remain constant for all vertices/fragments, and varyings to pass data from vertex to fragment shaders.</p>
+            <p>Common operations in shaders include vector and matrix math, as well as built-in functions for trigonometry, interpolation, and more.</p>
+            <p>To learn more, check out <a href="https://webglfundamentals.org/" target="_blank">WebGL Fundamentals</a> or <a href="https://thebookofshaders.com/" target="_blank">The Book of Shaders</a>.</p>
+        </div>
+    </div>
+    <script src="shaders.js"></script>
+</body>
+</html>
