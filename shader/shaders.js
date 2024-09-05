@@ -79,6 +79,166 @@ const shaders = [
         `,
         explanation: 'This shader generates a fractal pattern using the Julia set. It iterates through a mathematical formula to create complex, self-similar shapes that evolve over time.',
         sourceLink: 'shaders.js#L39-L62'
+    },
+    {
+        name: 'Voronoi',
+        vertex: `
+            attribute vec4 a_position;
+            void main() {
+                gl_Position = a_position;
+            }
+        `,
+        fragment: `
+            precision mediump float;
+            uniform vec2 u_resolution;
+            uniform float u_time;
+
+            vec2 random2(vec2 p) {
+                return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);
+            }
+
+            void main() {
+                vec2 st = gl_FragCoord.xy/u_resolution.xy;
+                st.x *= u_resolution.x/u_resolution.y;
+                vec3 color = vec3(.0);
+
+                // Scale
+                st *= 5.;
+
+                // Tile the space
+                vec2 i_st = floor(st);
+                vec2 f_st = fract(st);
+
+                float m_dist = 1.;  // minimum distance
+
+                for (int y= -1; y <= 1; y++) {
+                    for (int x= -1; x <= 1; x++) {
+                        // Neighbor place in the grid
+                        vec2 neighbor = vec2(float(x),float(y));
+
+                        // Random position from current + neighbor place in the grid
+                        vec2 point = random2(i_st + neighbor);
+
+                        // Animate the point
+                        point = 0.5 + 0.5*sin(u_time + 6.2831*point);
+
+                        // Vector between the pixel and the point
+                        vec2 diff = neighbor + point - f_st;
+
+                        // Distance to the point
+                        float dist = length(diff);
+
+                        // Keep the closer distance
+                        m_dist = min(m_dist, dist);
+                    }
+                }
+
+                // Draw the min distance (distance field)
+                color += m_dist;
+
+                // Draw cell center
+                color += 1.-step(.02, m_dist);
+
+                // Draw grid
+                color.r += step(.98, f_st.x) + step(.98, f_st.y);
+
+                gl_FragColor = vec4(color,1.0);
+            }
+        `,
+        explanation: 'This shader creates a Voronoi diagram, which divides the space into cells based on the distance to a set of points. The points move over time, creating an animated cellular pattern.'
+    },
+    {
+        name: 'Noise',
+        vertex: `
+            attribute vec4 a_position;
+            void main() {
+                gl_Position = a_position;
+            }
+        `,
+        fragment: `
+            precision mediump float;
+            uniform vec2 u_resolution;
+            uniform float u_time;
+
+            float random (in vec2 st) {
+                return fract(sin(dot(st.xy,
+                                     vec2(12.9898,78.233)))
+                             * 43758.5453123);
+            }
+
+            float noise (in vec2 st) {
+                vec2 i = floor(st);
+                vec2 f = fract(st);
+
+                float a = random(i);
+                float b = random(i + vec2(1.0, 0.0));
+                float c = random(i + vec2(0.0, 1.0));
+                float d = random(i + vec2(1.0, 1.0));
+
+                vec2 u = f * f * (3.0 - 2.0 * f);
+
+                return mix(a, b, u.x) +
+                        (c - a)* u.y * (1.0 - u.x) +
+                        (d - b) * u.x * u.y;
+            }
+
+            void main() {
+                vec2 st = gl_FragCoord.xy/u_resolution.xy;
+                st.x *= u_resolution.x/u_resolution.y;
+
+                vec3 color = vec3(0.0);
+
+                vec2 pos = vec2(st*10.0);
+
+                color = vec3(noise(pos + u_time));
+
+                gl_FragColor = vec4(color,1.0);
+            }
+        `,
+        explanation: 'This shader demonstrates Perlin noise, a type of gradient noise used to create natural-looking textures and animations. The noise pattern evolves over time.'
+    },
+    {
+        name: 'Wave',
+        vertex: `
+            attribute vec4 a_position;
+            void main() {
+                gl_Position = a_position;
+            }
+        `,
+        fragment: `
+            precision mediump float;
+            uniform vec2 u_resolution;
+            uniform float u_time;
+
+            void main() {
+                vec2 st = gl_FragCoord.xy/u_resolution.xy;
+                st.x *= u_resolution.x/u_resolution.y;
+                
+                vec3 color = vec3(0.0);
+                float d = 0.0;
+
+                // Generate multiple waves
+                for(float i = 1.0; i < 6.0; i++){
+                    d += sin(st.x*10.0*i + u_time + i*1.5) * 0.1 / i;
+                }
+                
+                // Create wave effect
+                float wave = smoothstep(0.5 + d, 0.5 + d + 0.01, st.y);
+
+                // Color the wave
+                color = mix(
+                    vec3(0.1, 0.3, 0.5),  // Deep water color
+                    vec3(0.2, 0.7, 0.9),  // Shallow water color
+                    wave
+                );
+
+                // Add some highlights
+                color += vec3(1.0, 1.0, 0.8) * smoothstep(0.49, 0.5, st.y + d);
+
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `,
+        explanation: 'This shader creates an animated wave pattern. It uses multiple sine waves to generate a complex wave shape, and then applies color gradients to create a water-like effect with highlights.'
     }
 ];
 
@@ -139,7 +299,7 @@ function render(gl, program, time) {
 
 function resizeCanvas() {
     const containerWidth = canvas.parentElement.clientWidth;
-    const size = Math.min(containerWidth, 800); // Increased max size to 800px
+    const size = Math.min(containerWidth, 600); // Increased max size to 600px
     canvas.width = size;
     canvas.height = size; // Make it square
     gl.viewport(0, 0, canvas.width, canvas.height);
