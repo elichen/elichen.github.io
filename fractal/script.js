@@ -39,29 +39,29 @@ const fragmentShaderSource = `
 
     float mandelbrot(vec2 c) {
         vec2 z = vec2(0.0);
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 200; i++) {
             z = complexMul(z, z) + c;
-            if (dot(z, z) > 4.0) return float(i) / 1000.0;
+            if (dot(z, z) > 4.0) return float(i) / 200.0;
         }
         return 0.0;
     }
 
     float julia(vec2 z) {
         vec2 c = vec2(-0.4, 0.6);
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 200; i++) {
             z = complexMul(z, z) + c;
-            if (dot(z, z) > 4.0) return float(i) / 1000.0;
+            if (dot(z, z) > 4.0) return float(i) / 200.0;
         }
         return 0.0;
     }
 
     float sierpinski(vec2 p) {
         float scale = 1.0;
-        for (int i = 0; i < 20; i++) { // Increased from 10 to 20 iterations
+        for (int i = 0; i < 30; i++) {
             p *= 2.0;
             p -= floor(p * 0.5) * 2.0;
             if (p.x > 1.0 && p.y > 1.0) {
-                return float(i) / 20.0; // Updated to match the new iteration count
+                return float(i) / 30.0;
             }
             scale *= 2.0;
         }
