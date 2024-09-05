@@ -93,8 +93,6 @@ const fragmentShaderSource = `
 
 let maxLateralZoom = 0.9; // Adjust this value to control the maximum lateral movement
 
-let mousePosition = { x: -0.745, y: 0.1 }; // Match initial zoom center
-
 function updateZoom() {
     const zoomFactor = zoomSpeed;
     const newZoomLevel = zoomLevel * zoomFactor;
@@ -224,8 +222,8 @@ window.onload = () => {
     document.addEventListener('touchmove', preventZoom, { passive: false });
     
     // Set initial mouse and zoom center positions to the interesting point
-    mousePosition = { x: -0.745, y: 0.1 };
-    zoomCenter = { x: -0.745, y: 0.1 };
+    mousePosition = { x: 0.0, y: 0.0 };
+    zoomCenter = { x: 2.5, y: 0.1 };;
     
     animate();
 };
