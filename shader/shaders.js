@@ -334,6 +334,162 @@ const shaders = [
             }
         `,
         explanation: 'This shader generates a swirling neon plasma effect. It uses iterative distortions and color blending to create a vibrant, constantly evolving pattern reminiscent of psychedelic art.'
+    },
+    {
+        name: 'Organic Tentacles',
+        vertex: `
+            attribute vec4 a_position;
+            void main() {
+                gl_Position = a_position;
+            }
+        `,
+        fragment: `
+            precision mediump float;
+            uniform vec2 u_resolution;
+            uniform float u_time;
+            
+            float sdSphere(vec3 p, float s) {
+                return length(p) - s;
+            }
+            
+            float map(vec3 p) {
+                float d = 2.0;
+                for (int i = 0; i < 16; i++) {
+                    float fi = float(i);
+                    float time = u_time * (0.7 + 0.1 * cos(fi * 213.37));
+                    vec3 move = vec3(cos(time * 0.3 + fi) * 0.5, cos(time * 0.2 + fi) * 0.5, cos(time * 0.5 + fi) * 0.5);
+                    d = min(d, sdSphere(p + move, 0.3));
+                }
+                return d;
+            }
+            
+            void main() {
+                vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / u_resolution.y;
+                vec3 col = vec3(0.0);
+                
+                vec3 ro = vec3(0.0, 0.0, -3.0);
+                vec3 rd = normalize(vec3(uv, 1.0));
+                
+                float t = 0.0;
+                for (int i = 0; i < 80; i++) {
+                    vec3 p = ro + rd * t;
+                    float d = map(p);
+                    if (d < 0.001) {
+                        col = vec3(0.2, 0.8, 0.4) * (1.0 - float(i) / 80.0);
+                        break;
+                    }
+                    t += d;
+                }
+                
+                gl_FragColor = vec4(col, 1.0);
+            }
+        `,
+        explanation: 'This shader creates an organic, tentacle-like structure using ray marching and distance fields. The tentacles move and intertwine in a fluid, life-like manner.'
+    },
+    {
+        name: 'Quantum Foam',
+        vertex: `
+            attribute vec4 a_position;
+            void main() {
+                gl_Position = a_position;
+            }
+        `,
+        fragment: `
+            precision mediump float;
+            uniform vec2 u_resolution;
+            uniform float u_time;
+            
+            vec3 random3(vec3 c) {
+                float j = 4096.0 * sin(dot(c, vec3(17.0, 59.4, 15.0)));
+                vec3 r;
+                r.z = fract(512.0 * j);
+                j *= .125;
+                r.x = fract(512.0 * j);
+                j *= .125;
+                r.y = fract(512.0 * j);
+                return r - 0.5;
+            }
+
+            float noise(vec3 p) {
+                vec3 i = floor(p);
+                vec3 f = fract(p);
+                f = f * f * (3.0 - 2.0 * f);
+                
+                return mix(mix(mix(dot(random3(i + vec3(0,0,0)), f - vec3(0,0,0)),  
+                                   dot(random3(i + vec3(1,0,0)), f - vec3(1,0,0)), f.x),
+                               mix(dot(random3(i + vec3(0,1,0)), f - vec3(0,1,0)),  
+                                   dot(random3(i + vec3(1,1,0)), f - vec3(1,1,0)), f.x), f.y),
+                           mix(mix(dot(random3(i + vec3(0,0,1)), f - vec3(0,0,1)),  
+                                   dot(random3(i + vec3(1,0,1)), f - vec3(1,0,1)), f.x),
+                               mix(dot(random3(i + vec3(0,1,1)), f - vec3(0,1,1)),  
+                                   dot(random3(i + vec3(1,1,1)), f - vec3(1,1,1)), f.x), f.y), f.z);
+            }
+            
+            void main() {
+                vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / min(u_resolution.x, u_resolution.y);
+                
+                float n = 0.0;
+                for (float i = 1.0; i < 8.0; i++) {
+                    float t = u_time * 0.1 / i;
+                    n += noise(vec3(uv * i * 2.0, t)) / i;
+                }
+                
+                vec3 color = vec3(0.5 + 0.5 * sin(n * 10.0 + u_time),
+                                   0.5 + 0.5 * sin(n * 11.0 + u_time + 2.0),
+                                   0.5 + 0.5 * sin(n * 12.0 + u_time + 4.0));
+                
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `,
+        explanation: 'This shader simulates a quantum foam-like effect, creating a dynamic and colorful pattern that seems to bubble and shift unpredictably.'
+    },
+    {
+        name: 'Bioluminescent Pulse',
+        vertex: `
+            attribute vec4 a_position;
+            void main() {
+                gl_Position = a_position;
+            }
+        `,
+        fragment: `
+            precision mediump float;
+            uniform vec2 u_resolution;
+            uniform float u_time;
+            
+            float voronoi(vec2 x) {
+                vec2 n = floor(x);
+                vec2 f = fract(x);
+
+                float m = 8.0;
+                for(int j = -1; j <= 1; j++) {
+                    for(int i = -1; i <= 1; i++) {
+                        vec2 g = vec2(float(i), float(j));
+                        vec2 o = fract(sin(vec2(dot(n + g, vec2(13.0, 7.0)), dot(n + g, vec2(7.0, 13.0)))) * 43758.5453);
+                        o = 0.5 + 0.5 * sin(u_time + 6.2831 * o);
+                        vec2 r = g + o - f;
+                        float d = dot(r, r);
+                        m = min(m, d);
+                    }
+                }
+                return sqrt(m);
+            }
+            
+            void main() {
+                vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+                uv.x *= u_resolution.x / u_resolution.y;
+                uv *= 5.0;
+                
+                float v = voronoi(uv);
+                float pulse = 0.5 + 0.5 * sin(u_time * 2.0 - v * 10.0);
+                
+                vec3 col = vec3(0.0, 0.3, 0.5);
+                col += vec3(0.0, 0.5, 0.5) * pulse * (1.0 - v);
+                col += vec3(0.0, 0.8, 0.8) * pow(1.0 - v, 10.0);
+                
+                gl_FragColor = vec4(col, 1.0);
+            }
+        `,
+        explanation: 'This shader creates a bioluminescent effect with pulsating, organic-looking patterns. It combines Voronoi noise with sine waves to produce a fluid, living texture.'
     }
 ];
 
@@ -394,9 +550,9 @@ function render(gl, program, time) {
 
 function resizeCanvas() {
     const containerWidth = canvas.parentElement.clientWidth;
-    const size = Math.min(containerWidth, 600); // Increased max size to 600px
+    const size = Math.min(containerWidth, 600);
     canvas.width = size;
-    canvas.height = size; // Make it square
+    canvas.height = size;
     gl.viewport(0, 0, canvas.width, canvas.height);
 }
 
