@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Utah Teapot Vertex Shader Demo</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Utah Teapot Demo</h1>
+        <div class="canvas-container">
+            <canvas id="glCanvas"></canvas>
+        </div>
+        <div class="controls">
+            <label for="rotationSpeed">Rotation Speed:</label>
+            <input type="range" id="rotationSpeed" min="0" max="0.1" step="0.001" value="0.01">
+        </div>
+        <div class="texture-buttons">
+            <button id="metallic">Metallic</button>
+            <button id="ceramic">Ceramic</button>
+            <button id="rainbow">Rainbow</button>
+            <button id="wireframe">Wireframe</button>
+        </div>
+        <div class="description">
+            <h2>The Utah Teapot</h2>
+            <p>The Utah teapot, also known as the Newell teapot, is a 3D computer graphics model that has become a standard reference object in the computer graphics community. Created in 1975 by Martin Newell at the University of Utah, this simple teapot shape has been used for decades to test and demonstrate various computer graphics techniques, including modeling, rendering, shading, and texturing.</p>
+            <p>Its popularity stems from its simple yet non-trivial geometry, which includes smooth curves, a handle, and a spout, making it ideal for demonstrating various lighting and shading effects. The teapot has become an iconic symbol in computer graphics, often appearing as an Easter egg in 3D software and films.</p>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"></script>
+    <script src="teapot.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
