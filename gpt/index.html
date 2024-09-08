@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>minGPT TensorFlow.js</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <h1>minGPT TensorFlow.js</h1>
+        <div id="status">Status: Idle</div>
+        <progress id="trainingProgress" value="0" max="100" style="width: 100%; display: none;"></progress>
+        <button id="trainButton">Train Model</button>
+        <button id="generateButton" disabled>Generate Text</button>
+        <div id="output"></div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
