@@ -1,5 +1,5 @@
 // Configurable parameters
-const NUM_ITERATIONS = 10;
+const NUM_ITERATIONS = 1;
 const OUTPUT_LENGTH = 100;
 const TRAIN_SPLIT = 0.9;
 
