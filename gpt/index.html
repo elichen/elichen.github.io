@@ -10,10 +10,20 @@
     <div id="app">
         <h1>minGPT TensorFlow.js</h1>
         <div id="status">Status: Idle</div>
-        <progress id="trainingProgress" value="0" max="100" style="width: 100%; display: none;"></progress>
+        <progress id="trainingProgress" value="0" max="100"></progress>
         <button id="trainButton">Train Model</button>
         <button id="generateButton" disabled>Generate Text</button>
         <div id="output"></div>
+        <div id="explanation">
+            <h2>What is this app doing?</h2>
+            <p>This app demonstrates a simple implementation of a language model using TensorFlow.js. Here's what's happening:</p>
+            <ol>
+                <li>The app loads a dataset of Shakespeare's text.</li>
+                <li>It trains a small neural network to predict the next character in a sequence.</li>
+                <li>After training, you can generate new text that mimics Shakespeare's style.</li>
+            </ol>
+            <p>This is a minimal version of how large language models like GPT work, but on a much smaller scale. By using TensorFlow.js, the model can leverage GPU acceleration in supported browsers, making the training process faster.</p>
+        </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
     <script src="script.js"></script>
