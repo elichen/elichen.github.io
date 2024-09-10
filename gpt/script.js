@@ -86,11 +86,14 @@ class BigramLanguageModel {
         let currentCharIdx = dataLoader.stoi[startChar];
 
         for (let i = 0; i < numChars - 1; i++) {
-            const input = tf.tensor([[currentCharIdx]]); // Input as tensor (1x1)
+            const input = tf.tensor([[currentCharIdx]]);
 
             // Predict next character
             const predictions = await this.model.predict(input);
-            const predictedIdx = predictions.argMax(-1).dataSync()[0];
+            const probabilities = predictions.dataSync();
+            
+            // Sample from the probability distribution
+            const predictedIdx = this.sampleFromDistribution(probabilities);
             const predictedChar = dataLoader.itos[predictedIdx];
 
             result.push(predictedChar);
@@ -98,6 +101,22 @@ class BigramLanguageModel {
         }
 
         return result.join('');
+    }
+
+    sampleFromDistribution(probabilities) {
+        const sum = probabilities.reduce((a, b) => a + b, 0);
+        const normalized = probabilities.map(p => p / sum);
+        const random = Math.random();
+        let cumulative = 0;
+        
+        for (let i = 0; i < normalized.length; i++) {
+            cumulative += normalized[i];
+            if (random < cumulative) {
+                return i;
+            }
+        }
+        
+        return normalized.length - 1; // Fallback to last index
     }
 }
 
