@@ -52,7 +52,7 @@ class BigramLanguageModel {
 
         // Compile the model with Adam optimizer and cross-entropy loss
         this.model.compile({
-            optimizer: tf.train.adam(),
+            optimizer: tf.train.adam(.1),
             loss: 'sparseCategoricalCrossentropy',
             metrics: ['accuracy'],
         });
@@ -143,7 +143,7 @@ document.getElementById('trainButton').addEventListener('click', async () => {
         statusElement.textContent = 'Status: Training model...';
         
         // Train the model with the dataset
-        const epochs = 1000;
+        const epochs = 100;
         const batchSize = 64;
         await model.train(dataLoader, epochs, batchSize);
 
@@ -152,7 +152,7 @@ document.getElementById('trainButton').addEventListener('click', async () => {
 
         // Generate text on button click
         generateButton.addEventListener('click', async () => {
-            const startChar = 'H'; // Starting character for text generation
+            const startChar = 'T'; // Starting character for text generation
             const numChars = 100; // Number of characters to generate
             const generatedText = await model.generateText(startChar, numChars, dataLoader);
             outputElement.textContent = generatedText;
