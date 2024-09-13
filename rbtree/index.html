@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Red-Black Trees Explained</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Red-Black Trees: An Intuitive Guide</h1>
+    </header>
+    <main>
+        <section id="introduction">
+            <h2>What are Red-Black Trees?</h2>
+            <p>Red-Black Trees are self-balancing binary search trees with an extra bit of information per node: the color (red or black).</p>
+        </section>
+        <section id="properties">
+            <h2>Properties of Red-Black Trees</h2>
+            <ul>
+                <li>Every node is either red or black.</li>
+                <li>The root is always black.</li>
+                <li>Every leaf (NIL) is black.</li>
+                <li>If a node is red, then both its children are black.</li>
+                <li>For each node, all paths from the node to descendant leaves contain the same number of black nodes.</li>
+            </ul>
+        </section>
+        <section id="visualization">
+            <h2>Red-Black Tree Visualization</h2>
+            <div id="tree-container"></div>
+            <div id="controls">
+                <button id="insert-btn">Insert Node</button>
+                <button id="reset-btn">Reset Tree</button>
+            </div>
+        </section>
+        <section id="rebalancing">
+            <h2>Rebalancing Algorithm</h2>
+            <div id="rebalancing-steps"></div>
+        </section>
+    </main>
+    <footer>
+        <p>&copy; 2023 Red-Black Trees Explained</p>
+    </footer>
+    <script src="script.js"></script>
+</body>
+</html>
