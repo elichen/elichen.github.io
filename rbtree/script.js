@@ -18,7 +18,7 @@ class RedBlackTree {
         const newNode = new Node(value);
         newNode.left = this.NIL;
         newNode.right = this.NIL;
-        if (this.root === this.NIL) {
+        if (this.root === null || this.root === this.NIL) {
             this.root = newNode;
             this.root.color = 'black';
             return;
@@ -174,7 +174,7 @@ class RedBlackTree {
 
         // Update root if necessary
         if (this.root === this.NIL) {
-            this.root = null;
+            this.root = this.NIL;
         }
     }
 
