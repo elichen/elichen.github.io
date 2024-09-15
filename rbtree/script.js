@@ -370,15 +370,29 @@ function drawNode(node, x, y) {
 }
 
 function drawEdge(x1, y1, x2, y2) {
+    const nodeWidth = 40; // Width of the node in pixels
+    const nodeHeight = 40; // Height of the node in pixels
+
+    // Calculate center positions of the source and target nodes
+    const centerX1 = x1 + nodeWidth / 2;
+    const centerY1 = y1 + nodeHeight / 2;
+    const centerX2 = x2 + nodeWidth / 2;
+    const centerY2 = y2 + nodeHeight / 2;
+
     const edge = document.createElement('div');
     edge.className = 'edge';
-    const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-    const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+    
+    // Calculate the length and angle of the edge
+    const length = Math.sqrt(Math.pow(centerX2 - centerX1, 2) + Math.pow(centerY2 - centerY1, 2));
+    const angle = Math.atan2(centerY2 - centerY1, centerX2 - centerX1) * 180 / Math.PI;
+    
+    // Set the style properties to position and rotate the edge correctly
     edge.style.width = `${length}px`;
-    edge.style.left = `${x1}px`;
-    edge.style.top = `${y1 + 20}px`;
+    edge.style.left = `${centerX1}px`;
+    edge.style.top = `${centerY1}px`;
     edge.style.transform = `rotate(${angle}deg)`;
     edge.style.transformOrigin = '0 0';
+    
     treeContainer.appendChild(edge);
 }
 

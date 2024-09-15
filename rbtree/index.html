@@ -35,12 +35,33 @@
         </section>
         <section id="rebalancing">
             <h2>Rebalancing Algorithm</h2>
-            <div id="rebalancing-steps"></div>
+            <div id="rebalancing-steps">
+                <p>
+                    Rebalancing in a Red-Black Tree ensures that the tree remains balanced after insertion or deletion of nodes, maintaining efficient operation times. The rebalancing process involves a series of color changes and rotations based on specific cases.
+                </p>
+                <ul>
+                    <li><strong>Case 1:</strong> <em>The new node is the root.</em>  
+                        <br>Color the new node black.
+                    </li>
+                    <li><strong>Case 2:</strong> <em>The parent of the new node is black.</em>  
+                        <br>No action needed as the tree remains balanced.
+                    </li>
+                    <li><strong>Case 3:</strong> <em>Both the parent and the uncle of the new node are red.</em>  
+                        <br>Recolor the parent and uncle to black, and the grandparent to red. Then, continue fixing from the grandparent.
+                    </li>
+                    <li><strong>Case 4:</strong> <em>The parent is red, the uncle is black, and the new node is a right child.</em>  
+                        <br>Perform a left rotation on the parent.
+                    </li>
+                    <li><strong>Case 5:</strong> <em>The parent is red, the uncle is black, and the new node is a left child.</em>  
+                        <br>Perform a right rotation on the grandparent and swap the colors of the parent and grandparent.
+                    </li>
+                </ul>
+                <p>
+                    These steps ensure that the Red-Black Tree properties are maintained, guaranteeing that the tree remains balanced with a height of O(log n), which allows for efficient search, insertion, and deletion operations.
+                </p>
+            </div>
         </section>
     </main>
-    <footer>
-        <p>&copy; 2023 Red-Black Trees Explained</p>
-    </footer>
     <script src="script.js"></script>
 </body>
 </html>
