@@ -11,7 +11,7 @@ body {
     background-color: #f5f7fa;
     color: #333;
     line-height: 1.6;
-    max-width: 1200px;
+    max-width: 800px; /* Reduced the content width from 1150px to 800px */
     margin: 0 auto;
     padding: 40px 20px;
 }
@@ -102,12 +102,20 @@ button:active {
     margin-bottom: 8px;
 }
 
+/* Instruction styling */
+.instruction {
+    text-align: center;
+    font-size: 16px;
+    color: #34495e;
+    margin-bottom: 10px;
+}
+
 /* Node styling */
 .node {
     position: absolute;
     z-index: 2; /* Ensure nodes are above edges */
-    width: 50px;
-    height: 50px;
+    width: 50px; /* Updated to match script.js */
+    height: 50px; /* Updated to match script.js */
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -139,14 +147,6 @@ button:active {
     height: 2px;
     background-color: #bdc3c7;
     transition: all 0.3s ease;
-}
-
-/* Footer styling */
-footer {
-    text-align: center;
-    margin-top: 40px;
-    color: #7f8c8d;
-    font-size: 14px;
 }
 
 /* Responsive Design */
