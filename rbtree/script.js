@@ -20,6 +20,11 @@ class RedBlackTree {
     }
 
     insert(value) {
+        // Check if the value already exists in the tree
+        if (this.findNode(this.root, value) !== this.NIL) {
+            return; // Value already exists, do not insert
+        }
+
         const newNode = new Node(value);
         newNode.left = this.NIL;
         newNode.right = this.NIL;
@@ -29,10 +34,8 @@ class RedBlackTree {
             return;
         }
 
-        const inserted = this.insertNode(this.root, newNode); // Capture insertion result
-        if (inserted) { // Only proceed if insertion was successful
-            this.fixInsertion(newNode);
-        }
+        this.insertNode(this.root, newNode);
+        this.fixInsertion(newNode);
     }
 
     insertNode(node, newNode) {
@@ -40,21 +43,16 @@ class RedBlackTree {
             if (node.left === this.NIL) {
                 node.left = newNode;
                 newNode.parent = node;
-                return true; // Indicate successful insertion
             } else {
-                return this.insertNode(node.left, newNode); // Return the result of the recursive call
+                this.insertNode(node.left, newNode);
             }
-        } else if (newNode.value > node.value) { // Handle duplicates
+        } else {
             if (node.right === this.NIL) {
                 node.right = newNode;
                 newNode.parent = node;
-                return true; // Indicate successful insertion
             } else {
-                return this.insertNode(node.right, newNode); // Return the result of the recursive call
+                this.insertNode(node.right, newNode);
             }
-        } else {
-            console.warn(`Duplicate value ${newNode.value} not inserted.`); // Log duplicate insertion attempt
-            return false; // Indicate failed insertion due to duplicate
         }
     }
 
@@ -302,6 +300,17 @@ class RedBlackTree {
         }
         return true;
     }
+
+    size() {
+        return this.sizeHelper(this.root);
+    }
+
+    sizeHelper(node) {
+        if (node === this.NIL) {
+            return 0;
+        }
+        return 1 + this.sizeHelper(node.left) + this.sizeHelper(node.right);
+    }
 }
 
 let tree = new RedBlackTree();
@@ -386,8 +395,16 @@ function drawEdge(x1, y1, x2, y2) {
 }
 
 insertBtn.addEventListener('click', () => {
-    const value = Math.floor(Math.random() * 100) + 1;
-    tree.insert(value);
+    let value;
+    let inserted = false;
+    
+    while (!inserted) {
+        value = Math.floor(Math.random() * 100) + 1;
+        const oldSize = tree.size(); // Assuming we add a size() method to RedBlackTree
+        tree.insert(value);
+        inserted = tree.size() > oldSize;
+    }
+    
     drawTree();
 });
 
