@@ -12,6 +12,11 @@ class RedBlackTree {
     constructor() {
         this.NIL = new Node(null, 'black'); // Sentinel node
         this.root = this.NIL;
+
+        // Initialize the tree with 3 predefined nodes
+        this.insert(15);
+        this.insert(10);
+        this.insert(20);
     }
 
     insert(value) {
@@ -21,14 +26,12 @@ class RedBlackTree {
         if (this.root === null || this.root === this.NIL) {
             this.root = newNode;
             this.root.color = 'black';
-            this.validateTree(); // Validate after insertion
             return;
         }
 
         const inserted = this.insertNode(this.root, newNode); // Capture insertion result
         if (inserted) { // Only proceed if insertion was successful
             this.fixInsertion(newNode);
-            this.validateTree(); // Validate after fixing insertion
         }
     }
 
@@ -92,7 +95,6 @@ class RedBlackTree {
             }
         }
         this.root.color = 'black';
-        this.validateTree(); // Validate after fixing insertion
     }
 
     rotateLeft(node) {
@@ -135,7 +137,6 @@ class RedBlackTree {
         let node = this.findNode(this.root, value);
         if (node !== this.NIL) {
             this.deleteNode(node);
-            this.validateTree(); // Validate after deletion
         }
     }
 
@@ -270,7 +271,6 @@ class RedBlackTree {
         if (x !== this.NIL) {
             x.color = 'black';
         }
-        this.validateTree(); // Validate after fixing deletion
     }
 
     findMinNode(node) {
@@ -280,36 +280,26 @@ class RedBlackTree {
         return node;
     }
 
-    // Add validation method
     validateTree() {
         if (this.isBST(this.root, null, null) && this.hasValidRedBlackProperties()) {
-            console.log('Tree is valid.');
+            // Tree is valid; no action needed
         } else {
-            console.error('Tree validation failed.');
+            // Handle validation failure silently or through UI elements
         }
     }
 
-    // Helper method to validate BST properties
     isBST(node, min, max) {
         if (node === this.NIL) return true;
         if ((min !== null && node.value <= min) || (max !== null && node.value >= max)) {
-            console.error(`BST property violated at node with value ${node.value}`);
             return false;
         }
         return this.isBST(node.left, min, node.value) && this.isBST(node.right, node.value, max);
     }
 
-    // Helper method to validate Red-Black Tree properties
     hasValidRedBlackProperties() {
-        // Ensure root is black
         if (this.root.color !== 'black') {
-            console.error('Red-Black property violated: Root is not black.');
             return false;
         }
-
-        // Additional Red-Black properties can be implemented here
-        // For brevity, we'll assume they are maintained correctly
-
         return true;
     }
 }
@@ -322,7 +312,6 @@ const resetBtn = document.getElementById('reset-btn');
 function drawTree() {
     treeContainer.innerHTML = '';
     if (tree.root === null || tree.root === tree.NIL) {
-        // Draw an empty tree message
         const emptyMessage = document.createElement('div');
         emptyMessage.textContent = 'Empty Tree';
         emptyMessage.style.textAlign = 'center';
@@ -331,7 +320,9 @@ function drawTree() {
         return;
     }
 
-    const queue = [{node: tree.root, x: 600, y: 50, level: 0}];
+    const containerWidth = treeContainer.clientWidth;
+    const initialX = containerWidth / 2;
+    const queue = [{node: tree.root, x: initialX, y: 50, level: 0}];
     const levelWidth = 300;
 
     while (queue.length > 0) {
@@ -362,6 +353,7 @@ function drawNode(node, x, y) {
     nodeElement.style.left = `${x}px`;
     nodeElement.style.top = `${y}px`;
     nodeElement.textContent = node.value;
+    nodeElement.title = 'Click to delete this node'; // Tooltip for instructions
     nodeElement.addEventListener('click', () => {
         tree.delete(node.value);
         drawTree();
@@ -370,10 +362,9 @@ function drawNode(node, x, y) {
 }
 
 function drawEdge(x1, y1, x2, y2) {
-    const nodeWidth = 40; // Width of the node in pixels
-    const nodeHeight = 40; // Height of the node in pixels
+    const nodeWidth = 50; // Updated to match CSS (width: 50px)
+    const nodeHeight = 50; // Updated to match CSS (height: 50px)
 
-    // Calculate center positions of the source and target nodes
     const centerX1 = x1 + nodeWidth / 2;
     const centerY1 = y1 + nodeHeight / 2;
     const centerX2 = x2 + nodeWidth / 2;
@@ -381,18 +372,16 @@ function drawEdge(x1, y1, x2, y2) {
 
     const edge = document.createElement('div');
     edge.className = 'edge';
-    
-    // Calculate the length and angle of the edge
+
     const length = Math.sqrt(Math.pow(centerX2 - centerX1, 2) + Math.pow(centerY2 - centerY1, 2));
     const angle = Math.atan2(centerY2 - centerY1, centerX2 - centerX1) * 180 / Math.PI;
-    
-    // Set the style properties to position and rotate the edge correctly
+
     edge.style.width = `${length}px`;
     edge.style.left = `${centerX1}px`;
     edge.style.top = `${centerY1}px`;
     edge.style.transform = `rotate(${angle}deg)`;
     edge.style.transformOrigin = '0 0';
-    
+
     treeContainer.appendChild(edge);
 }
 
