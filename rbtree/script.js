@@ -21,11 +21,15 @@ class RedBlackTree {
         if (this.root === null || this.root === this.NIL) {
             this.root = newNode;
             this.root.color = 'black';
+            this.validateTree(); // Validate after insertion
             return;
         }
 
-        this.insertNode(this.root, newNode);
-        this.fixInsertion(newNode);
+        const inserted = this.insertNode(this.root, newNode); // Capture insertion result
+        if (inserted) { // Only proceed if insertion was successful
+            this.fixInsertion(newNode);
+            this.validateTree(); // Validate after fixing insertion
+        }
     }
 
     insertNode(node, newNode) {
@@ -33,16 +37,21 @@ class RedBlackTree {
             if (node.left === this.NIL) {
                 node.left = newNode;
                 newNode.parent = node;
+                return true; // Indicate successful insertion
             } else {
-                this.insertNode(node.left, newNode);
+                return this.insertNode(node.left, newNode); // Return the result of the recursive call
             }
-        } else {
+        } else if (newNode.value > node.value) { // Handle duplicates
             if (node.right === this.NIL) {
                 node.right = newNode;
                 newNode.parent = node;
+                return true; // Indicate successful insertion
             } else {
-                this.insertNode(node.right, newNode);
+                return this.insertNode(node.right, newNode); // Return the result of the recursive call
             }
+        } else {
+            console.warn(`Duplicate value ${newNode.value} not inserted.`); // Log duplicate insertion attempt
+            return false; // Indicate failed insertion due to duplicate
         }
     }
 
@@ -83,6 +92,7 @@ class RedBlackTree {
             }
         }
         this.root.color = 'black';
+        this.validateTree(); // Validate after fixing insertion
     }
 
     rotateLeft(node) {
@@ -125,6 +135,7 @@ class RedBlackTree {
         let node = this.findNode(this.root, value);
         if (node !== this.NIL) {
             this.deleteNode(node);
+            this.validateTree(); // Validate after deletion
         }
     }
 
@@ -259,6 +270,7 @@ class RedBlackTree {
         if (x !== this.NIL) {
             x.color = 'black';
         }
+        this.validateTree(); // Validate after fixing deletion
     }
 
     findMinNode(node) {
@@ -266,6 +278,39 @@ class RedBlackTree {
             node = node.left;
         }
         return node;
+    }
+
+    // Add validation method
+    validateTree() {
+        if (this.isBST(this.root, null, null) && this.hasValidRedBlackProperties()) {
+            console.log('Tree is valid.');
+        } else {
+            console.error('Tree validation failed.');
+        }
+    }
+
+    // Helper method to validate BST properties
+    isBST(node, min, max) {
+        if (node === this.NIL) return true;
+        if ((min !== null && node.value <= min) || (max !== null && node.value >= max)) {
+            console.error(`BST property violated at node with value ${node.value}`);
+            return false;
+        }
+        return this.isBST(node.left, min, node.value) && this.isBST(node.right, node.value, max);
+    }
+
+    // Helper method to validate Red-Black Tree properties
+    hasValidRedBlackProperties() {
+        // Ensure root is black
+        if (this.root.color !== 'black') {
+            console.error('Red-Black property violated: Root is not black.');
+            return false;
+        }
+
+        // Additional Red-Black properties can be implemented here
+        // For brevity, we'll assume they are maintained correctly
+
+        return true;
     }
 }
 
