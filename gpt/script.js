@@ -194,8 +194,8 @@ class BigramLanguageModel {
 
             // Predict next character
             const predictions = this.model.predict([input, positionIndices]);
-            const probabilities = predictions.dataSync();
-            
+            const probabilities = tf.softmax(predictions).dataSync(); // Apply softmax to logits
+
             // Sample from the probability distribution
             const predictedIdx = this.sampleFromDistribution(probabilities);
             const predictedChar = dataLoader.idx2char[predictedIdx];
@@ -391,7 +391,7 @@ document.getElementById('trainButton').addEventListener('click', async () => {
         statusElement.textContent = 'Status: Training model...';
         
         // Train the model with the dataset
-        const epochs = 100;
+        const epochs = 10;
         const batchSize = 64;
         await model.train(dataLoader, epochs, batchSize);
 
