@@ -108,10 +108,10 @@ class BigramLanguageModel {
         // Define the model
         this.model = tf.model({ inputs: [tokenInputs, positionInputs], outputs: logits });
 
-        // Compile the model with 'categoricalCrossentropy' loss and a reduced learning rate
+        // Compile the model with 'softmaxCrossEntropy' loss and fromLogits=true
         this.model.compile({
             optimizer: tf.train.adam(0.0001), // Reduced learning rate from 0.001 to 0.0001
-            loss: 'categoricalCrossentropy', // Use loss function name as a string
+            loss: (labels, logits) => tf.losses.softmaxCrossEntropy(labels, logits).mean(),
             metrics: ['accuracy'],
         });
 
