@@ -1,4 +1,4 @@
-// TensorFlow.js Bigram Language Model with Embeddings
+// TensorFlow.js Transformer Language Model
 
 // Load the dataset (tiny shakespeare from input.txt) as a string
 async function loadTextDataset(url) {
@@ -6,7 +6,7 @@ async function loadTextDataset(url) {
     return await response.text();
 }
 
-// DataLoader: Converts text into integer indices and sets up input/output for bigrams
+// DataLoader: Converts text into integer indices and sets up input/output for batches
 class DataLoader {
     constructor(text, seqLength) {
         this.text = text;
@@ -42,13 +42,18 @@ class DataLoader {
         // Convert targets to one-hot encoding
         const targetsTensor = tf.oneHot(tf.tensor2d(targets, [batchSize, this.seqLength], 'int32'), this.vocabSize).toFloat();
         
-        // Debugging Logs: Verify targets shape and a sample one-hot encoded target
-        console.log('Targets shape:', targetsTensor.shape);
-        // Adjust slice sizes to match seqLength=1
-        const sampleTarget = targetsTensor.slice([0, 0, 0], [1, this.seqLength, this.vocabSize]).arraySync();
-        console.log('Sample Target (one-hot):', sampleTarget);
-
         return { inputs: inputsTensor, targets: targetsTensor };
+    }
+}
+
+// SharedDataLoader: Extends DataLoader to use shared vocabulary
+class SharedDataLoader extends DataLoader {
+    constructor(text, seqLength, char2idx, idx2char, vocabSize) {
+        super(text, seqLength);
+        this.char2idx = char2idx;
+        this.idx2char = idx2char;
+        this.vocabSize = vocabSize;
+        this.textIndices = Array.from(text).map(c => this.char2idx[c] || 0);
     }
 }
 
@@ -108,9 +113,8 @@ class GPT {
         // Define the model
         this.model = tf.model({ inputs: [tokenInputs, positionInputs], outputs: logits });
 
-        // Compile the model with 'softmaxCrossEntropy' loss and fromLogits=true
         this.model.compile({
-            optimizer: tf.train.adam(0.0001), // Reduced learning rate from 0.001 to 0.0001
+            optimizer: tf.train.adam(0.001), // Learning rate: 0.001
             loss: (labels, logits) => tf.losses.softmaxCrossEntropy(labels, logits).mean(),
             metrics: ['accuracy'],
         });
@@ -188,7 +192,7 @@ class GPT {
         
         for (let i = 0; i < numChars; i++) {
             // Ensure the current sequence has the correct seqLength
-            const inputSequence = currentSequence.slice(-this.seqLength);
+            let inputSequence = currentSequence.slice(-this.seqLength);
             // Pad the sequence if it's shorter than seqLength
             while (inputSequence.length < this.seqLength) {
                 inputSequence.unshift(0); // Assuming 0 is the padding index
@@ -196,12 +200,15 @@ class GPT {
 
             const input = tf.tensor([inputSequence], [1, this.seqLength], 'int32');
 
-            // Generate position indices matching seqLength=10
+            // Generate position indices matching seqLength
             const positionIndices = this.getPositionIndices(1, this.seqLength);
 
             // Predict next character logits
             const logits = this.model.predict([input, positionIndices]);
-            const probabilities = tf.softmax(logits).dataSync(); // Apply softmax to logits
+
+            // **Extract logits for the last token and convert to a regular array**
+            const logitsLast = logits.slice([0, this.seqLength - 1, 0], [1, 1, this.vocabSize]);
+            const probabilities = Array.from(tf.softmax(logitsLast).dataSync()); // [vocabSize]
 
             // Sample from the probability distribution
             const predictedIdx = this.sampleFromDistribution(probabilities);
@@ -341,29 +348,84 @@ document.getElementById('trainButton').addEventListener('click', async () => {
         const text = await loadTextDataset(datasetURL);
         statusElement.textContent = 'Status: Preparing data...';
 
-        const seqLength = 128;
+        const seqLength = 10;
 
-        // Initialize DataLoader and GPT
-        const dataLoader = new DataLoader(text, seqLength);
-        const model = new GPT(dataLoader.vocabSize, seqLength);
+        // Split the dataset into training and validation sets (90% training, 10% validation)
+        const splitText = (text, validationSplit) => {
+            const splitIndex = Math.floor(text.length * (1 - validationSplit));
+            const trainText = text.slice(0, splitIndex);
+            const valText = text.slice(splitIndex);
+            return [trainText, valText];
+        };
+
+        const [trainText, valText] = splitText(text, 0.1);
+
+        // Build vocabulary from the full text
+        const chars = Array.from(new Set(text));
+        const char2idx = {};
+        const idx2char = {};
+        chars.forEach((c, i) => {
+            char2idx[c] = i;
+            idx2char[i] = c;
+        });
+        const vocabSize = chars.length;
+
+        // Initialize DataLoader instances for training and validation with shared vocab
+        const trainDataLoader = new SharedDataLoader(trainText, seqLength, char2idx, idx2char, vocabSize);
+        const valDataLoader = new SharedDataLoader(valText, seqLength, char2idx, idx2char, vocabSize);
+
+        // Initialize GPT model with shared vocabSize
+        const model = new GPT(vocabSize, seqLength);
 
         statusElement.textContent = 'Status: Training model...';
         
         // Train the model with the dataset
-        const epochs = 100;
+        const epochs = 50;
         const batchSize = 64;
-        await model.train(dataLoader, epochs, batchSize);
+        await model.train(trainDataLoader, epochs, batchSize);
 
         // Enable the "Generate Text" button after training
         generateButton.disabled = false;
 
         // Generate text on button click
         generateButton.addEventListener('click', async () => {
-            const startSequence = 'The'; // Starting sequence with length <= seqLength
+            const startSequence = 'The quick'; // Starting sequence with length <= seqLength
             const numChars = 100; // Number of characters to generate
-            const generatedText = await model.generateText(startSequence, numChars, dataLoader);
+            const generatedText = await model.generateText(startSequence, numChars, trainDataLoader);
             outputElement.textContent = generatedText;
         });
+
+        // After training, evaluate on validation data
+        console.log('Evaluating on validation data...');
+        const validationBatches = Math.floor(valDataLoader.textIndices.length / batchSize);
+        let totalValLoss = 0;
+        let totalValAccuracy = 0;
+
+        for (let i = 0; i < validationBatches; i++) {
+            const { inputs, targets } = valDataLoader.getBatch(batchSize);
+            
+            // Generate position indices for validation inputs
+            const positionIndices = tf.tensor2d(
+                Array.from({ length: batchSize }, () =>
+                    Array.from({ length: seqLength }, (_, idx) => idx)
+                ),
+                [batchSize, seqLength],
+                'int32'
+            );
+
+            // Evaluate the model on the validation batch
+            const evaluation = model.model.evaluate([inputs, positionIndices], targets, { verbose: 0 });
+
+            // Accumulate loss and accuracy
+            totalValLoss += evaluation[0].dataSync()[0];
+            totalValAccuracy += evaluation[1].dataSync()[0];
+        }
+
+        // Calculate average validation metrics
+        const avgValLoss = totalValLoss / validationBatches;
+        const avgValAccuracy = totalValAccuracy / validationBatches;
+
+        console.log(`Validation Loss: ${avgValLoss.toFixed(4)}, Validation Accuracy: ${avgValAccuracy.toFixed(4)}`);
 
     } catch (error) {
         statusElement.textContent = 'Error loading dataset!';
