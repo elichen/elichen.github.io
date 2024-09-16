@@ -52,16 +52,16 @@ class DataLoader {
     }
 }
 
-// Define the Bigram Model
-class BigramLanguageModel {
+// Define the GPT Model
+class GPT {
     constructor(vocabSize, seqLength) {
         this.vocabSize = vocabSize;
         this.seqLength = seqLength; // Store seqLength as a class property
 
         // Model parameters
-        const embedDim = 128;    // Embedding size for each token
-        const numHeads = 8;      // Number of attention heads
-        const numLayers = 4;     // Number of transformer blocks
+        const embedDim = 256;    // Embedding size for each token
+        const numHeads = 4;      // Number of attention heads
+        const numLayers = 2;     // Number of transformer blocks
 
         // Input layers
         const tokenInputs = tf.input({ shape: [seqLength], dtype: 'int32' });
@@ -181,27 +181,34 @@ class BigramLanguageModel {
         progressElement.style.display = 'none';
     }
 
-    // Generate text from a starting character
-    async generateText(startChar, numChars, dataLoader) {
-        let result = [startChar];
-        let currentCharIdx = dataLoader.char2idx[startChar];
+    // Generate text from a starting sequence
+    async generateText(startSequence, numChars, dataLoader) {
+        let result = Array.from(startSequence);
+        let currentSequence = result.map(c => dataLoader.char2idx[c] || 0);
+        
+        for (let i = 0; i < numChars; i++) {
+            // Ensure the current sequence has the correct seqLength
+            const inputSequence = currentSequence.slice(-this.seqLength);
+            // Pad the sequence if it's shorter than seqLength
+            while (inputSequence.length < this.seqLength) {
+                inputSequence.unshift(0); // Assuming 0 is the padding index
+            }
 
-        for (let i = 0; i < numChars - 1; i++) {
-            const input = tf.tensor([[currentCharIdx]]);
+            const input = tf.tensor([inputSequence], [1, this.seqLength], 'int32');
 
-            // Generate position indices matching seqLength=1
+            // Generate position indices matching seqLength=10
             const positionIndices = this.getPositionIndices(1, this.seqLength);
 
-            // Predict next character
-            const predictions = this.model.predict([input, positionIndices]);
-            const probabilities = tf.softmax(predictions).dataSync(); // Apply softmax to logits
+            // Predict next character logits
+            const logits = this.model.predict([input, positionIndices]);
+            const probabilities = tf.softmax(logits).dataSync(); // Apply softmax to logits
 
             // Sample from the probability distribution
             const predictedIdx = this.sampleFromDistribution(probabilities);
             const predictedChar = dataLoader.idx2char[predictedIdx];
 
             result.push(predictedChar);
-            currentCharIdx = predictedIdx;
+            currentSequence.push(predictedIdx);
         }
 
         return result.join('');
@@ -334,12 +341,11 @@ document.getElementById('trainButton').addEventListener('click', async () => {
         const text = await loadTextDataset(datasetURL);
         statusElement.textContent = 'Status: Preparing data...';
 
-        // Define sequence length as 1 for bigram model
-        const seqLength = 1;
+        const seqLength = 128;
 
-        // Initialize DataLoader and BigramLanguageModel
+        // Initialize DataLoader and GPT
         const dataLoader = new DataLoader(text, seqLength);
-        const model = new BigramLanguageModel(dataLoader.vocabSize, seqLength);
+        const model = new GPT(dataLoader.vocabSize, seqLength);
 
         statusElement.textContent = 'Status: Training model...';
         
@@ -353,56 +359,9 @@ document.getElementById('trainButton').addEventListener('click', async () => {
 
         // Generate text on button click
         generateButton.addEventListener('click', async () => {
-            const startChar = 'T'; // Starting character for text generation
+            const startSequence = 'The'; // Starting sequence with length <= seqLength
             const numChars = 100; // Number of characters to generate
-            const generatedText = await model.generateText(startChar, numChars, dataLoader);
-            outputElement.textContent = generatedText;
-        });
-
-    } catch (error) {
-        statusElement.textContent = 'Error loading dataset!';
-        console.error(error);
-    }
-});
-
-// Load dataset, train model, and generate text
-document.getElementById('trainButton').addEventListener('click', async () => {
-    const datasetURL = 'input.txt'; // The URL/path of the tiny shakespeare dataset
-    const statusElement = document.getElementById('status');
-    const progressElement = document.getElementById('trainingProgress');
-    const generateButton = document.getElementById('generateButton');
-    const outputElement = document.getElementById('output');
-
-    statusElement.textContent = 'Status: Loading dataset...';
-    progressElement.style.display = 'block';
-    progressElement.value = 0;
-
-    try {
-        const text = await loadTextDataset(datasetURL);
-        statusElement.textContent = 'Status: Preparing data...';
-
-        // Define sequence length as 1 for bigram model
-        const seqLength = 1;
-
-        // Initialize DataLoader and BigramLanguageModel
-        const dataLoader = new DataLoader(text, seqLength);
-        const model = new BigramLanguageModel(dataLoader.vocabSize, seqLength);
-
-        statusElement.textContent = 'Status: Training model...';
-        
-        // Train the model with the dataset
-        const epochs = 10;
-        const batchSize = 64;
-        await model.train(dataLoader, epochs, batchSize);
-
-        // Enable the "Generate Text" button after training
-        generateButton.disabled = false;
-
-        // Generate text on button click
-        generateButton.addEventListener('click', async () => {
-            const startChar = 'T'; // Starting character for text generation
-            const numChars = 100; // Number of characters to generate
-            const generatedText = await model.generateText(startChar, numChars, dataLoader);
+            const generatedText = await model.generateText(startSequence, numChars, dataLoader);
             outputElement.textContent = generatedText;
         });
 
