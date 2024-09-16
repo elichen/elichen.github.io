@@ -41,6 +41,12 @@ class DataLoader {
 
         // Convert targets to one-hot encoding
         const targetsTensor = tf.oneHot(tf.tensor2d(targets, [batchSize, this.seqLength], 'int32'), this.vocabSize).toFloat();
+        
+        // Debugging Logs: Verify targets shape and a sample one-hot encoded target
+        console.log('Targets shape:', targetsTensor.shape);
+        // Adjust slice sizes to match seqLength=1
+        const sampleTarget = targetsTensor.slice([0, 0, 0], [1, this.seqLength, this.vocabSize]).arraySync();
+        console.log('Sample Target (one-hot):', sampleTarget);
 
         return { inputs: inputsTensor, targets: targetsTensor };
     }
@@ -50,6 +56,7 @@ class DataLoader {
 class BigramLanguageModel {
     constructor(vocabSize, seqLength) {
         this.vocabSize = vocabSize;
+        this.seqLength = seqLength; // Store seqLength as a class property
 
         // Model parameters
         const embedDim = 128;    // Embedding size for each token
@@ -101,12 +108,19 @@ class BigramLanguageModel {
         // Define the model
         this.model = tf.model({ inputs: [tokenInputs, positionInputs], outputs: logits });
 
-        // Compile the model with 'categoricalCrossentropy' loss
+        // Compile the model with 'categoricalCrossentropy' loss and a reduced learning rate
         this.model.compile({
-            optimizer: tf.train.adam(0.001),
-            loss: 'categoricalCrossentropy',
+            optimizer: tf.train.adam(0.0001), // Reduced learning rate from 0.001 to 0.0001
+            loss: 'categoricalCrossentropy', // Use loss function name as a string
             metrics: ['accuracy'],
         });
+
+        // Log the model summary (if possible)
+        try {
+            this.model.summary();
+        } catch (e) {
+            console.log('Model summary unavailable in TensorFlow.js:', e);
+        }
     }
 
     async train(dataLoader, epochs, batchSize) {
@@ -118,10 +132,18 @@ class BigramLanguageModel {
         for (let epoch = 0; epoch < epochs; epoch++) {
             const { inputs, targets } = dataLoader.getBatch(batchSize);
 
-            // Check the shapes of inputs and targets
-            console.log('Epoch', epoch);
-            console.log('inputs.shape:', inputs.shape);
-            console.log('targets.shape:', targets.shape);
+            // Add debugging logs before training
+            console.log(`\n--- Epoch ${epoch + 1} ---`);
+            console.log('Inputs shape:', inputs.shape);
+            console.log('Targets shape:', targets.shape);
+            
+            // Log a sample input sequence
+            const sampleInput = inputs.slice([0, 0], [1, this.seqLength]).dataSync();
+            console.log('Sample Input:', Array.from(sampleInput));
+            
+            // Log a sample target sequence (one-hot)
+            const sampleTarget = targets.slice([0, 0, 0], [1, this.seqLength, this.vocabSize]).arraySync();
+            console.log('Sample Target (one-hot):', sampleTarget);
 
             // Generate position indices for the input sequences
             const seqLength = inputs.shape[1];
@@ -133,10 +155,23 @@ class BigramLanguageModel {
                 'int32'
             );
 
+            // Log position indices shape and a sample
+            console.log('Position Indices shape:', positionIndices.shape);
+            const samplePosition = positionIndices.slice([0, 0], [1, this.seqLength]).dataSync();
+            console.log('Sample Position Indices:', Array.from(samplePosition));
+
             const history = await this.model.fit([inputs, positionIndices], targets, {
                 epochs: 1,
                 verbose: 0,
             });
+
+            // Log training history
+            console.log('Training History:', history);
+            if (history.history) {
+                // Depending on TensorFlow.js version, accuracy might be under 'accuracy' or 'acc'
+                const accuracy = history.history.accuracy || history.history.acc;
+                console.log(`Epoch ${epoch + 1} - Loss: ${history.history.loss[0].toFixed(4)}, Accuracy: ${accuracy ? accuracy[0].toFixed(4) : 'N/A'}`);
+            }
 
             statusElement.innerText = `Epoch ${epoch + 1}/${epochs} - Loss: ${history.history.loss[0].toFixed(4)}`;
             progressElement.value = epoch + 1;
@@ -154,8 +189,11 @@ class BigramLanguageModel {
         for (let i = 0; i < numChars - 1; i++) {
             const input = tf.tensor([[currentCharIdx]]);
 
+            // Generate position indices matching seqLength=1
+            const positionIndices = this.getPositionIndices(1, this.seqLength);
+
             // Predict next character
-            const predictions = this.model.predict([input, this.getPositionIndices(1, 1)]);
+            const predictions = this.model.predict([input, positionIndices]);
             const probabilities = predictions.dataSync();
             
             // Sample from the probability distribution
@@ -197,54 +235,7 @@ class BigramLanguageModel {
     }
 }
 
-// Load dataset, train model, and generate text
-document.getElementById('trainButton').addEventListener('click', async () => {
-    const datasetURL = 'input.txt'; // The URL/path of the tiny shakespeare dataset
-    const statusElement = document.getElementById('status');
-    const progressElement = document.getElementById('trainingProgress');
-    const generateButton = document.getElementById('generateButton');
-    const outputElement = document.getElementById('output');
-
-    statusElement.textContent = 'Status: Loading dataset...';
-    progressElement.style.display = 'block';
-    progressElement.value = 0;
-
-    try {
-        const text = await loadTextDataset(datasetURL);
-        statusElement.textContent = 'Status: Preparing data...';
-
-        // Define sequence length
-        const seqLength = 100;
-
-        // Initialize DataLoader and BigramLanguageModel
-        const dataLoader = new DataLoader(text, seqLength);
-        const model = new BigramLanguageModel(dataLoader.vocabSize, seqLength);
-
-        statusElement.textContent = 'Status: Training model...';
-        
-        // Train the model with the dataset
-        const epochs = 100;
-        const batchSize = 64;
-        await model.train(dataLoader, epochs, batchSize);
-
-        // Enable the "Generate Text" button after training
-        generateButton.disabled = false;
-
-        // Generate text on button click
-        generateButton.addEventListener('click', async () => {
-            const startChar = 'T'; // Starting character for text generation
-            const numChars = 100; // Number of characters to generate
-            const generatedText = await model.generateText(startChar, numChars, dataLoader);
-            outputElement.textContent = generatedText;
-        });
-
-    } catch (error) {
-        statusElement.textContent = 'Error loading dataset!';
-        console.error(error);
-    }
-});
-
-// Define a custom MultiHeadSelfAttention layer
+// Register the custom MultiHeadSelfAttention layer
 class MultiHeadSelfAttention extends tf.layers.Layer {
     constructor(config) {
         super(config);
@@ -326,3 +317,97 @@ class MultiHeadSelfAttention extends tf.layers.Layer {
 
 // Register the custom layer
 tf.serialization.registerClass(MultiHeadSelfAttention);
+
+// Load dataset, train model, and generate text
+document.getElementById('trainButton').addEventListener('click', async () => {
+    const datasetURL = 'input.txt'; // The URL/path of the tiny shakespeare dataset
+    const statusElement = document.getElementById('status');
+    const progressElement = document.getElementById('trainingProgress');
+    const generateButton = document.getElementById('generateButton');
+    const outputElement = document.getElementById('output');
+
+    statusElement.textContent = 'Status: Loading dataset...';
+    progressElement.style.display = 'block';
+    progressElement.value = 0;
+
+    try {
+        const text = await loadTextDataset(datasetURL);
+        statusElement.textContent = 'Status: Preparing data...';
+
+        // Define sequence length as 1 for bigram model
+        const seqLength = 1;
+
+        // Initialize DataLoader and BigramLanguageModel
+        const dataLoader = new DataLoader(text, seqLength);
+        const model = new BigramLanguageModel(dataLoader.vocabSize, seqLength);
+
+        statusElement.textContent = 'Status: Training model...';
+        
+        // Train the model with the dataset
+        const epochs = 100;
+        const batchSize = 64;
+        await model.train(dataLoader, epochs, batchSize);
+
+        // Enable the "Generate Text" button after training
+        generateButton.disabled = false;
+
+        // Generate text on button click
+        generateButton.addEventListener('click', async () => {
+            const startChar = 'T'; // Starting character for text generation
+            const numChars = 100; // Number of characters to generate
+            const generatedText = await model.generateText(startChar, numChars, dataLoader);
+            outputElement.textContent = generatedText;
+        });
+
+    } catch (error) {
+        statusElement.textContent = 'Error loading dataset!';
+        console.error(error);
+    }
+});
+
+// Load dataset, train model, and generate text
+document.getElementById('trainButton').addEventListener('click', async () => {
+    const datasetURL = 'input.txt'; // The URL/path of the tiny shakespeare dataset
+    const statusElement = document.getElementById('status');
+    const progressElement = document.getElementById('trainingProgress');
+    const generateButton = document.getElementById('generateButton');
+    const outputElement = document.getElementById('output');
+
+    statusElement.textContent = 'Status: Loading dataset...';
+    progressElement.style.display = 'block';
+    progressElement.value = 0;
+
+    try {
+        const text = await loadTextDataset(datasetURL);
+        statusElement.textContent = 'Status: Preparing data...';
+
+        // Define sequence length as 1 for bigram model
+        const seqLength = 1;
+
+        // Initialize DataLoader and BigramLanguageModel
+        const dataLoader = new DataLoader(text, seqLength);
+        const model = new BigramLanguageModel(dataLoader.vocabSize, seqLength);
+
+        statusElement.textContent = 'Status: Training model...';
+        
+        // Train the model with the dataset
+        const epochs = 100;
+        const batchSize = 64;
+        await model.train(dataLoader, epochs, batchSize);
+
+        // Enable the "Generate Text" button after training
+        generateButton.disabled = false;
+
+        // Generate text on button click
+        generateButton.addEventListener('click', async () => {
+            const startChar = 'T'; // Starting character for text generation
+            const numChars = 100; // Number of characters to generate
+            const generatedText = await model.generateText(startChar, numChars, dataLoader);
+            outputElement.textContent = generatedText;
+        });
+
+    } catch (error) {
+        statusElement.textContent = 'Error loading dataset!';
+        console.error(error);
+    }
+});
