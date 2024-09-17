@@ -71,9 +71,9 @@ class GPT {
         const numLayers = 2;     // Number of transformer blocks
 
         // Input layers
-        const tokenInputs = tf.input({ shape: [seqLength], dtype: 'int32' });
-        const positionInputs = tf.input({ shape: [seqLength], dtype: 'int32' });
-        const attentionMask = tf.input({ shape: [1, seqLength, seqLength], dtype: 'float32' });
+        const tokenInputs = tf.input({ shape: [null], dtype: 'int32' });
+        const positionInputs = tf.input({ shape: [null], dtype: 'int32' });
+        const attentionMask = tf.input({ shape: [1, null, null], dtype: 'float32' });
 
         // Token embeddings
         const tokenEmbeddingLayer = tf.layers.embedding({ inputDim: this.vocabSize, outputDim: embedDim });
@@ -186,23 +186,20 @@ class GPT {
         let currentSequence = result.map(c => dataLoader.char2idx[c] || 0);
         
         for (let i = 0; i < numChars; i++) {
-            // Pad or truncate the sequence to match the expected input length
-            let paddedSequence = [...currentSequence];
-            if (paddedSequence.length < this.seqLength) {
-                paddedSequence = Array(this.seqLength - paddedSequence.length).fill(0).concat(paddedSequence);
-            } else if (paddedSequence.length > this.seqLength) {
-                paddedSequence = paddedSequence.slice(-this.seqLength);
+            // Only truncate the sequence to match the expected input length
+            if (currentSequence.length > this.seqLength) {
+                currentSequence = currentSequence.slice(-this.seqLength);
             }
 
-            const input = tf.tensor([paddedSequence], [1, this.seqLength], 'int32');
-            const positionIndices = this.getPositionIndices(1, this.seqLength);
-            const attentionMask = createCausalMask(1, this.seqLength);
+            const input = tf.tensor([currentSequence], [1, currentSequence.length], 'int32');
+            const positionIndices = this.getPositionIndices(1, currentSequence.length);
+            const attentionMask = createCausalMask(1, currentSequence.length);
 
             // Optional: Log attention mask shape for debugging
             console.log('Attention Mask Shape (Generate):', attentionMask.shape);
 
             const logits = this.model.predict([input, positionIndices, attentionMask]);
-            const logitsLast = logits.slice([0, this.seqLength - 1, 0], [1, 1, this.vocabSize]);
+            const logitsLast = logits.slice([0, currentSequence.length - 1, 0], [1, 1, this.vocabSize]);
             const probabilities = Array.from(tf.softmax(logitsLast).dataSync());
 
             const predictedIdx = this.sampleFromDistribution(probabilities);
