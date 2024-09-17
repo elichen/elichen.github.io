@@ -183,36 +183,39 @@ class GPT {
         let currentSequence = result.map(c => dataLoader.char2idx[c] || 0);
         
         for (let i = 0; i < numChars; i++) {
-            // Only truncate the sequence to match the expected input length
             if (currentSequence.length > this.seqLength) {
                 currentSequence = currentSequence.slice(-this.seqLength);
             }
-
+        
             const input = tf.tensor([currentSequence], [1, currentSequence.length], 'int32');
             const positionIndices = this.getPositionIndices(1, currentSequence.length);
             const attentionMask = createCausalMask(1, currentSequence.length);
-
-            // Optional: Log attention mask shape for debugging
-            console.log('Attention Mask Shape (Generate):', attentionMask.shape);
-
+        
             const logits = this.model.predict([input, positionIndices, attentionMask]);
             const logitsLast = logits.slice([0, currentSequence.length - 1, 0], [1, 1, this.vocabSize]);
-            const probabilities = Array.from(tf.softmax(logitsLast).dataSync());
-
-            const predictedIdx = this.sampleFromDistribution(probabilities);
+            
+            // Reshape logitsLast from [1, 1, vocabSize] to [1, vocabSize]
+            const logits2D = logitsLast.squeeze([1]); // {{ edit_squeeze }}
+            
+            // Use tf.multinomial to sample from the logits
+            const sampled = tf.multinomial(logits2D, 1); // {{ edit_multinomial }}
+            const sampledArray = await sampled.array();
+            const predictedIdx = sampledArray[0][0];
             const predictedChar = dataLoader.idx2char[predictedIdx];
-
+        
             result.push(predictedChar);
             currentSequence.push(predictedIdx);
-
+        
             // Dispose tensors to free memory
             input.dispose();
             positionIndices.dispose();
             attentionMask.dispose();
             logits.dispose();
             logitsLast.dispose();
+            logits2D.dispose(); // {{ edit_dispose_logits2D }}
+            sampled.dispose();
         }
-
+    
         return result.join('');
     }
 
@@ -225,22 +228,6 @@ class GPT {
             [batchSize, seqLength],
             'int32'
         );
-    }
-
-    sampleFromDistribution(probabilities) {
-        const sum = probabilities.reduce((a, b) => a + b, 0);
-        const normalized = probabilities.map(p => p / sum);
-        const random = Math.random();
-        let cumulative = 0;
-        
-        for (let i = 0; i < normalized.length; i++) {
-            cumulative += normalized[i];
-            if (random < cumulative) {
-                return i;
-            }
-        }
-        
-        return normalized.length - 1; // Fallback to last index
     }
 }
 
