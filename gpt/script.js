@@ -17,8 +17,8 @@ class DataLoader {
         this.char2idx = {};
         this.idx2char = {};
         this.chars.forEach((c, i) => {
-            this.char2idx[c] = i;
-            this.idx2char[i] = c;
+            this.char2idx[c] = i; // Corrected with 'this.'
+            this.idx2char[i] = c; // Corrected with 'this.'
         });
         this.vocabSize = this.chars.length;
 
@@ -52,8 +52,8 @@ class DataLoader {
 class SharedDataLoader extends DataLoader {
     constructor(text, seqLength, char2idx, idx2char, vocabSize) {
         super(text, seqLength);
-        this.char2idx = char2idx;
-        this.idx2char = idx2char;
+        this.char2idx = char2idx; // Correctly using 'this.'
+        this.idx2char = idx2char; // Correctly using 'this.'
         this.vocabSize = vocabSize;
         this.textIndices = Array.from(text).map(c => this.char2idx[c] || 0);
     }
@@ -147,13 +147,22 @@ class GPT {
                 'int32'
             );
 
-            // Create attention mask for full sequence length
-            const attentionMask = tf.ones([batchSize, 1, seqLength, seqLength]);
+            // Create causal attention mask
+            const attentionMask = createCausalMask(batchSize, seqLength);
+            
+            // Optional: Log attention mask shape for debugging
+            console.log('Attention Mask Shape:', attentionMask.shape);
 
             const history = await this.model.fit([inputs, positionIndices, attentionMask], targets, {
                 epochs: 1,
                 verbose: 0,
             });
+
+            // Dispose tensors to free memory
+            inputs.dispose();
+            targets.dispose();
+            positionIndices.dispose();
+            attentionMask.dispose();
 
             // Log training history
             console.log('Training History:', history);
@@ -187,7 +196,10 @@ class GPT {
 
             const input = tf.tensor([paddedSequence], [1, this.seqLength], 'int32');
             const positionIndices = this.getPositionIndices(1, this.seqLength);
-            const attentionMask = tf.ones([1, 1, this.seqLength, this.seqLength]);
+            const attentionMask = createCausalMask(1, this.seqLength);
+
+            // Optional: Log attention mask shape for debugging
+            console.log('Attention Mask Shape (Generate):', attentionMask.shape);
 
             const logits = this.model.predict([input, positionIndices, attentionMask]);
             const logitsLast = logits.slice([0, this.seqLength - 1, 0], [1, 1, this.vocabSize]);
@@ -198,6 +210,13 @@ class GPT {
 
             result.push(predictedChar);
             currentSequence.push(predictedIdx);
+
+            // Dispose tensors to free memory
+            input.dispose();
+            positionIndices.dispose();
+            attentionMask.dispose();
+            logits.dispose();
+            logitsLast.dispose();
         }
 
         return result.join('');
@@ -303,6 +322,20 @@ class MultiHeadSelfAttention extends tf.layers.Layer {
 // Register the custom layer
 tf.serialization.registerClass(MultiHeadSelfAttention);
 
+// Helper function to create a causal mask
+function createCausalMask(batchSize, seqLength) {
+    return tf.tidy(() => {
+        // Create a lower triangular matrix [seqLength, seqLength]
+        const mask = tf.linalg.bandPart(tf.ones([seqLength, seqLength]), -1, 0);
+        
+        // Reshape the mask to [1, 1, seqLength, seqLength]
+        const maskReshaped = mask.reshape([1, 1, seqLength, seqLength]);
+        
+        // Tile to [batchSize, 1, seqLength, seqLength]
+        return maskReshaped.tile([batchSize, 1, 1, 1]);
+    });
+}
+
 // Load dataset, train model, and generate text
 document.getElementById('trainButton').addEventListener('click', async () => {
     const datasetURL = 'input.txt'; // The URL/path of the tiny shakespeare dataset
@@ -382,7 +415,7 @@ document.getElementById('trainButton').addEventListener('click', async () => {
                 [batchSize, seqLength],
                 'int32'
             );
-            const attentionMask = tf.ones([batchSize, 1, seqLength, seqLength]);
+            const attentionMask = createCausalMask(batchSize, seqLength);
 
             // Evaluate the model on the validation batch
             const evaluation = model.model.evaluate([inputs, positionIndices, attentionMask], targets, { verbose: 0 });
