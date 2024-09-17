@@ -30,7 +30,11 @@ class DataLoader {
         const inputs = [];
         const targets = [];
         for (let i = 0; i < batchSize; i++) {
-            const startIdx = Math.floor(Math.random() * (this.textIndices.length - this.seqLength - 1));
+            let startIdx;
+            do {
+                startIdx = Math.floor(Math.random() * (this.textIndices.length - this.seqLength));
+            } while (startIdx + this.seqLength >= this.textIndices.length);
+            
             const inputSeq = this.textIndices.slice(startIdx, startIdx + this.seqLength);
             const targetSeq = this.textIndices.slice(startIdx + 1, startIdx + this.seqLength + 1);
             inputs.push(inputSeq);
@@ -38,8 +42,6 @@ class DataLoader {
         }
 
         const inputsTensor = tf.tensor2d(inputs, [batchSize, this.seqLength], 'int32');
-
-        // Convert targets to one-hot encoding
         const targetsTensor = tf.oneHot(tf.tensor2d(targets, [batchSize, this.seqLength], 'int32'), this.vocabSize).toFloat();
         
         return { inputs: inputsTensor, targets: targetsTensor };
@@ -61,7 +63,7 @@ class SharedDataLoader extends DataLoader {
 class GPT {
     constructor(vocabSize, seqLength) {
         this.vocabSize = vocabSize;
-        this.seqLength = seqLength; // Store seqLength as a class property
+        this.seqLength = seqLength;
 
         // Model parameters
         const embedDim = 256;    // Embedding size for each token
@@ -71,6 +73,7 @@ class GPT {
         // Input layers
         const tokenInputs = tf.input({ shape: [seqLength], dtype: 'int32' });
         const positionInputs = tf.input({ shape: [seqLength], dtype: 'int32' });
+        const attentionMask = tf.input({ shape: [1, seqLength, seqLength], dtype: 'float32' });
 
         // Token embeddings
         const tokenEmbeddingLayer = tf.layers.embedding({ inputDim: this.vocabSize, outputDim: embedDim });
@@ -88,9 +91,9 @@ class GPT {
             // Layer normalization
             let attnInput = tf.layers.layerNormalization({ epsilon: 1e-6 }).apply(x);
 
-            // Multi-head self-attention
+            // Multi-head self-attention with attention mask
             const attentionLayer = new MultiHeadSelfAttention({ numHeads, embedDim });
-            let attnOutput = attentionLayer.apply(attnInput);
+            let attnOutput = attentionLayer.apply([attnInput, attentionMask]);
 
             // Add & Norm
             x = tf.layers.add().apply([x, attnOutput]);
@@ -111,7 +114,7 @@ class GPT {
         const logits = tf.layers.dense({ units: this.vocabSize }).apply(x);
 
         // Define the model
-        this.model = tf.model({ inputs: [tokenInputs, positionInputs], outputs: logits });
+        this.model = tf.model({ inputs: [tokenInputs, positionInputs, attentionMask], outputs: logits });
 
         this.model.compile({
             optimizer: tf.train.adam(0.001), // Learning rate: 0.001
@@ -135,21 +138,6 @@ class GPT {
 
         for (let epoch = 0; epoch < epochs; epoch++) {
             const { inputs, targets } = dataLoader.getBatch(batchSize);
-
-            // Add debugging logs before training
-            console.log(`\n--- Epoch ${epoch + 1} ---`);
-            console.log('Inputs shape:', inputs.shape);
-            console.log('Targets shape:', targets.shape);
-            
-            // Log a sample input sequence
-            const sampleInput = inputs.slice([0, 0], [1, this.seqLength]).dataSync();
-            console.log('Sample Input:', Array.from(sampleInput));
-            
-            // Log a sample target sequence (one-hot)
-            const sampleTarget = targets.slice([0, 0, 0], [1, this.seqLength, this.vocabSize]).arraySync();
-            console.log('Sample Target (one-hot):', sampleTarget);
-
-            // Generate position indices for the input sequences
             const seqLength = inputs.shape[1];
             const positionIndices = tf.tensor2d(
                 Array.from({ length: batchSize }, () =>
@@ -159,12 +147,10 @@ class GPT {
                 'int32'
             );
 
-            // Log position indices shape and a sample
-            console.log('Position Indices shape:', positionIndices.shape);
-            const samplePosition = positionIndices.slice([0, 0], [1, this.seqLength]).dataSync();
-            console.log('Sample Position Indices:', Array.from(samplePosition));
+            // Create attention mask for full sequence length
+            const attentionMask = tf.ones([batchSize, 1, seqLength, seqLength]);
 
-            const history = await this.model.fit([inputs, positionIndices], targets, {
+            const history = await this.model.fit([inputs, positionIndices, attentionMask], targets, {
                 epochs: 1,
                 verbose: 0,
             });
@@ -191,26 +177,22 @@ class GPT {
         let currentSequence = result.map(c => dataLoader.char2idx[c] || 0);
         
         for (let i = 0; i < numChars; i++) {
-            // Ensure the current sequence has the correct seqLength
-            let inputSequence = currentSequence.slice(-this.seqLength);
-            // Pad the sequence if it's shorter than seqLength
-            while (inputSequence.length < this.seqLength) {
-                inputSequence.unshift(0); // Assuming 0 is the padding index
+            // Pad or truncate the sequence to match the expected input length
+            let paddedSequence = [...currentSequence];
+            if (paddedSequence.length < this.seqLength) {
+                paddedSequence = Array(this.seqLength - paddedSequence.length).fill(0).concat(paddedSequence);
+            } else if (paddedSequence.length > this.seqLength) {
+                paddedSequence = paddedSequence.slice(-this.seqLength);
             }
 
-            const input = tf.tensor([inputSequence], [1, this.seqLength], 'int32');
-
-            // Generate position indices matching seqLength
+            const input = tf.tensor([paddedSequence], [1, this.seqLength], 'int32');
             const positionIndices = this.getPositionIndices(1, this.seqLength);
+            const attentionMask = tf.ones([1, 1, this.seqLength, this.seqLength]);
 
-            // Predict next character logits
-            const logits = this.model.predict([input, positionIndices]);
-
-            // **Extract logits for the last token and convert to a regular array**
+            const logits = this.model.predict([input, positionIndices, attentionMask]);
             const logitsLast = logits.slice([0, this.seqLength - 1, 0], [1, 1, this.vocabSize]);
-            const probabilities = Array.from(tf.softmax(logitsLast).dataSync()); // [vocabSize]
+            const probabilities = Array.from(tf.softmax(logitsLast).dataSync());
 
-            // Sample from the probability distribution
             const predictedIdx = this.sampleFromDistribution(probabilities);
             const predictedChar = dataLoader.idx2char[predictedIdx];
 
@@ -256,14 +238,12 @@ class MultiHeadSelfAttention extends tf.layers.Layer {
         this.numHeads = config.numHeads;
         this.embedDim = config.embedDim;
 
-        // Ensure embedDim is divisible by numHeads
         if (this.embedDim % this.numHeads !== 0) {
             throw new Error('embedDim must be divisible by numHeads');
         }
 
         this.projectionDim = this.embedDim / this.numHeads;
 
-        // Define dense layers for linear projections
         this.queryDense = tf.layers.dense({ units: this.embedDim });
         this.keyDense = tf.layers.dense({ units: this.embedDim });
         this.valueDense = tf.layers.dense({ units: this.embedDim });
@@ -271,57 +251,48 @@ class MultiHeadSelfAttention extends tf.layers.Layer {
     }
 
     call(inputs, kwargs) {
-        const x = inputs;
+        const [x, mask] = inputs;
 
-        // Linear projections
+        const batchSize = x.shape[0];
+        const seqLength = x.shape[1];
+
         let query = this.queryDense.apply(x);
         let key = this.keyDense.apply(x);
         let value = this.valueDense.apply(x);
 
-        // Split heads
-        query = this.splitHeads(query);
-        key = this.splitHeads(key);
-        value = this.splitHeads(value);
+        query = this.splitHeads(query, batchSize);
+        key = this.splitHeads(key, batchSize);
+        value = this.splitHeads(value, batchSize);
 
-        // Scaled dot-product attention
-        let attentionScores = tf.matMul(query, key, false, true);
-        attentionScores = tf.mul(attentionScores, 1 / Math.sqrt(this.projectionDim));
-
-        // Apply softmax
-        let attentionWeights = tf.softmax(attentionScores);
-
-        // Attention output
-        let attentionOutput = tf.matMul(attentionWeights, value);
-
-        // Combine heads
-        let combinedHeads = this.combineHeads(attentionOutput);
-
-        // Final linear layer
-        let output = this.combineHeadsDense.apply(combinedHeads);
+        const scaledAttention = this.scaledDotProductAttention(query, key, value, mask);
+        const concatenatedHeads = tf.reshape(scaledAttention, [batchSize, seqLength, this.embedDim]);
+        const output = this.combineHeadsDense.apply(concatenatedHeads);
 
         return output;
     }
 
-    splitHeads(x) {
-        const batchSize = x.shape[0];
+    splitHeads(x, batchSize) {
         const seqLength = x.shape[1];
-
-        // [batch_size, seq_length, num_heads, projection_dim]
-        let xReshaped = tf.reshape(x, [batchSize, seqLength, this.numHeads, this.projectionDim]);
-
-        // [batch_size, num_heads, seq_length, projection_dim]
+        const xReshaped = tf.reshape(x, [batchSize, seqLength, this.numHeads, this.projectionDim]);
         return tf.transpose(xReshaped, [0, 2, 1, 3]);
     }
 
-    combineHeads(x) {
-        // [batch_size, num_heads, seq_length, projection_dim]
-        let xTransposed = tf.transpose(x, [0, 2, 1, 3]);
+    scaledDotProductAttention(query, key, value, mask) {
+        const matmulQK = tf.matMul(query, key, false, true);
+        const scaledMatmulQK = tf.mul(matmulQK, 1 / Math.sqrt(this.projectionDim));
+        
+        // Reshape mask to match the shape of scaledMatmulQK
+        const reshapedMask = tf.reshape(mask, [mask.shape[0], 1, mask.shape[2], mask.shape[3]]);
+        
+        const maskedScaledMatmulQK = tf.mul(scaledMatmulQK, reshapedMask);
+        const maskedScaledMatmulQK_sub = tf.sub(maskedScaledMatmulQK, tf.mul(tf.sub(1, reshapedMask), 1e9));
+        
+        const attentionWeights = tf.softmax(maskedScaledMatmulQK_sub, -1);
+        return tf.matMul(attentionWeights, value);
+    }
 
-        const batchSize = x.shape[0];
-        const seqLength = x.shape[2]; // Adjusted index for seq_length
-
-        // Reshape to [batch_size, seq_length, embed_dim]
-        return tf.reshape(xTransposed, [batchSize, seqLength, this.embedDim]);
+    computeOutputShape(inputShape) {
+        return inputShape[0];
     }
 
     static get className() {
@@ -358,7 +329,7 @@ document.getElementById('trainButton').addEventListener('click', async () => {
             return [trainText, valText];
         };
 
-        const [trainText, valText] = splitText(text, 0.1);
+        const [trainText, valText] = splitText(text, 0.01);
 
         // Build vocabulary from the full text
         const chars = Array.from(new Set(text));
@@ -389,7 +360,7 @@ document.getElementById('trainButton').addEventListener('click', async () => {
 
         // Generate text on button click
         generateButton.addEventListener('click', async () => {
-            const startSequence = 'The quick'; // Starting sequence with length <= seqLength
+            const startSequence = 'The '; // Starting sequence with length <= seqLength
             const numChars = 100; // Number of characters to generate
             const generatedText = await model.generateText(startSequence, numChars, trainDataLoader);
             outputElement.textContent = generatedText;
@@ -403,8 +374,7 @@ document.getElementById('trainButton').addEventListener('click', async () => {
 
         for (let i = 0; i < validationBatches; i++) {
             const { inputs, targets } = valDataLoader.getBatch(batchSize);
-            
-            // Generate position indices for validation inputs
+            const seqLength = inputs.shape[1];
             const positionIndices = tf.tensor2d(
                 Array.from({ length: batchSize }, () =>
                     Array.from({ length: seqLength }, (_, idx) => idx)
@@ -412,9 +382,10 @@ document.getElementById('trainButton').addEventListener('click', async () => {
                 [batchSize, seqLength],
                 'int32'
             );
+            const attentionMask = tf.ones([batchSize, 1, seqLength, seqLength]);
 
             // Evaluate the model on the validation batch
-            const evaluation = model.model.evaluate([inputs, positionIndices], targets, { verbose: 0 });
+            const evaluation = model.model.evaluate([inputs, positionIndices, attentionMask], targets, { verbose: 0 });
 
             // Accumulate loss and accuracy
             totalValLoss += evaluation[0].dataSync()[0];
