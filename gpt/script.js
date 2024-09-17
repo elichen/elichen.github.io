@@ -150,9 +150,6 @@ class GPT {
             // Create causal attention mask
             const attentionMask = createCausalMask(batchSize, seqLength);
             
-            // Optional: Log attention mask shape for debugging
-            console.log('Attention Mask Shape:', attentionMask.shape);
-
             const history = await this.model.fit([inputs, positionIndices, attentionMask], targets, {
                 epochs: 1,
                 verbose: 0,
@@ -349,7 +346,7 @@ document.getElementById('trainButton').addEventListener('click', async () => {
         const text = await loadTextDataset(datasetURL);
         statusElement.textContent = 'Status: Preparing data...';
 
-        const seqLength = 10;
+        const seqLength = 128;
 
         // Split the dataset into training and validation sets (90% training, 10% validation)
         const splitText = (text, validationSplit) => {
@@ -381,7 +378,7 @@ document.getElementById('trainButton').addEventListener('click', async () => {
         statusElement.textContent = 'Status: Training model...';
         
         // Train the model with the dataset
-        const epochs = 50;
+        const epochs = 100;
         const batchSize = 64;
         await model.train(trainDataLoader, epochs, batchSize);
 
