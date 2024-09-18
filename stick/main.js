@@ -56,7 +56,7 @@ async function trainLoop() {
         let done = false;
         let stepCount = 0;
 
-        while (!done) {
+        while (!done && stepCount < 500) { // Add a maximum step count to prevent very long episodes
             const action = await agent.selectAction(state);
             const [nextState, reward, stepDone] = environment.step(action);
             
@@ -68,16 +68,17 @@ async function trainLoop() {
             done = stepDone;
             
             drawEnvironment();
-            await new Promise(resolve => setTimeout(resolve, 10)); // Small delay for visualization
+            // Remove the delay to speed up training
+            // await new Promise(resolve => setTimeout(resolve, 10));
         }
 
         episodeCount++;
         totalReward += episodeReward;
         updateStats();
-        updateMetricsChart(episodeCount, episodeReward, agent.epsilon); // Update the chart
+        updateMetricsChart(episodeCount, episodeReward, agent.epsilon);
 
         if (episodeCount % 10 === 0) {
-            console.log(`Episode ${episodeCount}, Total Reward: ${totalReward}, Steps: ${stepCount}`);
+            console.log(`Episode ${episodeCount}, Total Reward: ${totalReward}, Steps: ${stepCount}, Epsilon: ${agent.epsilon.toFixed(4)}`);
         }
     }
 }
