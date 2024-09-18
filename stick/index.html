@@ -12,11 +12,10 @@
         <h1>Stick Balancing Reinforcement Learning</h1>
         <canvas id="stickCanvas" width="800" height="400"></canvas>
         <div id="controls">
-            <button id="startTraining">Start Training</button>
-            <button id="stopTraining">Stop Training</button>
-            <button id="resetEnvironment">Reset Environment</button>
+            <button id="toggleMode">Switch to Testing</button>
         </div>
         <div id="stats">
+            <p>Mode: <span id="currentMode">Training</span></p>
             <p>Episode: <span id="episodeCount">0</span></p>
             <p>Total Reward: <span id="totalReward">0</span></p>
         </div>
