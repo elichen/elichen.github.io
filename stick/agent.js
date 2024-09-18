@@ -10,18 +10,19 @@ class RLAgent {
 
         this.epsilon = 1.0;
         this.epsilonMin = 0.01;
-        this.epsilonDecay = 0.995;
-        this.gamma = 0.95;
-        this.learningRate = 0.001;
+        this.epsilonDecay = 0.99; // Increased from 0.995 for faster exploration decay
+        this.gamma = 0.99; // Increased from 0.95 for slightly more future-reward consideration
+        this.learningRate = 0.005; // Increased from 0.001 for faster learning
 
         this.memory = [];
-        this.batchSize = 32;
+        this.batchSize = 64; // Increased from 32 for more stable learning
+        this.targetUpdateFrequency = 10; // Update target network every 10 episodes
     }
 
     createModel() {
         const model = tf.sequential();
-        model.add(tf.layers.dense({ units: 24, activation: 'relu', inputShape: [this.stateSize] }));
-        model.add(tf.layers.dense({ units: 24, activation: 'relu' }));
+        model.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [this.stateSize] }));
+        model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
         model.add(tf.layers.dense({ units: this.actionSize, activation: 'linear' }));
         model.compile({ optimizer: tf.train.adam(this.learningRate), loss: 'meanSquaredError' });
         return model;
@@ -57,6 +58,9 @@ class RLAgent {
 
         if (done) {
             this.epsilon = Math.max(this.epsilonMin, this.epsilon * this.epsilonDecay);
+            if (this.memory.length % this.targetUpdateFrequency === 0) {
+                this.updateTargetModel();
+            }
         }
     }
 
