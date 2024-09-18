@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stick Balancing RL</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <h1>Stick Balancing Reinforcement Learning</h1>
+        <canvas id="stickCanvas" width="800" height="400"></canvas>
+        <div id="controls">
+            <button id="startTraining">Start Training</button>
+            <button id="stopTraining">Stop Training</button>
+            <button id="resetEnvironment">Reset Environment</button>
+        </div>
+        <div id="stats">
+            <p>Episode: <span id="episodeCount">0</span></p>
+            <p>Total Reward: <span id="totalReward">0</span></p>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"> </script>
+    <script src="environment.js"></script>
+    <script src="agent.js"></script>
+    <script src="visualization.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
