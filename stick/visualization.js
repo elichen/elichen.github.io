@@ -27,6 +27,7 @@ function initializeMetricsChart() {
             ]
         },
         options: {
+            animation: false,
             scales: {
                 x: { 
                     title: { 
