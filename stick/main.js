@@ -2,7 +2,7 @@
 
 let environment;
 let agent;
-let isTraining = false;
+let isTraining = true; // New variable to track the current mode
 let episodeCount = 0;
 let totalReward = 0;
 
@@ -13,23 +13,31 @@ function initializeApp() {
     setupEventListeners();
     resetEnvironment();
     initializeMetricsChart(); // Initialize the metrics chart
+    updateModeDisplay(); // New function to update mode display
+    startTraining(); // Start in training mode by default
 }
 
 function setupEventListeners() {
-    document.getElementById('startTraining').addEventListener('click', startTraining);
-    document.getElementById('stopTraining').addEventListener('click', stopTraining);
-    document.getElementById('resetEnvironment').addEventListener('click', resetEnvironment);
+    document.getElementById('toggleMode').addEventListener('click', toggleMode);
 }
 
-function startTraining() {
-    if (!isTraining) {
-        isTraining = true;
-        trainLoop();
+function toggleMode() {
+    isTraining = !isTraining;
+    updateModeDisplay();
+    if (isTraining) {
+        startTraining();
+    } else {
+        stopTraining();
     }
 }
 
+function startTraining() {
+    trainLoop();
+}
+
 function stopTraining() {
-    isTraining = false;
+    // Stop the training loop, but continue running in testing mode
+    runTestingLoop();
 }
 
 function resetEnvironment() {
@@ -72,6 +80,43 @@ async function trainLoop() {
             console.log(`Episode ${episodeCount}, Total Reward: ${totalReward}, Steps: ${stepCount}`);
         }
     }
+}
+
+async function runTestingLoop() {
+    while (!isTraining) {
+        let state = environment.reset();
+        let episodeReward = 0;
+        let done = false;
+        let stepCount = 0;
+
+        while (!done) {
+            const action = await agent.selectAction(state, true); // Pass true for testing mode
+            const [nextState, reward, stepDone] = environment.step(action);
+            
+            state = nextState;
+            episodeReward += reward;
+            stepCount++;
+            done = stepDone;
+            
+            drawEnvironment();
+            await new Promise(resolve => setTimeout(resolve, 10));
+        }
+
+        episodeCount++;
+        totalReward += episodeReward;
+        updateStats();
+        updateMetricsChart(episodeCount, episodeReward, 0); // Epsilon is always 0 in testing mode
+
+        if (episodeCount % 10 === 0) {
+            console.log(`Test Episode ${episodeCount}, Total Reward: ${totalReward}, Steps: ${stepCount}`);
+        }
+    }
+}
+
+function updateModeDisplay() {
+    const modeButton = document.getElementById('toggleMode');
+    modeButton.textContent = isTraining ? 'Switch to Testing' : 'Switch to Training';
+    document.getElementById('currentMode').textContent = isTraining ? 'Training' : 'Testing';
 }
 
 function updateStats() {

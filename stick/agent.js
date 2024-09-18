@@ -31,8 +31,8 @@ class RLAgent {
         this.targetModel.setWeights(this.model.getWeights());
     }
 
-    async selectAction(state) {
-        if (Math.random() < this.epsilon) {
+    async selectAction(state, testing = false) {
+        if (!testing && Math.random() < this.epsilon) {
             return Math.floor(Math.random() * this.actionSize);
         } else {
             const stateTensor = tf.tensor2d([state]);
