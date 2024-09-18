@@ -12,6 +12,7 @@ function initializeApp() {
     
     setupEventListeners();
     resetEnvironment();
+    initializeMetricsChart(); // Initialize the metrics chart
 }
 
 function setupEventListeners() {
@@ -65,6 +66,7 @@ async function trainLoop() {
         episodeCount++;
         totalReward += episodeReward;
         updateStats();
+        updateMetricsChart(episodeCount, episodeReward, agent.epsilon); // Update the chart
 
         if (episodeCount % 10 === 0) {
             console.log(`Episode ${episodeCount}, Total Reward: ${totalReward}, Steps: ${stepCount}`);
