@@ -1,6 +1,76 @@
 const canvas = document.getElementById('stickCanvas');
 const ctx = canvas.getContext('2d');
 
+let metricsChart;
+
+function initializeMetricsChart() {
+    const ctx = document.getElementById('metricsChart').getContext('2d');
+    metricsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Episode Reward',
+                    data: [],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    yAxisID: 'y-reward',
+                    fill: false,
+                },
+                {
+                    label: 'Epsilon',
+                    data: [],
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    yAxisID: 'y-epsilon',
+                    fill: false,
+                }
+            ]
+        },
+        options: {
+            scales: {
+                x: { 
+                    title: { 
+                        display: true, 
+                        text: 'Episode' 
+                    } 
+                },
+                'y-reward': { // Added Y-axis for Episode Reward
+                    type: 'linear',
+                    position: 'left',
+                    title: { 
+                        display: true, 
+                        text: 'Episode Reward' 
+                    },
+                    beginAtZero: true,
+                },
+                'y-epsilon': { // Added Y-axis for Epsilon
+                    type: 'linear',
+                    position: 'right',
+                    title: { 
+                        display: true, 
+                        text: 'Epsilon' 
+                    },
+                    grid: { 
+                        drawOnChartArea: false // Prevent grid lines from overlapping
+                    },
+                    beginAtZero: true,
+                    suggestedMin: 0,
+                    suggestedMax: 1,
+                }
+            }
+        }
+    });
+}
+
+function updateMetricsChart(episode, reward, epsilon) {
+    if (metricsChart) {
+        metricsChart.data.labels.push(episode);
+        metricsChart.data.datasets[0].data.push(reward);
+        metricsChart.data.datasets[1].data.push(epsilon);
+        metricsChart.update();
+    }
+}
+
 function drawEnvironment() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     

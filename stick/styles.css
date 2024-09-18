@@ -1,33 +1,113 @@
 body {
     font-family: Arial, sans-serif;
     display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+    flex-direction: column; /* Change from row to column */
+    align-items: center;    /* Center horizontally */
+    min-height: 100vh;      /* Use min-height instead of height */
     margin: 0;
     background-color: #f0f0f0;
 }
 
 #app {
-    text-align: center;
+    width: 800px; /* Changed width from 100% to fixed 800px */
+    max-width: 800px; /* Changed max-width to 800px */
+    margin: 20px auto;
+    padding: 30px;
+    background-color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    box-sizing: border-box; /* Ensure padding is included in width */
 }
 
 canvas {
-    border: 1px solid #000;
-    background-color: #fff;
+    width: 100% !important; /* Make canvases responsive */
+    height: auto !important;
+    border: none;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 #controls {
-    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 25px;
 }
 
 button {
-    margin: 0 10px;
-    padding: 10px 20px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 24px;
     font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+button:hover {
+    background-color: #45a049;
+    transform: translateY(-2px);
+}
+
+button:active {
+    transform: translateY(0);
 }
 
 #stats {
-    margin-top: 20px;
-    font-size: 18px;
+    background-color: #f1f1f1;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+    margin-top: 25px;
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    font-size: 1.2em;
+    color: #333333;
+}
+
+canvas#metricsChart {
+    margin-top: 30px;
+    border: none;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#explanation {
+    text-align: left;
+    background-color: #fafafa;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    margin-top: 30px;
+    color: #333333;
+}
+
+#explanation h2 {
+    color: #2c3e50;
+}
+
+#explanation p {
+    margin-bottom: 15px;
+}
+
+@media (max-width: 768px) {
+    #controls {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    #stats {
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    canvas#stickCanvas,
+    canvas#metricsChart {
+        width: 100%;
+        height: auto;
+    }
 }

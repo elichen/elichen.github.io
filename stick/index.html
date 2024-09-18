@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stick Balancing RL</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div id="app">
@@ -18,6 +19,26 @@
         <div id="stats">
             <p>Episode: <span id="episodeCount">0</span></p>
             <p>Total Reward: <span id="totalReward">0</span></p>
+        </div>
+        <canvas id="metricsChart" width="800" height="400"></canvas> <!-- Added metrics chart -->
+
+        <div id="explanation"> <!-- Added explanation section -->
+            <h2>Learning Algorithm</h2>
+            <p>
+                The reinforcement learning agent utilizes a Deep Q-Network (DQN) to learn the optimal policy for balancing the stick. It employs an ε-greedy strategy for action selection, balancing exploration and exploitation. The agent uses experience replay to store past experiences and a target network to stabilize training, updating it periodically with the primary network's weights.
+            </p>
+            
+            <h2>Metrics Explanation</h2>
+            <p>
+                <strong>Episode Reward:</strong> Represents the cumulative reward obtained in a single episode. A higher reward indicates better performance in balancing the stick.
+                <br>
+                <strong>Epsilon:</strong> Denotes the exploration rate, determining the probability of the agent choosing a random action versus exploiting the learned policy. It decays over time to favor exploitation as learning progresses.
+            </p>
+            
+            <h2>Expected Learning Duration</h2>
+            <p>
+                The time required for the agent to learn effective balancing can vary based on hyperparameters such as learning rate, discount factor, and exploration decay rate. Typically, the agent should start showing consistent balancing behavior after several hundred episodes. Monitoring the real-time metrics will provide insights into the learning progress and convergence.
+            </p>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"> </script>
