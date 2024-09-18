@@ -52,7 +52,7 @@ async function trainLoop() {
             const action = await agent.selectAction(state);
             const [nextState, reward, stepDone] = environment.step(action);
             
-            await agent.update(state, action, reward, nextState, done);
+            await agent.update(state, action, reward, nextState, stepDone);
             
             state = nextState;
             episodeReward += reward;
