@@ -3,12 +3,12 @@ class SnakeGame {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
         this.gridSize = gridSize;
-        this.tileSize = this.canvas.width / this.gridSize;
+        this.tileSize = this.canvas.width / (this.gridSize + 2); // Add 2 for borders
         this.reset();
     }
 
     reset() {
-        this.snake = [{ x: 10, y: 10 }];
+        this.snake = [{ x: Math.floor(this.gridSize / 2), y: Math.floor(this.gridSize / 2) }];
         this.direction = { x: 0, y: -1 };
         this.food = this.generateFood();
         this.score = 0;
@@ -58,15 +58,23 @@ class SnakeGame {
     draw() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+        // Draw border
+        this.ctx.fillStyle = 'black';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Draw game area
+        this.ctx.fillStyle = 'white';
+        this.ctx.fillRect(this.tileSize, this.tileSize, this.canvas.width - 2 * this.tileSize, this.canvas.height - 2 * this.tileSize);
+
         // Draw snake
         this.ctx.fillStyle = 'green';
         this.snake.forEach(segment => {
-            this.ctx.fillRect(segment.x * this.tileSize, segment.y * this.tileSize, this.tileSize, this.tileSize);
+            this.ctx.fillRect((segment.x + 1) * this.tileSize, (segment.y + 1) * this.tileSize, this.tileSize, this.tileSize);
         });
 
         // Draw food
         this.ctx.fillStyle = 'red';
-        this.ctx.fillRect(this.food.x * this.tileSize, this.food.y * this.tileSize, this.tileSize, this.tileSize);
+        this.ctx.fillRect((this.food.x + 1) * this.tileSize, (this.food.y + 1) * this.tileSize, this.tileSize, this.tileSize);
     }
 
     setDirection(direction) {
