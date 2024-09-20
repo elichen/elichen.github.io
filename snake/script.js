@@ -26,7 +26,9 @@ async function train() {
         game.reset();
         let state = agent.getState(game);
         let totalReward = 0;
-        let movesWithoutFood = 0; // Counter for moves without eating food
+        let movesWithoutFood = 0;
+        let foodEaten = 0;
+        let totalFoodEaten = 0;
 
         for (let step = 0; step < maxSteps; step++) {
             const action = agent.getAction(state);
@@ -42,67 +44,50 @@ async function train() {
                 console.error('Error during replay:', error);
             }
 
-            game.draw(); // Draw the game state at each step
-            await new Promise(resolve => setTimeout(resolve, 50)); // Add a small delay to make the movement visible
+            game.draw();
+            await new Promise(resolve => setTimeout(resolve, 50));
 
-            // Check if the snake ate food
             if (reward >= 10) { // Assuming 10 is the reward for eating food
-                movesWithoutFood = 0; // Reset the counter if food was eaten
+                movesWithoutFood = 0;
+                foodEaten++;
+                totalFoodEaten++;
+                console.log(`Episode ${episode}: Food eaten! Total in this episode: ${foodEaten}`);
             } else {
-                movesWithoutFood++; // Increment the counter if no food was eaten
+                movesWithoutFood++;
             }
 
-            // Check if max moves without food has been reached
             if (movesWithoutFood >= maxMovesWithoutReward) {
-                console.log(`Episode ${episode} terminated due to lack of progress`);
-                break; // End the episode
+                console.log(`Episode ${episode} terminated due to lack of progress. Moves without food: ${movesWithoutFood}, Food eaten this episode: ${foodEaten}, Total food eaten: ${totalFoodEaten}`);
+                break;
             }
 
-            if (done) break;
+            if (done) {
+                console.log(`Episode ${episode} completed. Food eaten this episode: ${foodEaten}, Total food eaten: ${totalFoodEaten}`);
+                break;
+            }
         }
 
-        updateStats(episode, totalReward, agent.epsilon);
+        agent.incrementEpisodeCount();
+
+        updateStats(episode, totalReward, agent.epsilon, foodEaten, totalFoodEaten);
         visualization.updateCharts(episode, totalReward, agent.epsilon);
-        await tf.nextFrame(); // Allow UI to update
-    }
-}
-
-async function test() {
-    agent.setTestingMode(true);
-    let totalScore = 0;
-
-    for (let episode = 0; episode < testEpisodes; episode++) {
-        game.reset();
-        let state = agent.getState(game);
-        let episodeScore = 0;
-
-        for (let step = 0; step < maxSteps; step++) {
-            const action = agent.getAction(state);
-            const { state: nextState, reward, done } = game.step(action);
-            episodeScore += reward;
-            state = agent.getState(game);
-
-            game.draw(); // Ensure the game is visually updated
-            await new Promise(resolve => setTimeout(resolve, 50)); // Slow down the game for visibility
-
-            if (done) break;
-        }
-
-        totalScore += episodeScore;
-        updateStats(episode, episodeScore, 0);
-        visualization.updateCharts(episode, episodeScore, 0);
         await tf.nextFrame();
     }
-
-    const averageScore = totalScore / testEpisodes;
-    console.log(`Testing completed. Average score: ${averageScore.toFixed(2)}`);
-    agent.setTestingMode(false);
 }
 
-function updateStats(episode, score, epsilon) {
-    document.getElementById('episode').textContent = episode;
-    document.getElementById('score').textContent = score.toFixed(2);
-    document.getElementById('epsilon').textContent = epsilon.toFixed(4);
+function updateStats(episode, score, epsilon, foodEaten, totalFoodEaten) {
+    updateElementText('episode', episode);
+    updateElementText('score', score.toFixed(2));
+    updateElementText('epsilon', epsilon.toFixed(4));
+    updateElementText('foodEaten', foodEaten);
+    updateElementText('totalFoodEaten', totalFoodEaten);
+}
+
+function updateElementText(id, value) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.textContent = value;
+    }
 }
 
 document.getElementById('startTraining').addEventListener('click', async () => {

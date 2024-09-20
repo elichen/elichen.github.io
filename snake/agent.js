@@ -5,14 +5,22 @@ class SnakeAgent {
         this.hiddenSize = 128;
         this.outputSize = 4; // 4 possible actions (up, down, left, right)
         this.model = new SnakeModel(this.inputSize, this.hiddenSize, this.outputSize);
+        this.targetModel = new SnakeModel(this.inputSize, this.hiddenSize, this.outputSize);
+        this.updateTargetModel();
+        this.updateFrequency = 1000; // Update target network every 1000 steps
+        this.steps = 0;
         this.epsilon = 1.0;
         this.epsilonMin = 0.01;
         this.epsilonDecay = 0.995;
         this.gamma = 0.95;
-        this.replayBuffer = [];
+        this.replayBufferSize = 10000; // Add this line to define replayBufferSize
+        this.replayBuffer = new PrioritizedReplayBuffer(this.replayBufferSize);
+        this.alpha = 0.6; // Priority exponent
+        this.beta = 0.4; // Initial importance-sampling weight
+        this.betaIncrement = 0.001; // Beta increment per replay
         this.batchSize = 32;
-        this.replayBufferSize = 10000;
         this.testingMode = false;
+        this.episodeCount = 0; // Add this line to keep track of episodes
     }
 
     getState(game) {
@@ -69,16 +77,16 @@ class SnakeAgent {
     }
 
     remember(state, action, reward, nextState, done) {
-        this.replayBuffer.push([state, action, reward, nextState, done]);
-        if (this.replayBuffer.length > this.replayBufferSize) {
-            this.replayBuffer.shift();
-        }
+        const priority = 1.0; // Start with max priority for new experiences
+        this.replayBuffer.add(priority, [state, action, reward, nextState, done]);
     }
 
     async replay() {
-        if (this.replayBuffer.length < this.batchSize) return;
+        if (this.replayBuffer.size() < this.batchSize) return;
 
-        const batch = this.getRandomBatch();
+        this.beta = Math.min(1.0, this.beta + this.betaIncrement);
+        const [batch, indices, importanceWeights] = this.replayBuffer.sample(this.batchSize, this.beta);
+
         const states = batch.map(exp => exp[0]);
         const actions = batch.map(exp => exp[1]);
         const rewards = batch.map(exp => exp[2]);
@@ -87,30 +95,111 @@ class SnakeAgent {
 
         const currentQs = this.model.predict(states);
         const nextQs = this.model.predict(nextStates);
+        const nextTargetQs = this.targetModel.predict(nextStates);
 
         const updatedQs = currentQs.arraySync();
+        const errors = [];
 
         for (let i = 0; i < this.batchSize; i++) {
             let newQ = rewards[i];
             if (!dones[i]) {
-                newQ += this.gamma * Math.max(...nextQs.arraySync()[i]);
+                const nextQ = nextTargetQs.arraySync()[i];
+                const bestAction = tf.argMax(nextQs.arraySync()[i]).dataSync()[0];
+                newQ += this.gamma * nextQ[bestAction];
             }
+            const error = Math.abs(newQ - updatedQs[i][actions[i]]);
+            errors.push(error);
             updatedQs[i][actions[i]] = newQ;
         }
 
-        await this.model.train(states, updatedQs);
+        // Update priorities in the replay buffer
+        for (let i = 0; i < this.batchSize; i++) {
+            const priority = (errors[i] + 0.01) ** this.alpha;
+            this.replayBuffer.updatePriority(indices[i], priority);
+        }
 
-        if (this.epsilon > this.epsilonMin) {
+        // Normalize importance weights
+        const maxWeight = Math.max(...importanceWeights);
+        const normalizedWeights = importanceWeights.map(w => w / maxWeight);
+
+        await this.model.train(states, updatedQs, normalizedWeights);
+
+        // Only decrease epsilon after 20 episodes
+        if (this.episodeCount >= 5 && this.epsilon > this.epsilonMin) {
             this.epsilon *= this.epsilonDecay;
+        }
+
+        // Update target network
+        this.steps++;
+        if (this.steps % this.updateFrequency === 0) {
+            this.updateTargetModel();
         }
     }
 
-    getRandomBatch() {
-        const batch = [];
-        for (let i = 0; i < this.batchSize; i++) {
-            const index = Math.floor(Math.random() * this.replayBuffer.length);
-            batch.push(this.replayBuffer[index]);
+    updateTargetModel() {
+        this.targetModel.model.setWeights(this.model.model.getWeights());
+    }
+
+    // Add this new method to increment the episode count
+    incrementEpisodeCount() {
+        this.episodeCount++;
+    }
+}
+
+class PrioritizedReplayBuffer {
+    constructor(maxSize) {
+        this.maxSize = maxSize;
+        this.buffer = [];
+        this.priorities = [];
+        this.currentSize = 0; // Rename 'size' to 'currentSize'
+    }
+
+    add(priority, experience) {
+        if (this.currentSize < this.maxSize) { // Use 'currentSize'
+            this.buffer.push(experience);
+            this.priorities.push(priority);
+            this.currentSize++; // Use 'currentSize'
+        } else {
+            const index = this.currentSize % this.maxSize; // Use 'currentSize'
+            this.buffer[index] = experience;
+            this.priorities[index] = priority;
         }
-        return batch;
+    }
+
+    sample(batchSize, beta) {
+        const total = this.priorities.reduce((a, b) => a + b, 0);
+        const probabilities = this.priorities.map(p => p / total);
+        const indices = [];
+        const batch = [];
+        const importanceWeights = [];
+
+        for (let i = 0; i < batchSize; i++) {
+            const r = Math.random();
+            let cumSum = 0;
+            for (let j = 0; j < this.currentSize; j++) { // Use 'currentSize'
+                cumSum += probabilities[j];
+                if (r < cumSum) {
+                    indices.push(j);
+                    batch.push(this.buffer[j]);
+                    break;
+                }
+            }
+        }
+
+        const maxWeight = Math.max(...probabilities) ** -beta;
+        for (const index of indices) {
+            const weight = (probabilities[index] * this.currentSize) ** -beta; // Use 'currentSize'
+            importanceWeights.push(weight / maxWeight);
+        }
+
+        return [batch, indices, importanceWeights];
+    }
+
+    updatePriority(index, priority) {
+        this.priorities[index] = priority;
+    }
+
+    size() {
+        return this.currentSize; // Return 'currentSize'
     }
 }
