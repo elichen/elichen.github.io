@@ -5,10 +5,7 @@ class SnakeModel {
         this.model.add(tf.layers.dense({ units: hiddenSize, activation: 'relu' }));
         this.model.add(tf.layers.dense({ units: outputSize, activation: 'linear' }));
 
-        this.model.compile({
-            optimizer: tf.train.adam(0.001),
-            loss: 'meanSquaredError'
-        });
+        this.optimizer = tf.train.adam(0.001);
     }
 
     predict(state) {
@@ -18,14 +15,28 @@ class SnakeModel {
         });
     }
 
-    async train(states, targets) {
+    async train(states, targets, importanceWeights) {
         const statesTensor = tf.tensor2d(states);
         const targetsTensor = tf.tensor2d(targets);
-        await this.model.fit(statesTensor, targetsTensor, {
-            epochs: 1,
-            shuffle: true,
-            batchSize: 32
+        const weightsTensor = tf.tensor1d(importanceWeights);
+
+        const loss = () => tf.tidy(() => {
+            const predictions = this.model.predict(statesTensor);
+            const squaredDifferences = predictions.sub(targetsTensor).square();
+            const weightedLosses = squaredDifferences.mul(weightsTensor.expandDims(1));
+            return weightedLosses.mean();
         });
-        tf.dispose([statesTensor, targetsTensor]);
+
+        await this.optimizer.minimize(loss, true);
+
+        tf.dispose([statesTensor, targetsTensor, weightsTensor]);
+    }
+
+    getWeights() {
+        return this.model.getWeights();
+    }
+
+    setWeights(weights) {
+        this.model.setWeights(weights);
     }
 }
