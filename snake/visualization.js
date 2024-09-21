@@ -1,51 +1,74 @@
 class Visualization {
     constructor() {
-        this.scoreChart = null;
-        this.epsilonChart = null;
+        this.combinedChart = null;
         this.episodeData = [];
         this.scoreData = [];
         this.epsilonData = [];
-        this.createCharts();
+        this.createChart();
     }
 
-    createCharts() {
-        if (this.scoreChart) {
-            this.scoreChart.destroy();
+    createChart() {
+        if (this.combinedChart) {
+            this.combinedChart.destroy();
         }
-        if (this.epsilonChart) {
-            this.epsilonChart.destroy();
-        }
-        this.scoreChart = this.createChart('scoreChart', 'Score per Episode', 'Episode', 'Score');
-        this.epsilonChart = this.createChart('epsilonChart', 'Epsilon over Time', 'Episode', 'Epsilon');
-    }
-
-    createChart(canvasId, label, xLabel, yLabel) {
-        const ctx = document.getElementById(canvasId).getContext('2d');
-        return new Chart(ctx, {
+        const ctx = document.getElementById('combinedChart').getContext('2d');
+        this.combinedChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: [],
-                datasets: [{
-                    label: label,
-                    data: [],
-                    borderColor: 'rgb(75, 192, 192)',
-                    tension: 0.1
-                }]
+                labels: this.episodeData,
+                datasets: [
+                    {
+                        label: 'Score per Episode',
+                        data: this.scoreData,
+                        borderColor: 'rgb(75, 192, 192)',
+                        yAxisID: 'y',
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Epsilon over Time',
+                        data: this.epsilonData,
+                        borderColor: 'rgb(255, 99, 132)',
+                        yAxisID: 'y1',
+                        tension: 0.1
+                    }
+                ]
             },
             options: {
                 responsive: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                stacked: false,
                 scales: {
                     x: {
                         title: {
                             display: true,
-                            text: xLabel
+                            text: 'Episode'
                         }
                     },
                     y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
                         title: {
                             display: true,
-                            text: yLabel
+                            text: 'Score'
                         }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        title: {
+                            display: true,
+                            text: 'Epsilon'
+                        },
+                        min: 0,
+                        max: 1
                     }
                 }
             }
@@ -57,19 +80,16 @@ class Visualization {
         this.scoreData.push(score);
         this.epsilonData.push(epsilon);
 
-        this.scoreChart.data.labels = this.episodeData;
-        this.scoreChart.data.datasets[0].data = this.scoreData;
-        this.scoreChart.update();
-
-        this.epsilonChart.data.labels = this.episodeData;
-        this.epsilonChart.data.datasets[0].data = this.epsilonData;
-        this.epsilonChart.update();
+        this.combinedChart.data.labels = this.episodeData;
+        this.combinedChart.data.datasets[0].data = this.scoreData;
+        this.combinedChart.data.datasets[1].data = this.epsilonData;
+        this.combinedChart.update();
     }
 
     reset() {
         this.episodeData = [];
         this.scoreData = [];
         this.epsilonData = [];
-        this.createCharts();
+        this.createChart();
     }
 }
