@@ -27,7 +27,7 @@ class SnakeGame {
     }
 
     update() {
-        if (this.gameOver) return;
+        if (this.gameOver) return false;
 
         // Move snake
         const head = { x: this.snake[0].x + this.direction.x, y: this.snake[0].y + this.direction.y };
@@ -35,13 +35,13 @@ class SnakeGame {
         // Check collision with walls
         if (head.x < 0 || head.x >= this.gridSize || head.y < 0 || head.y >= this.gridSize) {
             this.gameOver = true;
-            return;
+            return false;
         }
 
         // Check collision with self
         if (this.snake.some(segment => segment.x === head.x && segment.y === head.y)) {
             this.gameOver = true;
-            return;
+            return false;
         }
 
         this.snake.unshift(head);
@@ -50,9 +50,60 @@ class SnakeGame {
         if (head.x === this.food.x && head.y === this.food.y) {
             this.score++;
             this.food = this.generateFood();
+            return true; // Food was eaten
         } else {
             this.snake.pop();
+            return false; // Food was not eaten
         }
+    }
+
+    step(action) {
+        // Translate action to direction
+        const directions = [
+            { x: 0, y: -1 }, // Up
+            { x: 1, y: 0 },  // Right
+            { x: 0, y: 1 },  // Down
+            { x: -1, y: 0 }  // Left
+        ];
+        this.direction = directions[action];
+
+        const oldHead = this.snake[0];
+        const oldDistance = this.calculateDistanceToFood(oldHead);
+
+        const foodEaten = this.update(); // Capture if food was eaten
+
+        const newHead = this.snake[0];
+        const newDistance = this.calculateDistanceToFood(newHead);
+
+        let reward = 0;
+
+        if (this.gameOver) {
+            console.log('Game Over! Penalty assigned: -10');
+            reward = -10; // Large penalty for game over
+        } else if (foodEaten) {
+            console.log('Food Eaten! Reward assigned: 10');
+            reward = 10; // Large reward for eating food
+        } else {
+            // Small reward/penalty based on whether the snake got closer to or further from the food
+            const distanceDifference = oldDistance - newDistance;
+            reward = distanceDifference * 0.1; // Scale the reward/penalty
+            
+            // Small penalty for each move to encourage efficiency
+            reward -= 0.01;
+            
+            // Additional penalty for moving away from food
+            if (distanceDifference < 0) {
+                reward -= 0.1;
+            }
+        }
+
+        this.draw();
+
+        return {
+            state: this.getState(),
+            reward: reward,
+            done: this.gameOver
+        };
     }
 
     draw() {
@@ -93,52 +144,5 @@ class SnakeGame {
 
     calculateDistanceToFood(head) {
         return Math.abs(head.x - this.food.x) + Math.abs(head.y - this.food.y);
-    }
-
-    step(action) {
-        // Translate action to direction
-        const directions = [
-            { x: 0, y: -1 }, // Up
-            { x: 1, y: 0 },  // Right
-            { x: 0, y: 1 },  // Down
-            { x: -1, y: 0 }  // Left
-        ];
-        this.direction = directions[action];
-
-        const oldHead = this.snake[0];
-        const oldDistance = this.calculateDistanceToFood(oldHead);
-
-        this.update();
-
-        const newHead = this.snake[0];
-        const newDistance = this.calculateDistanceToFood(newHead);
-
-        let reward = 0;
-
-        if (this.gameOver) {
-            reward = -10; // Large penalty for game over
-        } else if (newHead.x === this.food.x && newHead.y === this.food.y) {
-            reward = 10; // Large reward for eating food
-        } else {
-            // Small reward/penalty based on whether the snake got closer to or further from the food
-            const distanceDifference = oldDistance - newDistance;
-            reward = distanceDifference * 0.1; // Scale the reward/penalty
-            
-            // Small penalty for each move to encourage efficiency
-            reward -= 0.01;
-            
-            // Additional penalty for moving away from food
-            if (distanceDifference < 0) {
-                reward -= 0.1;
-            }
-        }
-
-        this.draw();
-
-        return {
-            state: this.getState(),
-            reward: reward,
-            done: this.gameOver
-        };
     }
 }
