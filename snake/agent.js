@@ -124,11 +124,6 @@ class SnakeAgent {
 
         await this.model.train(states, updatedQs, normalizedWeights);
 
-        // Only decrease epsilon after 20 episodes
-        if (this.episodeCount >= 5 && this.epsilon > this.epsilonMin) {
-            this.epsilon *= this.epsilonDecay;
-        }
-
         // Update target network
         this.steps++;
         if (this.steps % this.updateFrequency === 0) {
@@ -143,6 +138,11 @@ class SnakeAgent {
     // Add this new method to increment the episode count
     incrementEpisodeCount() {
         this.episodeCount++;
+        
+        // Only decrease epsilon after 20 episodes
+        if (this.epsilon > this.epsilonMin) {
+            this.epsilon *= this.epsilonDecay;
+        }
     }
 }
 
