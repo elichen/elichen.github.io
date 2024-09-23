@@ -56,7 +56,7 @@ async function trainLoop() {
         let done = false;
         let stepCount = 0;
 
-        while (!done && stepCount < 500) { // Add a maximum step count to prevent very long episodes
+        while (!done && stepCount < 500) {
             const action = await agent.selectAction(state);
             const [nextState, reward, stepDone] = environment.step(action);
             
@@ -67,10 +67,12 @@ async function trainLoop() {
             stepCount++;
             done = stepDone;
             
-            drawEnvironment();
-            // Remove the delay to speed up training
-            // await new Promise(resolve => setTimeout(resolve, 10));
+            // Remove real-time drawing during training
+            // drawEnvironment();
         }
+
+        // Draw the final state of the environment after each episode
+        drawEnvironment();
 
         episodeCount++;
         totalReward += episodeReward;
@@ -80,6 +82,9 @@ async function trainLoop() {
         if (episodeCount % 10 === 0) {
             console.log(`Episode ${episodeCount}, Total Reward: ${totalReward}, Steps: ${stepCount}, Epsilon: ${agent.epsilon.toFixed(4)}`);
         }
+
+        // Add a small delay to allow for UI updates and prevent browser freezing
+        await new Promise(resolve => setTimeout(resolve, 0));
     }
 }
 
@@ -91,7 +96,7 @@ async function runTestingLoop() {
         let stepCount = 0;
 
         while (!done) {
-            const action = await agent.selectAction(state, true); // Pass true for testing mode
+            const action = await agent.selectAction(state, true);
             const [nextState, reward, stepDone] = environment.step(action);
             
             state = nextState;
@@ -106,7 +111,7 @@ async function runTestingLoop() {
         episodeCount++;
         totalReward += episodeReward;
         updateStats();
-        updateMetricsChart(episodeCount, episodeReward, 0); // Epsilon is always 0 in testing mode
+        updateMetricsChart(episodeCount, episodeReward, 0);
 
         if (episodeCount % 10 === 0) {
             console.log(`Test Episode ${episodeCount}, Total Reward: ${totalReward}, Steps: ${stepCount}`);
