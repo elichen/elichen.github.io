@@ -16,11 +16,15 @@
     <div id="controls">
         <button id="startTraining">Start Training</button>
         <button id="startTesting">Start Testing</button>
+        <button id="toggleVisualization">Disable Visualization</button>
+        <span id="visualizationStatus" style="margin-left: 10px;">Visualization: On</span>
     </div>
     <div id="stats">
         <p>Episode: <span id="episode">0</span></p>
         <p>Score: <span id="score">0</span></p>
         <p>Epsilon: <span id="epsilon">1.0</span></p>
+        <p>Food Eaten: <span id="foodEaten">0</span></p>
+        <p>Total Food Eaten: <span id="totalFoodEaten">0</span></p>
     </div>
     <div id="charts">
         <canvas id="combinedChart"></canvas>
