@@ -2,11 +2,10 @@ let game, agent, visualization;
 const gridSize = 20;
 const episodes = 1000;
 const maxSteps = 1000;
-const maxMovesWithoutReward = 100; // New constant for max moves without reward
+const maxMovesWithoutReward = 100;
 const testEpisodes = 100;
 
-// State variable for visualization
-let isVisualizationOn = true;
+let isTrainingMode = true;
 
 async function initializeTensorFlow() {
     await tf.ready();
@@ -14,7 +13,6 @@ async function initializeTensorFlow() {
 }
 
 async function initializeGame() {
-    await initializeTensorFlow();
     game = new SnakeGame('gameCanvas', gridSize);
     agent = new SnakeAgent(gridSize);
     if (!visualization) {
@@ -22,133 +20,103 @@ async function initializeGame() {
     } else {
         visualization.reset();
     }
+    agent.setTestingMode(!isTrainingMode);
 }
 
-// Function to toggle visualization
-function toggleVisualization() {
-    isVisualizationOn = !isVisualizationOn;
-    const toggleButton = document.getElementById('toggleVisualization');
-    toggleButton.textContent = isVisualizationOn ? 'Disable Visualization' : 'Enable Visualization';
+function toggleMode() {
+    isTrainingMode = !isTrainingMode;
+    const toggleButton = document.getElementById('toggleMode');
+    toggleButton.textContent = isTrainingMode ? 'Switch to Testing' : 'Switch to Training';
 
-    // Update visualization status text
-    const statusText = document.getElementById('visualizationStatus');
+    const statusText = document.getElementById('modeStatus');
     if (statusText) {
-        statusText.textContent = `Visualization: ${isVisualizationOn ? 'On' : 'Off'}`;
+        statusText.textContent = `Mode: ${isTrainingMode ? 'Training' : 'Testing'}`;
     }
+
+    agent.setTestingMode(!isTrainingMode);
+    initializeGame();
 }
 
-async function train() {
-    for (let episode = 0; episode < episodes; episode++) {
-        game.reset();
-        let state = agent.getState(game);
-        let totalReward = 0;
-        let movesWithoutFood = 0;
-        let foodEaten = 0;
-        let totalFoodEaten = 0;
+async function runEpisode() {
+    game.reset();
+    let state = agent.getState(game);
+    let totalReward = 0;
+    let movesWithoutFood = 0;
+    let foodEaten = 0;
 
-        for (let step = 0; step < maxSteps; step++) {
-            const action = agent.getAction(state);
-            const { state: nextState, reward, done } = game.step(action);
-            totalReward += reward;
+    for (let step = 0; step < maxSteps; step++) {
+        const action = agent.getAction(state);
+        const { state: nextState, reward, done } = game.step(action);
+        totalReward += reward;
 
+        if (isTrainingMode) {
             agent.remember(state, action, reward, agent.getState(game), done);
-            state = agent.getState(game);
-
-            try {
-                await agent.replay();
-            } catch (error) {
-                console.error('Error during replay:', error);
-            }
-
-            if (isVisualizationOn) {
-                game.draw();
-                await new Promise(resolve => setTimeout(resolve, 50)); // Delay for visualization
-            }
-
-            if (reward >= 10) { // Assuming 10 is the reward for eating food
-                movesWithoutFood = 0;
-                foodEaten++;
-                totalFoodEaten++;
-                console.log(`Episode ${episode}: Food eaten! Total in this episode: ${foodEaten}`);
-            } else {
-                movesWithoutFood++;
-            }
-
-            if (movesWithoutFood >= maxMovesWithoutReward) {
-                console.log(`Episode ${episode} terminated due to lack of progress. Moves without food: ${movesWithoutFood}, Food eaten this episode: ${foodEaten}, Total food eaten: ${totalFoodEaten}`);
-                break;
-            }
-
-            if (done) {
-                console.log(`Episode ${episode} completed. Food eaten this episode: ${foodEaten}, Total food eaten: ${totalFoodEaten}`);
-                break;
-            }
+            await agent.replay();
         }
 
+        state = agent.getState(game);
+
+        if (reward >= 10) {
+            movesWithoutFood = 0;
+            foodEaten++;
+        } else {
+            movesWithoutFood++;
+        }
+
+        if (!isTrainingMode || (isTrainingMode && done)) {
+            game.draw();
+            await new Promise(resolve => setTimeout(resolve, isTrainingMode ? 50 : 100));
+        }
+
+        if (movesWithoutFood >= maxMovesWithoutReward || done) {
+            break;
+        }
+    }
+
+    if (isTrainingMode) {
         agent.incrementEpisodeCount();
+    }
+    updateStats(agent.episodeCount, totalReward, agent.epsilon, foodEaten);
+    visualization.updateCharts(agent.episodeCount, totalReward, agent.epsilon);
 
-        // Update statistics
-        updateStats(episode, totalReward, agent.epsilon, foodEaten, totalFoodEaten);
-        
-        if (visualization) { // Ensure visualization exists
-            console.log(`Updating charts for episode ${episode}`);
-            visualization.updateCharts(episode, totalReward, agent.epsilon);
+    return totalReward;
+}
+
+async function run() {
+    while (true) {
+        if (isTrainingMode) {
+            if (agent.episodeCount >= episodes) {
+                toggleMode();
+                continue;
+            }
+        } else {
+            if (agent.episodeCount >= episodes + testEpisodes) {
+                console.log('Testing completed.');
+                break;
+            }
         }
 
+        await runEpisode();
         await tf.nextFrame();
-
-        // Yield control to the browser to handle UI updates if visualization is on
-        if (isVisualizationOn) {
-            await new Promise(resolve => setTimeout(resolve, 10));
-        }
-    }
-
-    console.log('Training completed.');
-}
-
-function updateStats(episode, score, epsilon, foodEaten, totalFoodEaten) {
-    updateElementText('episode', episode);
-    updateElementText('score', score.toFixed(2));
-    updateElementText('epsilon', epsilon.toFixed(4));
-    updateElementText('foodEaten', foodEaten);
-    updateElementText('totalFoodEaten', totalFoodEaten);
-}
-
-function updateElementText(id, value) {
-    const element = document.getElementById(id);
-    if (element) {
-        element.textContent = value;
     }
 }
 
-// Add event listener for the toggle visualization button
-document.getElementById('toggleVisualization').addEventListener('click', toggleVisualization);
+function updateStats(episode, score, epsilon, foodEaten) {
+    document.getElementById('episode').textContent = episode;
+    document.getElementById('score').textContent = score.toFixed(2);
+    document.getElementById('epsilon').textContent = epsilon.toFixed(4);
+    document.getElementById('foodEaten').textContent = foodEaten;
+}
 
-document.getElementById('startTraining').addEventListener('click', async () => {
-    try {
-        await initializeGame();
-        await train();
-    } catch (error) {
-        console.error('Error during training:', error);
-        // Handle the error appropriately
+document.getElementById('toggleMode').addEventListener('click', () => {
+    toggleMode();
+    if (!isTrainingMode) {
+        run(); // Only start running if switching to testing mode
     }
 });
 
-document.getElementById('startTesting').addEventListener('click', async () => {
-    if (!agent) {
-        alert('Please train the agent first!');
-        return;
-    }
-    try {
-        await test();
-    } catch (error) {
-        console.error('Error during testing:', error);
-        // Handle the error appropriately
-    }
-});
-
-// Initialize TensorFlow.js and the game when the page loads
 window.addEventListener('load', async () => {
     await initializeTensorFlow();
     await initializeGame();
+    run(); // Start training automatically when the page loads
 });
