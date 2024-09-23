@@ -43,6 +43,7 @@ class Visualization {
                     intersect: false,
                 },
                 stacked: false,
+                animation: false, // Disable all animations
                 plugins: {
                     decimation: {
                         enabled: true,
@@ -106,7 +107,7 @@ class Visualization {
             this.combinedChart.data.labels = this.episodeData;
             this.combinedChart.data.datasets[0].data = this.scoreData;
             this.combinedChart.data.datasets[1].data = this.epsilonData;
-            this.combinedChart.update('active');
+            this.combinedChart.update('none'); // Use 'none' mode to skip animations
         } catch (error) {
             console.error('Error updating charts:', error);
         }

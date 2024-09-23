@@ -90,8 +90,7 @@ async function train() {
         // Update statistics
         updateStats(episode, totalReward, agent.epsilon, foodEaten, totalFoodEaten);
         
-        // Update charts every 10 episodes to reduce load
-        if (episode % 10 === 0 && visualization) { // Ensure visualization exists
+        if (visualization) { // Ensure visualization exists
             console.log(`Updating charts for episode ${episode}`);
             visualization.updateCharts(episode, totalReward, agent.epsilon);
         }
