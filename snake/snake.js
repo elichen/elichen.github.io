@@ -35,12 +35,14 @@ class SnakeGame {
         // Check collision with walls
         if (head.x < 0 || head.x >= this.gridSize || head.y < 0 || head.y >= this.gridSize) {
             this.gameOver = true;
+            this.collisionType = 'wall'; // Track collision type
             return false;
         }
 
         // Check collision with self
         if (this.snake.some(segment => segment.x === head.x && segment.y === head.y)) {
             this.gameOver = true;
+            this.collisionType = 'self'; // Track collision type
             return false;
         }
 
@@ -78,13 +80,18 @@ class SnakeGame {
         let reward = 0;
 
         if (this.gameOver) {
-            console.log('Game Over! Penalty assigned: -10');
-            reward = -10; // Large penalty for game over
+            if (this.collisionType === 'wall') {
+                console.log('Hit a wall! Penalty assigned: -10');
+                reward = -10; // Penalty for hitting wall
+            } else if (this.collisionType === 'self') {
+                console.log('Hit itself! Penalty assigned: -15');
+                reward = -15; // Higher penalty for self-collision
+            }
         } else if (foodEaten) {
             console.log('Food Eaten! Reward assigned: 10');
-            reward = 10; // Large reward for eating food
+            reward = 10; // Reward for eating food
         } else {
-            // Small reward/penalty based on whether the snake got closer to or further from the food
+            // Small reward/penalty based on distance to food
             const distanceDifference = oldDistance - newDistance;
             reward = distanceDifference * 0.1; // Scale the reward/penalty
             
