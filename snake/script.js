@@ -5,6 +5,9 @@ const maxSteps = 1000;
 const maxMovesWithoutReward = 100; // New constant for max moves without reward
 const testEpisodes = 100;
 
+// State variable for visualization
+let isVisualizationOn = true;
+
 async function initializeTensorFlow() {
     await tf.ready();
     console.log('TensorFlow.js initialized');
@@ -18,6 +21,19 @@ async function initializeGame() {
         visualization = new Visualization();
     } else {
         visualization.reset();
+    }
+}
+
+// Function to toggle visualization
+function toggleVisualization() {
+    isVisualizationOn = !isVisualizationOn;
+    const toggleButton = document.getElementById('toggleVisualization');
+    toggleButton.textContent = isVisualizationOn ? 'Disable Visualization' : 'Enable Visualization';
+
+    // Update visualization status text
+    const statusText = document.getElementById('visualizationStatus');
+    if (statusText) {
+        statusText.textContent = `Visualization: ${isVisualizationOn ? 'On' : 'Off'}`;
     }
 }
 
@@ -44,8 +60,10 @@ async function train() {
                 console.error('Error during replay:', error);
             }
 
-            game.draw();
-            await new Promise(resolve => setTimeout(resolve, 50));
+            if (isVisualizationOn) {
+                game.draw();
+                await new Promise(resolve => setTimeout(resolve, 50)); // Delay for visualization
+            }
 
             if (reward >= 10) { // Assuming 10 is the reward for eating food
                 movesWithoutFood = 0;
@@ -69,10 +87,24 @@ async function train() {
 
         agent.incrementEpisodeCount();
 
+        // Update statistics
         updateStats(episode, totalReward, agent.epsilon, foodEaten, totalFoodEaten);
-        visualization.updateCharts(episode, totalReward, agent.epsilon);
+        
+        // Update charts every 10 episodes to reduce load
+        if (episode % 10 === 0 && visualization) { // Ensure visualization exists
+            console.log(`Updating charts for episode ${episode}`);
+            visualization.updateCharts(episode, totalReward, agent.epsilon);
+        }
+
         await tf.nextFrame();
+
+        // Yield control to the browser to handle UI updates if visualization is on
+        if (isVisualizationOn) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+        }
     }
+
+    console.log('Training completed.');
 }
 
 function updateStats(episode, score, epsilon, foodEaten, totalFoodEaten) {
@@ -89,6 +121,9 @@ function updateElementText(id, value) {
         element.textContent = value;
     }
 }
+
+// Add event listener for the toggle visualization button
+document.getElementById('toggleVisualization').addEventListener('click', toggleVisualization);
 
 document.getElementById('startTraining').addEventListener('click', async () => {
     try {

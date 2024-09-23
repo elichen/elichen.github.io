@@ -76,3 +76,11 @@ body {
 #explanation strong {
     color: #0066cc;
 }
+
+/* Style for the toggle visualization button */
+#toggleVisualization {
+    padding: 10px 20px;
+    margin-left: 10px;
+    font-size: 16px;
+    cursor: pointer;
+}

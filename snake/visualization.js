@@ -4,6 +4,7 @@ class Visualization {
         this.episodeData = [];
         this.scoreData = [];
         this.epsilonData = [];
+        this.maxDataPoints = 100; // Limit to the most recent 100 episodes
         this.createChart();
     }
 
@@ -22,14 +23,16 @@ class Visualization {
                         data: this.scoreData,
                         borderColor: 'rgb(75, 192, 192)',
                         yAxisID: 'y',
-                        tension: 0.1
+                        tension: 0.1,
+                        fill: false
                     },
                     {
                         label: 'Epsilon over Time',
                         data: this.epsilonData,
                         borderColor: 'rgb(255, 99, 132)',
                         yAxisID: 'y1',
-                        tension: 0.1
+                        tension: 0.1,
+                        fill: false
                     }
                 ]
             },
@@ -40,11 +43,21 @@ class Visualization {
                     intersect: false,
                 },
                 stacked: false,
+                plugins: {
+                    decimation: {
+                        enabled: true,
+                        algorithm: 'lttb',
+                        samples: this.maxDataPoints // Reduce number of points for performance
+                    }
+                },
                 scales: {
                     x: {
                         title: {
                             display: true,
                             text: 'Episode'
+                        },
+                        ticks: {
+                            maxTicksLimit: 20
                         }
                     },
                     y: {
@@ -54,7 +67,8 @@ class Visualization {
                         title: {
                             display: true,
                             text: 'Score'
-                        }
+                        },
+                        beginAtZero: true
                     },
                     y1: {
                         type: 'linear',
@@ -68,7 +82,8 @@ class Visualization {
                             text: 'Epsilon'
                         },
                         min: 0,
-                        max: 1
+                        max: 1,
+                        beginAtZero: true
                     }
                 }
             }
@@ -76,14 +91,25 @@ class Visualization {
     }
 
     updateCharts(episode, score, epsilon) {
-        this.episodeData.push(episode);
-        this.scoreData.push(score);
-        this.epsilonData.push(epsilon);
+        try {
+            // Maintain a sliding window of data
+            this.episodeData.push(episode);
+            this.scoreData.push(score);
+            this.epsilonData.push(epsilon);
 
-        this.combinedChart.data.labels = this.episodeData;
-        this.combinedChart.data.datasets[0].data = this.scoreData;
-        this.combinedChart.data.datasets[1].data = this.epsilonData;
-        this.combinedChart.update();
+            if (this.episodeData.length > this.maxDataPoints) {
+                this.episodeData.shift();
+                this.scoreData.shift();
+                this.epsilonData.shift();
+            }
+
+            this.combinedChart.data.labels = this.episodeData;
+            this.combinedChart.data.datasets[0].data = this.scoreData;
+            this.combinedChart.data.datasets[1].data = this.epsilonData;
+            this.combinedChart.update('active');
+        } catch (error) {
+            console.error('Error updating charts:', error);
+        }
     }
 
     reset() {
