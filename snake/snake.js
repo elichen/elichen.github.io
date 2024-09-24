@@ -5,6 +5,8 @@ class SnakeGame {
         this.gridSize = gridSize;
         this.tileSize = this.canvas.width / (this.gridSize + 2); // Add 2 for borders
         this.reset();
+        this.movesSinceLastFood = 0;
+        this.maxMovesWithoutFood = gridSize * 2; // Adjust this value as needed
     }
 
     reset() {
@@ -13,6 +15,7 @@ class SnakeGame {
         this.food = this.generateFood();
         this.score = 0;
         this.gameOver = false;
+        this.movesSinceLastFood = 0;
     }
 
     generateFood() {
@@ -73,6 +76,7 @@ class SnakeGame {
         const oldDistance = this.calculateDistanceToFood(oldHead);
 
         const foodEaten = this.update(); // Capture if food was eaten
+        this.movesSinceLastFood++;
 
         const newHead = this.snake[0];
         const newDistance = this.calculateDistanceToFood(newHead);
@@ -81,15 +85,16 @@ class SnakeGame {
 
         if (this.gameOver) {
             if (this.collisionType === 'wall') {
-                console.log('Hit a wall! Penalty assigned: -1');
-                reward = -1; // Penalty for hitting wall
+                console.log('Hit a wall!');
+                reward = -10; // Penalty for hitting wall
             } else if (this.collisionType === 'self') {
-                console.log('Hit itself! Penalty assigned: -1');
-                reward = -1; // Higher penalty for self-collision
+                console.log('Hit itself!');
+                reward = -10; // Higher penalty for self-collision
             }
         } else if (foodEaten) {
-            console.log('Food Eaten! Reward assigned: 1');
+            console.log('Food Eaten!');
             reward = 1; // Reward for eating food
+            this.movesSinceLastFood = 0; // Reset the counter
         } else {
             // Small reward/penalty based on distance to food
             const distanceDifference = oldDistance - newDistance;
@@ -101,6 +106,12 @@ class SnakeGame {
             // Additional penalty for moving away from food
             if (distanceDifference < 0) {
                 reward -= 0.1;
+            }
+
+            // New penalty for taking too long to reach the food
+            if (this.movesSinceLastFood > this.maxMovesWithoutFood) {
+                const circlingPenalty = -0.5 * (this.movesSinceLastFood - this.maxMovesWithoutFood) / this.maxMovesWithoutFood;
+                reward += circlingPenalty;
             }
         }
 
