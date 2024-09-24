@@ -49,22 +49,23 @@ function toggleMode() {
 
 async function runEpisode() {
     game.reset();
-    let state = agent.getState(game);
+    let state = agent.getState(game); // Initial flat state array
     let totalReward = 0;
     let movesWithoutFood = 0;
     let foodEaten = 0;
 
     for (let step = 0; step < maxSteps; step++) {
         const action = agent.getAction(state);
-        const { state: nextState, reward, done } = game.step(action);
+        const { reward, done } = game.step(action); // Retrieve only reward and done
+        const nextState = agent.getState(game); // Get new flat state array
         totalReward += reward;
 
         if (isTrainingMode) {
-            agent.remember(state, action, reward, agent.getState(game), done);
-            await agent.replay();
+            agent.remember(state, action, reward, nextState, done);
+            await agent.trainShortTerm(state, action, reward, nextState, done);
         }
 
-        state = agent.getState(game);
+        state = nextState; // Update state for the next step
 
         if (reward >= 1) {
             movesWithoutFood = 0;
@@ -84,6 +85,7 @@ async function runEpisode() {
     }
 
     if (isTrainingMode) {
+        await agent.replay(); // Perform long-term training after the episode
         agent.incrementEpisodeCount();
     }
     updateStats(agent.episodeCount, totalReward, agent.epsilon, foodEaten);

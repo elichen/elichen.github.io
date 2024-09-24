@@ -83,10 +83,53 @@ class SnakeAgent {
         }
     }
 
+    /**
+     * Add experience to replay buffer without triggering training.
+     * @param {Array} state 
+     * @param {number} action 
+     * @param {number} reward 
+     * @param {Array} nextState 
+     * @param {boolean} done 
+     */
     remember(state, action, reward, nextState, done) {
         this.replayBuffer.add([state, action, reward, nextState, done]);
     }
 
+    /**
+     * Train the model immediately on the latest experience (short-term memory).
+     * @param {Array} state 
+     * @param {number} action 
+     * @param {number} reward 
+     * @param {Array} nextState 
+     * @param {boolean} done 
+     */
+    async trainShortTerm(state, action, reward, nextState, done) {
+        let target = reward;
+        if (!done) {
+            const predictions = this.model.predict(nextState);
+            const maxQ = tf.max(predictions, 1).dataSync()[0];
+            target += this.gamma * maxQ;
+        }
+
+        const qValues = this.getQValues(state); // Array of Q-values [q1, q2, q3, q4]
+        qValues[action] = target;
+
+        await this.model.train([state], [qValues]);
+    }
+
+    /**
+     * Retrieve current Q-values for a given state.
+     * @param {Array} state 
+     * @returns {Array} Q-values
+     */
+    getQValues(state) {
+        const prediction = this.model.predict(state);
+        return prediction.arraySync()[0];
+    }
+
+    /**
+     * Replay experiences from the replay buffer for long-term training.
+     */
     async replay() {
         if (this.replayBuffer.size() < this.batchSize) return;
 
