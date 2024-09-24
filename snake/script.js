@@ -56,7 +56,7 @@ async function runEpisode() {
 
         state = agent.getState(game);
 
-        if (reward >= 10) {
+        if (reward >= 1) {
             movesWithoutFood = 0;
             foodEaten++;
         } else {
