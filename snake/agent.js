@@ -178,12 +178,15 @@ class PrioritizedReplayBuffer {
             const index = this.currentSize % this.maxSize; // Calculate index
             this.buffer[index] = experience;
             this.priorities[index] = priority;
+            // Cap the currentSize to maxSize to prevent it from exceeding
+            this.currentSize = this.maxSize;
         }
     }
 
     sample(batchSize, beta) {
-        const total = this.priorities.reduce((a, b) => a + b, 0);
-        const probabilities = this.priorities.map(p => p / total);
+        const bufferSize = this.currentSize; // Ensure we use the capped currentSize
+        const total = this.priorities.slice(0, bufferSize).reduce((a, b) => a + b, 0);
+        const probabilities = this.priorities.slice(0, bufferSize).map(p => p / total);
         const indices = [];
         const batch = [];
         const importanceWeights = [];
@@ -191,7 +194,7 @@ class PrioritizedReplayBuffer {
         for (let i = 0; i < batchSize; i++) {
             const r = Math.random();
             let cumSum = 0;
-            for (let j = 0; j < this.currentSize; j++) { // Use 'currentSize'
+            for (let j = 0; j < bufferSize; j++) { // Use 'bufferSize'
                 cumSum += probabilities[j];
                 if (r < cumSum) {
                     indices.push(j);
@@ -201,9 +204,9 @@ class PrioritizedReplayBuffer {
             }
         }
 
-        const maxWeight = Math.max(...probabilities) ** -beta;
+        const maxWeight = Math.max(...probabilities.slice(0, bufferSize)) ** -beta;
         for (const index of indices) {
-            const weight = Math.pow(probabilities[index] * this.currentSize, -beta); // Use 'currentSize'
+            const weight = Math.pow(probabilities[index] * bufferSize, -beta); // Use 'bufferSize'
             importanceWeights.push(weight / maxWeight);
         }
 
