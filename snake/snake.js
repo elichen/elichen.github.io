@@ -86,33 +86,17 @@ class SnakeGame {
         if (this.gameOver) {
             if (this.collisionType === 'wall') {
                 console.log('Hit a wall!');
-                reward = -10; // Penalty for hitting wall
+                reward = -1; // Penalty for hitting wall
             } else if (this.collisionType === 'self') {
                 console.log('Hit itself!');
-                reward = -10; // Higher penalty for self-collision
+                reward = -1; // Higher penalty for self-collision
             }
         } else if (foodEaten) {
             console.log('Food Eaten!');
-            reward = 1; // Reward for eating food
+            reward = 10; // Reward for eating food
             this.movesSinceLastFood = 0; // Reset the counter
         } else {
-            // Small reward/penalty based on distance to food
-            const distanceDifference = oldDistance - newDistance;
-            reward = distanceDifference * 0.1; // Scale the reward/penalty
-            
-            // Small penalty for each move to encourage efficiency
             reward -= 0.01;
-            
-            // Additional penalty for moving away from food
-            if (distanceDifference < 0) {
-                reward -= 0.1;
-            }
-
-            // New penalty for taking too long to reach the food
-            if (this.movesSinceLastFood > this.maxMovesWithoutFood) {
-                const circlingPenalty = -0.5 * (this.movesSinceLastFood - this.maxMovesWithoutFood) / this.maxMovesWithoutFood;
-                reward += circlingPenalty;
-            }
         }
 
         this.draw();
