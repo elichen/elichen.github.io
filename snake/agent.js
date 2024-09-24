@@ -1,7 +1,7 @@
 class SnakeAgent {
     constructor(gridSize) {
         this.gridSize = gridSize;
-        this.inputSize = 11; // 8 directions + 3 (food relative position)
+        this.inputSize = 15; // 11 existing + 4 for direction
         this.hiddenSize = 128;
         this.outputSize = 4; // 4 possible actions (up, down, left, right)
         this.model = new SnakeModel(this.inputSize, this.hiddenSize, this.outputSize);
@@ -57,6 +57,16 @@ class SnakeAgent {
         state.push((food.x - head.x) / this.gridSize);
         state.push((food.y - head.y) / this.gridSize);
         state.push(game.snake.length / (this.gridSize * this.gridSize));
+
+        // **Add current direction as one-hot encoding**
+        const direction = game.direction; // {x, y}
+        let directionOneHot = [0, 0, 0, 0]; // Up, Right, Down, Left
+        if (direction.x === 0 && direction.y === -1) directionOneHot[0] = 1; // Up
+        else if (direction.x === 1 && direction.y === 0) directionOneHot[1] = 1; // Right
+        else if (direction.x === 0 && direction.y === 1) directionOneHot[2] = 1; // Down
+        else if (direction.x === -1 && direction.y === 0) directionOneHot[3] = 1; // Left
+
+        state.push(...directionOneHot); // Add the one-hot direction to the state
 
         return state;
     }
