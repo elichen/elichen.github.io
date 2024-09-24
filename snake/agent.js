@@ -7,12 +7,12 @@ class SnakeAgent {
         this.model = new SnakeModel(this.inputSize, this.hiddenSize, this.outputSize);
         this.steps = 0;
         this.epsilon = 1.0;
-        this.epsilonMin = 0.01;
+        this.epsilonMin = 0.0;
         this.epsilonDecay = 0.995;
         this.gamma = 0.95;
-        this.replayBufferSize = 10000; // Define replayBufferSize
+        this.replayBufferSize = 100000; // Define replayBufferSize
         this.replayBuffer = new ReplayBuffer(this.replayBufferSize);
-        this.batchSize = 128;
+        this.batchSize = 1000;
         this.testingMode = false;
         this.episodeCount = 0; // Keep track of episodes
     }
@@ -106,7 +106,7 @@ class SnakeAgent {
     async trainShortTerm(state, action, reward, nextState, done) {
         let target = reward;
         if (!done) {
-            const predictions = this.model.predict(nextState);
+            const predictions = this.model.predict([nextState]); // Correct input shape
             const maxQ = tf.max(predictions, 1).dataSync()[0];
             target += this.gamma * maxQ;
         }
@@ -123,7 +123,7 @@ class SnakeAgent {
      * @returns {Array} Q-values
      */
     getQValues(state) {
-        const prediction = this.model.predict(state);
+        const prediction = this.model.predict([state]);
         return prediction.arraySync()[0];
     }
 
