@@ -15,21 +15,18 @@ class SnakeModel {
         });
     }
 
-    async train(states, targets, importanceWeights) {
+    async train(states, targets) {
         const statesTensor = tf.tensor2d(states);
         const targetsTensor = tf.tensor2d(targets);
-        const weightsTensor = tf.tensor1d(importanceWeights);
 
         const loss = () => tf.tidy(() => {
             const predictions = this.model.predict(statesTensor);
-            const squaredDifferences = predictions.sub(targetsTensor).square();
-            const weightedLosses = squaredDifferences.mul(weightsTensor.expandDims(1));
-            return weightedLosses.mean();
+            return predictions.sub(targetsTensor).square().mean();
         });
 
         await this.optimizer.minimize(loss, true);
 
-        tf.dispose([statesTensor, targetsTensor, weightsTensor]);
+        tf.dispose([statesTensor, targetsTensor]);
     }
 
     getWeights() {

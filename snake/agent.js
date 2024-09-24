@@ -11,11 +11,8 @@ class SnakeAgent {
         this.epsilonDecay = 0.995;
         this.gamma = 0.95;
         this.replayBufferSize = 10000; // Define replayBufferSize
-        this.replayBuffer = new PrioritizedReplayBuffer(this.replayBufferSize);
-        this.alpha = 0.6; // Priority exponent
-        this.beta = 0.4; // Initial importance-sampling weight
-        this.betaIncrement = 0.001; // Beta increment per replay
-        this.batchSize = 32;
+        this.replayBuffer = new ReplayBuffer(this.replayBufferSize);
+        this.batchSize = 128;
         this.testingMode = false;
         this.episodeCount = 0; // Keep track of episodes
     }
@@ -87,15 +84,13 @@ class SnakeAgent {
     }
 
     remember(state, action, reward, nextState, done) {
-        const priority = 1.0; // Start with max priority for new experiences
-        this.replayBuffer.add(priority, [state, action, reward, nextState, done]);
+        this.replayBuffer.add([state, action, reward, nextState, done]);
     }
 
     async replay() {
         if (this.replayBuffer.size() < this.batchSize) return;
 
-        this.beta = Math.min(1.0, this.beta + this.betaIncrement);
-        const [batch, indices, importanceWeights] = this.replayBuffer.sample(this.batchSize, this.beta);
+        const batch = this.replayBuffer.sample(this.batchSize);
 
         const states = batch.map(exp => exp[0]);
         const actions = batch.map(exp => exp[1]);
@@ -104,8 +99,6 @@ class SnakeAgent {
         const dones = batch.map(exp => exp[4]);
 
         let updatedQs = [];
-        let errors = [];
-        let normalizedWeights = [];
 
         // Use tf.tidy to manage tensor memory for synchronous operations
         tf.tidy(() => {
@@ -116,7 +109,6 @@ class SnakeAgent {
             const nextQsData = nextQs.arraySync();
 
             updatedQs = currentQsData.map(q => q.slice()); // Deep copy
-            errors = [];
 
             for (let i = 0; i < this.batchSize; i++) {
                 let newQ = rewards[i];
@@ -124,24 +116,12 @@ class SnakeAgent {
                     const nextQ = Math.max(...nextQsData[i]);
                     newQ += this.gamma * nextQ;
                 }
-                const error = Math.abs(newQ - currentQsData[i][actions[i]]);
-                errors.push(error);
                 updatedQs[i][actions[i]] = newQ;
             }
-
-            // Update priorities in the replay buffer
-            for (let i = 0; i < this.batchSize; i++) {
-                const priority = Math.pow(errors[i] + 0.01, this.alpha);
-                this.replayBuffer.updatePriority(indices[i], priority);
-            }
-
-            // Normalize importance weights
-            const maxWeight = Math.max(...importanceWeights);
-            normalizedWeights = importanceWeights.map(w => w / maxWeight);
         });
 
         // Train the model outside of tf.tidy to handle asynchronous operations
-        await this.model.train(states, updatedQs, normalizedWeights);
+        await this.model.train(states, updatedQs);
     }
 
     // Method to increment the episode count
@@ -155,63 +135,29 @@ class SnakeAgent {
     }
 }
 
-class PrioritizedReplayBuffer {
+class ReplayBuffer {
     constructor(maxSize) {
         this.maxSize = maxSize;
         this.buffer = [];
-        this.priorities = [];
-        this.currentSize = 0; // Rename 'size' to 'currentSize'
     }
 
-    add(priority, experience) {
-        if (this.currentSize < this.maxSize) { // Use 'currentSize'
-            this.buffer.push(experience);
-            this.priorities.push(priority);
-            this.currentSize++; // Increment 'currentSize'
-        } else {
-            const index = this.currentSize % this.maxSize; // Calculate index
-            this.buffer[index] = experience;
-            this.priorities[index] = priority;
-            // Cap the currentSize to maxSize to prevent it from exceeding
-            this.currentSize = this.maxSize;
+    add(experience) {
+        if (this.buffer.length >= this.maxSize) {
+            this.buffer.shift(); // Remove the oldest experience
         }
+        this.buffer.push(experience);
     }
 
-    sample(batchSize, beta) {
-        const bufferSize = this.currentSize; // Ensure we use the capped currentSize
-        const total = this.priorities.slice(0, bufferSize).reduce((a, b) => a + b, 0);
-        const probabilities = this.priorities.slice(0, bufferSize).map(p => p / total);
-        const indices = [];
-        const batch = [];
-        const importanceWeights = [];
-
+    sample(batchSize) {
+        const samples = [];
         for (let i = 0; i < batchSize; i++) {
-            const r = Math.random();
-            let cumSum = 0;
-            for (let j = 0; j < bufferSize; j++) { // Use 'bufferSize'
-                cumSum += probabilities[j];
-                if (r < cumSum) {
-                    indices.push(j);
-                    batch.push(this.buffer[j]);
-                    break;
-                }
-            }
+            const index = Math.floor(Math.random() * this.buffer.length);
+            samples.push(this.buffer[index]);
         }
-
-        const maxWeight = Math.max(...probabilities.slice(0, bufferSize)) ** -beta;
-        for (const index of indices) {
-            const weight = Math.pow(probabilities[index] * bufferSize, -beta); // Use 'bufferSize'
-            importanceWeights.push(weight / maxWeight);
-        }
-
-        return [batch, indices, importanceWeights];
-    }
-
-    updatePriority(index, priority) {
-        this.priorities[index] = priority;
+        return samples;
     }
 
     size() {
-        return this.currentSize; // Return 'currentSize'
+        return this.buffer.length;
     }
 }
