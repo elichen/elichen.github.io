@@ -5,9 +5,6 @@ class SnakeAgent {
         this.hiddenSize = 128;
         this.outputSize = 4; // 4 possible actions (up, down, left, right)
         this.model = new SnakeModel(this.inputSize, this.hiddenSize, this.outputSize);
-        this.targetModel = new SnakeModel(this.inputSize, this.hiddenSize, this.outputSize);
-        this.updateTargetModel();
-        this.updateFrequency = 10;
         this.steps = 0;
         this.epsilon = 1.0;
         this.epsilonMin = 0.01;
@@ -114,11 +111,9 @@ class SnakeAgent {
         tf.tidy(() => {
             const currentQs = this.model.predict(states);
             const nextQs = this.model.predict(nextStates);
-            const nextTargetQs = this.targetModel.predict(nextStates);
 
             const currentQsData = currentQs.arraySync();
             const nextQsData = nextQs.arraySync();
-            const nextTargetQsData = nextTargetQs.arraySync();
 
             updatedQs = currentQsData.map(q => q.slice()); // Deep copy
             errors = [];
@@ -126,8 +121,7 @@ class SnakeAgent {
             for (let i = 0; i < this.batchSize; i++) {
                 let newQ = rewards[i];
                 if (!dones[i]) {
-                    const bestAction = nextQsData[i].indexOf(Math.max(...nextQsData[i]));
-                    const nextQ = nextTargetQsData[i][bestAction];
+                    const nextQ = Math.max(...nextQsData[i]);
                     newQ += this.gamma * nextQ;
                 }
                 const error = Math.abs(newQ - currentQsData[i][actions[i]]);
@@ -148,16 +142,6 @@ class SnakeAgent {
 
         // Train the model outside of tf.tidy to handle asynchronous operations
         await this.model.train(states, updatedQs, normalizedWeights);
-
-        // Update target network
-        this.steps++;
-        if (this.steps % this.updateFrequency === 0) {
-            this.updateTargetModel();
-        }
-    }
-
-    updateTargetModel() {
-        this.targetModel.model.setWeights(this.model.model.getWeights());
     }
 
     // Method to increment the episode count
