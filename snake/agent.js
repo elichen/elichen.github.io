@@ -7,7 +7,7 @@ class SnakeAgent {
         this.model = new SnakeModel(this.inputSize, this.hiddenSize, this.outputSize);
         this.targetModel = new SnakeModel(this.inputSize, this.hiddenSize, this.outputSize);
         this.updateTargetModel();
-        this.updateFrequency = 1000; // Update target network every 1000 steps
+        this.updateFrequency = 10;
         this.steps = 0;
         this.epsilon = 1.0;
         this.epsilonMin = 0.01;
