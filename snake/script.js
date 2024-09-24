@@ -14,12 +14,18 @@ async function initializeTensorFlow() {
 
 async function initializeGame() {
     game = new SnakeGame('gameCanvas', gridSize);
-    agent = new SnakeAgent(gridSize);
+    
+    // Initialize the agent only once
+    if (!agent) {
+        agent = new SnakeAgent(gridSize);
+    }
+    
     if (!visualization) {
         visualization = new Visualization();
     } else {
         visualization.reset();
     }
+    
     agent.setTestingMode(!isTrainingMode);
 }
 
@@ -33,8 +39,12 @@ function toggleMode() {
         statusText.textContent = `Mode: ${isTrainingMode ? 'Training' : 'Testing'}`;
     }
 
+    // Set the testing mode without reinitializing the agent
     agent.setTestingMode(!isTrainingMode);
-    initializeGame();
+    
+    // Reset the game without creating a new agent
+    game.reset();
+    visualization.reset();
 }
 
 async function runEpisode() {
@@ -117,6 +127,10 @@ document.getElementById('toggleMode').addEventListener('click', () => {
 
 window.addEventListener('load', async () => {
     await initializeTensorFlow();
+    // Initialize the agent and game once
+    if (!agent) {
+        agent = new SnakeAgent(gridSize);
+    }
     await initializeGame();
     run(); // Start training automatically when the page loads
 });
