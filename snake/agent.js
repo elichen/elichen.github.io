@@ -2,7 +2,7 @@ class SnakeAgent {
     constructor(gridSize) {
         this.gridSize = gridSize;
         this.inputSize = 15; // 11 existing + 4 for direction
-        this.hiddenSize = 128;
+        this.hiddenSize = 256;
         this.outputSize = 4; // 4 possible actions (up, down, left, right)
         this.model = new SnakeModel(this.inputSize, this.hiddenSize, this.outputSize);
         this.steps = 0;
