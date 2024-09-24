@@ -13,14 +13,14 @@ class SnakeAgent {
         this.epsilonMin = 0.01;
         this.epsilonDecay = 0.995;
         this.gamma = 0.95;
-        this.replayBufferSize = 10000; // Add this line to define replayBufferSize
+        this.replayBufferSize = 10000; // Define replayBufferSize
         this.replayBuffer = new PrioritizedReplayBuffer(this.replayBufferSize);
         this.alpha = 0.6; // Priority exponent
         this.beta = 0.4; // Initial importance-sampling weight
         this.betaIncrement = 0.001; // Beta increment per replay
         this.batchSize = 32;
         this.testingMode = false;
-        this.episodeCount = 0; // Add this line to keep track of episodes
+        this.episodeCount = 0; // Keep track of episodes
     }
 
     getState(game) {
@@ -68,8 +68,11 @@ class SnakeAgent {
     getAction(state) {
         if (this.testingMode || Math.random() > this.epsilon) {
             // Exploit: Use the model to predict the best action
-            const prediction = this.model.predict(state);
-            return tf.tidy(() => tf.argMax(prediction, 1).dataSync()[0]);
+            return tf.tidy(() => {
+                const prediction = this.model.predict([state]);
+                const action = tf.argMax(prediction, 1).dataSync()[0];
+                return action;
+            });
         } else {
             // Explore: Choose a random action
             return Math.floor(Math.random() * 4);
@@ -93,35 +96,47 @@ class SnakeAgent {
         const nextStates = batch.map(exp => exp[3]);
         const dones = batch.map(exp => exp[4]);
 
-        const currentQs = this.model.predict(states);
-        const nextQs = this.model.predict(nextStates);
-        const nextTargetQs = this.targetModel.predict(nextStates);
+        let updatedQs = [];
+        let errors = [];
+        let normalizedWeights = [];
 
-        const updatedQs = currentQs.arraySync();
-        const errors = [];
+        // Use tf.tidy to manage tensor memory for synchronous operations
+        tf.tidy(() => {
+            const currentQs = this.model.predict(states);
+            const nextQs = this.model.predict(nextStates);
+            const nextTargetQs = this.targetModel.predict(nextStates);
 
-        for (let i = 0; i < this.batchSize; i++) {
-            let newQ = rewards[i];
-            if (!dones[i]) {
-                const nextQ = nextTargetQs.arraySync()[i];
-                const bestAction = tf.argMax(nextQs.arraySync()[i]).dataSync()[0];
-                newQ += this.gamma * nextQ[bestAction];
+            const currentQsData = currentQs.arraySync();
+            const nextQsData = nextQs.arraySync();
+            const nextTargetQsData = nextTargetQs.arraySync();
+
+            updatedQs = currentQsData.map(q => q.slice()); // Deep copy
+            errors = [];
+
+            for (let i = 0; i < this.batchSize; i++) {
+                let newQ = rewards[i];
+                if (!dones[i]) {
+                    const bestAction = nextQsData[i].indexOf(Math.max(...nextQsData[i]));
+                    const nextQ = nextTargetQsData[i][bestAction];
+                    newQ += this.gamma * nextQ;
+                }
+                const error = Math.abs(newQ - currentQsData[i][actions[i]]);
+                errors.push(error);
+                updatedQs[i][actions[i]] = newQ;
             }
-            const error = Math.abs(newQ - updatedQs[i][actions[i]]);
-            errors.push(error);
-            updatedQs[i][actions[i]] = newQ;
-        }
 
-        // Update priorities in the replay buffer
-        for (let i = 0; i < this.batchSize; i++) {
-            const priority = (errors[i] + 0.01) ** this.alpha;
-            this.replayBuffer.updatePriority(indices[i], priority);
-        }
+            // Update priorities in the replay buffer
+            for (let i = 0; i < this.batchSize; i++) {
+                const priority = Math.pow(errors[i] + 0.01, this.alpha);
+                this.replayBuffer.updatePriority(indices[i], priority);
+            }
 
-        // Normalize importance weights
-        const maxWeight = Math.max(...importanceWeights);
-        const normalizedWeights = importanceWeights.map(w => w / maxWeight);
+            // Normalize importance weights
+            const maxWeight = Math.max(...importanceWeights);
+            normalizedWeights = importanceWeights.map(w => w / maxWeight);
+        });
 
+        // Train the model outside of tf.tidy to handle asynchronous operations
         await this.model.train(states, updatedQs, normalizedWeights);
 
         // Update target network
@@ -135,11 +150,11 @@ class SnakeAgent {
         this.targetModel.model.setWeights(this.model.model.getWeights());
     }
 
-    // Add this new method to increment the episode count
+    // Method to increment the episode count
     incrementEpisodeCount() {
         this.episodeCount++;
-        
-        // Only decrease epsilon after 20 episodes
+
+        // Decrease epsilon after each episode
         if (this.epsilon > this.epsilonMin) {
             this.epsilon *= this.epsilonDecay;
         }
@@ -158,9 +173,9 @@ class PrioritizedReplayBuffer {
         if (this.currentSize < this.maxSize) { // Use 'currentSize'
             this.buffer.push(experience);
             this.priorities.push(priority);
-            this.currentSize++; // Use 'currentSize'
+            this.currentSize++; // Increment 'currentSize'
         } else {
-            const index = this.currentSize % this.maxSize; // Use 'currentSize'
+            const index = this.currentSize % this.maxSize; // Calculate index
             this.buffer[index] = experience;
             this.priorities[index] = priority;
         }
@@ -188,7 +203,7 @@ class PrioritizedReplayBuffer {
 
         const maxWeight = Math.max(...probabilities) ** -beta;
         for (const index of indices) {
-            const weight = (probabilities[index] * this.currentSize) ** -beta; // Use 'currentSize'
+            const weight = Math.pow(probabilities[index] * this.currentSize, -beta); // Use 'currentSize'
             importanceWeights.push(weight / maxWeight);
         }
 
