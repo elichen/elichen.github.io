@@ -81,15 +81,15 @@ class SnakeGame {
 
         if (this.gameOver) {
             if (this.collisionType === 'wall') {
-                console.log('Hit a wall! Penalty assigned: -10');
-                reward = -10; // Penalty for hitting wall
+                console.log('Hit a wall! Penalty assigned: -1');
+                reward = -1; // Penalty for hitting wall
             } else if (this.collisionType === 'self') {
-                console.log('Hit itself! Penalty assigned: -15');
-                reward = -15; // Higher penalty for self-collision
+                console.log('Hit itself! Penalty assigned: -1');
+                reward = -1; // Higher penalty for self-collision
             }
         } else if (foodEaten) {
-            console.log('Food Eaten! Reward assigned: 10');
-            reward = 10; // Reward for eating food
+            console.log('Food Eaten! Reward assigned: 1');
+            reward = 1; // Reward for eating food
         } else {
             // Small reward/penalty based on distance to food
             const distanceDifference = oldDistance - newDistance;
