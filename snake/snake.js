@@ -11,7 +11,7 @@ class SnakeGame {
 
     reset() {
         this.snake = [{ x: Math.floor(this.gridSize / 2), y: Math.floor(this.gridSize / 2) }];
-        this.direction = { x: 0, y: -1 };
+        this.direction = { x: 0, y: -1 }; // Start moving upwards
         this.food = this.generateFood();
         this.score = 0;
         this.gameOver = false;
@@ -72,29 +72,16 @@ class SnakeGame {
         ];
         this.direction = directions[action];
 
-        const oldHead = this.snake[0];
-        const oldDistance = this.calculateDistanceToFood(oldHead);
-
-        const foodEaten = this.update(); // Capture if food was eaten
+        const foodEaten = this.update();
         this.movesSinceLastFood++;
-
-        const newHead = this.snake[0];
-        const newDistance = this.calculateDistanceToFood(newHead);
 
         let reward = 0;
 
         if (this.gameOver) {
-            if (this.collisionType === 'wall') {
-                console.log('Hit a wall!');
-                reward = -1; // Penalty for hitting wall
-            } else if (this.collisionType === 'self') {
-                console.log('Hit itself!');
-                reward = -1; // Higher penalty for self-collision
-            }
+            reward = -1;
         } else if (foodEaten) {
-            console.log('Food Eaten!');
-            reward = 10; // Reward for eating food
-            this.movesSinceLastFood = 0; // Reset the counter
+            reward = 10;
+            this.movesSinceLastFood = 0;
         } else {
             reward -= 0.01;
         }
@@ -102,7 +89,6 @@ class SnakeGame {
         this.draw();
 
         return {
-            state: this.getState(),
             reward: reward,
             done: this.gameOver
         };

@@ -1,7 +1,7 @@
 class SnakeAgent {
     constructor(gridSize) {
         this.gridSize = gridSize;
-        this.inputSize = 15; // 11 existing + 4 for direction
+        this.inputSize = 12; // 12 binary inputs for one-hot encoded states
         this.hiddenSize = 256;
         this.outputSize = 4; // 4 possible actions (up, down, left, right)
         this.model = new SnakeModel(this.inputSize, this.hiddenSize, this.outputSize);
@@ -22,48 +22,33 @@ class SnakeAgent {
         const head = game.snake[0];
         const food = game.food;
 
-        // Check 8 directions
-        const directions = [
-            { x: 0, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 0 }, { x: 1, y: 1 },
-            { x: 0, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 }
-        ];
+        // One-hot encode snake direction (NSEW)
+        const snakeDirection = [0, 0, 0, 0];
+        if (game.direction.y === -1) snakeDirection[0] = 1; // North
+        else if (game.direction.y === 1) snakeDirection[1] = 1; // South
+        else if (game.direction.x === 1) snakeDirection[2] = 1; // East
+        else if (game.direction.x === -1) snakeDirection[3] = 1; // West
 
-        const state = directions.map(dir => {
-            let x = head.x;
-            let y = head.y;
-            let distance = 0;
-            while (true) {
-                x += dir.x;
-                y += dir.y;
-                distance++;
-                if (x < 0 || x >= this.gridSize || y < 0 || y >= this.gridSize) {
-                    return 1 / distance; // Wall
-                }
-                if (game.snake.some(segment => segment.x === x && segment.y === y)) {
-                    return 1 / distance; // Snake body
-                }
-                if (x === food.x && y === food.y) {
-                    return -1; // Food
-                }
-            }
-        });
+        // One-hot encode food direction (NSEW)
+        const foodDirection = [0, 0, 0, 0];
+        if (food.y < head.y) foodDirection[0] = 1; // North
+        else if (food.y > head.y) foodDirection[1] = 1; // South
+        if (food.x > head.x) foodDirection[2] = 1; // East
+        else if (food.x < head.x) foodDirection[3] = 1; // West
 
-        // Add relative food position
-        state.push((food.x - head.x) / this.gridSize);
-        state.push((food.y - head.y) / this.gridSize);
-        state.push(game.snake.length / (this.gridSize * this.gridSize));
+        // One-hot encode immediate danger (NSEW)
+        const danger = [0, 0, 0, 0];
+        const checkDanger = (x, y) => {
+            return x < 0 || x >= this.gridSize || y < 0 || y >= this.gridSize ||
+                   game.snake.some(segment => segment.x === x && segment.y === y);
+        };
+        if (checkDanger(head.x, head.y - 1)) danger[0] = 1; // North
+        if (checkDanger(head.x, head.y + 1)) danger[1] = 1; // South
+        if (checkDanger(head.x + 1, head.y)) danger[2] = 1; // East
+        if (checkDanger(head.x - 1, head.y)) danger[3] = 1; // West
 
-        // **Add current direction as one-hot encoding**
-        const direction = game.direction; // {x, y}
-        let directionOneHot = [0, 0, 0, 0]; // Up, Right, Down, Left
-        if (direction.x === 0 && direction.y === -1) directionOneHot[0] = 1; // Up
-        else if (direction.x === 1 && direction.y === 0) directionOneHot[1] = 1; // Right
-        else if (direction.x === 0 && direction.y === 1) directionOneHot[2] = 1; // Down
-        else if (direction.x === -1 && direction.y === 0) directionOneHot[3] = 1; // Left
-
-        state.push(...directionOneHot); // Add the one-hot direction to the state
-
-        return state;
+        // Combine all one-hot encoded vectors
+        return [...snakeDirection, ...foodDirection, ...danger];
     }
 
     setTestingMode(isTestingMode) {
