@@ -1,0 +1,91 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #f0f0f0;
+}
+
+#game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.grid-and-row-hints {
+    display: flex;
+    flex-direction: row;
+}
+
+#grid-container {
+    display: grid;
+    grid-template-columns: repeat(20, 21px); /* 20px cell + 1px gap */
+    grid-gap: 1px;
+    background-color: #ccc;
+    padding: 1px;
+}
+
+.cell {
+    width: 20px;
+    height: 20px;
+    background-color: white;
+    border: 1px solid #999;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.cell.filled {
+    background-color: #333;
+}
+
+#row-hints, #col-hints {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    padding: 0 10px;
+}
+
+#row-hints {
+    width: 50px;
+    margin-right: 10px;
+}
+
+#col-hints {
+    display: grid;
+    grid-template-columns: repeat(20, 21px); /* 20px cell + 1px gap */
+    height: 50px;
+    margin-bottom: 10px;
+    margin-left: 60px; /* Adjust this value to align with the grid */
+    padding: 1px;
+}
+
+.hint {
+    font-size: 12px;
+    text-align: right;
+}
+
+button {
+    margin-top: 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+#message {
+    margin-top: 20px;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.col-hint {
+    width: 21px; /* Match the grid cell width + gap */
+    height: 50px;
+    font-size: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center; /* Center the content horizontally */
+    padding-bottom: 2px;
+    box-sizing: border-box;
+}
