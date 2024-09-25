@@ -2,15 +2,15 @@ let gameGrid, solution, emoji;
 
 function initGame() {
     const { grid, emoji: randomEmoji } = createEmojiGrid();
-    gameGrid = Array(20).fill().map(() => Array(20).fill(0));
+    gameGrid = Array(10).fill().map(() => Array(10).fill(0));
     solution = grid;
     emoji = randomEmoji;
 
     const gridContainer = document.getElementById('grid-container');
     gridContainer.innerHTML = '';
 
-    for (let y = 0; y < 20; y++) {
-        for (let x = 0; x < 20; x++) {
+    for (let y = 0; y < 10; y++) {
+        for (let x = 0; x < 10; x++) {
             const cell = document.createElement('div');
             cell.className = 'cell';
             cell.dataset.x = x;
@@ -36,14 +36,14 @@ function generateHints() {
     rowHints.innerHTML = '';
     colHints.innerHTML = '';
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 10; i++) {
         const rowHint = document.createElement('div');
         rowHint.className = 'hint';
         rowHint.textContent = getHint(solution[i]);
         rowHints.appendChild(rowHint);
 
         const colHint = document.createElement('div');
-        colHint.className = 'col-hint'; // Changed from 'hint' to 'col-hint'
+        colHint.className = 'col-hint';
         colHint.textContent = getHint(solution.map(row => row[i]));
         colHints.appendChild(colHint);
     }
@@ -79,8 +79,8 @@ function checkSolution() {
 function revealSolution() {
     const cells = document.querySelectorAll('.cell');
     cells.forEach((cell, index) => {
-        const x = index % 20;
-        const y = Math.floor(index / 20);
+        const x = index % 10;
+        const y = Math.floor(index / 10);
         if (solution[y][x] === 1) {
             cell.classList.add('filled');
         } else {
@@ -90,18 +90,18 @@ function revealSolution() {
 }
 
 function cheatSolution() {
-    gameGrid = JSON.parse(JSON.stringify(solution)); // Deep copy the solution
+    gameGrid = JSON.parse(JSON.stringify(solution));
     const cells = document.querySelectorAll('.cell');
     cells.forEach((cell, index) => {
-        const x = index % 20;
-        const y = Math.floor(index / 20);
+        const x = index % 10;
+        const y = Math.floor(index / 10);
         if (solution[y][x] === 1) {
             cell.classList.add('filled');
         } else {
             cell.classList.remove('filled');
         }
     });
-    checkSolution(); // Check the solution to display the success message
+    checkSolution();
 }
 
 document.getElementById('check-solution').addEventListener('click', checkSolution);
