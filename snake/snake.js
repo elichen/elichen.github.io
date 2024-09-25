@@ -89,6 +89,14 @@ class SnakeGame {
             reward -= 0.01;
         }
 
+        // Check if the snake has gone too long without eating
+        if (this.movesSinceLastFood >= this.maxMovesWithoutFood) {
+            this.gameOver = true;
+            reward = -1;
+            this.collisionType = 'starvation';
+            console.log('Snake starved!');
+        }
+
         this.draw();
 
         return {
