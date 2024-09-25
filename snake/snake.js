@@ -3,7 +3,7 @@ class SnakeGame {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
         this.gridSize = gridSize;
-        this.tileSize = this.canvas.width / (this.gridSize + 2); // Add 2 for borders
+        this.tileSize = this.canvas.width / this.gridSize;
         this.reset();
         this.movesSinceLastFood = 0;
         this.maxMovesWithoutFood = gridSize * 2; // Adjust this value as needed
@@ -108,23 +108,34 @@ class SnakeGame {
     draw() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Draw border
-        this.ctx.fillStyle = 'black';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        // Draw game area
+        // Draw game area background
         this.ctx.fillStyle = 'white';
-        this.ctx.fillRect(this.tileSize, this.tileSize, this.canvas.width - 2 * this.tileSize, this.canvas.height - 2 * this.tileSize);
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
         // Draw snake
         this.ctx.fillStyle = 'green';
         this.snake.forEach(segment => {
-            this.ctx.fillRect((segment.x + 1) * this.tileSize, (segment.y + 1) * this.tileSize, this.tileSize, this.tileSize);
+            this.ctx.fillRect(segment.x * this.tileSize, segment.y * this.tileSize, this.tileSize, this.tileSize);
         });
 
         // Draw food
         this.ctx.fillStyle = 'red';
-        this.ctx.fillRect((this.food.x + 1) * this.tileSize, (this.food.y + 1) * this.tileSize, this.tileSize, this.tileSize);
+        this.ctx.fillRect(this.food.x * this.tileSize, this.food.y * this.tileSize, this.tileSize, this.tileSize);
+
+        // Draw grid lines
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+        this.ctx.lineWidth = 1;
+        for (let i = 0; i <= this.gridSize; i++) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(i * this.tileSize, 0);
+            this.ctx.lineTo(i * this.tileSize, this.canvas.height);
+            this.ctx.stroke();
+
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, i * this.tileSize);
+            this.ctx.lineTo(this.canvas.width, i * this.tileSize);
+            this.ctx.stroke();
+        }
     }
 
     setDirection(direction) {
