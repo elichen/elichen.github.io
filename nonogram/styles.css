@@ -170,3 +170,40 @@ button:hover {
     font-size: 24px;
     color: #e74c3c;
 }
+
+#info-section {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin: 2rem auto;
+    width: calc(300px + 9px + 70px + 60px + 4rem); /* Match the width of the game container including padding */
+    box-sizing: border-box;
+}
+
+#info-section h2 {
+    color: #2c3e50;
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+#info-section h3 {
+    color: #34495e;
+    font-size: 1.4rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+#info-section p, #info-section ol {
+    color: #555;
+    line-height: 1.6;
+}
+
+#info-section ol {
+    padding-left: 1.5rem;
+}
+
+#info-section li {
+    margin-bottom: 0.5rem;
+}
