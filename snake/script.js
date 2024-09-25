@@ -41,10 +41,6 @@ function toggleMode() {
 
     // Set the testing mode without reinitializing the agent
     agent.setTestingMode(!isTrainingMode);
-    
-    // Reset the game without creating a new agent
-    game.reset();
-    visualization.reset();
 }
 
 async function runEpisode() {
@@ -122,9 +118,6 @@ function updateStats(episode, score, epsilon, foodEaten) {
 
 document.getElementById('toggleMode').addEventListener('click', () => {
     toggleMode();
-    if (!isTrainingMode) {
-        run(); // Only start running if switching to testing mode
-    }
 });
 
 window.addEventListener('load', async () => {

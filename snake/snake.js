@@ -130,18 +130,4 @@ class SnakeGame {
     setDirection(direction) {
         this.direction = direction;
     }
-
-    getState() {
-        // Implement state representation for AI
-        // This is a placeholder and needs to be expanded
-        return {
-            snake: this.snake,
-            food: this.food,
-            direction: this.direction
-        };
-    }
-
-    calculateDistanceToFood(head) {
-        return Math.abs(head.x - this.food.x) + Math.abs(head.y - this.food.y);
-    }
 }
