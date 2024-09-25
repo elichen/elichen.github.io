@@ -26,14 +26,14 @@ class SnakeModel {
 
     predict(state) {
         return tf.tidy(() => {
-            const stateTensor = Array.isArray(state[0]) ? tf.tensor2d(state) : tf.tensor2d([state]);
+            const stateTensor = tf.tensor2d(state);
             return this.model.predict(stateTensor);
         });
     }
 
     predictTarget(state) {
         return tf.tidy(() => {
-            const stateTensor = Array.isArray(state[0]) ? tf.tensor2d(state) : tf.tensor2d([state]);
+            const stateTensor = tf.tensor2d(state);
             return this.targetModel.predict(stateTensor);
         });
     }
