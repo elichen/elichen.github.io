@@ -1,17 +1,40 @@
 class SnakeModel {
     constructor(inputSize, hiddenSize, outputSize) {
+        // Policy Network
         this.model = tf.sequential();
         this.model.add(tf.layers.dense({ units: hiddenSize, activation: 'relu', inputShape: [inputSize] }));
         this.model.add(tf.layers.dense({ units: hiddenSize, activation: 'relu' }));
         this.model.add(tf.layers.dense({ units: outputSize, activation: 'linear' }));
 
+        // Target Network (copy of the policy network)
+        this.targetModel = tf.sequential();
+        this.targetModel.add(tf.layers.dense({ units: hiddenSize, activation: 'relu', inputShape: [inputSize] }));
+        this.targetModel.add(tf.layers.dense({ units: hiddenSize, activation: 'relu' }));
+        this.targetModel.add(tf.layers.dense({ units: outputSize, activation: 'linear' }));
+
         this.optimizer = tf.train.adam(0.001);
+
+        // Sync the target network weights with the policy network initially
+        this.updateTargetNetwork();
+    }
+
+    // Function to update the target network with the weights of the policy network
+    updateTargetNetwork() {
+        const policyWeights = this.model.getWeights();
+        this.targetModel.setWeights(policyWeights);
     }
 
     predict(state) {
         return tf.tidy(() => {
             const stateTensor = Array.isArray(state[0]) ? tf.tensor2d(state) : tf.tensor2d([state]);
             return this.model.predict(stateTensor);
+        });
+    }
+
+    predictTarget(state) {
+        return tf.tidy(() => {
+            const stateTensor = Array.isArray(state[0]) ? tf.tensor2d(state) : tf.tensor2d([state]);
+            return this.targetModel.predict(stateTensor);
         });
     }
 

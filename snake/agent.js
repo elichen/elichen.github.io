@@ -15,6 +15,7 @@ class SnakeAgent {
         this.batchSize = 1000;
         this.testingMode = false;
         this.episodeCount = 0; // Keep track of episodes
+        this.targetUpdateFrequency = 100; // Update target network every 100 steps
     }
 
     getState(game) {
@@ -99,6 +100,12 @@ class SnakeAgent {
         qValues[action] = target;
 
         await this.model.train([state], [qValues]);
+
+        // Update the target network periodically
+        if (this.steps % this.targetUpdateFrequency === 0) {
+            this.model.updateTargetNetwork();
+        }
+        this.steps++;
     }
 
     getQValues(state) {
@@ -123,17 +130,20 @@ class SnakeAgent {
         tf.tidy(() => {
             const currentQs = this.model.predict(states);
             const nextQs = this.model.predict(nextStates);
+            const targetQs = this.model.predictTarget(nextStates);
 
             const currentQsData = currentQs.arraySync();
             const nextQsData = nextQs.arraySync();
+            const targetQsData = targetQs.arraySync();
 
             updatedQs = currentQsData.map(q => q.slice()); // Deep copy
 
             for (let i = 0; i < this.batchSize; i++) {
                 let newQ = rewards[i];
                 if (!dones[i]) {
-                    const nextQ = Math.max(...nextQsData[i]);
-                    newQ += this.gamma * nextQ;
+                    const bestAction = nextQsData[i].indexOf(Math.max(...nextQsData[i])); // Policy network selects action
+                    const targetQ = targetQsData[i][bestAction]; // Target network evaluates the action
+                    newQ += this.gamma * targetQ;
                 }
                 updatedQs[i][actions[i]] = newQ;
             }
