@@ -117,6 +117,7 @@ h1 {
 .col-hint span {
     display: block;
     margin-bottom: 2px; /* Add space between numbers */
+    margin-left: 22px;
 }
 
 button {
