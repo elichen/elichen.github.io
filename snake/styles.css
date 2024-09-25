@@ -1,18 +1,64 @@
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Roboto', Arial, sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 20px;
+    padding: 40px 20px;
     line-height: 1.6;
+    background-color: #f0f4f8;
+    color: #333;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+h1 {
+    color: #2c3e50;
+    margin-bottom: 30px;
+    text-align: center;
+    width: 100%;
 }
 
 #game-container {
-    margin-bottom: 20px;
+    margin-bottom: 30px;
+    border-radius: 8px;
+    overflow: hidden;
+    width: 100%;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+    background-color: black;
+    padding: 2px;
+    box-sizing: border-box;
 }
 
 #controls {
-    margin-bottom: 20px;
+    margin-bottom: 30px;
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #2980b9;
+}
+
+#modeStatus {
+    margin-left: 15px;
+    font-weight: bold;
+    color: #2c3e50;
 }
 
 #stats {
@@ -20,67 +66,110 @@ body {
     justify-content: space-around;
     width: 100%;
     max-width: 400px;
-    margin-bottom: 20px;
+    margin-bottom: 30px;
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+}
+
+#stats p {
+    margin: 0;
+    font-size: 18px;
+}
+
+#stats span {
+    font-weight: bold;
+    color: #3498db;
+}
+
+#charts, #explanation {
+    width: 100%;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 #charts {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 100%;
-    max-width: 800px;
-    margin-bottom: 20px;
+    margin-bottom: 30px;
 }
 
 #charts canvas {
     width: 100%;
-    max-width: 600px;
-    margin-bottom: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+    padding: 20px;
+    box-sizing: border-box;
 }
 
 #explanation {
-    width: 100%;
-    max-width: 800px;
-    background-color: #f8f8f8;
+    background-color: white;
     border-radius: 8px;
-    padding: 20px;
-    margin-top: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 30px;
+    margin-top: 30px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+    box-sizing: border-box;
 }
 
 #explanation h2 {
-    color: #333;
-    border-bottom: 2px solid #ddd;
-    padding-bottom: 10px;
-    margin-bottom: 20px;
+    color: #2c3e50;
+    border-bottom: 2px solid #ecf0f1;
+    padding-bottom: 15px;
+    margin-bottom: 25px;
 }
 
 #explanation h3 {
-    color: #444;
-    margin-top: 20px;
+    color: #34495e;
+    margin-top: 25px;
 }
 
 #explanation p {
-    margin-bottom: 15px;
+    margin-bottom: 20px;
 }
 
 #explanation ol, #explanation ul {
-    margin-left: 20px;
-    margin-bottom: 15px;
+    margin-left: 25px;
+    margin-bottom: 20px;
 }
 
 #explanation li {
-    margin-bottom: 10px;
+    margin-bottom: 15px;
 }
 
 #explanation strong {
-    color: #0066cc;
+    color: #3498db;
 }
 
-/* Style for the toggle visualization button */
 #toggleVisualization {
-    padding: 10px 20px;
-    margin-left: 10px;
-    font-size: 16px;
-    cursor: pointer;
+    margin-left: 15px;
+}
+
+@media (max-width: 850px) {
+    body {
+        padding: 20px 10px;
+    }
+
+    #stats {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    #stats p {
+        margin-bottom: 10px;
+    }
+
+    #charts, #explanation {
+        max-width: 100%;
+    }
+}
+
+#gameCanvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
 }
