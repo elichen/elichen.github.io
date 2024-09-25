@@ -16,6 +16,7 @@ function initGame() {
             cell.dataset.x = x;
             cell.dataset.y = y;
             cell.addEventListener('click', toggleCell);
+            cell.addEventListener('contextmenu', markCell);
             gridContainer.appendChild(cell);
         }
     }
@@ -26,8 +27,18 @@ function initGame() {
 function toggleCell(event) {
     const x = parseInt(event.target.dataset.x);
     const y = parseInt(event.target.dataset.y);
-    gameGrid[y][x] = 1 - gameGrid[y][x];
-    event.target.classList.toggle('filled');
+    if (!event.target.classList.contains('marked')) {
+        gameGrid[y][x] = 1 - gameGrid[y][x];
+        event.target.classList.toggle('filled');
+    }
+}
+
+function markCell(event) {
+    event.preventDefault(); // Prevent the default context menu
+    const cell = event.target;
+    if (!cell.classList.contains('filled')) {
+        cell.classList.toggle('marked');
+    }
 }
 
 function generateHints() {
@@ -107,5 +118,6 @@ function cheatSolution() {
 
 document.getElementById('check-solution').addEventListener('click', checkSolution);
 document.getElementById('cheat-button').addEventListener('click', cheatSolution);
+document.getElementById('grid-container').addEventListener('contextmenu', (e) => e.preventDefault());
 
 initGame();

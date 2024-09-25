@@ -155,3 +155,18 @@ button:hover {
     text-align: center;
     color: #2c3e50;
 }
+
+/* Add these new styles */
+.cell.marked {
+    position: relative;
+}
+
+.cell.marked::after {
+    content: '×';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    color: #e74c3c;
+}
