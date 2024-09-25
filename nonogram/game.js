@@ -44,7 +44,8 @@ function generateHints() {
 
         const colHint = document.createElement('div');
         colHint.className = 'col-hint';
-        colHint.textContent = getHint(solution.map(row => row[i]));
+        const hintNumbers = getHint(solution.map(row => row[i])).split(' ');
+        colHint.innerHTML = hintNumbers.map(num => `<span>${num}</span>`).join('');
         colHints.appendChild(colHint);
     }
 }
