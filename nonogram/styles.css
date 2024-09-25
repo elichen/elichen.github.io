@@ -1,16 +1,27 @@
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
-    background-color: #f0f0f0;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    background-color: #f0f4f8;
+    color: #333;
+}
+
+h1 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: #2c3e50;
 }
 
 #game-container {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    margin-bottom: 20px;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-bottom: 1rem;
 }
 
 .grid-and-row-hints {
@@ -20,23 +31,28 @@ body {
 
 #grid-container {
     display: grid;
-    grid-template-columns: repeat(20, 21px); /* 20px cell + 1px gap */
+    grid-template-columns: repeat(20, 21px);
     grid-gap: 1px;
-    background-color: #ccc;
+    background-color: #ddd;
     padding: 1px;
+    border-radius: 4px;
 }
 
 .cell {
     width: 20px;
     height: 20px;
     background-color: white;
-    border: 1px solid #999;
+    border: 1px solid #bbb;
     cursor: pointer;
-    box-sizing: border-box;
+    transition: background-color 0.2s ease;
+}
+
+.cell:hover {
+    background-color: #e0e0e0;
 }
 
 .cell.filled {
-    background-color: #333;
+    background-color: #3498db;
 }
 
 #row-hints, #col-hints {
@@ -53,39 +69,59 @@ body {
 
 #col-hints {
     display: grid;
-    grid-template-columns: repeat(20, 21px); /* 20px cell + 1px gap */
+    grid-template-columns: repeat(20, 21px);
     height: 50px;
     margin-bottom: 10px;
-    margin-left: 60px; /* Adjust this value to align with the grid */
-    padding: 1px;
+    margin-left: 60px;
 }
 
-.hint {
-    font-size: 12px;
-    text-align: right;
-}
-
-button {
-    margin-top: 10px;
-    padding: 10px 20px;
-    font-size: 16px;
-    cursor: pointer;
-}
-
-#message {
-    margin-top: 20px;
-    font-size: 18px;
-    font-weight: bold;
+.hint, .col-hint {
+    font-size: 10px;
+    color: #7f8c8d;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
 }
 
 .col-hint {
-    width: 21px; /* Match the grid cell width + gap */
+    justify-content: center;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
     height: 50px;
-    font-size: 10px;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    align-items: center; /* Center the content horizontally */
-    padding-bottom: 2px;
-    box-sizing: border-box;
+}
+
+button {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    cursor: pointer;
+    background-color: #2ecc71;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+button:hover {
+    background-color: #27ae60;
+}
+
+#check-solution {
+    margin-right: 0.5rem;
+}
+
+#cheat-button {
+    background-color: #e74c3c;
+}
+
+#cheat-button:hover {
+    background-color: #c0392b;
+}
+
+#message {
+    margin-top: 1rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-align: center;
+    color: #2c3e50;
 }
