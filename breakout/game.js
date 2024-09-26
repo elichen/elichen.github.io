@@ -129,15 +129,31 @@ class Game {
 
     reset() {
         this.paddle = { width: 75, height: 10, x: this.width / 2 - 37.5, y: this.height - 20 };
-        this.ball = { radius: 5, x: this.width / 2, y: this.height - 30, dx: 2, dy: -2 };
+        
+        // Initialize ball with random trajectory
+        const angle = this.getRandomAngle();
+        const speed = 4;
+        this.ball = {
+            radius: 5,
+            x: this.width / 2,
+            y: this.height - 30,
+            dx: Math.cos(angle) * speed,
+            dy: -Math.sin(angle) * speed  // Negative to ensure the ball moves upwards initially
+        };
+
         this.bricks = [];
         this.score = 0;
         this.gameOver = false;
         this.initBricks();
     }
 
+    getRandomAngle() {
+        // Generate a random angle between 30 and 150 degrees (in radians)
+        return (Math.random() * 120 + 30) * Math.PI / 180;
+    }
+
     // Add a helper method to resize the state
-    resizeState(state, newWidth = 84, newHeight = 84) {
+    resizeState(state, newWidth = 42, newHeight = 42) {
         const resizedState = [];
         const scaleX = state[0].length / newWidth;
         const scaleY = state.length / newHeight;
@@ -185,7 +201,7 @@ class Game {
         }
         
         // Resize the state
-        let resizedState = this.resizeState(state, 84, 84).map(row => row.map(value => value / 3)); // Normalize between 0 and 1
+        let resizedState = this.resizeState(state, 42, 42).map(row => row.map(value => value / 3)); // Normalize between 0 and 1
 
         return resizedState;
     }

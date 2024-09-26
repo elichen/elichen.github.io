@@ -1,6 +1,6 @@
 class DQNAgent {
     constructor(stateShape, numActions, batchSize = 32, memorySize = 10000, gamma = 0.99, epsilonDecay = 0.995) {
-        this.stateShape = stateShape; // [84, 84]
+        this.stateShape = stateShape; // [42, 42]
         this.numActions = numActions;
         this.batchSize = batchSize;
         this.memory = [];
@@ -29,6 +29,25 @@ class DQNAgent {
         this.memory.push([state, action, reward, nextState, done]);
         if (this.memory.length > this.memorySize) {
             this.memory.shift();
+        }
+    }
+
+    async trainOnEpisode(episodeMemory) {
+        // Add episode memory to the agent's memory
+        this.memory.push(...episodeMemory);
+        if (this.memory.length > this.memorySize) {
+            this.memory = this.memory.slice(-this.memorySize);
+        }
+
+        // Perform multiple replay steps
+        const replaySteps = Math.min(10, Math.floor(episodeMemory.length / this.batchSize));
+        for (let i = 0; i < replaySteps; i++) {
+            await this.replay();
+        }
+
+        // Decay epsilon
+        if (this.epsilon > this.epsilonMin) {
+            this.epsilon *= this.epsilonDecay;
         }
     }
 
@@ -61,10 +80,6 @@ class DQNAgent {
             const targets = tf.tensor2d(updatedQs.flat(), [this.batchSize, this.numActions]);
 
             await this.model.train(states, targets);
-
-            if (this.epsilon > this.epsilonMin) {
-                this.epsilon *= this.epsilonDecay;
-            }
 
             states.dispose();
             nextStates.dispose();
