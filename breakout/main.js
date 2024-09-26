@@ -3,7 +3,7 @@ canvas.width = 800;
 canvas.height = 600;
 
 const game = new Game(canvas);
-const agent = new DQNAgent([84, 84], 3); // Updated state shape to [84, 84]
+const agent = new DQNAgent([42, 42], 3); // Updated state shape to [42, 42]
 const visualization = new Visualization();
 
 let isTraining = true;
@@ -22,6 +22,7 @@ async function runEpisode() {
         let state = game.getState();
         let done = false;
         totalReward = 0;
+        const episodeMemory = [];
 
         while (!done) {
             const action = agent.act(state, isTraining);
@@ -39,8 +40,7 @@ async function runEpisode() {
             done = game.gameOver;
 
             if (isTraining) {
-                agent.remember(state, action, reward, nextState, done);
-                await agent.replay();
+                episodeMemory.push([state, action, reward, nextState, done]);
             }
 
             state = nextState;
@@ -50,6 +50,11 @@ async function runEpisode() {
             }
 
             await new Promise(resolve => setTimeout(resolve, 10)); // Small delay to control game speed
+        }
+
+        // Train at the end of the episode
+        if (isTraining) {
+            await agent.trainOnEpisode(episodeMemory);
         }
 
         // Add console log for game over with final score
