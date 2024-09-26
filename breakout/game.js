@@ -135,4 +135,58 @@ class Game {
         this.gameOver = false;
         this.initBricks();
     }
+
+    // Add a helper method to resize the state
+    resizeState(state, newWidth = 84, newHeight = 84) {
+        const resizedState = [];
+        const scaleX = state[0].length / newWidth;
+        const scaleY = state.length / newHeight;
+
+        for (let y = 0; y < newHeight; y++) {
+            const row = [];
+            for (let x = 0; x < newWidth; x++) {
+                const origX = Math.floor(x * scaleX);
+                const origY = Math.floor(y * scaleY);
+                row.push(state[origY][origX]);
+            }
+            resizedState.push(row);
+        }
+        return resizedState;
+    }
+
+    getState() {
+        const state = new Array(this.height).fill(0).map(() => new Array(this.width).fill(0));
+        
+        // Add paddle
+        for (let x = Math.floor(this.paddle.x); x < Math.floor(this.paddle.x + this.paddle.width); x++) {
+            if (x >= 0 && x < this.width) {
+                state[Math.floor(this.paddle.y)][x] = 1;
+            }
+        }
+        
+        // Add ball
+        const ballX = Math.floor(this.ball.x);
+        const ballY = Math.floor(this.ball.y);
+        if (ballX >= 0 && ballX < this.width && ballY >= 0 && ballY < this.height) {
+            state[ballY][ballX] = 2;
+        }
+        
+        // Add bricks
+        for (const brick of this.bricks) {
+            if (brick.status === 1) {
+                for (let y = Math.floor(brick.y); y < Math.floor(brick.y + brick.height); y++) {
+                    for (let x = Math.floor(brick.x); x < Math.floor(brick.x + brick.width); x++) {
+                        if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+                            state[y][x] = 3;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Resize the state
+        let resizedState = this.resizeState(state, 84, 84).map(row => row.map(value => value / 3)); // Normalize between 0 and 1
+
+        return resizedState;
+    }
 }
