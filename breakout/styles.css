@@ -1,0 +1,36 @@
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #000;
+    font-family: 'Courier New', monospace;
+}
+
+#game-container {
+    position: relative;
+}
+
+#gameCanvas {
+    border: 2px solid #fff;
+}
+
+#score, #message {
+    position: absolute;
+    font-size: 20px;
+    color: #fff;
+}
+
+#score {
+    top: 10px;
+    left: 10px;
+}
+
+#message {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    display: none;
+}
