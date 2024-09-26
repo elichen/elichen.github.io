@@ -22,6 +22,9 @@ function initGame() {
     }
 
     generateHints();
+
+    // Add this line to reset the emoji overlay
+    document.getElementById('emoji-overlay').style.opacity = '0';
 }
 
 function toggleCell(event) {
@@ -81,8 +84,9 @@ function getHint(line) {
 function checkSolution() {
     const message = document.getElementById('message');
     if (JSON.stringify(gameGrid) === JSON.stringify(solution)) {
-        message.textContent = `Congratulations! You solved it! The emoji is: ${emoji}`;
+        message.textContent = `Congratulations! You solved it!`;
         revealSolution();
+        showEmojiOverlay();
     } else {
         message.textContent = 'Not quite right. Keep trying!';
     }
@@ -101,6 +105,12 @@ function revealSolution() {
     });
 }
 
+function showEmojiOverlay() {
+    const emojiOverlay = document.getElementById('emoji-overlay');
+    emojiOverlay.textContent = emoji;
+    emojiOverlay.style.opacity = '0.5';
+}
+
 function cheatSolution() {
     gameGrid = JSON.parse(JSON.stringify(solution));
     const cells = document.querySelectorAll('.cell');
@@ -114,6 +124,7 @@ function cheatSolution() {
         }
     });
     checkSolution();
+    showEmojiOverlay();
 }
 
 document.getElementById('check-solution').addEventListener('click', checkSolution);

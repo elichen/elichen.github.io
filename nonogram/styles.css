@@ -17,10 +17,12 @@ h1 {
 }
 
 #game-container {
+    position: relative;
     background-color: white;
     border-radius: 10px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     padding: 2rem;
+    padding-top: 3rem; /* Added extra padding at the top */
     margin-bottom: 1rem;
     display: flex;
     flex-direction: column;
@@ -206,4 +208,19 @@ button:hover {
 
 #info-section li {
     margin-bottom: 0.5rem;
+}
+
+#emoji-overlay {
+    position: absolute;
+    top: 140px; /* Increased to account for column hints */
+    left: 130px; /* This value is correct, no change needed */
+    width: 300px;
+    height: 300px;
+    font-size: 280px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease;
 }
