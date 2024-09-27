@@ -111,7 +111,6 @@ class TicTacToeGame {
   }
 
   findOptimalMove() {
-    console.log("Current board state:", this.board);
     // If center is empty, take it
     if (this.board[4] === 0) return 4;
 
