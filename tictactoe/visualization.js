@@ -14,13 +14,15 @@ class Visualization {
             label: 'Score per Episode',
             data: [],
             borderColor: 'rgb(75, 192, 192)',
-            tension: 0.1
+            tension: 0.1,
+            yAxisID: 'y-score'
           },
           {
             label: 'Epsilon Value',
             data: [],
             borderColor: 'rgb(255, 99, 132)',
-            tension: 0.1
+            tension: 0.1,
+            yAxisID: 'y-epsilon'
           }
         ]
       },
@@ -35,8 +37,30 @@ class Visualization {
           }
         },
         scales: {
-          y: {
-            beginAtZero: true
+          'y-score': {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: 'Score'
+            },
+            min: -1,
+            max: 1
+          },
+          'y-epsilon': {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: 'Epsilon'
+            },
+            min: 0,
+            max: 1,
+            grid: {
+              drawOnChartArea: false // only want the grid lines for epsilon on the right side of the chart
+            }
           }
         },
         plugins: {
