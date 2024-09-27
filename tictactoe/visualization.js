@@ -26,9 +26,26 @@ class Visualization {
       },
       options: {
         responsive: true,
+        animation: false,  // Disable all animations
+        transitions: {
+          active: {
+            animation: {
+              duration: 0  // Disable transitions when hovering
+            }
+          }
+        },
         scales: {
           y: {
             beginAtZero: true
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              font: {
+                size: 14  // Increase font size for better readability
+              }
+            }
           }
         }
       }

@@ -12,25 +12,36 @@ function toggleMode() {
   stopTraining = isTraining ? false : true;
   episodeCount = 0;
   document.getElementById('modeButton').textContent = isTraining ? 'Switch to Test Mode' : 'Switch to Train Mode';
+  if (!isTraining) {
+    game.clearDisplay(); // Only clear the display when switching to test mode
+  }
   runEpisode();
 }
 
 async function runEpisode() {
-  game.reset();
+  game.reset(isTraining);
   let totalReward = 0;
   let moveCount = 0;
 
   while (!game.gameOver) {
     const state = game.getState();
     const action = agent.act(state, isTraining);
-    console.log(`Move ${moveCount + 1}: Player ${game.currentPlayer}, Action: ${action}`);
     
     const validMove = game.makeMove(action);
 
     if (validMove) {
       moveCount++;
       const nextState = game.getState();
-      const reward = game.gameOver ? (game.currentPlayer === 1 ? -1 : 1) : 0;
+      let reward;
+      if (game.gameOver) {
+        if (game.isDraw()) {
+          reward = 0;  // Draw
+        } else {
+          reward = game.currentPlayer === 1 ? -1 : 1;  // Win/Loss
+        }
+      } else {
+        reward = 0;  // Game not over yet
+      }
       totalReward += reward;
 
       agent.remember(state, action, reward, nextState, game.gameOver);
@@ -39,20 +50,17 @@ async function runEpisode() {
         await agent.replay();
       }
     } else {
-      console.log(`Invalid move: ${action}`);
       // In test mode, if an invalid move is made, choose a random valid move
       if (!isTraining) {
         const validMoves = game.getValidMoves();
         const randomValidMove = validMoves[Math.floor(Math.random() * validMoves.length)];
-        console.log(`Choosing random valid move: ${randomValidMove}`);
         game.makeMove(randomValidMove);
         moveCount++;
       }
     }
 
-    game.render(); // Always render the game state
-
     if (!isTraining) {
+      game.render(isTraining);
       // Add a small delay to visualize moves in test mode
       await new Promise(resolve => setTimeout(resolve, 500));
     }
@@ -63,12 +71,11 @@ async function runEpisode() {
 
     // Safety check to prevent infinite loops
     if (moveCount > 9) {
-      console.log("Game exceeded maximum moves. Forcing end.");
       game.gameOver = true;
     }
   }
 
-  console.log(`Episode ended. Total moves: ${moveCount}`);
+  game.render(isTraining); // Render the final game state
 
   episodeCount++;
   visualization.updateChart(episodeCount, totalReward, agent.epsilon);

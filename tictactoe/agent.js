@@ -29,11 +29,6 @@ class DQNAgent {
     const states = batch.map(experience => experience[0]);
     const nextStates = batch.map(experience => experience[3]);
 
-    console.log('States in replay:', states);
-    console.log('States shape in replay:', states.length, states[0].length);
-    console.log('Next States in replay:', nextStates);
-    console.log('Next States shape in replay:', nextStates.length, nextStates[0].length);
-
     const currentQs = this.model.predict(states);
     const nextQs = this.model.predict(nextStates);
 
@@ -51,11 +46,6 @@ class DQNAgent {
       x.push(state);
       y.push(targetQ);
     }
-
-    console.log('Training data x:', x);
-    console.log('Training data x shape:', x.length, x[0].length);
-    console.log('Training data y:', y);
-    console.log('Training data y shape:', y.length, y[0].length);
 
     await this.model.train(x, y);
 
