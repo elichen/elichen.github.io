@@ -24,10 +24,16 @@ async function runEpisode() {
   let moveCount = 0;
 
   while (!game.gameOver) {
-    const state = game.getState();
-    const action = agent.act(state, isTraining);
-    
-    const validMove = game.makeMove(action);
+    let state, action, validMove;
+
+    if (game.currentPlayer === 1) {  // AI agent's turn
+      state = game.getState();
+      action = agent.act(state, isTraining);
+      validMove = game.makeMove(action);
+    } else {  // Optimal opponent's turn
+      action = game.findOptimalMove();
+      validMove = game.makeMove(action);
+    }
 
     if (validMove) {
       moveCount++;
@@ -44,18 +50,11 @@ async function runEpisode() {
       }
       totalReward += reward;
 
-      agent.remember(state, action, reward, nextState, game.gameOver);
-
-      if (isTraining) {
-        await agent.replay();
-      }
-    } else {
-      // In test mode, if an invalid move is made, choose a random valid move
-      if (!isTraining) {
-        const validMoves = game.getValidMoves();
-        const randomValidMove = validMoves[Math.floor(Math.random() * validMoves.length)];
-        game.makeMove(randomValidMove);
-        moveCount++;
+      if (game.currentPlayer === -1) {  // Only remember and replay after the agent's move
+        agent.remember(state, action, reward, nextState, game.gameOver);
+        if (isTraining) {
+          await agent.replay();
+        }
       }
     }
 
