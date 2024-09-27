@@ -15,8 +15,12 @@ class TicTacToeGame {
     }
   }
 
+  isValidMove(position) {
+    return this.board[position] === 0 && !this.gameOver;
+  }
+
   makeMove(position) {
-    if (this.board[position] === 0 && !this.gameOver) {
+    if (this.isValidMove(position)) {
       this.board[position] = this.currentPlayer;
       this.checkGameOver();
       this.currentPlayer = -this.currentPlayer;
@@ -107,6 +111,7 @@ class TicTacToeGame {
   }
 
   findOptimalMove() {
+    console.log("Current board state:", this.board);
     // If center is empty, take it
     if (this.board[4] === 0) return 4;
 
