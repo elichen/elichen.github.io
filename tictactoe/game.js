@@ -6,11 +6,13 @@ class TicTacToeGame {
     this.container = document.getElementById('game-container');
   }
 
-  reset() {
+  reset(isTraining = false) {
     this.board = new Array(9).fill(0);
     this.currentPlayer = 1;
     this.gameOver = false;
-    this.render();
+    if (!isTraining) {
+      this.clearDisplay();
+    }
   }
 
   makeMove(position) {
@@ -18,7 +20,6 @@ class TicTacToeGame {
       this.board[position] = this.currentPlayer;
       this.checkGameOver();
       this.currentPlayer = -this.currentPlayer;
-      this.render();
       return true;
     }
     return false;
@@ -49,8 +50,17 @@ class TicTacToeGame {
     return this.board;
   }
 
-  render() {
+  clearDisplay() {
     this.container.innerHTML = '';
+  }
+
+  render(isTraining = false) {
+    if (isTraining && !this.gameOver) {
+      // Don't render intermediate states during training
+      return;
+    }
+
+    this.clearDisplay();
     const boardElement = document.createElement('div');
     boardElement.className = 'tic-tac-toe-board';
     
@@ -90,5 +100,9 @@ class TicTacToeGame {
       if (cell === 0) validMoves.push(index);
       return validMoves;
     }, []);
+  }
+
+  isDraw() {
+    return this.gameOver && !this.board.includes(0);
   }
 }
