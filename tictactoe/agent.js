@@ -1,5 +1,5 @@
 class DQNAgent {
-  constructor(epsilon = 1.0, epsilonDecay = 0.999, epsilonMin = 0.01, gamma = 0.95, batchSize = 1000, maxMemorySize = 100000) {
+  constructor(epsilon = 1.0, epsilonDecay = 0.999, epsilonMin = 0.01, gamma = 0.95, batchSize = 100, maxMemorySize = 10000) {
     this.model = new TicTacToeModel();
     this.epsilon = epsilon;
     this.epsilonDecay = epsilonDecay;
@@ -35,7 +35,7 @@ class DQNAgent {
     const nextStates = batch.map(experience => experience[3]);
 
     const currentQs = this.model.predict(states);
-    const nextQs = this.model.predict(nextStates);
+    const nextQs = this.model.predict(nextStates, true); // Use target network for next state predictions
 
     const x = [];
     const y = [];
@@ -44,7 +44,10 @@ class DQNAgent {
       const [state, action, reward, nextState, done] = batch[i];
       let newQ = reward;
       if (!done) {
-        newQ += this.gamma * Math.max(...nextQs.arraySync()[i]);
+        // Double DQN: Use main network to select action, target network to evaluate it
+        const nextQsMain = this.model.predict(nextState).arraySync()[0];
+        const bestAction = tf.argMax(nextQsMain).dataSync()[0];
+        newQ += this.gamma * nextQs.arraySync()[i][bestAction];
       }
       const targetQ = currentQs.arraySync()[i];
       targetQ[action] = newQ;
