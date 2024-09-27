@@ -1,10 +1,9 @@
 const game = new TicTacToeGame();
 const agent = new DQNAgent();
-const visualization = new Visualization();
+const visualization = new Visualization(1000);
 
 let isTraining = true;
 let episodeCount = 0;
-const maxEpisodes = 1000;
 let stopTraining = false;
 
 function toggleMode() {
@@ -24,19 +23,17 @@ async function runEpisode() {
   let moveCount = 0;
 
   while (!game.gameOver) {
-    let state, action, validMove;
+    const state = game.getState();
+    let action, validMove, reward;
 
     if (game.currentPlayer === 1) {  // AI agent's turn
-      state = game.getState();
       action = agent.act(state, isTraining);
       validMove = game.makeMove(action);
       
       if (!validMove) {
-        console.log("Invalid move by agent. Resetting game.");
-        // Penalize the agent for invalid move
-        agent.remember(state, action, -10, state, true);  // Use a larger penalty
-        totalReward -= 10;  // Add the penalty to totalReward
-        break;  // Exit the game loop, effectively resetting the game
+        console.log("Invalid move by agent. Penalizing.");
+        reward = -1;  // Penalty for invalid move
+        game.gameOver = true;  // End the game on invalid move
       }
     } else {  // Optimal opponent's turn
       action = game.findOptimalMove();
@@ -53,21 +50,19 @@ async function runEpisode() {
 
     moveCount++;
     const nextState = game.getState();
-    let reward;
+
     if (game.gameOver) {
       if (game.isDraw()) {
         reward = 0;  // Draw
       } else {
-        reward = game.currentPlayer === 1 ? -1 : 1;  // Win/Loss
+        reward = game.currentPlayer === 1 ? -1 : 1;  // Agent loses if it's its turn, wins if it's opponent's turn
       }
     } else {
       reward = 0;  // Game not over yet
     }
-    totalReward += reward;
 
-    if (game.currentPlayer === -1) {  // Only remember after the agent's move
-      agent.remember(state, action, reward, nextState, game.gameOver);
-    }
+    totalReward += reward;
+    agent.remember(state, action, reward, nextState, game.gameOver);
 
     if (!isTraining) {
       game.render(isTraining);
@@ -95,9 +90,8 @@ async function runEpisode() {
   }
   visualization.updateChart(episodeCount, totalReward, agent.epsilon);
 
-  if ((isTraining && episodeCount < maxEpisodes) || !isTraining) {
-    setTimeout(runEpisode, isTraining ? 0 : 1000); // Delay between episodes in test mode
-  }
+  // Continue training indefinitely or run test episodes
+  setTimeout(runEpisode, isTraining ? 0 : 1000); // Delay between episodes in test mode
 }
 
 async function init() {

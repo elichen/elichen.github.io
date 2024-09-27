@@ -1,5 +1,5 @@
 class DQNAgent {
-  constructor(epsilon = 1.0, epsilonDecay = 0.995, epsilonMin = 0.01, gamma = 0.95, batchSize = 1000, maxMemorySize = 100000) {
+  constructor(epsilon = 1.0, epsilonDecay = 0.999, epsilonMin = 0.01, gamma = 0.95, batchSize = 1000, maxMemorySize = 100000) {
     this.model = new TicTacToeModel();
     this.epsilon = epsilon;
     this.epsilonDecay = epsilonDecay;

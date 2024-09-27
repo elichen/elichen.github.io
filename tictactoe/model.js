@@ -5,8 +5,8 @@ class TicTacToeModel {
 
   createModel() {
     const model = tf.sequential();
-    model.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [9] }));
-    model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
+    model.add(tf.layers.dense({ units: 256, activation: 'relu', inputShape: [9] }));
+    model.add(tf.layers.dense({ units: 256, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 9, activation: 'linear' }));
     model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
     return model;
