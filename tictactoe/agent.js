@@ -1,11 +1,12 @@
 class DQNAgent {
-  constructor(epsilon = 1.0, epsilonDecay = 0.995, epsilonMin = 0.01, gamma = 0.95, batchSize = 32) {
+  constructor(epsilon = 1.0, epsilonDecay = 0.995, epsilonMin = 0.01, gamma = 0.95, batchSize = 32, maxMemorySize = 10000) {
     this.model = new TicTacToeModel();
     this.epsilon = epsilon;
     this.epsilonDecay = epsilonDecay;
     this.epsilonMin = epsilonMin;
     this.gamma = gamma;
     this.batchSize = batchSize;
+    this.maxMemorySize = maxMemorySize;
     this.memory = [];
   }
 
@@ -19,6 +20,9 @@ class DQNAgent {
   }
 
   remember(state, action, reward, nextState, done) {
+    if (this.memory.length >= this.maxMemorySize) {
+      this.memory.shift(); // Remove the oldest experience
+    }
     this.memory.push([state, action, reward, nextState, done]);
   }
 
@@ -59,5 +63,9 @@ class DQNAgent {
       Math.floor(Math.random() * this.memory.length)
     );
     return batchIndices.map(index => this.memory[index]);
+  }
+
+  getMemorySize() {
+    return this.memory.length;
   }
 }
