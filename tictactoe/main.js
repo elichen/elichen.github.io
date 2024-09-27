@@ -28,21 +28,27 @@ async function runEpisode() {
 
     if (game.currentPlayer === 1) {  // AI agent's turn
       state = game.getState();
-      validMove = false;
-      while (!validMove) {
-        action = agent.act(state, isTraining);
-        validMove = game.makeMove(action);
-        if (!validMove) {
-          // Penalize the agent for invalid move
-          agent.remember(state, action, -1, state, false);
-          if (isTraining) {
-            await agent.replay();
-          }
-        }
+      action = agent.act(state, isTraining);
+      validMove = game.makeMove(action);
+      
+      if (!validMove) {
+        console.log("Invalid move by agent. Resetting game.");
+        // Penalize the agent for invalid move
+        agent.remember(state, action, -10, state, true);  // Use a larger penalty
+        totalReward -= 10;  // Add the penalty to totalReward
+        break;  // Exit the game loop, effectively resetting the game
       }
     } else {  // Optimal opponent's turn
       action = game.findOptimalMove();
+      if (action === -1) {
+        console.error("Optimal opponent failed to find a valid move");
+        break;  // Exit the game loop if no valid move found
+      }
       validMove = game.makeMove(action);
+      if (!validMove) {
+        console.error("Optimal opponent's move was invalid");
+        break;  // Exit the game loop if the move was invalid
+      }
     }
 
     moveCount++;
@@ -59,11 +65,8 @@ async function runEpisode() {
     }
     totalReward += reward;
 
-    if (game.currentPlayer === -1) {  // Only remember and replay after the agent's move
+    if (game.currentPlayer === -1) {  // Only remember after the agent's move
       agent.remember(state, action, reward, nextState, game.gameOver);
-      if (isTraining) {
-        await agent.replay();
-      }
     }
 
     if (!isTraining) {
@@ -78,6 +81,7 @@ async function runEpisode() {
 
     // Safety check to prevent infinite loops
     if (moveCount > 9) {
+      console.error("Game exceeded maximum moves");
       game.gameOver = true;
     }
   }
@@ -87,6 +91,7 @@ async function runEpisode() {
   episodeCount++;
   if (isTraining) {
     agent.decayEpsilon(); // Decay epsilon after each episode
+    await agent.replay(); // Perform replay after each episode
   }
   visualization.updateChart(episodeCount, totalReward, agent.epsilon);
 
