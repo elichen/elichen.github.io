@@ -130,15 +130,15 @@ class Game {
     reset() {
         this.paddle = { width: 75, height: 10, x: this.width / 2 - 37.5, y: this.height - 20 };
         
-        // Initialize ball with random trajectory
+        // Initialize ball with random trajectory going downwards, starting below the blocks
         const angle = this.getRandomAngle();
         const speed = 4;
         this.ball = {
             radius: 5,
             x: this.width / 2,
-            y: this.height - 30,
+            y: this.height / 2,  // Start in the middle of the screen, below the blocks
             dx: Math.cos(angle) * speed,
-            dy: -Math.sin(angle) * speed  // Negative to ensure the ball moves upwards initially
+            dy: Math.abs(Math.sin(angle) * speed)  // Use absolute value to ensure downward motion
         };
 
         this.bricks = [];
@@ -148,8 +148,8 @@ class Game {
     }
 
     getRandomAngle() {
-        // Generate a random angle between 30 and 150 degrees (in radians)
-        return (Math.random() * 120 + 30) * Math.PI / 180;
+        // Generate a random angle between 210 and 330 degrees (in radians)
+        return (Math.random() * 120 + 210) * Math.PI / 180;
     }
 
     // Add a helper method to resize the state

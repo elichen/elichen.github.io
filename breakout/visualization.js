@@ -18,6 +18,7 @@ class Visualization {
             },
             options: {
                 responsive: true,
+                animation: false, // Disable animation
                 plugins: {
                     title: {
                         display: true,
@@ -64,6 +65,6 @@ class Visualization {
         this.chart.data.labels.push(episode);
         this.chart.data.datasets[0].data.push(score);
         this.chart.data.datasets[1].data.push(epsilon);
-        this.chart.update();
+        this.chart.update('none'); // Use 'none' mode to skip animation
     }
 }
