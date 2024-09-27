@@ -52,10 +52,6 @@ class DQNAgent {
     }
 
     await this.model.train(x, y);
-
-    if (this.epsilon > this.epsilonMin) {
-      this.epsilon *= this.epsilonDecay;
-    }
   }
 
   getRandomBatch() {
@@ -67,5 +63,11 @@ class DQNAgent {
 
   getMemorySize() {
     return this.memory.length;
+  }
+
+  decayEpsilon() {
+    if (this.epsilon > this.epsilonMin) {
+      this.epsilon *= this.epsilonDecay;
+    }
   }
 }
