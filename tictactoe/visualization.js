@@ -1,6 +1,7 @@
 class Visualization {
-  constructor() {
+  constructor(windowSize = 1000) {
     this.chart = null;
+    this.windowSize = windowSize;
   }
 
   createChart() {
@@ -80,6 +81,14 @@ class Visualization {
     this.chart.data.labels.push(episode);
     this.chart.data.datasets[0].data.push(score);
     this.chart.data.datasets[1].data.push(epsilon);
+
+    // Remove old data points if we exceed the window size
+    if (this.chart.data.labels.length > this.windowSize) {
+      this.chart.data.labels.shift();
+      this.chart.data.datasets[0].data.shift();
+      this.chart.data.datasets[1].data.shift();
+    }
+
     this.chart.update();
   }
 }
