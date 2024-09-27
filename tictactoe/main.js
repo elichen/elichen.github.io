@@ -28,33 +28,41 @@ async function runEpisode() {
 
     if (game.currentPlayer === 1) {  // AI agent's turn
       state = game.getState();
-      action = agent.act(state, isTraining);
-      validMove = game.makeMove(action);
+      validMove = false;
+      while (!validMove) {
+        action = agent.act(state, isTraining);
+        validMove = game.makeMove(action);
+        if (!validMove) {
+          // Penalize the agent for invalid move
+          agent.remember(state, action, -1, state, false);
+          if (isTraining) {
+            await agent.replay();
+          }
+        }
+      }
     } else {  // Optimal opponent's turn
       action = game.findOptimalMove();
       validMove = game.makeMove(action);
     }
 
-    if (validMove) {
-      moveCount++;
-      const nextState = game.getState();
-      let reward;
-      if (game.gameOver) {
-        if (game.isDraw()) {
-          reward = 0;  // Draw
-        } else {
-          reward = game.currentPlayer === 1 ? -1 : 1;  // Win/Loss
-        }
+    moveCount++;
+    const nextState = game.getState();
+    let reward;
+    if (game.gameOver) {
+      if (game.isDraw()) {
+        reward = 0;  // Draw
       } else {
-        reward = 0;  // Game not over yet
+        reward = game.currentPlayer === 1 ? -1 : 1;  // Win/Loss
       }
-      totalReward += reward;
+    } else {
+      reward = 0;  // Game not over yet
+    }
+    totalReward += reward;
 
-      if (game.currentPlayer === -1) {  // Only remember and replay after the agent's move
-        agent.remember(state, action, reward, nextState, game.gameOver);
-        if (isTraining) {
-          await agent.replay();
-        }
+    if (game.currentPlayer === -1) {  // Only remember and replay after the agent's move
+      agent.remember(state, action, reward, nextState, game.gameOver);
+      if (isTraining) {
+        await agent.replay();
       }
     }
 
@@ -77,6 +85,9 @@ async function runEpisode() {
   game.render(isTraining); // Render the final game state
 
   episodeCount++;
+  if (isTraining) {
+    agent.decayEpsilon(); // Decay epsilon after each episode
+  }
   visualization.updateChart(episodeCount, totalReward, agent.epsilon);
 
   if ((isTraining && episodeCount < maxEpisodes) || !isTraining) {
