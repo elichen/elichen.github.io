@@ -105,4 +105,67 @@ class TicTacToeGame {
   isDraw() {
     return this.gameOver && !this.board.includes(0);
   }
+
+  findOptimalMove() {
+    // If center is empty, take it
+    if (this.board[4] === 0) return 4;
+
+    // Check for winning move
+    for (let i = 0; i < 9; i++) {
+      if (this.board[i] === 0) {
+        this.board[i] = this.currentPlayer;
+        if (this.checkWin(this.currentPlayer)) {
+          this.board[i] = 0;
+          return i;
+        }
+        this.board[i] = 0;
+      }
+    }
+
+    // Check for blocking opponent's winning move
+    const opponent = -this.currentPlayer;
+    for (let i = 0; i < 9; i++) {
+      if (this.board[i] === 0) {
+        this.board[i] = opponent;
+        if (this.checkWin(opponent)) {
+          this.board[i] = 0;
+          return i;
+        }
+        this.board[i] = 0;
+      }
+    }
+
+    // Take corners if available
+    const corners = [0, 2, 6, 8];
+    const availableCorners = corners.filter(i => this.board[i] === 0);
+    if (availableCorners.length > 0) {
+      return availableCorners[Math.floor(Math.random() * availableCorners.length)];
+    }
+
+    // Take any available side
+    const sides = [1, 3, 5, 7];
+    const availableSides = sides.filter(i => this.board[i] === 0);
+    if (availableSides.length > 0) {
+      return availableSides[Math.floor(Math.random() * availableSides.length)];
+    }
+
+    // No moves available (shouldn't happen in a normal game)
+    return -1;
+  }
+
+  checkWin(player) {
+    const winPatterns = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+      [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+      [0, 4, 8], [2, 4, 6] // Diagonals
+    ];
+
+    for (const pattern of winPatterns) {
+      const [a, b, c] = pattern;
+      if (this.board[a] === player && this.board[b] === player && this.board[c] === player) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
