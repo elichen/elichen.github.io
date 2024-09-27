@@ -1,6 +1,9 @@
 class TicTacToeModel {
   constructor() {
-    this.model = this.createModel();
+    this.mainModel = this.createModel();
+    this.targetModel = this.createModel();
+    this.updateTargetModel(); // Initialize target model with main model weights
+    this.episodeCount = 0;
   }
 
   createModel() {
@@ -12,22 +15,34 @@ class TicTacToeModel {
     return model;
   }
 
-  predict(state) {
+  predict(state, useTargetNetwork = false) {
+    const model = useTargetNetwork ? this.targetModel : this.mainModel;
     // Check if it's a single state or a batch of states
     if (Array.isArray(state[0])) {
       // It's a batch of states
-      return this.model.predict(tf.tensor2d(state));
+      return model.predict(tf.tensor2d(state));
     } else {
       // It's a single state
-      return this.model.predict(tf.tensor2d([state], [1, 9]));
+      return model.predict(tf.tensor2d([state], [1, 9]));
     }
   }
 
   async train(states, targets) {
     // Ensure states and targets are 2D tensors
-    return this.model.fit(tf.tensor2d(states), tf.tensor2d(targets), {
+    const result = await this.mainModel.fit(tf.tensor2d(states), tf.tensor2d(targets), {
       epochs: 1,
       shuffle: true,
     });
+
+    this.episodeCount++;
+    if (this.episodeCount % 10 === 0) {
+      this.updateTargetModel();
+    }
+
+    return result;
+  }
+
+  updateTargetModel() {
+    this.targetModel.setWeights(this.mainModel.getWeights());
   }
 }
