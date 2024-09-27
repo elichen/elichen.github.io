@@ -53,14 +53,14 @@ async function runEpisode() {
 
     if (game.gameOver) {
       if (invalid) {
-        reward = -10
+        reward = -10; // Increase penalty for invalid moves
       } else if (game.isDraw()) {
         reward = 0;  // Draw
       } else {
-        reward = game.currentPlayer === 1 ? -1 : 1;  // Agent loses if it's its turn, wins if it's opponent's turn
+        reward = game.currentPlayer === 1 ? 10 : -10;  // Assign higher rewards
       }
     } else {
-      reward = 0;  // Game not over yet
+      reward = -0.1;  // Small penalty for each step to encourage faster wins
     }
 
     totalReward = reward;

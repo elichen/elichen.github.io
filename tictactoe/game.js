@@ -51,7 +51,7 @@ class TicTacToeGame {
   }
 
   getState() {
-    return this.board;
+    return this.board.map(value => value / 1); // Normalize between -1 and 1
   }
 
   clearDisplay() {
