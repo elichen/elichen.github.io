@@ -24,7 +24,7 @@ async function runEpisode() {
 
   while (!game.gameOver) {
     const state = game.getState();
-    let action, validMove, reward;
+    let action, validMove, reward, invalid;
 
     if (game.currentPlayer === 1) {  // AI agent's turn
       action = agent.act(state, isTraining);
@@ -32,7 +32,7 @@ async function runEpisode() {
       
       if (!validMove) {
         console.log("Invalid move by agent. Penalizing.");
-        reward = -1;  // Penalty for invalid move
+        invalid = true;
         game.gameOver = true;  // End the game on invalid move
       }
     } else {  // Optimal opponent's turn
@@ -52,7 +52,9 @@ async function runEpisode() {
     const nextState = game.getState();
 
     if (game.gameOver) {
-      if (game.isDraw()) {
+      if (invalid) {
+        reward = -10
+      } else if (game.isDraw()) {
         reward = 0;  // Draw
       } else {
         reward = game.currentPlayer === 1 ? -1 : 1;  // Agent loses if it's its turn, wins if it's opponent's turn
@@ -61,7 +63,7 @@ async function runEpisode() {
       reward = 0;  // Game not over yet
     }
 
-    totalReward += reward;
+    totalReward = reward;
     agent.remember(state, action, reward, nextState, game.gameOver);
 
     if (!isTraining) {
