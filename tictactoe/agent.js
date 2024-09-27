@@ -1,5 +1,5 @@
 class DQNAgent {
-  constructor(epsilon = 1.0, epsilonDecay = 0.999, epsilonMin = 0.01, gamma = 0.95, batchSize = 100, maxMemorySize = 10000) {
+  constructor(epsilon = 1.0, epsilonDecay = 0.995, epsilonMin = 0.01, gamma = 0.99, batchSize = 64, maxMemorySize = 2000) {
     this.model = new TicTacToeModel();
     this.epsilon = epsilon;
     this.epsilonDecay = epsilonDecay;
@@ -15,7 +15,8 @@ class DQNAgent {
       return Math.floor(Math.random() * 9);
     } else {
       const qValues = this.model.predict(state);
-      return tf.argMax(qValues, 1).dataSync()[0];
+      // Changed axis from 1 to -1 to ensure compatibility with both 1D and 2D tensors
+      return tf.argMax(qValues, -1).dataSync()[0];
     }
   }
 
@@ -31,6 +32,7 @@ class DQNAgent {
 
     const batchSize = Math.min(this.batchSize, this.memory.length);
     const batch = this.getRandomBatch(batchSize);
+    console.log(`Replaying batch of size: ${batchSize}`);
     const states = batch.map(experience => experience[0]);
     const nextStates = batch.map(experience => experience[3]);
 
@@ -44,9 +46,9 @@ class DQNAgent {
       const [state, action, reward, nextState, done] = batch[i];
       let newQ = reward;
       if (!done) {
-        // Double DQN: Use main network to select action, target network to evaluate it
+        // Changed axis from 1 to -1 for argMax
         const nextQsMain = this.model.predict(nextState).arraySync()[0];
-        const bestAction = tf.argMax(nextQsMain).dataSync()[0];
+        const bestAction = tf.argMax(tf.tensor(nextQsMain), -1).dataSync()[0];
         newQ += this.gamma * nextQs.arraySync()[i][bestAction];
       }
       const targetQ = currentQs.arraySync()[i];
