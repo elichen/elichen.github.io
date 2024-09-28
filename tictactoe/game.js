@@ -51,7 +51,7 @@ class TicTacToeGame {
   }
 
   getState() {
-    return this.board.map(value => value / 1); // Normalize between -1 and 1
+    return this.board;
   }
 
   clearDisplay() {
@@ -171,5 +171,12 @@ class TicTacToeGame {
       }
     }
     return false;
+  }
+
+  // Add a new method to find a random valid move
+  findRandomMove() {
+    const validMoves = this.getValidMoves();
+    if (validMoves.length === 0) return -1;
+    return validMoves[Math.floor(Math.random() * validMoves.length)];
   }
 }
