@@ -35,15 +35,16 @@ async function runEpisode() {
         invalid = true;
         game.gameOver = true;  // End the game on invalid move
       }
-    } else {  // Optimal opponent's turn
-      action = game.findOptimalMove();
+    } else {  // Opponent's turn
+      // Use epsilon to decide between optimal and random move
+      action = Math.random() < agent.epsilon ? game.findRandomMove() : game.findOptimalMove();
       if (action === -1) {
-        console.error("Optimal opponent failed to find a valid move");
+        console.error("Opponent failed to find a valid move");
         break;  // Exit the game loop if no valid move found
       }
       validMove = game.makeMove(action);
       if (!validMove) {
-        console.error("Optimal opponent's move was invalid");
+        console.error("Opponent's move was invalid");
         break;  // Exit the game loop if the move was invalid
       }
     }
@@ -55,15 +56,16 @@ async function runEpisode() {
       if (invalid) {
         reward = -10; // Increase penalty for invalid moves
       } else if (game.isDraw()) {
-        reward = 0;  // Draw
+        reward = 0.5;  // Draw
       } else {
-        reward = game.currentPlayer === 1 ? 10 : -10;  // Assign higher rewards
+        reward = game.currentPlayer === 0 ? 1 : -1;  // Assign higher rewards
+        console.log("Game over! currentPlayer:", game.currentPlayer, " moves:", moveCount)
       }
     } else {
-      reward = -0.1;  // Small penalty for each step to encourage faster wins
+      reward = 0;  // Game not over yet
     }
 
-    totalReward = reward;
+    totalReward += reward
     agent.remember(state, action, reward, nextState, game.gameOver);
 
     if (!isTraining) {
