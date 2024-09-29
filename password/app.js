@@ -7,38 +7,6 @@ if (!navigator.gpu) {
 // WebGPU setup
 let device, pipeline, bindGroup;
 
-async function initWebGPU() {
-    const adapter = await navigator.gpu.requestAdapter();
-    device = await adapter.requestDevice();
-
-    // Shader code (WGSL)
-    const shaderModule = device.createShaderModule({
-        code: `
-            @group(0) @binding(0) var<storage, read> input: array<u32>;
-            @group(0) @binding(1) var<storage, read_write> output: array<u32>;
-
-            @compute @workgroup_size(64)
-            fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
-                let index = global_id.x;
-                if (index >= arrayLength(&input)) {
-                    return;
-                }
-                
-                // Simple XOR operation as a placeholder for SHA-256
-                output[index] = input[index] ^ 0xFFFFFFFF;
-            }
-        `
-    });
-
-    pipeline = device.createComputePipeline({
-        layout: 'auto',
-        compute: {
-            module: shaderModule,
-            entryPoint: 'main'
-        }
-    });
-}
-
 // Password generation functions
 function* bruteforceGenerator(charset, maxLength) {
     function* generate(prefix, length) {
@@ -56,31 +24,16 @@ function* bruteforceGenerator(charset, maxLength) {
     }
 }
 
-async function loadDictionary(file) {
-    const text = await file.text();
-    return text.split('\n').map(line => line.trim()).filter(line => line);
-}
-
 // Main recovery function
 async function recoverPassword() {
     const targetHash = document.getElementById('targetHash').value;
-    const attackMode = document.getElementById('attackMode').value;
     const statusElement = document.getElementById('status');
     const resultElement = document.getElementById('result');
 
     let passwords;
-    if (attackMode === 'bruteforce') {
-        const charset = document.getElementById('charset').value;
-        const maxLength = parseInt(document.getElementById('maxLength').value);
-        passwords = bruteforceGenerator(charset, maxLength);
-    } else {
-        const dictionaryFile = document.getElementById('dictionary').files[0];
-        if (!dictionaryFile) {
-            alert("Please select a dictionary file.");
-            return;
-        }
-        passwords = await loadDictionary(dictionaryFile);
-    }
+    const charset = document.getElementById('charset').value;
+    const maxLength = parseInt(document.getElementById('maxLength').value);
+    passwords = bruteforceGenerator(charset, maxLength);
 
     let tested = 0;
     const batchSize = 1000000;  // Adjust based on your GPU's capabilities
@@ -166,14 +119,6 @@ async function testPasswordBatch(passwords, targetHash) {
     outputBuffer.unmap();
     return null;
 }
-
-// Event listeners
-document.getElementById('attackMode').addEventListener('change', function() {
-    document.getElementById('bruteforceOptions').style.display = 
-        this.value === 'bruteforce' ? 'block' : 'none';
-    document.getElementById('dictionaryOptions').style.display = 
-        this.value === 'dictionary' ? 'block' : 'none';
-});
 
 document.getElementById('startButton').addEventListener('click', recoverPassword);
 
