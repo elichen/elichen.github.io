@@ -4,7 +4,7 @@ if (!navigator.gpu) {
     throw new Error("WebGPU not supported");
 }
 
-// WebGPU setup
+// Initialize WebGPU
 let device, pipeline, bindGroup;
 
 async function initWebGPU() {
@@ -19,33 +19,33 @@ async function initWebGPU() {
 
             // MD5 constants
             const S: array<u32, 64> = array<u32, 64>(
-                7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,
-                5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20,
-                4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23,
-                6, 10, 15, 21,  6, 10, 15, 21,  6, 10, 15, 21,  6, 10, 15, 21
+                7u, 12u, 17u, 22u, 7u, 12u, 17u, 22u, 7u, 12u, 17u, 22u, 7u, 12u, 17u, 22u,
+                5u, 9u, 14u, 20u, 5u, 9u, 14u, 20u, 5u, 9u, 14u, 20u, 5u, 9u, 14u, 20u,
+                4u, 11u, 16u, 23u, 4u, 11u, 16u, 23u, 4u, 11u, 16u, 23u, 4u, 11u, 16u, 23u,
+                6u, 10u, 15u, 21u, 6u, 10u, 15u, 21u, 6u, 10u, 15u, 21u, 6u, 10u, 15u, 21u
             );
 
             const K: array<u32, 64> = array<u32, 64>(
-                0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee,
-                0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
-                0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be,
-                0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821,
-                0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa,
-                0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8,
-                0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed,
-                0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a,
-                0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c,
-                0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
-                0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05,
-                0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
-                0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039,
-                0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
-                0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
-                0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391
+                0xd76aa478u, 0xe8c7b756u, 0x242070dbu, 0xc1bdceeeu,
+                0xf57c0fafu, 0x4787c62au, 0xa8304613u, 0xfd469501u,
+                0x698098d8u, 0x8b44f7afu, 0xffff5bb1u, 0x895cd7beu,
+                0x6b901122u, 0xfd987193u, 0xa679438eu, 0x49b40821u,
+                0xf61e2562u, 0xc040b340u, 0x265e5a51u, 0xe9b6c7aau,
+                0xd62f105du, 0x02441453u, 0xd8a1e681u, 0xe7d3fbc8u,
+                0x21e1cde6u, 0xc33707d6u, 0xf4d50d87u, 0x455a14edu,
+                0xa9e3e905u, 0xfcefa3f8u, 0x676f02d9u, 0x8d2a4c8au,
+                0xfffa3942u, 0x8771f681u, 0x6d9d6122u, 0xfde5380cu,
+                0xa4beea44u, 0x4bdecfa9u, 0xf6bb4b60u, 0xbebfbc70u,
+                0x289b7ec6u, 0xeaa127fau, 0xd4ef3085u, 0x04881d05u,
+                0xd9d4d039u, 0xe6db99e5u, 0x1fa27cf8u, 0xc4ac5665u,
+                0xf4292244u, 0x432aff97u, 0xab9423a7u, 0xfc93a039u,
+                0x655b59c3u, 0x8f0ccc92u, 0xffeff47du, 0x85845dd1u,
+                0x6fa87e4fu, 0xfe2ce6e0u, 0xa3014314u, 0x4e0811a1u,
+                0xf7537e82u, 0xbd3af235u, 0x2ad7d2bbu, 0xeb86d391u
             );
 
             fn leftRotate(x: u32, c: u32) -> u32 {
-                return (x << c) | (x >> (32u - c));
+                return ((x << c) | (x >> (32u - c)));
             }
 
             @compute @workgroup_size(64)
@@ -54,32 +54,25 @@ async function initWebGPU() {
                 if (index >= arrayLength(&input) / 16u) {
                     return;
                 }
-                
+
+                // Initialize variables
                 var a: u32 = 0x67452301u;
                 var b: u32 = 0xefcdab89u;
                 var c: u32 = 0x98badcfeu;
                 var d: u32 = 0x10325476u;
 
-                let M = array<u32, 16>(
-                    input[index * 16u],
-                    input[index * 16u + 1u],
-                    input[index * 16u + 2u],
-                    input[index * 16u + 3u],
-                    input[index * 16u + 4u],
-                    input[index * 16u + 5u],
-                    input[index * 16u + 6u],
-                    input[index * 16u + 7u],
-                    input[index * 16u + 8u],
-                    input[index * 16u + 9u],
-                    input[index * 16u + 10u],
-                    input[index * 16u + 11u],
-                    input[index * 16u + 12u],
-                    input[index * 16u + 13u],
-                    input[index * 16u + 14u],
-                    input[index * 16u + 15u]
-                );
+                var initial_a: u32 = a;
+                var initial_b: u32 = b;
+                var initial_c: u32 = c;
+                var initial_d: u32 = d;
 
-                for (var i: u32 = 0u; i < 64u; i++) {
+                // Load M[0..15] from input buffer
+                var M: array<u32, 16u>;
+                for (var m: u32 = 0u; m < 16u; m = m + 1u) {
+                    M[m] = input[index * 16u + m];
+                }
+
+                for (var i: u32 = 0u; i < 64u; i = i + 1u) {
                     var F: u32;
                     var g: u32;
 
@@ -104,7 +97,14 @@ async function initWebGPU() {
                     a = temp;
                 }
 
-                output[index * 4u] = a;
+                // Add this chunk's hash to result so far
+                a = a + initial_a;
+                b = b + initial_b;
+                c = c + initial_c;
+                d = d + initial_d;
+
+                // Store the result in output buffer
+                output[index * 4u + 0u] = a;
                 output[index * 4u + 1u] = b;
                 output[index * 4u + 2u] = c;
                 output[index * 4u + 3u] = d;
@@ -121,5 +121,112 @@ async function initWebGPU() {
     });
 }
 
-// Initialize WebGPU
-initWebGPU().catch(console.error);
+// Preprocess the input message (padding and length encoding)
+function preprocessMessage(message) {
+    // Convert message to Uint8Array
+    let msgBytes = new TextEncoder().encode(message);
+
+    let originalLength = msgBytes.length * 8; // in bits
+
+    // Append '1' bit and pad with zeros to make length congruent to 448 mod 512
+    let paddingLength = (56 - (msgBytes.length + 1) % 64);
+    if (paddingLength < 0) {
+        paddingLength += 64;
+    }
+
+    let totalLength = msgBytes.length + 1 + paddingLength + 8;
+    let paddedMessage = new Uint8Array(totalLength);
+    paddedMessage.set(msgBytes);
+
+    // Append '1' bit (0x80)
+    paddedMessage[msgBytes.length] = 0x80;
+
+    // Append original message length in bits as a 64-bit little-endian integer
+    let lengthBytes = new DataView(new ArrayBuffer(8));
+    lengthBytes.setUint32(0, originalLength >>> 0, true);
+    lengthBytes.setUint32(4, Math.floor(originalLength / 0x100000000), true);
+    paddedMessage.set(new Uint8Array(lengthBytes.buffer), totalLength - 8);
+
+    // Convert to Uint32Array (little-endian)
+    let input = new Uint32Array(totalLength / 4);
+    let dataView = new DataView(paddedMessage.buffer);
+    for (let i = 0; i < input.length; i++) {
+        input[i] = dataView.getUint32(i * 4, true);
+    }
+
+    return input;
+}
+
+async function runMD5(message) {
+    await initWebGPU();
+
+    const input = preprocessMessage(message);
+
+    // Calculate number of 512-bit blocks
+    const numBlocks = input.length / 16;
+
+    // Create input buffer
+    const inputBuffer = device.createBuffer({
+        size: input.byteLength,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+
+    // Create output buffer
+    const outputBuffer = device.createBuffer({
+        size: numBlocks * 16, // Each hash is 16 bytes (4 u32)
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
+    });
+
+    // Write input data to GPU buffer
+    device.queue.writeBuffer(inputBuffer, 0, input.buffer);
+
+    // Create bind group
+    bindGroup = device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: { buffer: inputBuffer } },
+            { binding: 1, resource: { buffer: outputBuffer } }
+        ]
+    });
+
+    // Encode commands
+    const commandEncoder = device.createCommandEncoder();
+    const passEncoder = commandEncoder.beginComputePass();
+    passEncoder.setPipeline(pipeline);
+    passEncoder.setBindGroup(0, bindGroup);
+    passEncoder.dispatchWorkgroups(numBlocks);
+    passEncoder.end();
+
+    // Submit commands
+    device.queue.submit([commandEncoder.finish()]);
+
+    // Read back the result
+    const readBuffer = device.createBuffer({
+        size: numBlocks * 16,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+    });
+
+    // Copy output buffer to readBuffer
+    const copyEncoder = device.createCommandEncoder();
+    copyEncoder.copyBufferToBuffer(outputBuffer, 0, readBuffer, 0, numBlocks * 16);
+    device.queue.submit([copyEncoder.finish()]);
+
+    // Wait for GPU to finish
+    await readBuffer.mapAsync(GPUMapMode.READ);
+    const arrayBuffer = readBuffer.getMappedRange();
+    const hashArray = new Uint8Array(arrayBuffer);
+
+    // Since we process one message, we can extract the first hash (16 bytes)
+    const hashBytes = hashArray.slice(0, 16);
+
+    // Convert hash to hexadecimal string
+    const hashHex = Array.from(hashBytes).map(b => ('00' + b.toString(16)).slice(-2)).join('');
+
+    console.log("MD5 Hash:", hashHex);
+
+    // Cleanup
+    readBuffer.unmap();
+}
+
+// Example usage
+runMD5("The quick brown fox jumps over the lazy dog").catch(console.error);
