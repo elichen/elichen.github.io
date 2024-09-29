@@ -1,4 +1,4 @@
-const batchSize = 10000000;  // Adjust this value based on your GPU capabilities
+const batchSize = 1;  // Adjust this value based on your GPU capabilities
 
 // Password generation function
 function* bruteforceGenerator(charset, maxLength) {
