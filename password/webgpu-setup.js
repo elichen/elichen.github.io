@@ -5,7 +5,7 @@ if (!navigator.gpu) {
 }
 
 // Initialize WebGPU
-let device, pipeline, bindGroup;
+let device, pipeline;
 
 async function initWebGPU() {
     const adapter = await navigator.gpu.requestAdapter();
@@ -121,10 +121,41 @@ async function initWebGPU() {
     });
 }
 
-// Preprocess the input message (padding and length encoding)
-function preprocessMessage(message) {
-    // Convert message to Uint8Array
-    let msgBytes = new TextEncoder().encode(message);
+// Password generation function
+function* bruteforceGenerator(charset, maxLength) {
+    function* generate(prefix, length) {
+        if (length === 0) {
+            yield prefix;
+            return;
+        }
+        for (let char of charset) {
+            yield* generate(prefix + char, length - 1);
+        }
+    }
+
+    for (let length = 1; length <= maxLength; length++) {
+        yield* generate('', length);
+    }
+}
+
+function* batchPasswords(passwords, batchSize) {
+    let batch = [];
+    for (let password of passwords) {
+        batch.push(password);
+        if (batch.length === batchSize) {
+            yield batch;
+            batch = [];
+        }
+    }
+    if (batch.length > 0) {
+        yield batch;
+    }
+}
+
+// Preprocess a single password
+function preprocessPassword(password) {
+    // Convert password to Uint8Array
+    const msgBytes = new TextEncoder().encode(password);
 
     let originalLength = msgBytes.length * 8; // in bits
 
@@ -135,7 +166,7 @@ function preprocessMessage(message) {
     }
 
     let totalLength = msgBytes.length + 1 + paddingLength + 8;
-    let paddedMessage = new Uint8Array(totalLength);
+    let paddedMessage = new Uint8Array(64); // MD5 processes 512-bit blocks
     paddedMessage.set(msgBytes);
 
     // Append '1' bit (0x80)
@@ -145,48 +176,42 @@ function preprocessMessage(message) {
     let lengthBytes = new DataView(new ArrayBuffer(8));
     lengthBytes.setUint32(0, originalLength >>> 0, true);
     lengthBytes.setUint32(4, Math.floor(originalLength / 0x100000000), true);
-    paddedMessage.set(new Uint8Array(lengthBytes.buffer), totalLength - 8);
+    paddedMessage.set(new Uint8Array(lengthBytes.buffer), 56);
 
-    // Convert to Uint32Array (little-endian)
-    let input = new Uint32Array(totalLength / 4);
-    let dataView = new DataView(paddedMessage.buffer);
-    for (let i = 0; i < input.length; i++) {
-        input[i] = dataView.getUint32(i * 4, true);
-    }
-
-    return input;
+    return paddedMessage;
 }
 
-async function runMD5(message) {
-    await initWebGPU();
+async function testPasswordBatch(passwords, targetHash) {
+    // Preprocess passwords
+    const preprocessedPasswords = passwords.map(preprocessPassword);
 
-    const input = preprocessMessage(message);
-
-    // Calculate number of 512-bit blocks
-    const numBlocks = input.length / 16;
+    // Flatten all preprocessed data into a single Uint32Array
+    const totalLength = preprocessedPasswords.length * 64; // Each preprocessed password is 64 bytes
+    const data = new Uint32Array(totalLength / 4);
+    for (let i = 0; i < preprocessedPasswords.length; i++) {
+        data.set(new Uint32Array(preprocessedPasswords[i].buffer), i * 16);
+    }
 
     // Create input buffer
     const inputBuffer = device.createBuffer({
-        size: input.byteLength,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+        size: data.byteLength,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
+    device.queue.writeBuffer(inputBuffer, 0, data);
 
     // Create output buffer
     const outputBuffer = device.createBuffer({
-        size: numBlocks * 16, // Each hash is 16 bytes (4 u32)
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
+        size: passwords.length * 16,  // Each hash is 16 bytes
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
     });
 
-    // Write input data to GPU buffer
-    device.queue.writeBuffer(inputBuffer, 0, input.buffer);
-
     // Create bind group
-    bindGroup = device.createBindGroup({
+    const bindGroup = device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: { buffer: inputBuffer } },
-            { binding: 1, resource: { buffer: outputBuffer } }
-        ]
+            { binding: 1, resource: { buffer: outputBuffer } },
+        ],
     });
 
     // Encode commands
@@ -194,39 +219,78 @@ async function runMD5(message) {
     const passEncoder = commandEncoder.beginComputePass();
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.dispatchWorkgroups(numBlocks);
+    passEncoder.dispatchWorkgroups(Math.ceil(passwords.length / 64));
     passEncoder.end();
-
-    // Submit commands
-    device.queue.submit([commandEncoder.finish()]);
 
     // Read back the result
     const readBuffer = device.createBuffer({
-        size: numBlocks * 16,
-        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+        size: passwords.length * 16,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
 
-    // Copy output buffer to readBuffer
-    const copyEncoder = device.createCommandEncoder();
-    copyEncoder.copyBufferToBuffer(outputBuffer, 0, readBuffer, 0, numBlocks * 16);
-    device.queue.submit([copyEncoder.finish()]);
+    commandEncoder.copyBufferToBuffer(outputBuffer, 0, readBuffer, 0, passwords.length * 16);
+
+    const gpuCommands = commandEncoder.finish();
+    device.queue.submit([gpuCommands]);
 
     // Wait for GPU to finish
     await readBuffer.mapAsync(GPUMapMode.READ);
     const arrayBuffer = readBuffer.getMappedRange();
-    const hashArray = new Uint8Array(arrayBuffer);
+    const resultArray = new Uint8Array(arrayBuffer);
 
-    // Since we process one message, we can extract the first hash (16 bytes)
-    const hashBytes = hashArray.slice(0, 16);
+    // Compare hashes
+    for (let i = 0; i < passwords.length; i++) {
+        const hashBytes = resultArray.slice(i * 16, (i + 1) * 16);
+        const hashHex = Array.from(hashBytes).map(b => ('00' + b.toString(16)).slice(-2)).join('');
 
-    // Convert hash to hexadecimal string
-    const hashHex = Array.from(hashBytes).map(b => ('00' + b.toString(16)).slice(-2)).join('');
+        if (hashHex.toLowerCase() === targetHash.toLowerCase()) {
+            readBuffer.unmap();
+            return passwords[i];
+        }
+    }
 
-    console.log("MD5 Hash:", hashHex);
-
-    // Cleanup
     readBuffer.unmap();
+    return null;
 }
 
-// Example usage
-runMD5("The quick brown fox jumps over the lazy dog").catch(console.error);
+// Main recovery function
+async function recoverPassword() {
+    const targetHash = document.getElementById('targetHash').value.toLowerCase();
+    const statusElement = document.getElementById('status');
+    const resultElement = document.getElementById('result');
+
+    const charset = document.getElementById('charset').value;
+    const maxLength = parseInt(document.getElementById('maxLength').value);
+    const passwords = bruteforceGenerator(charset, maxLength);
+
+    const startTime = performance.now();
+    let totalTested = 0;
+
+    const batchSize = 100000;  // Adjust based on GPU capabilities and memory
+
+    for (let batch of batchPasswords(passwords, batchSize)) {
+        const result = await testPasswordBatch(batch, targetHash);
+        totalTested += batch.length;
+        
+        if (result) {
+            const endTime = performance.now();
+            const duration = (endTime - startTime) / 1000; // in seconds
+            const rate = totalTested / duration;
+            resultElement.textContent = `Password found: ${result}. Tested ${totalTested.toLocaleString()} passwords in ${duration.toFixed(2)} seconds (${rate.toLocaleString()} passwords/second)`;
+            return;
+        }
+        
+        statusElement.textContent = `Tested ${totalTested.toLocaleString()} passwords...`;
+    }
+
+    const endTime = performance.now();
+    const duration = (endTime - startTime) / 1000; // in seconds
+    const rate = totalTested / duration;
+    resultElement.textContent = `Password not found. Tested ${totalTested.toLocaleString()} passwords in ${duration.toFixed(2)} seconds (${rate.toLocaleString()} passwords/second)`;
+}
+
+// Initialize WebGPU when the script loads
+initWebGPU().catch(console.error);
+
+// Event listener
+document.getElementById('startButton').addEventListener('click', recoverPassword);
