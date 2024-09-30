@@ -1,14 +1,10 @@
 let currentHash = '';
 
-document.getElementById('generateHash').addEventListener('click', () => {
-    const input = document.getElementById('inputText').value;
-    currentHash = md5(input);
-    document.getElementById('hashResult').textContent = `MD5 Hash of "${input}": ${currentHash}`;
-});
+document.getElementById('inputText').addEventListener('input', generateNewHash);
 
 document.getElementById('crackGPU').addEventListener('click', async () => {
     if (!currentHash) {
-        alert('Please generate a hash first.');
+        alert('Please enter some text to generate a hash.');
         return;
     }
     const startTime = performance.now();
@@ -19,7 +15,7 @@ document.getElementById('crackGPU').addEventListener('click', async () => {
 
 document.getElementById('crackCPU').addEventListener('click', async () => {
     if (!currentHash) {
-        alert('Please generate a hash first.');
+        alert('Please enter some text to generate a hash.');
         return;
     }
     const startTime = performance.now();
@@ -27,6 +23,17 @@ document.getElementById('crackCPU').addEventListener('click', async () => {
     const endTime = performance.now();
     displayResult('CPU', result, endTime - startTime);
 });
+
+function generateNewHash() {
+    const input = document.getElementById('inputText').value;
+    if (input) {
+        currentHash = md5(input);
+        document.getElementById('hashResult').textContent = `MD5 Hash: ${currentHash}`;
+    } else {
+        currentHash = '';
+        document.getElementById('hashResult').textContent = '';
+    }
+}
 
 function displayResult(method, result, time) {
     const resultElement = document.getElementById('crackResult');
