@@ -7,13 +7,73 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.18.0/js/md5.min.js"></script>
     <script src="gpu.js" defer></script>
     <script src="app.js" defer></script>
+    <style>
+        body {
+            background-color: #000;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            text-shadow: 0 0 10px #0f0;
+        }
+        input, button {
+            background-color: #000;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 5px 10px;
+            margin: 5px 0;
+            font-family: 'Courier New', monospace;
+        }
+        button {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background-color: #0f0;
+            color: #000;
+        }
+        #hashResult, #crackResult {
+            border: 1px solid #0f0;
+            padding: 10px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .explanation {
+            margin-top: 40px;
+            border-top: 1px solid #0f0;
+            padding-top: 20px;
+        }
+    </style>
 </head>
 <body>
     <h1>MD5 Cracker</h1>
-    <input type="text" id="inputText" placeholder="Enter text to hash" maxlength="6">
+    <input type="text" id="inputText" placeholder="Enter text to hash (a-z only)" maxlength="6" pattern="[a-z]*">
     <p id="hashResult"></p>
     <button id="crackGPU">Crack with GPU</button>
     <button id="crackCPU">Crack with CPU</button>
     <p id="crackResult"></p>
+    
+    <div class="explanation">
+        <h2>What's happening here?</h2>
+        <p>This application demonstrates the power of GPU computing in cracking MD5 hashes using brute-force methods. Here's what it does:</p>
+        <ol>
+            <li>You enter a text (up to 6 lowercase letters).</li>
+            <li>The app generates an MD5 hash of your input.</li>
+            <li>You can then attempt to crack this hash using either CPU or GPU.</li>
+            <li>The app will try all possible combinations of lowercase letters to find a match for the hash.</li>
+            <li>When a match is found, it displays the original text and the time taken.</li>
+        </ol>
+        <p>The key feature here is the comparison between CPU and GPU performance:</p>
+        <ul>
+            <li>CPU: Uses traditional sequential processing, trying combinations one by one.</li>
+            <li>GPU: Leverages parallel processing capabilities, testing multiple combinations simultaneously.</li>
+        </ul>
+        <p>This demonstrates how GPUs can significantly accelerate computationally intensive tasks like hash cracking. In real-world applications, this GPU power is harnessed for various purposes, from scientific simulations to machine learning and cryptography.</p>
+    </div>
 </body>
 </html>

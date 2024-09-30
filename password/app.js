@@ -1,7 +1,10 @@
 let currentHash = '';
 const MAX_LENGTH = 6;
 
-document.getElementById('inputText').addEventListener('input', generateNewHash);
+document.getElementById('inputText').addEventListener('input', function(e) {
+    this.value = this.value.replace(/[^a-z]/g, '');
+    generateNewHash();
+});
 
 document.getElementById('crackGPU').addEventListener('click', async () => {
     if (!currentHash) {
