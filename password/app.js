@@ -1,4 +1,5 @@
 let currentHash = '';
+const MAX_LENGTH = 6;
 
 document.getElementById('inputText').addEventListener('input', generateNewHash);
 
@@ -8,7 +9,7 @@ document.getElementById('crackGPU').addEventListener('click', async () => {
         return;
     }
     const startTime = performance.now();
-    const result = await bruteForceMD5(currentHash, 7); // Max length is 7
+    const result = await bruteForceMD5(currentHash, MAX_LENGTH);
     const endTime = performance.now();
     displayResult('GPU', result, endTime - startTime);
 });
@@ -19,7 +20,7 @@ document.getElementById('crackCPU').addEventListener('click', async () => {
         return;
     }
     const startTime = performance.now();
-    const result = await bruteForceMD5CPU(currentHash, 7); // Max length is 7
+    const result = await bruteForceMD5CPU(currentHash, MAX_LENGTH);
     const endTime = performance.now();
     displayResult('CPU', result, endTime - startTime);
 });
