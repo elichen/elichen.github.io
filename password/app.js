@@ -2,8 +2,9 @@ let currentHash = '';
 
 document.getElementById('generateHash').addEventListener('click', () => {
     const input = document.getElementById('inputText').value;
+    // No need to slice here as the input is already limited by the maxlength attribute
     currentHash = md5(input);
-    document.getElementById('hashResult').textContent = `MD5 Hash: ${currentHash}`;
+    document.getElementById('hashResult').textContent = `MD5 Hash of "${input}": ${currentHash}`;
 });
 
 document.getElementById('crackGPU').addEventListener('click', async () => {
@@ -12,7 +13,7 @@ document.getElementById('crackGPU').addEventListener('click', async () => {
         return;
     }
     const startTime = performance.now();
-    const result = await bruteForceMD5(currentHash, 10);
+    const result = await bruteForceMD5(currentHash, 7); // Max length is 7
     const endTime = performance.now();
     displayResult('GPU', result, endTime - startTime);
 });
@@ -23,7 +24,7 @@ document.getElementById('crackCPU').addEventListener('click', async () => {
         return;
     }
     const startTime = performance.now();
-    const result = await bruteForceMD5CPU(currentHash, 10);
+    const result = await bruteForceMD5CPU(currentHash, 7); // Max length is 7
     const endTime = performance.now();
     displayResult('CPU', result, endTime - startTime);
 });
@@ -31,7 +32,7 @@ document.getElementById('crackCPU').addEventListener('click', async () => {
 function displayResult(method, result, time) {
     const resultElement = document.getElementById('crackResult');
     if (result) {
-        resultElement.textContent = `${method} cracking successful! Found: ${result}. Time taken: ${time.toFixed(2)}ms`;
+        resultElement.textContent = `${method} cracking successful! Found: "${result}". Time taken: ${time.toFixed(2)}ms`;
     } else {
         resultElement.textContent = `${method} cracking failed. No match found. Time taken: ${time.toFixed(2)}ms`;
     }
