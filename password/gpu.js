@@ -1,42 +1,5 @@
-async function bruteForceMD5(targetHash, maxLength) {
-  // Helper function to convert hex string to Uint32Array in little-endian order
-  function hexToUint32ArrayLE(hex) {
-    const bytes = new Uint8Array(hex.length / 2);
-    for (let i = 0; i < bytes.length; i++) {
-      bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
-    }
-
-    // Convert to Uint32Array in little-endian order
-    const uint32Array = new Uint32Array(4);
-    for (let i = 0; i < 4; i++) {
-      uint32Array[i] =
-        bytes[i * 4] |
-        (bytes[i * 4 + 1] << 8) |
-        (bytes[i * 4 + 2] << 16) |
-        (bytes[i * 4 + 3] << 24);
-    }
-    return uint32Array;
-  }
-
-  // Convert the target hash from hex string to Uint32Array (little-endian)
-  const targetHashUint32Array = hexToUint32ArrayLE(targetHash);
-
-  // Check for WebGPU support
-  if (!navigator.gpu) {
-    console.error("WebGPU not supported on this browser.");
-    return;
-  }
-
-  console.log("WebGPU is supported.");
-
-  // Request WebGPU adapter and device
-  const adapter = await navigator.gpu.requestAdapter();
-  const device = await adapter.requestDevice();
-
-  console.log("GPU device acquired.");
-
-  // WGSL shader code with batching support
-  const shaderCode = `
+// Define shaderCode at the top of the file
+const shaderCode = `
 struct HashBuffer {
   data : array<u32, 4>,
 };
@@ -224,10 +187,14 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
 }
 `;
 
-  // Create shader module
-  const shaderModule = device.createShaderModule({
-    code: shaderCode,
-  });
+async function bruteForceMD5(targetHash, maxLength) {
+  const context = await ensureGPUContext();
+  if (!context) return null;
+
+  const { device, shaderModule } = context;
+
+  // Convert the target hash from hex string to Uint32Array (little-endian)
+  const targetHashUint32Array = hexToUint32ArrayLE(targetHash);
 
   // For lengths from 1 to maxLength
   for (let N = 1; N <= maxLength; N++) {
@@ -392,14 +359,47 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
   console.log('No matching string found.');
   return null;
 }
-// MD5 hash for 'aa' is '4124bc0a9335c27f086f24ba207a4912'
-const targetHash = '3124bc0a9335c27f086f24ba207a4912';
-const maxLength = 10;
 
-bruteForceMD5(targetHash, maxLength).then(foundString => {
-  if (foundString) {
-    console.log(`Match found: ${foundString}`);
-  } else {
-    console.log('No match found.');
+async function initBruteForceMD5() {
+  if (!navigator.gpu) {
+    console.error("WebGPU not supported on this browser.");
+    return null;
   }
-});
+
+  console.log("WebGPU is supported.");
+
+  const adapter = await navigator.gpu.requestAdapter();
+  const device = await adapter.requestDevice();
+
+  console.log("GPU device acquired.");
+
+  return { device, shaderModule: device.createShaderModule({ code: shaderCode }) };
+}
+
+let gpuContext = null;
+
+async function ensureGPUContext() {
+  if (!gpuContext) {
+    gpuContext = await initBruteForceMD5();
+  }
+  return gpuContext;
+}
+
+// Helper function to convert hex string to Uint32Array in little-endian order
+function hexToUint32ArrayLE(hex) {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+  }
+
+  // Convert to Uint32Array in little-endian order
+  const uint32Array = new Uint32Array(4);
+  for (let i = 0; i < 4; i++) {
+    uint32Array[i] =
+      bytes[i * 4] |
+      (bytes[i * 4 + 1] << 8) |
+      (bytes[i * 4 + 2] << 16) |
+      (bytes[i * 4 + 3] << 24);
+  }
+  return uint32Array;
+}

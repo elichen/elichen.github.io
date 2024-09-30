@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MD5 Cracker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.18.0/js/md5.min.js"></script>
+    <script src="gpu.js" defer></script>
+    <script src="app.js" defer></script>
+</head>
+<body>
+    <h1>MD5 Cracker</h1>
+    <input type="text" id="inputText" placeholder="Enter text to hash">
+    <button id="generateHash">Generate MD5 Hash</button>
+    <p id="hashResult"></p>
+    <button id="crackGPU">Crack with GPU</button>
+    <button id="crackCPU">Crack with CPU</button>
+    <p id="crackResult"></p>
+</body>
+</html>
