@@ -2,7 +2,6 @@ let currentHash = '';
 
 document.getElementById('generateHash').addEventListener('click', () => {
     const input = document.getElementById('inputText').value;
-    // No need to slice here as the input is already limited by the maxlength attribute
     currentHash = md5(input);
     document.getElementById('hashResult').textContent = `MD5 Hash of "${input}": ${currentHash}`;
 });
