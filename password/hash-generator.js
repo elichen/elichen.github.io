@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Automatically fill the target hash input for convenience
             document.getElementById('targetHash').value = hash;
+            document.getElementById('cpuTargetHash').value = hash;
         } else {
             hashResult.textContent = 'Please enter a password to hash.';
         }
