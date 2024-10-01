@@ -228,9 +228,9 @@ class Game {
             }
         }
         
-        // Resize the state
+        // Resize the state and add channel dimension
         let resizedState = this.resizeState(state, 42, 42).map(row => row.map(value => value / 3)); // Normalize between 0 and 1
 
-        return resizedState;
+        return resizedState; // This is now a 42x42x1 array
     }
 }

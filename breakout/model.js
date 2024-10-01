@@ -2,46 +2,64 @@ class DQNModel {
     constructor(inputShape, numActions) {
         this.model = tf.sequential();
         
-        // Flatten the input
-        const flattenedInputSize = inputShape[0] * inputShape[1];
+        // Ensure inputShape is correct: [height, width, channels]
+        const [height, width, channels] = inputShape;
         
-        // Input layer
-        this.model.add(tf.layers.dense({
-            inputShape: [flattenedInputSize],
-            units: 256,
+        // Convolutional layers
+        this.model.add(tf.layers.conv2d({
+            inputShape: [height, width, channels],
+            filters: 32,
+            kernelSize: 8,
+            strides: 4,
             activation: 'relu'
         }));
         
-        // Hidden layer 1
-        this.model.add(tf.layers.dense({
-            units: 128,
+        this.model.add(tf.layers.conv2d({
+            filters: 64,
+            kernelSize: 4,
+            strides: 2,
             activation: 'relu'
         }));
         
-        // Hidden layer 2
-        this.model.add(tf.layers.dense({
-            units: 64,
+        this.model.add(tf.layers.conv2d({
+            filters: 64,
+            kernelSize: 3,
+            strides: 1,
             activation: 'relu'
         }));
         
-        // Output layer
+        // Flatten the output from convolutional layers
+        this.model.add(tf.layers.flatten());
+        
+        // Dense layers
+        this.model.add(tf.layers.dense({
+            units: 512,
+            activation: 'relu'
+        }));
+        
         this.model.add(tf.layers.dense({
             units: numActions,
             activation: 'linear'
         }));
         
         this.model.compile({
-            optimizer: tf.train.adam(),
+            optimizer: tf.train.adam(0.00025),
             loss: 'meanSquaredError'
         });
     }
 
     predict(state) {
-        return this.model.predict(state);
+        // Ensure the input state has the correct shape
+        return tf.tidy(() => {
+            const reshapedState = tf.reshape(state, [-1, ...this.model.inputs[0].shape.slice(1)]);
+            return this.model.predict(reshapedState);
+        });
     }
 
     async train(states, targets) {
-        await this.model.fit(states, targets, {
+        // Ensure states have the correct shape
+        const reshapedStates = tf.reshape(states, [-1, ...this.model.inputs[0].shape.slice(1)]);
+        await this.model.fit(reshapedStates, targets, {
             epochs: 1,
             batchSize: states.shape[0]
         });
