@@ -8,10 +8,12 @@ class TicTacToeModel {
 
   createModel() {
     const model = tf.sequential();
-    model.add(tf.layers.dense({ units: 256, activation: 'relu', inputShape: [9] }));
+    model.add(tf.layers.dense({ units: 128, activation: 'relu', inputShape: [9] }));
     model.add(tf.layers.dense({ units: 256, activation: 'relu' }));
+    model.add(tf.layers.dense({ units: 256, activation: 'relu' }));
+    model.add(tf.layers.dense({ units: 128, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 9, activation: 'linear' }));
-    model.compile({ optimizer: tf.train.adam(0.01), loss: 'meanSquaredError' });
+    model.compile({ optimizer: tf.train.adam(0.0001), loss: 'meanSquaredError' });
     return model;
   }
 
@@ -28,14 +30,12 @@ class TicTacToeModel {
   }
 
   async train(states, targets) {
-    // Ensure states and targets are 2D tensors
     const result = await this.mainModel.fit(tf.tensor2d(states), tf.tensor2d(targets), {
-      epochs: 1,
-      shuffle: true,
+      epochs: 1
     });
 
     this.episodeCount++;
-    if (this.episodeCount % 10 === 0) { // Updated frequency
+    if (this.episodeCount % 10 === 0) {
       this.updateTargetModel();
     }
 
