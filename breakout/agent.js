@@ -3,13 +3,12 @@ class DQNAgent {
         this.stateShape = stateShape; // [42, 42]
         this.numActions = numActions;
         this.batchSize = batchSize;
-        this.memory = [];
-        this.memorySize = memorySize;
         this.gamma = gamma;
         this.epsilon = 1.0;
         this.epsilonMin = 0.01;
         this.epsilonDecay = epsilonDecay;
         this.model = new DQNModel([...stateShape, 1], numActions);
+        this.memory = new PrioritizedReplayBuffer(memorySize);
     }
 
     act(state, training = true) {
@@ -17,8 +16,7 @@ class DQNAgent {
             return Math.floor(Math.random() * this.numActions);
         } else {
             return tf.tidy(() => {
-                const flatState = this.flattenState(state);
-                const stateTensor = tf.tensor4d(flatState, [1, ...this.stateShape, 1]);
+                const stateTensor = tf.tensor2d(state.flat(), [1, state.flat().length]);
                 const prediction = this.model.predict(stateTensor);
                 return prediction.argMax(1).dataSync()[0];
             });
@@ -26,17 +24,13 @@ class DQNAgent {
     }
 
     remember(state, action, reward, nextState, done) {
-        this.memory.push([state, action, reward, nextState, done]);
-        if (this.memory.length > this.memorySize) {
-            this.memory.shift();
-        }
+        this.memory.add(state, action, reward, nextState, done);
     }
 
     async trainOnEpisode(episodeMemory) {
         // Add episode memory to the agent's memory
-        this.memory.push(...episodeMemory);
-        if (this.memory.length > this.memorySize) {
-            this.memory = this.memory.slice(-this.memorySize);
+        for (const experience of episodeMemory) {
+            this.remember(...experience);
         }
 
         // Perform multiple replay steps
@@ -52,61 +46,53 @@ class DQNAgent {
     }
 
     async replay() {
-        if (this.memory.length < this.batchSize) return;
+        if (this.memory.buffer.length < this.batchSize) return;
 
         try {
-            const batch = this.getBatch();
+            const { samples, indices, weights } = this.memory.sample(this.batchSize);
 
-            const flatStates = batch.flatMap(x => this.flattenState(x[0]));
-            const flatNextStates = batch.flatMap(x => this.flattenState(x[3]));
-
-            const states = tf.tensor4d(flatStates, [this.batchSize, ...this.stateShape, 1]);
-            const nextStates = tf.tensor4d(flatNextStates, [this.batchSize, ...this.stateShape, 1]);
+            const states = tf.tensor2d(samples.map(x => x[0].flat()), [this.batchSize, this.stateShape[0] * this.stateShape[1]]);
+            const nextStates = tf.tensor2d(samples.map(x => x[3].flat()), [this.batchSize, this.stateShape[0] * this.stateShape[1]]);
 
             const currentQs = this.model.predict(states);
             const nextQs = this.model.predict(nextStates);
 
             const updatedQs = currentQs.arraySync();
+            const errors = [];
 
             for (let i = 0; i < this.batchSize; i++) {
-                const [, action, reward, , done] = batch[i];
+                const [, action, reward, , done] = samples[i];
+                const oldQ = updatedQs[i][action];
                 if (done) {
                     updatedQs[i][action] = reward;
                 } else {
                     updatedQs[i][action] = reward + this.gamma * Math.max(...nextQs.arraySync()[i]);
                 }
+                errors.push(Math.abs(oldQ - updatedQs[i][action]));
             }
 
-            const targets = tf.tensor2d(updatedQs.flat(), [this.batchSize, this.numActions]);
+            const targets = tf.tensor2d(updatedQs);
 
-            await this.model.train(states, targets);
+            // Apply importance sampling weights manually
+            const weightedTargets = tf.tidy(() => {
+                const weightsTensor = tf.tensor1d(weights);
+                return targets.mul(weightsTensor.expandDims(1));
+            });
+
+            await this.model.train(states, weightedTargets);
+
+            this.memory.update(indices, errors);
 
             states.dispose();
             nextStates.dispose();
             currentQs.dispose();
             nextQs.dispose();
             targets.dispose();
+            weightedTargets.dispose();
         } catch (error) {
             console.error('Error in replay method:', error);
         }
     }
 
-    getBatch() {
-        const batchIndices = [];
-        while (batchIndices.length < this.batchSize) {
-            const randomIndex = Math.floor(Math.random() * this.memory.length);
-            if (!batchIndices.includes(randomIndex)) {
-                batchIndices.push(randomIndex);
-            }
-        }
-        return batchIndices.map(index => this.memory[index]);
-    }
-
-    flattenState(state) {
-        if (!Array.isArray(state) || !Array.isArray(state[0])) {
-            console.error('Invalid state format:', state);
-            return [];
-        }
-        return state.flat();
-    }
+    // ... (remove getBatch and flattenState methods as they're no longer needed)
 }

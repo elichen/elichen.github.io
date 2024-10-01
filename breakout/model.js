@@ -2,30 +2,29 @@ class DQNModel {
     constructor(inputShape, numActions) {
         this.model = tf.sequential();
         
-        this.model.add(tf.layers.conv2d({
-            inputShape: inputShape,
-            filters: 16,  // Reduced from 32
-            kernelSize: 4,  // Reduced from 8
-            strides: 2,  // Reduced from 4
-            activation: 'relu'
-        }));
+        // Flatten the input
+        const flattenedInputSize = inputShape[0] * inputShape[1];
         
-        this.model.add(tf.layers.conv2d({
-            filters: 32,  // Reduced from 64
-            kernelSize: 3,  // Reduced from 4
-            strides: 1,  // Reduced from 2
-            activation: 'relu'
-        }));
-        
-        // Removed one convolutional layer
-        
-        this.model.add(tf.layers.flatten());
-        
+        // Input layer
         this.model.add(tf.layers.dense({
-            units: 256,  // Reduced from 512
+            inputShape: [flattenedInputSize],
+            units: 256,
             activation: 'relu'
         }));
         
+        // Hidden layer 1
+        this.model.add(tf.layers.dense({
+            units: 128,
+            activation: 'relu'
+        }));
+        
+        // Hidden layer 2
+        this.model.add(tf.layers.dense({
+            units: 64,
+            activation: 'relu'
+        }));
+        
+        // Output layer
         this.model.add(tf.layers.dense({
             units: numActions,
             activation: 'linear'
@@ -42,6 +41,9 @@ class DQNModel {
     }
 
     async train(states, targets) {
-        await this.model.fit(states, targets, {epochs:1});
+        await this.model.fit(states, targets, {
+            epochs: 1,
+            batchSize: states.shape[0]
+        });
     }
 }
