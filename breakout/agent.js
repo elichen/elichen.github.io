@@ -1,5 +1,5 @@
 class DQNAgent {
-    constructor(stateShape, numActions, batchSize = 32, memorySize = 10000, gamma = 0.99, epsilonDecay = 0.995) {
+    constructor(stateShape, numActions, batchSize = 1000, memorySize = 100000, gamma = 0.99, epsilonDecay = 0.995) {
         this.stateShape = stateShape; // [42, 42]
         this.numActions = numActions;
         this.batchSize = batchSize;

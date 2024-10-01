@@ -3,7 +3,7 @@ canvas.width = 800;
 canvas.height = 600;
 
 const game = new Game(canvas);
-const agent = new DQNAgent([42, 42], 3); // Updated state shape to [42, 42]
+const agent = new DQNAgent([42, 42, 1], 3); // Ensure this matches the game state shape
 const visualization = new Visualization();
 
 let isTraining = true;
