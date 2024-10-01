@@ -11,6 +11,9 @@ class Game {
         this.gameOver = false;
         this.colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'];
         this.initBricks();
+        this.lastBallY = this.ball.y; // Add this line to track the ball's last Y position
+        this.rewardForKeepingBallInPlay = 0.1; // Small positive reward
+        this.penaltyForLosingBall = -1; // Negative reward for losing the ball
     }
 
     initBricks() {
@@ -52,6 +55,8 @@ class Game {
 
     update() {
         if (this.gameOver) return;
+
+        this.lastBallY = this.ball.y; // Store the current Y position before updating
 
         // Move the ball
         this.ball.x += this.ball.dx;
@@ -100,6 +105,28 @@ class Game {
         }
     }
 
+    getReward() {
+        let reward = 0;
+
+        // Reward for breaking bricks
+        if (this.score > 0) {
+            reward += this.score;
+            this.score = 0; // Reset the score after adding it to the reward
+        }
+
+        // Small positive reward for keeping the ball in play
+        if (this.ball.y < this.lastBallY && !this.gameOver) {
+            reward += this.rewardForKeepingBallInPlay;
+        }
+
+        // Penalty for losing the ball
+        if (this.gameOver) {
+            reward += this.penaltyForLosingBall;
+        }
+
+        return reward;
+    }
+
     draw() {
         this.ctx.clearRect(0, 0, this.width, this.height);
 
@@ -145,6 +172,7 @@ class Game {
         this.score = 0;
         this.gameOver = false;
         this.initBricks();
+        this.lastBallY = this.ball.y;
     }
 
     getRandomAngle() {

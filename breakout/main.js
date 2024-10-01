@@ -35,8 +35,8 @@ async function runEpisode() {
 
             game.update();
             const nextState = game.getState();
-            const reward = game.score - totalReward; // Reward is the change in score
-            totalReward = game.score;
+            const reward = game.getReward(); // New method to get the reward
+            totalReward += reward;
             done = game.gameOver;
 
             if (isTraining) {
