@@ -24,53 +24,60 @@ async function runEpisode() {
 
   while (!game.gameOver) {
     const state = game.getState();
-    let action, validMove, reward, invalid;
+    let action, validMove, reward, nextState, invalid;
 
-    if (game.currentPlayer === 1) {  // AI agent's turn
-      action = agent.act(state, isTraining);
-      validMove = game.makeMove(action);
-      
-      if (!validMove) {
-        console.log("Invalid move by agent. Penalizing.");
-        invalid = true;
-        game.gameOver = true;  // End the game on invalid move
-      }
-    } else {  // Opponent's turn
-      // Use epsilon to decide between optimal and random move
-      action = Math.random() < agent.epsilon ? game.findRandomMove() : game.findOptimalMove();
-      if (action === -1) {
-        console.error("Opponent failed to find a valid move");
-        break;  // Exit the game loop if no valid move found
-      }
-      validMove = game.makeMove(action);
-      if (!validMove) {
-        console.error("Opponent's move was invalid");
-        break;  // Exit the game loop if the move was invalid
-      }
-    }
-
+    // AI agent's turn
+    action = agent.act(state, isTraining);
+    validMove = game.makeMove(action);
     moveCount++;
-    const nextState = game.getState();
-
-    if (game.gameOver) {
-      if (invalid) {
-        reward = -10; // Increase penalty for invalid moves
-      } else if (game.isDraw()) {
-        reward = 0.5;  // Draw
-      } else {
-        reward = game.currentPlayer === 0 ? 1 : -1;  // Assign higher rewards
-        console.log("Game over! currentPlayer:", game.currentPlayer, " moves:", moveCount)
-      }
+    
+    if (!validMove) {
+      console.log("Invalid move by agent. Penalizing.");
+      invalid = true;
+      game.gameOver = true;  // End the game on invalid move
+      reward = -10; // Penalty for invalid move
     } else {
-      reward = 0;  // Game not over yet
+      // Check if the game is over after agent's move
+      if (game.gameOver) {
+        if (game.isDraw()) {
+          reward = 0.5;  // Draw
+          console.log(`Game ended in a tie after ${moveCount} moves.`);
+        } else {
+          reward = 1;  // Win
+          console.log(`Agent won in ${moveCount} moves!`);
+        }
+      } else {
+        // Opponent's turn
+        const opponentAction = Math.random() < agent.epsilon ? game.findRandomMove() : game.findOptimalMove();
+        if (opponentAction === -1) {
+          console.error("Opponent failed to find a valid move");
+          break;
+        }
+        game.makeMove(opponentAction);
+        
+        // Evaluate the result after opponent's move
+        if (game.gameOver) {
+          if (game.isDraw()) {
+            reward = 0.5;  // Draw
+            console.log(`Game ended in a tie after ${moveCount + 1} moves.`);
+          } else {
+            reward = -1;  // Loss
+          }
+        } else {
+          reward = 0;  // Game continues
+        }
+      }
     }
 
-    totalReward += reward
+    nextState = game.getState();
+
+    // Store the experience with the result of both moves
     agent.remember(state, action, reward, nextState, game.gameOver);
+
+    totalReward += reward;
 
     if (!isTraining) {
       game.render(isTraining);
-      // Add a small delay to visualize moves in test mode
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
