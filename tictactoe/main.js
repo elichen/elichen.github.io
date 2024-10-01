@@ -35,7 +35,7 @@ async function runEpisode() {
       console.log("Invalid move by agent. Penalizing.");
       invalid = true;
       game.gameOver = true;  // End the game on invalid move
-      reward = -10; // Penalty for invalid move
+      reward = -1; // Penalty for invalid move
     } else {
       // Check if the game is over after agent's move
       if (game.gameOver) {
@@ -48,7 +48,7 @@ async function runEpisode() {
         }
       } else {
         // Opponent's turn
-        const opponentAction = Math.random() < agent.epsilon ? game.findRandomMove() : game.findOptimalMove();
+        const opponentAction = Math.random() < 0.1 ? game.findRandomMove() : game.findOptimalMove();
         if (opponentAction === -1) {
           console.error("Opponent failed to find a valid move");
           break;
@@ -64,7 +64,8 @@ async function runEpisode() {
             reward = -1;  // Loss
           }
         } else {
-          reward = 0;  // Game continues
+          // Small positive reward for making a valid move
+          reward = 0.1;  // Game continues
         }
       }
     }
