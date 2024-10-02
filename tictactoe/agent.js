@@ -1,5 +1,5 @@
 class DQNAgent {
-  constructor(epsilon = 1.0, epsilonDecay = 0.999, epsilonMin = 0.1, gamma = 0.95, batchSize = 150, maxMemorySize = 100000) {
+  constructor(epsilon = 1.0, epsilonDecay = 0.995, epsilonMin = 0.0, gamma = 0.95, batchSize = 150, maxMemorySize = 100000) {
     this.model = new TicTacToeModel();
     this.epsilon = epsilon;
     this.epsilonDecay = epsilonDecay;
@@ -30,7 +30,7 @@ class DQNAgent {
   }
 
   async replay() {
-    if (this.memory.length < this.batchSize) return;
+    if (this.memory.length < this.batchSize) return null;
 
     const batch = this.getRandomBatch(this.batchSize);
     const states = batch.map(experience => experience[0]);
@@ -59,7 +59,8 @@ class DQNAgent {
       }
     });
 
-    await this.model.train(x, y);
+    const loss = await this.model.train(x, y);
+    return loss;
   }
 
   getRandomBatch(batchSize) {
