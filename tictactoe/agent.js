@@ -17,7 +17,8 @@ class DQNAgent {
 
   act(state, isTraining = true) {
     if (isTraining && Math.random() < this.epsilon) {
-      return Math.floor(Math.random() * 9);
+      const validMoves = game.getValidMoves();
+      return validMoves[Math.floor(Math.random() * validMoves.length)];
     } else {
       const qValues = this.model.predict(state);
       return tf.argMax(qValues, 1).dataSync()[0];
