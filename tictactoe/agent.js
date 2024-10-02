@@ -15,8 +15,10 @@ class DQNAgent {
       const validMoves = game.getValidMoves();
       return validMoves[Math.floor(Math.random() * validMoves.length)];
     } else {
-      const qValues = this.model.predict(state);
-      return tf.argMax(qValues, 1).dataSync()[0];
+      return tf.tidy(() => {
+        const qValues = this.model.predict(state);
+        return tf.argMax(qValues, 1).dataSync()[0];
+      });
     }
   }
 
@@ -34,26 +36,28 @@ class DQNAgent {
     const states = batch.map(experience => experience[0]);
     const nextStates = batch.map(experience => experience[3]);
 
-    const currentQs = this.model.predict(states);
-    const nextQs = this.model.predict(nextStates, true);
-
     const x = [];
     const y = [];
 
-    for (let i = 0; i < this.batchSize; i++) {
-      const [state, action, reward, nextState, done] = batch[i];
-      let newQ = reward;
-      if (!done) {
-        const nextQsMain = this.model.predict(nextState).arraySync()[0];
-        const bestAction = tf.argMax(nextQsMain).dataSync()[0];
-        newQ += this.gamma * nextQs.arraySync()[i][bestAction];
+    tf.tidy(() => {
+      const currentQs = this.model.predict(states);
+      const nextQs = this.model.predict(nextStates, true);
+
+      for (let i = 0; i < this.batchSize; i++) {
+        const [state, action, reward, nextState, done] = batch[i];
+        let newQ = reward;
+        if (!done) {
+          const nextQsMain = this.model.predict(nextState);
+          const bestAction = tf.argMax(nextQsMain).dataSync()[0];
+          newQ += this.gamma * nextQs.arraySync()[i][bestAction];
+        }
+        const targetQ = currentQs.arraySync()[i];
+        targetQ[action] = newQ;
+        
+        x.push(state);
+        y.push(targetQ);
       }
-      const targetQ = currentQs.arraySync()[i];
-      targetQ[action] = newQ;
-      
-      x.push(state);
-      y.push(targetQ);
-    }
+    });
 
     await this.model.train(x, y);
   }
