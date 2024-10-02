@@ -24,6 +24,13 @@ class Visualization {
             borderColor: 'rgb(255, 99, 132)',
             tension: 0.1,
             yAxisID: 'y-epsilon'
+          },
+          {
+            label: 'Loss',
+            data: [],
+            borderColor: 'rgb(54, 162, 235)',
+            tension: 0.1,
+            yAxisID: 'y-loss'
           }
         ]
       },
@@ -62,6 +69,19 @@ class Visualization {
             grid: {
               drawOnChartArea: false // only want the grid lines for epsilon on the right side of the chart
             }
+          },
+          'y-loss': {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: 'Loss'
+            },
+            min: 0,
+            grid: {
+              drawOnChartArea: false
+            }
           }
         },
         plugins: {
@@ -77,16 +97,18 @@ class Visualization {
     });
   }
 
-  updateChart(episode, score, epsilon) {
+  updateChart(episode, score, epsilon, loss) {
     this.chart.data.labels.push(episode);
     this.chart.data.datasets[0].data.push(score);
     this.chart.data.datasets[1].data.push(epsilon);
+    this.chart.data.datasets[2].data.push(loss);
 
     // Remove old data points if we exceed the window size
     if (this.chart.data.labels.length > this.windowSize) {
       this.chart.data.labels.shift();
       this.chart.data.datasets[0].data.shift();
       this.chart.data.datasets[1].data.shift();
+      this.chart.data.datasets[2].data.shift();
     }
 
     this.chart.update();

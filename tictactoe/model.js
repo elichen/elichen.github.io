@@ -27,7 +27,8 @@ class TicTacToeModel {
 
   async train(states, targets) {
     const fitConfig = {
-      epochs: 1
+      epochs: 1,
+      verbose: 0  // Set to 0 to suppress console output
     };
 
     const stateTensor = tf.tensor2d(states);
@@ -35,13 +36,14 @@ class TicTacToeModel {
 
     try {
       const result = await this.mainModel.fit(stateTensor, targetTensor, fitConfig);
+      const loss = result.history.loss[0];
 
       this.episodeCount++;
-      if (this.episodeCount % 10 === 0) {
+      if (this.episodeCount % 100 === 0) {
         this.updateTargetModel();
       }
 
-      return result;
+      return loss;
     } finally {
       stateTensor.dispose();
       targetTensor.dispose();

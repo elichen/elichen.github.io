@@ -16,6 +16,7 @@ async function runEpisode() {
   game.reset(isTraining);
   let totalReward = 0;
   let moveCount = 0;
+  let loss = null;
 
   while (!game.gameOver) {
     const state = game.getState();
@@ -86,9 +87,9 @@ async function runEpisode() {
   episodeCount++;
   if (isTraining) {
     agent.decayEpsilon(); // Decay epsilon after each episode
-    await agent.replay(); // Perform replay after each episode
+    loss = await agent.replay(); // Perform replay after each episode and get the loss
   }
-  visualization.updateChart(episodeCount, totalReward, agent.epsilon);
+  visualization.updateChart(episodeCount, totalReward, agent.epsilon, loss);
 
   // Continue training indefinitely or run test episodes
   setTimeout(runEpisode, isTraining ? 0 : 1000); // Delay between episodes in test mode
