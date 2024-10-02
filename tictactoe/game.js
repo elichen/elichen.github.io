@@ -1,9 +1,7 @@
 class TicTacToeGame {
   constructor() {
-    this.board = new Array(9).fill(0);
-    this.currentPlayer = 1;
-    this.gameOver = false;
     this.container = document.getElementById('game-container');
+    this.reset()
   }
 
   reset(isTraining = false) {
@@ -16,7 +14,7 @@ class TicTacToeGame {
   }
 
   isValidMove(position) {
-    return this.board[position] === 0 && !this.gameOver;
+    return this.board[position] === 0;
   }
 
   makeMove(position) {
