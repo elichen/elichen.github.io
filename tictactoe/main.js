@@ -43,7 +43,7 @@ async function runEpisode() {
         }
       } else {
         // Opponent's turn
-        const opponentAction = Math.random() < 0.1 ? game.findRandomMove() : game.findOptimalMove();
+        const opponentAction = Math.random() < agent.epsilon ? game.findRandomMove() : game.findOptimalMove();
         if (opponentAction === -1) {
           console.error("Opponent failed to find a valid move");
           break;
