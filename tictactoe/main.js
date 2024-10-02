@@ -4,11 +4,9 @@ const visualization = new Visualization(1000);
 
 let isTraining = true;
 let episodeCount = 0;
-let stopTraining = false;
 
 function toggleMode() {
   isTraining = !isTraining;
-  stopTraining = isTraining ? false : true;
   episodeCount = 0;
   document.getElementById('modeButton').textContent = isTraining ? 'Switch to Test Mode' : 'Switch to Train Mode';
   if (!isTraining) {
@@ -80,16 +78,6 @@ async function runEpisode() {
     if (!isTraining) {
       game.render(isTraining);
       await new Promise(resolve => setTimeout(resolve, 500));
-    }
-
-    if (stopTraining && isTraining) {
-      break;
-    }
-
-    // Safety check to prevent infinite loops
-    if (moveCount > 9) {
-      console.error("Game exceeded maximum moves");
-      game.gameOver = true;
     }
   }
 
