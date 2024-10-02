@@ -29,14 +29,10 @@ class TicTacToeModel {
     }
   }
 
-  async train(states, targets, customLoss = null) {
+  async train(states, targets) {
     const fitConfig = {
       epochs: 1
     };
-
-    if (customLoss) {
-      fitConfig.loss = customLoss;
-    }
 
     const result = await this.mainModel.fit(tf.tensor2d(states), tf.tensor2d(targets), fitConfig);
 
