@@ -21,8 +21,11 @@ async function runEpisode() {
     const state = game.getState();
     let action, validMove, reward, nextState, invalid;
 
-    // AI agent's turn
-    action = agent.act(state, isTraining);
+    tf.tidy(() => {
+      // AI agent's turn
+      action = agent.act(state, isTraining);
+    });
+
     validMove = game.makeMove(action);
     moveCount++;
     

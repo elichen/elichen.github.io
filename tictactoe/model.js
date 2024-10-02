@@ -19,14 +19,10 @@ class TicTacToeModel {
 
   predict(state, useTargetNetwork = false) {
     const model = useTargetNetwork ? this.targetModel : this.mainModel;
-    // Check if it's a single state or a batch of states
-    if (Array.isArray(state[0])) {
-      // It's a batch of states
-      return model.predict(tf.tensor2d(state));
-    } else {
-      // It's a single state
-      return model.predict(tf.tensor2d([state], [1, 9]));
-    }
+    return tf.tidy(() => {
+      const stateTensor = Array.isArray(state[0]) ? tf.tensor2d(state) : tf.tensor2d([state], [1, 9]);
+      return model.predict(stateTensor);
+    });
   }
 
   async train(states, targets) {
@@ -34,14 +30,22 @@ class TicTacToeModel {
       epochs: 1
     };
 
-    const result = await this.mainModel.fit(tf.tensor2d(states), tf.tensor2d(targets), fitConfig);
+    const stateTensor = tf.tensor2d(states);
+    const targetTensor = tf.tensor2d(targets);
 
-    this.episodeCount++;
-    if (this.episodeCount % 10 === 0) {
-      this.updateTargetModel();
+    try {
+      const result = await this.mainModel.fit(stateTensor, targetTensor, fitConfig);
+
+      this.episodeCount++;
+      if (this.episodeCount % 10 === 0) {
+        this.updateTargetModel();
+      }
+
+      return result;
+    } finally {
+      stateTensor.dispose();
+      targetTensor.dispose();
     }
-
-    return result;
   }
 
   updateTargetModel() {
