@@ -63,6 +63,14 @@ class Visualization {
             grid: {
               drawOnChartArea: false
             }
+          },
+          x: {
+            type: 'linear',
+            position: 'bottom',
+            title: {
+              display: true,
+              text: 'Episode'
+            }
           }
         },
         plugins: {
@@ -79,16 +87,21 @@ class Visualization {
   }
 
   updateChart(episode, epsilon, loss) {
-    this.chart.data.labels.push(episode);
-    this.chart.data.datasets[0].data.push(epsilon);
-    this.chart.data.datasets[1].data.push(loss);
+    // Update datasets
+    this.chart.data.datasets[0].data.push({x: episode, y: epsilon});
+    this.chart.data.datasets[1].data.push({x: episode, y: loss});
 
     // Remove old data points if we exceed the window size
-    if (this.chart.data.labels.length > this.windowSize) {
-      this.chart.data.labels.shift();
+    if (this.chart.data.datasets[0].data.length > this.windowSize) {
       this.chart.data.datasets[0].data.shift();
       this.chart.data.datasets[1].data.shift();
     }
+
+    // Update x-axis min and max
+    const minEpisode = this.chart.data.datasets[0].data[0].x;
+    const maxEpisode = episode;
+    this.chart.options.scales.x.min = minEpisode;
+    this.chart.options.scales.x.max = maxEpisode;
 
     this.chart.update();
   }
