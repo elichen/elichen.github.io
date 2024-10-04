@@ -30,7 +30,11 @@ async function runEpisode() {
     moveCount++;
     
     if (!validMove) {
-      console.log("Invalid move by agent. Penalizing.");
+      console.log("Invalid move by agent. Debugging information:");
+      console.log("Attempted move:", action);
+      console.log("Current board state:", state);
+      console.log("Valid moves:", game.getValidMoves());
+      
       invalid = true;
       game.gameOver = true;  // End the game on invalid move
       reward = -1; // Penalty for invalid move
@@ -47,10 +51,6 @@ async function runEpisode() {
       } else {
         // Opponent's turn
         const opponentAction = Math.random() < agent.epsilon ? game.findRandomMove() : game.findOptimalMove();
-        if (opponentAction === -1) {
-          console.error("Opponent failed to find a valid move");
-          break;
-        }
         game.makeMove(opponentAction);
         
         // Evaluate the result after opponent's move
@@ -88,7 +88,7 @@ async function runEpisode() {
     agent.decayEpsilon(); // Decay epsilon after each episode
     loss = await agent.replay(); // Perform replay after each episode and get the loss
   }
-  visualization.updateChart(episodeCount, totalReward, agent.epsilon, loss);
+  visualization.updateChart(episodeCount, agent.epsilon, loss);
 
   // Continue training indefinitely or run test episodes
   setTimeout(runEpisode, isTraining ? 0 : 1000); // Delay between episodes in test mode
