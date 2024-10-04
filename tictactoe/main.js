@@ -9,7 +9,6 @@ function toggleMode() {
   isTraining = !isTraining;
   episodeCount = 0;
   document.getElementById('modeButton').textContent = isTraining ? 'Switch to Test Mode' : 'Switch to Train Mode';
-  runEpisode();
 }
 
 async function runEpisode() {
