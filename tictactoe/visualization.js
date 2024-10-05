@@ -2,6 +2,7 @@ class Visualization {
   constructor(windowSize = 1000) {
     this.chart = null;
     this.windowSize = windowSize;
+    this.lastEpisode = 0;
   }
 
   createChart() {
@@ -87,6 +88,12 @@ class Visualization {
   }
 
   updateChart(episode, epsilon, loss) {
+    // Handle mode switch
+    if (episode < this.lastEpisode) {
+      this.resetChartData();
+    }
+    this.lastEpisode = episode;
+
     // Update datasets
     this.chart.data.datasets[0].data.push({x: episode, y: epsilon});
     this.chart.data.datasets[1].data.push({x: episode, y: loss});
@@ -103,6 +110,15 @@ class Visualization {
     this.chart.options.scales.x.min = minEpisode;
     this.chart.options.scales.x.max = maxEpisode;
 
+    this.chart.update();
+  }
+
+  resetChartData() {
+    this.chart.data.datasets.forEach((dataset) => {
+      dataset.data = [];
+    });
+    this.chart.options.scales.x.min = 0;
+    this.chart.options.scales.x.max = this.windowSize;
     this.chart.update();
   }
 }
