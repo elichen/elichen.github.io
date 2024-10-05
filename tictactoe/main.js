@@ -19,7 +19,8 @@ async function runEpisode() {
 
   while (!game.gameOver) {
     const state = game.getState();
-    let action, validMove, reward, nextState, invalid;
+    let action, validMove, nextState, invalid;
+    let reward = 0;
 
     tf.tidy(() => {
       // AI agent's turn
@@ -37,12 +38,12 @@ async function runEpisode() {
       
       invalid = true;
       game.gameOver = true;  // End the game on invalid move
-      reward = -1; // Penalty for invalid move
+      reward = -0.1; // Penalty for invalid move
     } else {
       // Check if the game is over after agent's move
       if (game.gameOver) {
         if (game.isDraw()) {
-          reward = 0.5;  // Draw
+          reward = 0;  // Draw
           console.log(`Game ended in a tie after ${moveCount} moves.`);
         } else {
           reward = 1;  // Win
@@ -56,14 +57,11 @@ async function runEpisode() {
         // Evaluate the result after opponent's move
         if (game.gameOver) {
           if (game.isDraw()) {
-            reward = 0.5;  // Draw
+            reward = 0;  // Draw
             console.log(`Game ended in a tie after ${moveCount + 1} moves.`);
           } else {
             reward = -1;  // Loss
           }
-        } else {
-          // Small positive reward for making a valid move
-          reward = 0.1;  // Game continues
         }
       }
     }
