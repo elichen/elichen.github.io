@@ -13,20 +13,12 @@ class Visualization {
       data: {
         labels: [],
         datasets: [
-          // Remove the score dataset
           {
             label: 'Epsilon Value',
             data: [],
             borderColor: 'rgb(255, 99, 132)',
             tension: 0.1,
             yAxisID: 'y-epsilon'
-          },
-          {
-            label: 'Loss',
-            data: [],
-            borderColor: 'rgb(54, 162, 235)',
-            tension: 0.1,
-            yAxisID: 'y-loss'
           },
           {
             label: 'Smoothed Loss',
@@ -105,14 +97,12 @@ class Visualization {
 
     // Update datasets
     this.chart.data.datasets[0].data.push({x: episode, y: epsilon});
-    this.chart.data.datasets[1].data.push({x: episode, y: loss});
-    this.chart.data.datasets[2].data.push({x: episode, y: this.smoothedLoss});
+    this.chart.data.datasets[1].data.push({x: episode, y: this.smoothedLoss});
 
     // Remove old data points if we exceed the window size
     if (this.chart.data.datasets[0].data.length > this.windowSize) {
       this.chart.data.datasets[0].data.shift();
       this.chart.data.datasets[1].data.shift();
-      this.chart.data.datasets[2].data.shift();
     }
 
     // Update x-axis min and max
