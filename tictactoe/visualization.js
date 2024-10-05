@@ -2,7 +2,6 @@ class Visualization {
   constructor(windowSize = 1000) {
     this.chart = null;
     this.windowSize = windowSize;
-    this.lastEpisode = 0;
   }
 
   createChart() {
@@ -88,12 +87,6 @@ class Visualization {
   }
 
   updateChart(episode, epsilon, loss) {
-    // Handle mode switch
-    if (episode < this.lastEpisode) {
-      this.resetChartData();
-    }
-    this.lastEpisode = episode;
-
     // Update datasets
     this.chart.data.datasets[0].data.push({x: episode, y: epsilon});
     this.chart.data.datasets[1].data.push({x: episode, y: loss});
