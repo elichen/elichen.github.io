@@ -70,6 +70,11 @@ async function runEpisode() {
     // Store the experience with the result of both moves
     agent.remember(state, action, reward, nextState, game.gameOver);
 
+    // Train on the last action and next state if in training mode
+    if (isTraining) {
+      const stepLoss = await agent.trainStep(state, action, reward, nextState, game.gameOver);
+    }
+
     totalReward += reward;
 
     if (!isTraining) {
