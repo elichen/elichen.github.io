@@ -37,7 +37,7 @@ async function runEpisode() {
       
       invalid = true;
       game.gameOver = true;  // End the game on invalid move
-      reward = -0.1; // Penalty for invalid move
+      reward = -10; // Penalty for invalid move
     } else {
       // Check if the game is over after agent's move
       if (game.gameOver) {
@@ -50,7 +50,7 @@ async function runEpisode() {
         }
       } else {
         // Opponent's turn
-        const opponentAction = Math.random() < agent.epsilon ? game.findRandomMove() : game.findOptimalMove();
+        const opponentAction = Math.random() < Math.max(agent.epsilon, 0.1) ? game.findRandomMove() : game.findOptimalMove();
         game.makeMove(opponentAction);
         
         // Evaluate the result after opponent's move
