@@ -25,30 +25,27 @@ class TicTacToeModel {
     });
   }
 
-  async train(states, targets) {
-    const fitConfig = {
-      epochs: 1,
-      verbose: 0  // Set to 0 to suppress console output
-    };
+	async train(stateTensor, targetTensor) {
+	  const fitConfig = {
+	    epochs: 1,
+	    verbose: 0  // Set to 0 to suppress console output
+	  };
 
-    const stateTensor = tf.tensor2d(states);
-    const targetTensor = tf.tensor2d(targets);
+	  try {
+	    const result = await this.mainModel.fit(stateTensor, targetTensor, fitConfig);
+	    const loss = result.history.loss[0];
 
-    try {
-      const result = await this.mainModel.fit(stateTensor, targetTensor, fitConfig);
-      const loss = result.history.loss[0];
+	    this.episodeCount++;
+	    if (this.episodeCount % 100 === 0) {
+	      this.updateTargetModel();
+	    }
 
-      this.episodeCount++;
-      if (this.episodeCount % 100 === 0) {
-        this.updateTargetModel();
-      }
-
-      return loss;
-    } finally {
-      stateTensor.dispose();
-      targetTensor.dispose();
-    }
-  }
+	    return loss;
+	  } finally {
+	    stateTensor.dispose();
+	    targetTensor.dispose();
+	  }
+	}
 
   updateTargetModel() {
     this.targetModel.setWeights(this.mainModel.getWeights());

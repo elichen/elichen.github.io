@@ -31,39 +31,61 @@ class DQNAgent {
     this.memory.push([state, action, reward, nextState, done]);
   }
 
-  async replay() {
-    if (this.memory.length < this.batchSize) return null;
+	async replay() {
+	  if (this.memory.length < this.batchSize) return null;
 
-    const batch = this.getRandomBatch(this.batchSize);
-    const states = batch.map(experience => experience[0]);
-    const nextStates = batch.map(experience => experience[3]);
+	  const batch = this.getRandomBatch(this.batchSize);
+	  const states = batch.map(experience => experience[0]);
+	  const nextStates = batch.map(experience => experience[3]);
 
-    const x = [];
-    const y = [];
+	  // Initialize tensors
+	  const x = tf.tensor2d(states); // Input states
+	  let y; // Targets
 
-    tf.tidy(() => {
-      const currentQs = this.model.predict(states);
-      const nextQs = this.model.predict(nextStates, true);
+	  // Use tf.tidy to manage memory
+	  tf.tidy(() => {
+	    const currentQs = this.model.predict(states); // Main network predictions for current states
+	    const nextQsMain = this.model.predict(nextStates); // Main network predictions for next states
+	    const nextQsTarget = this.model.predict(nextStates, true); // Target network predictions for next states
 
-      for (let i = 0; i < this.batchSize; i++) {
-        const [state, action, reward, nextState, done] = batch[i];
-        let newQ = reward;
-        if (!done) {
-          const nextQsMain = this.model.predict(nextState);
-          const bestAction = tf.argMax(nextQsMain).dataSync()[0];
-          newQ += this.gamma * nextQs.arraySync()[i][bestAction];
-        }
-        const targetQ = currentQs.arraySync()[i];
-        targetQ[action] = newQ;
-        
-        x.push(state);
-        y.push(targetQ);
-      }
-    });
+	    // Extract actions, rewards, and done flags from the batch
+	    const actions = tf.tensor1d(batch.map(experience => experience[1]), 'int32');
+	    const rewards = tf.tensor1d(batch.map(experience => experience[2]), 'float32');
+	    const dones = batch.map(experience => experience[4]);
+	    const notDones = tf.tensor1d(dones.map(done => done ? 0 : 1), 'float32');
 
-    const loss = await this.model.train(x, y);
-    return loss;
-  }
+	    // Get the best actions from the main network's predictions
+	    const bestActions = nextQsMain.argMax(1).toInt();
+
+	    // Prepare indices to gather Q-values from the target network
+	    const batchIndices = tf.range(0, this.batchSize, 1, 'int32');
+	    const indices = tf.stack([batchIndices, bestActions], 1);
+
+	    // Gather the Q-values of the best actions from the target network
+	    const targetQValues = tf.gatherND(nextQsTarget, indices).mul(notDones);
+
+	    // Compute the target Q-values
+	    const Q_targets = rewards.add(targetQValues.mul(this.gamma));
+
+	    // Create a mask for updating the Q-values
+	    const mask = tf.oneHot(actions, 9).toFloat();
+
+	    // Update the Q-values
+	    const Q_targets_expanded = Q_targets.expandDims(1);
+	    const targetQsUpdate = mask.mul(Q_targets_expanded);
+	    const updatedCurrentQs = currentQs.mul(tf.scalar(1).sub(mask));
+	    const updatedQs = updatedCurrentQs.add(targetQsUpdate);
+
+	    // Keep the updated Q-values tensor
+	    y = tf.keep(updatedQs);
+	  });
+
+	  // Train the model
+	  const loss = await this.model.train(x, y);
+	  x.dispose();
+	  y.dispose();
+	  return loss;
+	}
 
   getRandomBatch(batchSize) {
     const indices = [];
