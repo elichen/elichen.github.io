@@ -1,13 +1,14 @@
 class DQNAgent {
-  constructor(epsilon = 0.7, gamma = 0.999, batchSize = 150, maxMemorySize = 100000, fixedEpsilonSteps = 1000, decayEpsilonSteps = 1000) {
+  constructor(epsilonStart = 0.7, epsilonEnd = 0.1, gamma = 0.999, batchSize = 150, maxMemorySize = 100000, fixedEpsilonSteps = 100, decayEpsilonSteps = 100) {
     this.model = new TicTacToeModel();
-    this.epsilon = epsilon;
+    this.epsilon = epsilonStart;
+    this.epsilonEnd = epsilonEnd;
     this.gamma = gamma;
     this.batchSize = batchSize;
     this.maxMemorySize = maxMemorySize;
     this.memory = [];
     this.fixedEpsilonSteps = fixedEpsilonSteps;
-    this.decayEpsilonRate = epsilon / decayEpsilonSteps;
+    this.decayEpsilonRate = (epsilonStart-epsilonEnd) / decayEpsilonSteps;
     this.currentStep = 0;
   }
 
@@ -112,7 +113,7 @@ class DQNAgent {
       // Do nothing, keep epsilon fixed
     } else if (this.epsilon > 0) {
       // Linear decay
-      this.epsilon = Math.max(0, this.epsilon - this.decayEpsilonRate);
+      this.epsilon = Math.max(this.epsilonEnd, this.epsilon - this.decayEpsilonRate);
     }
   }
 }
