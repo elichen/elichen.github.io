@@ -1,5 +1,5 @@
 class DQNAgent {
-  constructor(epsilonStart = 0.7, epsilonEnd = 0.1, gamma = 0.999, batchSize = 150, maxMemorySize = 100000, fixedEpsilonSteps = 100, decayEpsilonSteps = 100) {
+  constructor(epsilonStart = 0.7, epsilonEnd = 0.1, gamma = 0.999, batchSize = 150, maxMemorySize = 100000, fixedEpsilonSteps = 1000, decayEpsilonSteps = 1000) {
     this.model = new TicTacToeModel();
     this.epsilon = epsilonStart;
     this.epsilonEnd = epsilonEnd;
@@ -14,8 +14,7 @@ class DQNAgent {
 
   act(state, isTraining = true) {
     if (isTraining && Math.random() < this.epsilon) {
-      const validMoves = game.getValidMoves();
-      return validMoves[Math.floor(Math.random() * validMoves.length)];
+		    return Math.floor(Math.random() * 9);
     } else {
       return tf.tidy(() => {
         const qValues = this.model.predict(state);
