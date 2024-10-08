@@ -50,7 +50,7 @@ async function runEpisode() {
         }
       } else {
         // Opponent's turn
-        const opponentAction = Math.random() < Math.max(agent.epsilon, 0.1) ? game.findRandomMove() : game.findOptimalMove();
+        const opponentAction = Math.random() < 0.5 ? game.findRandomMove() : game.findOptimalMove();
         game.makeMove(opponentAction);
         
         // Evaluate the result after opponent's move
@@ -69,11 +69,6 @@ async function runEpisode() {
 
     // Store the experience with the result of both moves
     agent.remember(state, action, reward, nextState, game.gameOver);
-
-    // Train on the last action and next state if in training mode
-    if (isTraining) {
-      const stepLoss = await agent.trainStep(state, action, reward, nextState, game.gameOver);
-    }
 
     totalReward += reward;
 

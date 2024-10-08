@@ -65,33 +65,6 @@ class DQNAgent {
     return loss;
   }
 
-  async trainStep(state, action, reward, nextState, done) {
-    const currentQ = this.model.predict(state);
-    const nextQ = this.model.predict(nextState, true);
-    
-    const currentQArray = await currentQ.array();
-    const nextQArray = await nextQ.array();
-    
-    let newQ = reward;
-    if (!done) {
-      const nextQsMain = this.model.predict(nextState);
-      const nextQsMainArray = await nextQsMain.array();
-      const bestAction = tf.argMax(nextQsMainArray).dataSync()[0];
-      newQ += this.gamma * nextQArray[0][bestAction];
-    }
-    
-    const targetQ = currentQArray[0];
-    targetQ[action] = newQ;
-    
-    const loss = await this.model.train([state], [targetQ]);
-    
-    // Clean up tensors
-    currentQ.dispose();
-    nextQ.dispose();
-    
-    return loss;
-  }
-
   getRandomBatch(batchSize) {
     const indices = [];
     while (indices.length < batchSize) {
