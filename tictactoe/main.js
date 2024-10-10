@@ -42,7 +42,7 @@ async function runEpisode() {
       // Check if the game is over after agent's move
       if (game.gameOver) {
         if (game.isDraw()) {
-          reward = 0;  // Draw
+          reward = .5;  // Draw
           console.log(`Game ended in a tie after ${moveCount} moves.`);
         } else {
           reward = 1;  // Win
@@ -56,7 +56,7 @@ async function runEpisode() {
         // Evaluate the result after opponent's move
         if (game.gameOver) {
           if (game.isDraw()) {
-            reward = 0;  // Draw
+            reward = .5;  // Draw
             console.log(`Game ended in a tie after ${moveCount + 1} moves.`);
           } else {
             reward = -1;  // Loss
