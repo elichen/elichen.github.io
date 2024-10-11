@@ -1,5 +1,5 @@
 class DQNAgent {
-  constructor(epsilonStart = 0.7, epsilonEnd = 0.1, gamma = 0.999, batchSize = 1000, maxMemorySize = 100000, fixedEpsilonSteps = 1000, decayEpsilonSteps = 1000) {
+  constructor(epsilonStart = 0.7, epsilonEnd = 0.1, gamma = 0.999, batchSize = 100, maxMemorySize = 100000, fixedEpsilonSteps = 100, decayEpsilonSteps = 100) {
     this.model = new TicTacToeModel();
     this.epsilon = epsilonStart;
     this.epsilonEnd = epsilonEnd;
@@ -27,12 +27,32 @@ class DQNAgent {
     if (this.memory.length >= this.maxMemorySize) {
       this.memory.shift();
     }
-    // Store the original state and nextState, not the one-hot encoded versions
-    this.memory.push([state, action, reward, nextState, done]);
+    
+    // Check if the experience already exists in memory
+    const experienceExists = this.memory.some(experience => 
+      this.areExperiencesEqual(experience, [state, action, reward, nextState, done])
+    );
+
+    // Only add the experience if it doesn't already exist
+    if (!experienceExists) {
+      this.memory.push([state, action, reward, nextState, done]);
+    }
+  }
+
+  areExperiencesEqual(exp1, exp2) {
+    return (
+      JSON.stringify(exp1[0]) === JSON.stringify(exp2[0]) && // state
+      exp1[1] === exp2[1] && // action
+      exp1[2] === exp2[2] && // reward
+      JSON.stringify(exp1[3]) === JSON.stringify(exp2[3]) && // nextState
+      exp1[4] === exp2[4] // done
+    );
   }
 
   async replay() {
     if (this.memory.length < this.batchSize) return null;
+
+    console.log(`Replay history size: ${this.memory.length}`);  // New debugging log
 
     const batch = this.getRandomBatch(this.batchSize);
 
@@ -100,6 +120,7 @@ class DQNAgent {
       
       x.dispose();
       y.dispose();
+
     } catch (error) {
       console.error("Error during replay:", error);
     }
