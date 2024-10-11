@@ -37,7 +37,7 @@ class TicTacToeModel {
 	  const loss = result.history.loss[0];
 
 	  this.episodeCount++;
-	  if (this.episodeCount % 100 === 0) {
+	  if (this.episodeCount % 10 === 0) {
 	    this.updateTargetModel();
 	  }
 

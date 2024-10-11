@@ -50,7 +50,7 @@ async function runEpisode() {
       
       invalid = true;
       game.gameOver = true;  // End the game on invalid move
-      reward = -10; // Penalty for invalid move
+      reward = -1; // Penalty for invalid move
     } else {
       // Check if the game is over after agent's move
       if (game.gameOver) {
