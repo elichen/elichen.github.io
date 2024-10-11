@@ -4,10 +4,23 @@ const visualization = new Visualization(1000);
 
 let isTraining = true;
 let episodeCount = 0;
+let testGamesPlayed = 0;
+let testGamesWon = 0;
 
 function toggleMode() {
   isTraining = !isTraining;
   document.getElementById('modeButton').textContent = isTraining ? 'Switch to Test Mode' : 'Switch to Train Mode';
+  if (!isTraining) {
+    // Reset test statistics when entering test mode
+    testGamesPlayed = 0;
+    testGamesWon = 0;
+    updateWinPercentage();
+  }
+}
+
+function updateWinPercentage() {
+  const winPercentage = (testGamesWon / testGamesPlayed * 100).toFixed(2);
+  document.getElementById('winPercentage').textContent = `Win Percentage: ${winPercentage}%`;
 }
 
 async function runEpisode() {
@@ -47,6 +60,9 @@ async function runEpisode() {
         } else {
           reward = 1;  // Win
           console.log(`Agent won in ${moveCount} moves!`);
+          if (!isTraining) {
+            testGamesWon++;
+          }
         }
       } else {
         // Opponent's turn
@@ -84,6 +100,9 @@ async function runEpisode() {
   if (isTraining) {
     agent.decayEpsilon(); // Decay epsilon after each episode
     loss = await agent.replay(); // Perform replay after each episode and get the loss
+  } else {
+    testGamesPlayed++;
+    updateWinPercentage();
   }
   visualization.updateChart(episodeCount, agent.epsilon, loss);
 
@@ -94,6 +113,12 @@ async function runEpisode() {
 async function init() {
   visualization.createChart();
   document.getElementById('modeButton').addEventListener('click', toggleMode);
+  
+  // Create a new element to display win percentage
+  const winPercentageElement = document.createElement('div');
+  winPercentageElement.id = 'winPercentage';
+  document.body.insertBefore(winPercentageElement, document.getElementById('chart'));
+  
   await runEpisode();
 }
 
