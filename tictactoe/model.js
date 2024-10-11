@@ -9,12 +9,12 @@ class TicTacToeModel {
   createModel() {
     const model = tf.sequential();
     // Change input shape from 9 to 27
-    model.add(tf.layers.dense({ units: 100, activation: 'relu', inputShape: [27] }));
-    model.add(tf.layers.dense({ units: 160, activation: 'relu' }));
-    model.add(tf.layers.dense({ units: 160, activation: 'relu' }));
-    model.add(tf.layers.dense({ units: 100, activation: 'relu' }));
+    model.add(tf.layers.dense({ units: 256, activation: 'relu', inputShape: [27] }));
+    model.add(tf.layers.dense({ units: 256, activation: 'relu' }));
+    model.add(tf.layers.dense({ units: 256, activation: 'relu' }));
+    model.add(tf.layers.dense({ units: 256, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 9, activation: 'linear' }));
-    model.compile({ optimizer: tf.train.adam(0.0001), loss: 'meanSquaredError' });
+    model.compile({ optimizer: tf.train.adam(0.0003), loss: 'meanSquaredError' });
     return model;
   }
 
