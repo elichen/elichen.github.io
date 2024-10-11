@@ -22,7 +22,7 @@ async function runEpisode() {
     let reward = 0;
 
     tf.tidy(() => {
-      // AI agent's turn
+      // Pass the original state to agent.act, not the one-hot encoded version
       action = agent.act(state, isTraining);
     });
 
