@@ -29,7 +29,7 @@ class TicTacToeModel {
 
 	async train(stateTensor, targetTensor) {
 	  const fitConfig = {
-	    epochs: 1,
+	    epochs: 3,
 	    verbose: 0  // Set to 0 to suppress console output
 	  };
 
@@ -37,7 +37,7 @@ class TicTacToeModel {
 	  const loss = result.history.loss[0];
 
 	  this.episodeCount++;
-	  if (this.episodeCount % 10 === 0) {
+	  if (this.episodeCount % 100 === 0) {
 	    this.updateTargetModel();
 	  }
 
