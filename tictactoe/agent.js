@@ -52,7 +52,7 @@ class DQNAgent {
   async replay() {
     if (this.memory.length < this.batchSize) return null;
 
-    console.log(`Replay history size: ${this.memory.length}`);  // New debugging log
+    console.log(`Replay history size: ${this.memory.length}`);  // Debugging log
 
     const batch = this.getRandomBatch(this.batchSize);
 
@@ -74,18 +74,11 @@ class DQNAgent {
       let y;
 
       tf.tidy(() => {
-        const currentQs = this.model.predict(x); // Use x instead of states
-
-        // Get illegal moves mask for current states
-        const illegalMovesMask = this.getIllegalMovesMask(oneHotStates); // shape [batchSize, 9]
-        const legalMovesMask = tf.scalar(1).sub(illegalMovesMask); // shape [batchSize, 9]
-
-        // Zero out Q-values for illegal moves in currentQs
-        const maskedCurrentQs = currentQs.mul(legalMovesMask); // shape [batchSize, 9]
+        const currentQs = this.model.predict(x);
 
         const nextStatesTensor = tf.tensor2d(oneHotNextStates);
-        const nextQsMain = this.model.predict(nextStatesTensor); // Use nextStatesTensor
-        const nextQsTarget = this.model.predict(nextStatesTensor, true); // Use nextStatesTensor
+        const nextQsMain = this.model.predict(nextStatesTensor);
+        const nextQsTarget = this.model.predict(nextStatesTensor, true);
 
         // Convert actions, rewards, dones to tensors
         const actionsTensor = tf.tensor1d(actions, 'int32');
@@ -107,10 +100,9 @@ class DQNAgent {
 
         // Update current Q-values with target Q-values for the taken actions
         const mask = tf.oneHot(actionsTensor, 9).toFloat();
-
         const Q_targets_expanded = Q_targets.expandDims(1); // shape [batchSize, 1]
         const targetQsUpdate = mask.mul(Q_targets_expanded); // shape [batchSize, 9]
-        const updatedQs = maskedCurrentQs.add(targetQsUpdate);
+        const updatedQs = currentQs.add(targetQsUpdate);
 
         y = tf.keep(updatedQs);
       });
@@ -151,19 +143,5 @@ class DQNAgent {
       // Linear decay
       this.epsilon = Math.max(this.epsilonEnd, this.epsilon - this.decayEpsilonRate);
     }
-  }
-
-  getIllegalMovesMask(states) {
-    // states is now an array of shape [batchSize, 27]
-    return tf.tidy(() => {
-      const statesTensor = tf.tensor2d(states); // shape [batchSize, 27]
-      // Reshape to [batchSize, 9, 3]
-      const reshaped = statesTensor.reshape([-1, 9, 3]);
-      // Sum along the last axis to get a tensor of shape [batchSize, 9]
-      // If the sum is 1, the cell is not empty (either X or O)
-      const occupiedCells = reshaped.sum(-1);
-      // 1 where move is illegal (cell is occupied), 0 where move is legal
-      return occupiedCells.notEqual(tf.scalar(0)).toFloat();
-    });
   }
 }
