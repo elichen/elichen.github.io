@@ -31,52 +31,43 @@ async function runEpisode() {
 
   while (!game.gameOver) {
     const state = game.getState();
-    let action, validMove, nextState, invalid;
+    const validMoves = game.getValidMoves();  // Get valid moves
+    let action, nextState;
     let reward = 0;
 
     tf.tidy(() => {
-      // Pass the original state to agent.act, not the one-hot encoded version
-      action = agent.act(state, isTraining);
+      // Pass the valid moves to the agent
+      action = agent.act(state, isTraining, validMoves);
     });
 
-    validMove = game.makeMove(action);
+    game.makeMove(action);
     moveCount++;
     
-    if (!validMove) {
-      console.log("Invalid move by agent. Debugging information:");
-      console.log("Attempted move:", action);
-      console.log("Current board state:", state);
-      console.log("Valid moves:", game.getValidMoves());
-      
-      invalid = true;
-      game.gameOver = true;  // End the game on invalid move
-      reward = -1; // Penalty for invalid move
+    // Check if the game is over after agent's move
+    if (game.gameOver) {
+      if (game.isDraw()) {
+        reward = 0.5;  // Draw
+        console.log(`Game ended in a tie after ${moveCount} moves.`);
+      } else {
+        reward = 1;  // Win
+        console.log(`Agent won in ${moveCount} moves!`);
+        if (!isTraining) {
+          testGamesWon++;
+        }
+      }
     } else {
-      // Check if the game is over after agent's move
+      // Opponent's turn
+      const opponentAction = Math.random() < 1 ? game.findRandomMove() : game.findOptimalMove();
+      game.makeMove(opponentAction);
+      
+      // Evaluate the result after opponent's move
       if (game.gameOver) {
         if (game.isDraw()) {
-          reward = .5;  // Draw
-          console.log(`Game ended in a tie after ${moveCount} moves.`);
+          reward = 0.5;  // Draw
+          console.log(`Game ended in a tie after ${moveCount + 1} moves.`);
         } else {
-          reward = 1;  // Win
-          console.log(`Agent won in ${moveCount} moves!`);
-          if (!isTraining) {
-            testGamesWon++;
-          }
-        }
-      } else {
-        // Opponent's turn
-        const opponentAction = Math.random() < 1 ? game.findRandomMove() : game.findOptimalMove();
-        game.makeMove(opponentAction);
-        
-        // Evaluate the result after opponent's move
-        if (game.gameOver) {
-          if (game.isDraw()) {
-            reward = .5;  // Draw
-            console.log(`Game ended in a tie after ${moveCount + 1} moves.`);
-          } else {
-            reward = -1;  // Loss
-          }
+          reward = -1;  // Loss
+          console.log(`Agent lost after ${moveCount + 1} moves.`);
         }
       }
     }

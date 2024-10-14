@@ -12,13 +12,23 @@ class DQNAgent {
     this.currentStep = 0;
   }
 
-  act(state, isTraining = true) {
+  act(state, isTraining = true, validMoves) {
     if (isTraining && Math.random() < this.epsilon) {
-      return Math.floor(Math.random() * 9);
+      // Choose a random valid move during exploration
+      return validMoves[Math.floor(Math.random() * validMoves.length)];
     } else {
       return tf.tidy(() => {
         const qValues = this.model.predict(state);
-        return tf.argMax(qValues, 1).dataSync()[0];
+        
+        // Create a mask for valid moves
+        const mask = new Array(9).fill(-Infinity);
+        validMoves.forEach(move => mask[move] = 0);
+        const maskTensor = tf.tensor1d(mask);
+        
+        // Add the mask to qValues to make invalid moves have very low values
+        const maskedQValues = qValues.add(maskTensor);
+        
+        return tf.argMax(maskedQValues, 1).dataSync()[0];
       });
     }
   }
@@ -52,18 +62,16 @@ class DQNAgent {
   async replay() {
     if (this.memory.length < this.batchSize) return null;
 
-    console.log(`Replay history size: ${this.memory.length}`);  // Debugging log
+    console.log(`Replay history size: ${this.memory.length}`);
 
     const batch = this.getRandomBatch(this.batchSize);
 
-    // Extract states, actions, rewards, nextStates, and done flags from the batch
     const states = batch.map(experience => experience[0]);
     const actions = batch.map(experience => experience[1]);
     const rewards = batch.map(experience => experience[2]);
     const nextStates = batch.map(experience => experience[3]);
     const dones = batch.map(experience => experience[4]);
 
-    // Convert states and nextStates to one-hot encoding
     const oneHotStates = states.map(state => this.model.convertToOneHot(state));
     const oneHotNextStates = nextStates.map(state => this.model.convertToOneHot(state));
 
@@ -80,31 +88,31 @@ class DQNAgent {
         const nextQsMain = this.model.predict(nextStatesTensor);
         const nextQsTarget = this.model.predict(nextStatesTensor, true);
 
-        // Convert actions, rewards, dones to tensors
         const actionsTensor = tf.tensor1d(actions, 'int32');
         const rewardsTensor = tf.tensor1d(rewards, 'float32');
         const notDones = tf.tensor1d(dones.map(done => done ? 0 : 1), 'float32');
 
-        // Get the best actions from the main network's predictions
-        const bestActions = nextQsMain.argMax(1).toInt();
+        const validMovesMasks = nextStates.map(state => {
+          const mask = new Array(9).fill(-Infinity);
+          const validMoves = this.getValidMoves(state);
+          validMoves.forEach(move => mask[move] = 0);
+          return mask;
+        });
+        const validMovesMasksTensor = tf.tensor2d(validMovesMasks);
 
-        // Prepare indices to gather Q-values from the target network
+        const maskedNextQsMain = nextQsMain.add(validMovesMasksTensor);
+        const bestActions = maskedNextQsMain.argMax(1).toInt();
+
         const batchIndices = tf.range(0, this.batchSize, 1, 'int32');
         const indices = tf.stack([batchIndices, bestActions], 1);
 
-        // Gather the Q-values of the best actions from the target network
         const targetQValues = tf.gatherND(nextQsTarget, indices).mul(notDones);
-
-        // Compute the target Q-values
         const Q_targets = rewardsTensor.add(targetQValues.mul(this.gamma));
 
-        // Update current Q-values with target Q-values for the taken actions
         const mask = tf.oneHot(actionsTensor, 9).toFloat();
-        const Q_targets_expanded = Q_targets.expandDims(1); // shape [batchSize, 1]
-        const targetQsUpdate = mask.mul(Q_targets_expanded); // shape [batchSize, 9]
-        const updatedQs = currentQs.add(targetQsUpdate);
-
-        y = tf.keep(updatedQs);
+        const Q_targets_expanded = Q_targets.expandDims(1);
+        
+        y = tf.keep(currentQs.mul(tf.scalar(1).sub(mask)).add(Q_targets_expanded.mul(mask)));
       });
 
       // Train the model
@@ -143,5 +151,13 @@ class DQNAgent {
       // Linear decay
       this.epsilon = Math.max(this.epsilonEnd, this.epsilon - this.decayEpsilonRate);
     }
+  }
+
+  // Add this method to the DQNAgent class
+  getValidMoves(state) {
+    return state.reduce((validMoves, cell, index) => {
+      if (cell === 0) validMoves.push(index);
+      return validMoves;
+    }, []);
   }
 }
