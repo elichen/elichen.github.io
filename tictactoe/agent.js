@@ -37,26 +37,7 @@ class DQNAgent {
     if (this.memory.length >= this.maxMemorySize) {
       this.memory.shift();
     }
-    
-    // Check if the experience already exists in memory
-    const experienceExists = this.memory.some(experience => 
-      this.areExperiencesEqual(experience, [state, action, reward, nextState, done])
-    );
-
-    // Only add the experience if it doesn't already exist
-    if (!experienceExists) {
-      this.memory.push([state, action, reward, nextState, done]);
-    }
-  }
-
-  areExperiencesEqual(exp1, exp2) {
-    return (
-      JSON.stringify(exp1[0]) === JSON.stringify(exp2[0]) && // state
-      exp1[1] === exp2[1] && // action
-      exp1[2] === exp2[2] && // reward
-      JSON.stringify(exp1[3]) === JSON.stringify(exp2[3]) && // nextState
-      exp1[4] === exp2[4] // done
-    );
+    this.memory.push([state, action, reward, nextState, done]);
   }
 
   async replay() {
@@ -153,7 +134,6 @@ class DQNAgent {
     }
   }
 
-  // Add this method to the DQNAgent class
   getValidMoves(state) {
     return state.reduce((validMoves, cell, index) => {
       if (cell === 0) validMoves.push(index);
