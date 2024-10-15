@@ -10,6 +10,8 @@ class DQNAgent {
     this.fixedEpsilonSteps = fixedEpsilonSteps;
     this.decayEpsilonRate = (epsilonStart-epsilonEnd) / decayEpsilonSteps;
     this.currentStep = 0;
+    this.isTraining = false;
+    this.trainingQueue = [];
   }
 
   act(state, isTraining = true, validMoves) {
@@ -45,20 +47,27 @@ class DQNAgent {
 
     console.log(`Replay history size: ${this.memory.length}`);
 
-    const batch = this.getRandomBatch(this.batchSize);
+    // If already training, add to queue and return
+    if (this.isTraining) {
+      return new Promise((resolve) => {
+        this.trainingQueue.push(resolve);
+      });
+    }
 
-    const states = batch.map(experience => experience[0]);
-    const actions = batch.map(experience => experience[1]);
-    const rewards = batch.map(experience => experience[2]);
-    const nextStates = batch.map(experience => experience[3]);
-    const dones = batch.map(experience => experience[4]);
-
-    const oneHotStates = states.map(state => this.model.convertToOneHot(state));
-    const oneHotNextStates = nextStates.map(state => this.model.convertToOneHot(state));
-
-    let loss;
+    this.isTraining = true;
 
     try {
+      const batch = this.getRandomBatch(this.batchSize);
+
+      const states = batch.map(experience => experience[0]);
+      const actions = batch.map(experience => experience[1]);
+      const rewards = batch.map(experience => experience[2]);
+      const nextStates = batch.map(experience => experience[3]);
+      const dones = batch.map(experience => experience[4]);
+
+      const oneHotStates = states.map(state => this.model.convertToOneHot(state));
+      const oneHotNextStates = nextStates.map(state => this.model.convertToOneHot(state));
+
       const x = tf.tensor2d(oneHotStates);
       let y;
 
@@ -97,16 +106,24 @@ class DQNAgent {
       });
 
       // Train the model
-      loss = await this.model.train(x, y);
+      const loss = await this.model.train(x, y);
       
       x.dispose();
       y.dispose();
 
+      return loss;
     } catch (error) {
       console.error("Error during replay:", error);
+      return null;
+    } finally {
+      this.isTraining = false;
+      
+      // Process next item in queue if any
+      if (this.trainingQueue.length > 0) {
+        const nextResolve = this.trainingQueue.shift();
+        nextResolve(this.replay());
+      }
     }
-
-    return loss;
   }
 
   getRandomBatch(batchSize) {
