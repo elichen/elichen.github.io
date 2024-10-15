@@ -28,6 +28,7 @@ async function runEpisode() {
   let totalReward = 0;
   let moveCount = 0;
   let loss = null;
+  let gameResult = 0; // 0 for draw, 1 for win, -1 for loss
 
   while (!game.gameOver) {
     const state = game.getState();
@@ -91,11 +92,21 @@ async function runEpisode() {
   if (isTraining) {
     agent.decayEpsilon(); // Decay epsilon after each episode
     loss = await agent.replay(); // Perform replay after each episode and get the loss
+    
+    // Determine game result for visualization
+    if (totalReward > 0) {
+      gameResult = 1; // Win
+    } else if (totalReward < 0) {
+      gameResult = -1; // Loss
+    }
+    // Draw (gameResult = 0) is already set by default
   } else {
     testGamesPlayed++;
     updateWinPercentage();
   }
-  visualization.updateChart(episodeCount, agent.epsilon, loss);
+  
+  // Update the chart with the game result
+  visualization.updateChart(episodeCount, agent.epsilon, loss, gameResult);
 
   // Continue training indefinitely or run test episodes
   setTimeout(runEpisode, isTraining ? 0 : 1000); // Delay between episodes in test mode
