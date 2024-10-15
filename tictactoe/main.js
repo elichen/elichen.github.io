@@ -30,8 +30,14 @@ function getOpponentMove(game) {
   return Math.random() < randomThreshold ? game.findOptimalMove() : game.findRandomMove();
 }
 
+// Add this function at the beginning of the file, after the variable declarations
+function getRandomStartingPlayer() {
+  return Math.random() < 0.5 ? 1 : 2;
+}
+
 async function runEpisode() {
-  game.reset(isTraining);
+  const agentStarts = getRandomStartingPlayer() === 1;
+  game.reset(isTraining, agentStarts);
   let totalReward = 0;
   let moveCount = 0;
   let loss = null;
@@ -39,51 +45,56 @@ async function runEpisode() {
 
   while (!game.gameOver) {
     const state = game.getState();
-    const validMoves = game.getValidMoves();  // Get valid moves
+    const validMoves = game.getValidMoves();
     let action, nextState;
     let reward = 0;
 
-    tf.tidy(() => {
-      // Pass the valid moves to the agent
-      action = agent.act(state, isTraining, validMoves);
-    });
+    if (game.currentPlayer === 1) {
+      // Agent's turn (always X)
+      tf.tidy(() => {
+        action = agent.act(state, isTraining, validMoves);
+      });
 
-    game.makeMove(action);
-    moveCount++;
-    
-    // Check if the game is over after agent's move
-    if (game.gameOver) {
-      if (game.isDraw()) {
-        reward = 0.5;  // Draw
-        console.log(`Game ended in a tie after ${moveCount} moves.`);
-      } else {
-        reward = 1;  // Win
-        console.log(`Agent won in ${moveCount} moves!`);
-        if (!isTraining) {
-          testGamesWon++;
+      game.makeMove(action);
+      moveCount++;
+      
+      // Check if the game is over after agent's move
+      if (game.gameOver) {
+        if (game.isDraw()) {
+          reward = 0.5;  // Draw
+          console.log(`Game ended in a tie after ${moveCount} moves.`);
+        } else {
+          reward = 1;  // Win
+          console.log(`Agent won in ${moveCount} moves!`);
+          if (!isTraining) {
+            testGamesWon++;
+          }
         }
       }
     } else {
-      // Opponent's turn
+      // Opponent's turn (always O)
       const opponentAction = getOpponentMove(game);
       game.makeMove(opponentAction);
+      moveCount++;
       
       // Evaluate the result after opponent's move
       if (game.gameOver) {
         if (game.isDraw()) {
           reward = 0.5;  // Draw
-          console.log(`Game ended in a tie after ${moveCount + 1} moves.`);
+          console.log(`Game ended in a tie after ${moveCount} moves.`);
         } else {
           reward = -1;  // Loss
-          console.log(`Agent lost after ${moveCount + 1} moves.`);
+          console.log(`Agent lost after ${moveCount} moves.`);
         }
       }
     }
 
     nextState = game.getState();
 
-    // Store the experience with the result of both moves
-    agent.remember(state, action, reward, nextState, game.gameOver);
+    // Store the experience after each move
+    if (game.currentPlayer === 2) {  // Store after agent's move (when it's opponent's turn)
+      agent.remember(state, action, reward, nextState, game.gameOver);
+    }
 
     totalReward += reward;
 

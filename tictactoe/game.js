@@ -4,9 +4,9 @@ class TicTacToeGame {
     this.reset()
   }
 
-  reset(isTraining = false) {
+  reset(isTraining = false, agentStarts = true) {
     this.board = new Array(9).fill(0);
-    this.currentPlayer = 1;
+    this.currentPlayer = agentStarts ? 1 : 2;
     this.gameOver = false;
     if (!isTraining) {
       this.clearDisplay();
@@ -19,9 +19,9 @@ class TicTacToeGame {
 
   makeMove(position) {
     if (this.isValidMove(position)) {
-      this.board[position] = this.currentPlayer;
+      this.board[position] = this.currentPlayer === 1 ? 1 : -1;
       this.checkGameOver();
-      this.currentPlayer = -this.currentPlayer;
+      this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
       return true;
     }
     return false;
@@ -91,7 +91,9 @@ class TicTacToeGame {
 
   getGameOverMessage() {
     if (this.board.includes(0)) {
-      return `Player ${this.getCellContent(-this.currentPlayer)} wins!`;
+      const isAgentWin = this.board.filter(cell => cell !== 0).length % 2 !== 0;
+      const winner = isAgentWin ? "Agent (X)" : "Opponent (O)";
+      return `${winner} wins!`;
     } else {
       return "It's a draw!";
     }
