@@ -49,11 +49,10 @@ class Visualization {
           }
         },
         scales: {
-          // Remove the y-score scale
           'y-epsilon': {
             type: 'linear',
             display: true,
-            position: 'left', // Change to left
+            position: 'left',
             title: {
               display: true,
               text: 'Epsilon'
@@ -66,10 +65,12 @@ class Visualization {
             display: true,
             position: 'right',
             title: {
-              display: true,
-              text: 'Loss'
+              display: false,
             },
             min: 0,
+            ticks: {
+              display: false  // This will hide the number labels
+            },
             grid: {
               drawOnChartArea: false
             }
