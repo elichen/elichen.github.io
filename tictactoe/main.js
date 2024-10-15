@@ -7,6 +7,8 @@ let episodeCount = 0;
 let testGamesPlayed = 0;
 let testGamesWon = 0;
 let opponentDifficulty = 5; // Default difficulty
+let isHumanOpponent = false;
+let gameLoopTimeout = null; // Add this line to keep track of the game loop
 
 function toggleMode() {
   isTraining = !isTraining;
@@ -17,6 +19,7 @@ function toggleMode() {
     testGamesWon = 0;
     updateWinPercentage();
   }
+  resetGame();
 }
 
 function updateWinPercentage() {
@@ -24,13 +27,11 @@ function updateWinPercentage() {
   document.getElementById('winPercentage').textContent = `Win Percentage: ${winPercentage}%`;
 }
 
-// Add this function to update the opponent's move selection
 function getOpponentMove(game) {
   const randomThreshold = opponentDifficulty / 10;
   return Math.random() < randomThreshold ? game.findOptimalMove() : game.findRandomMove();
 }
 
-// Add this function at the beginning of the file, after the variable declarations
 function getRandomStartingPlayer() {
   return Math.random() < 0.5 ? 1 : 2;
 }
@@ -42,6 +43,11 @@ async function runEpisode() {
   let moveCount = 0;
   let loss = null;
   let gameResult = 0; // 0 for draw, 1 for win, -1 for loss
+
+  // Render the initial game state for human opponent mode
+  if (!isTraining && isHumanOpponent) {
+    game.render(isTraining);
+  }
 
   while (!game.gameOver) {
     const state = game.getState();
@@ -73,8 +79,13 @@ async function runEpisode() {
       }
     } else {
       // Opponent's turn (always O)
-      const opponentAction = getOpponentMove(game);
-      game.makeMove(opponentAction);
+      if (isHumanOpponent && !isTraining) {
+        // Wait for human move
+        action = await waitForHumanMove();
+      } else {
+        action = getOpponentMove(game);
+      }
+      game.makeMove(action);
       moveCount++;
       
       // Evaluate the result after opponent's move
@@ -100,7 +111,9 @@ async function runEpisode() {
 
     if (!isTraining) {
       game.render(isTraining);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!isHumanOpponent) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
   }
 
@@ -108,8 +121,8 @@ async function runEpisode() {
 
   episodeCount++;
   if (isTraining) {
-    agent.decayEpsilon(); // Decay epsilon after each episode
-    loss = await agent.replay(); // Perform replay after each episode and get the loss
+    agent.decayEpsilon();
+    loss = await agent.replay();
     
     // Determine game result for visualization
     if (totalReward > 0) {
@@ -117,7 +130,6 @@ async function runEpisode() {
     } else if (totalReward < 0) {
       gameResult = -1; // Loss
     }
-    // Draw (gameResult = 0) is already set by default
   } else {
     testGamesPlayed++;
     updateWinPercentage();
@@ -126,26 +138,86 @@ async function runEpisode() {
   // Update the chart with the game result
   visualization.updateChart(episodeCount, agent.epsilon, loss, gameResult);
 
-  // Continue training indefinitely or run test episodes
-  setTimeout(runEpisode, isTraining ? 0 : 1000); // Delay between episodes in test mode
+  // Update this part at the end of runEpisode
+  if (isTraining || !isTraining) {
+    if (!isTraining && isHumanOpponent) {
+      await showNewGameMessage();
+    }
+    // Clear any existing timeout before setting a new one
+    if (gameLoopTimeout) {
+      clearTimeout(gameLoopTimeout);
+    }
+    gameLoopTimeout = setTimeout(runEpisode, isTraining ? 0 : 1000);
+  }
 }
 
-// Add this function to handle difficulty changes
 function updateDifficulty(value) {
   opponentDifficulty = value;
   document.getElementById('difficultyValue').textContent = value;
+}
+
+function waitForHumanMove() {
+  return new Promise((resolve) => {
+    const cells = document.querySelectorAll('.cell');
+    const clickHandler = (event) => {
+      const index = Array.from(cells).indexOf(event.target);
+      if (game.isValidMove(index)) {
+        cells.forEach(cell => cell.removeEventListener('click', clickHandler));
+        resolve(index);
+      }
+    };
+    cells.forEach(cell => cell.addEventListener('click', clickHandler));
+  });
+}
+
+function resetGame() {
+  // Clear any existing game loop before resetting
+  if (gameLoopTimeout) {
+    clearTimeout(gameLoopTimeout);
+    gameLoopTimeout = null;
+  }
+  game.reset(isTraining);
+  if (!isTraining) {
+    runEpisode();
+  } else {
+    // If switching to training mode, start a new episode
+    gameLoopTimeout = setTimeout(runEpisode, 0);
+  }
 }
 
 async function init() {
   visualization.createChart();
   document.getElementById('modeButton').addEventListener('click', toggleMode);
   
-  // Create a new element to display win percentage
   const winPercentageElement = document.createElement('div');
   winPercentageElement.id = 'winPercentage';
   document.body.insertBefore(winPercentageElement, document.getElementById('chart'));
   
-  await runEpisode();
+  document.getElementById('humanOpponentCheckbox').addEventListener('change', (event) => {
+    isHumanOpponent = event.target.checked;
+    if (!isTraining) {
+      resetGame();
+    }
+  });
+  
+  // Start the initial episode
+  gameLoopTimeout = setTimeout(runEpisode, 0);
 }
 
 init();
+
+function showNewGameMessage() {
+  return new Promise((resolve) => {
+    const messageElement = document.createElement('div');
+    messageElement.textContent = 'New game starting...';
+    messageElement.style.fontSize = '20px';
+    messageElement.style.marginTop = '10px';
+    game.container.appendChild(messageElement);
+    
+    setTimeout(() => {
+      messageElement.remove();
+      game.render(false); // Render the new game state immediately after removing the message
+      resolve();
+    }, 1000);
+  });
+}

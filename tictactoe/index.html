@@ -36,7 +36,12 @@
     <canvas id="chart"></canvas>
     <button id="modeButton">Switch to Test Mode</button>
     
-    <!-- Add this slider and label -->
+    <!-- Remove the style attribute to make it visible all the time -->
+    <div id="testModeOptions">
+        <label for="humanOpponentCheckbox">Play against human: </label>
+        <input type="checkbox" id="humanOpponentCheckbox">
+    </div>
+
     <div>
         <label for="difficultySlider">Opponent Difficulty: </label>
         <input type="range" id="difficultySlider" min="0" max="10" value="5" step="1" oninput="updateDifficulty(this.value)">
