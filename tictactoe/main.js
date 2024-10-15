@@ -6,6 +6,7 @@ let isTraining = true;
 let episodeCount = 0;
 let testGamesPlayed = 0;
 let testGamesWon = 0;
+let opponentDifficulty = 5; // Default difficulty
 
 function toggleMode() {
   isTraining = !isTraining;
@@ -21,6 +22,12 @@ function toggleMode() {
 function updateWinPercentage() {
   const winPercentage = (testGamesWon / testGamesPlayed * 100).toFixed(2);
   document.getElementById('winPercentage').textContent = `Win Percentage: ${winPercentage}%`;
+}
+
+// Add this function to update the opponent's move selection
+function getOpponentMove(game) {
+  const randomThreshold = opponentDifficulty / 10;
+  return Math.random() < randomThreshold ? game.findOptimalMove() : game.findRandomMove();
 }
 
 async function runEpisode() {
@@ -58,7 +65,7 @@ async function runEpisode() {
       }
     } else {
       // Opponent's turn
-      const opponentAction = Math.random() < .5 ? game.findRandomMove() : game.findOptimalMove();
+      const opponentAction = getOpponentMove(game);
       game.makeMove(opponentAction);
       
       // Evaluate the result after opponent's move
@@ -110,6 +117,12 @@ async function runEpisode() {
 
   // Continue training indefinitely or run test episodes
   setTimeout(runEpisode, isTraining ? 0 : 1000); // Delay between episodes in test mode
+}
+
+// Add this function to handle difficulty changes
+function updateDifficulty(value) {
+  opponentDifficulty = value;
+  document.getElementById('difficultyValue').textContent = value;
 }
 
 async function init() {
