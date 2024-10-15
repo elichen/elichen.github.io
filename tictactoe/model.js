@@ -29,7 +29,7 @@ class TicTacToeModel {
 
 	async train(stateTensor, targetTensor) {
 	  const fitConfig = {
-	    epochs: 10,
+	    epochs: 1,
 	    verbose: 0  // Set to 0 to suppress console output
 	  };
 
