@@ -103,14 +103,17 @@ class TicTacToeGame {
   }
 
   findOptimalMove() {
+    const currentPlayer = this.currentPlayer === 1 ? 1 : -1;
+    const opponent = -currentPlayer;
+
     // If center is empty, take it
     if (this.board[4] === 0) return 4;
 
     // Check for winning move
     for (let i = 0; i < 9; i++) {
       if (this.board[i] === 0) {
-        this.board[i] = this.currentPlayer;
-        if (this.checkWin(this.currentPlayer)) {
+        this.board[i] = currentPlayer;
+        if (this.checkWin(currentPlayer)) {
           this.board[i] = 0;
           return i;
         }
@@ -119,7 +122,6 @@ class TicTacToeGame {
     }
 
     // Check for blocking opponent's winning move
-    const opponent = -this.currentPlayer;
     for (let i = 0; i < 9; i++) {
       if (this.board[i] === 0) {
         this.board[i] = opponent;
@@ -130,6 +132,10 @@ class TicTacToeGame {
         this.board[i] = 0;
       }
     }
+
+    // Create a fork or block opponent's fork
+    const forkMove = this.findForkMove(currentPlayer) || this.findForkMove(opponent);
+    if (forkMove !== -1) return forkMove;
 
     // Take corners if available
     const corners = [0, 2, 6, 8];
@@ -146,6 +152,29 @@ class TicTacToeGame {
     }
 
     // No moves available (shouldn't happen in a normal game)
+    return -1;
+  }
+
+  findForkMove(player) {
+    for (let i = 0; i < 9; i++) {
+      if (this.board[i] === 0) {
+        this.board[i] = player;
+        let winningMoves = 0;
+        for (let j = 0; j < 9; j++) {
+          if (this.board[j] === 0) {
+            this.board[j] = player;
+            if (this.checkWin(player)) {
+              winningMoves++;
+            }
+            this.board[j] = 0;
+          }
+        }
+        this.board[i] = 0;
+        if (winningMoves >= 2) {
+          return i;
+        }
+      }
+    }
     return -1;
   }
 
