@@ -57,7 +57,7 @@ async function runEpisode() {
       }
     } else {
       // Opponent's turn
-      const opponentAction = Math.random() < 1 ? game.findRandomMove() : game.findOptimalMove();
+      const opponentAction = Math.random() < .5 ? game.findRandomMove() : game.findOptimalMove();
       game.makeMove(opponentAction);
       
       // Evaluate the result after opponent's move
