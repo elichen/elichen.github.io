@@ -6,7 +6,7 @@ let isTraining = true;
 let episodeCount = 0;
 let testGamesPlayed = 0;
 let testGamesWon = 0;
-let opponentDifficulty = 5; // Default difficulty
+let opponentDifficulty = 0; // Default difficulty
 let isHumanOpponent = false;
 let gameLoopTimeout = null; // Add this line to keep track of the game loop
 
