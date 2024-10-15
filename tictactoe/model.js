@@ -14,7 +14,7 @@ class TicTacToeModel {
     model.add(tf.layers.dense({ units: 256, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 256, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 9, activation: 'linear' }));
-    model.compile({ optimizer: tf.train.adam(0.0003), loss: 'meanSquaredError' });
+    model.compile({ optimizer: tf.train.adam(0.003), loss: 'meanSquaredError' });
     return model;
   }
 
