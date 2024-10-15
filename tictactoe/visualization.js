@@ -4,6 +4,8 @@ class Visualization {
     this.windowSize = windowSize;
     this.smoothingFactor = smoothingFactor;
     this.smoothedLoss = null;
+    this.totalGames = 0;
+    this.totalWins = 0;
   }
 
   createChart() {
@@ -26,6 +28,13 @@ class Visualization {
             borderColor: 'rgb(75, 192, 192)',
             tension: 0.1,
             yAxisID: 'y-loss'
+          },
+          {
+            label: 'Win % (Last 10 Games)',
+            data: [],
+            borderColor: 'rgb(54, 162, 235)',
+            tension: 0.1,
+            yAxisID: 'y-win-percentage'
           }
         ]
       },
@@ -65,6 +74,20 @@ class Visualization {
               drawOnChartArea: false
             }
           },
+          'y-win-percentage': {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: 'Win %'
+            },
+            min: 0,
+            max: 100,
+            grid: {
+              drawOnChartArea: false
+            }
+          },
           x: {
             type: 'linear',
             position: 'bottom',
@@ -87,7 +110,7 @@ class Visualization {
     });
   }
 
-  updateChart(episode, epsilon, loss) {
+  updateChart(episode, epsilon, loss, gameResult) {
     // Smooth the loss
     if (this.smoothedLoss === null) {
       this.smoothedLoss = loss;
@@ -95,14 +118,25 @@ class Visualization {
       this.smoothedLoss = this.smoothingFactor * loss + (1 - this.smoothingFactor) * this.smoothedLoss;
     }
 
+    // Update total games and wins
+    this.totalGames++;
+    if (gameResult === 1) {
+      this.totalWins++;
+    }
+
+    // Calculate trailing win percentage
+    const winPercentage = (this.totalWins / this.totalGames) * 100;
+
     // Update datasets
     this.chart.data.datasets[0].data.push({x: episode, y: epsilon});
     this.chart.data.datasets[1].data.push({x: episode, y: this.smoothedLoss});
+    this.chart.data.datasets[2].data.push({x: episode, y: winPercentage});
 
     // Remove old data points if we exceed the window size
     if (this.chart.data.datasets[0].data.length > this.windowSize) {
       this.chart.data.datasets[0].data.shift();
       this.chart.data.datasets[1].data.shift();
+      this.chart.data.datasets[2].data.shift();
     }
 
     // Update x-axis min and max
@@ -121,6 +155,8 @@ class Visualization {
     this.chart.options.scales.x.min = 0;
     this.chart.options.scales.x.max = this.windowSize;
     this.smoothedLoss = null;
+    this.totalGames = 0;
+    this.totalWins = 0;
     this.chart.update();
   }
 }
