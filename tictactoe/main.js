@@ -189,9 +189,12 @@ async function init() {
   visualization.createChart();
   document.getElementById('modeButton').addEventListener('click', toggleMode);
   
+  // Create the win percentage element and insert it into the container
   const winPercentageElement = document.createElement('div');
   winPercentageElement.id = 'winPercentage';
-  document.body.insertBefore(winPercentageElement, document.getElementById('chart'));
+  winPercentageElement.className = 'stats';
+  const container = document.querySelector('.container');
+  container.insertBefore(winPercentageElement, document.getElementById('chart'));
   
   document.getElementById('humanOpponentCheckbox').addEventListener('change', (event) => {
     isHumanOpponent = event.target.checked;

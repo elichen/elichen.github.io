@@ -6,46 +6,26 @@
     <title>Tic-Tac-Toe DQN</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        .tic-tac-toe-board {
-            display: grid;
-            grid-template-columns: repeat(3, 100px);
-            grid-gap: 5px;
-            margin-bottom: 20px;
-        }
-        .cell {
-            width: 100px;
-            height: 100px;
-            border: 1px solid #000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 40px;
-            cursor: pointer;
-        }
-        .game-over-message {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="game-container"></div>
-    <div id="winPercentage"></div>
-    <canvas id="chart"></canvas>
-    <button id="modeButton">Switch to Test Mode</button>
-    
-    <!-- Remove the style attribute to make it visible all the time -->
-    <div id="testModeOptions">
-        <label for="humanOpponentCheckbox">Play against human: </label>
-        <input type="checkbox" id="humanOpponentCheckbox">
-    </div>
+    <div class="container">
+        <h1>Tic-Tac-Toe DQN</h1>
+        <div id="game-container"></div>
+        <div id="winPercentage" class="stats"></div>
+        <canvas id="chart"></canvas>
+        <button id="modeButton" class="btn">Switch to Test Mode</button>
+        
+        <div id="testModeOptions" class="options">
+            <label for="humanOpponentCheckbox">Play against human: </label>
+            <input type="checkbox" id="humanOpponentCheckbox">
+        </div>
 
-    <div>
-        <label for="difficultySlider">Opponent Difficulty: </label>
-        <input type="range" id="difficultySlider" min="0" max="10" value="5" step="1" oninput="updateDifficulty(this.value)">
-        <span id="difficultyValue">5</span>
+        <div class="options">
+            <label for="difficultySlider">Opponent Difficulty: </label>
+            <input type="range" id="difficultySlider" min="0" max="10" value="5" step="1" oninput="updateDifficulty(this.value)">
+            <span id="difficultyValue">5</span>
+        </div>
     </div>
 
     <script src="model.js"></script>
