@@ -43,7 +43,7 @@ class DQNModel {
         }));
         
         this.model.compile({
-            optimizer: tf.train.adam(0.00025),
+            optimizer: tf.train.adam(0.003),
             loss: 'meanSquaredError'
         });
     }
@@ -57,11 +57,16 @@ class DQNModel {
     }
 
     async train(states, targets) {
-        // Ensure states have the correct shape
+        // Reshape states
         const reshapedStates = tf.reshape(states, [-1, ...this.model.inputs[0].shape.slice(1)]);
-        await this.model.fit(reshapedStates, targets, {
+
+        const result = await this.model.fit(reshapedStates, targets, {
             epochs: 1,
             batchSize: states.shape[0]
         });
+
+        reshapedStates.dispose(); // Dispose reshapedStates
+
+        return result.history.loss[0];
     }
 }

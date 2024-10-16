@@ -22,7 +22,7 @@ async function runEpisode() {
         let state = game.getState();
         let done = false;
         totalReward = 0;
-        const episodeMemory = [];
+        let loss = 0;
 
         while (!done) {
             const action = agent.act(state, isTraining);
@@ -35,12 +35,12 @@ async function runEpisode() {
 
             game.update();
             const nextState = game.getState();
-            const reward = game.getReward(); // New method to get the reward
+            const reward = game.getReward();
             totalReward += reward;
             done = game.gameOver;
 
             if (isTraining) {
-                episodeMemory.push([state, action, reward, nextState, done]);
+                agent.remember(state, action, reward, nextState, done);
             }
 
             state = nextState;
@@ -49,24 +49,22 @@ async function runEpisode() {
                 game.draw();
             }
 
-            await new Promise(resolve => setTimeout(resolve, 10)); // Small delay to control game speed
+            await new Promise(resolve => setTimeout(resolve, 10));
         }
 
-        // Train at the end of the episode
-        if (isTraining) {
-            await agent.trainOnEpisode(episodeMemory);
-        }
-
-        // Add console log for game over with final score
         console.log(`Game Over! Episode: ${episode + 1}, Final Score: ${totalReward}`);
 
+        if (isTraining) {
+            loss = await agent.replay();
+        }
+
         episode++;
-        visualization.updateChart(episode, totalReward, agent.epsilon);
+        visualization.updateChart(episode, totalReward, agent.epsilon, loss);
 
         if (isTraining) {
             runEpisode();
         } else {
-            setTimeout(runEpisode, 1000); // Wait a second before starting a new episode in test mode
+            setTimeout(runEpisode, 1000);
         }
     } catch (error) {
         console.error('Error in runEpisode:', error);
