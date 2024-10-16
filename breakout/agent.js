@@ -1,98 +1,119 @@
 class DQNAgent {
-    constructor(stateShape, numActions, batchSize = 1000, memorySize = 100000, gamma = 0.99, epsilonDecay = 0.995) {
-        this.stateShape = stateShape; // [42, 42]
+    constructor(stateShape, numActions, batchSize = 1000, memorySize = 100000, gamma = 0.99, epsilonStart = 0.7, epsilonEnd = 0.1, epsilonDecaySteps = 100000) {
+        this.stateShape = stateShape;
         this.numActions = numActions;
         this.batchSize = batchSize;
+        this.memorySize = memorySize;
         this.gamma = gamma;
-        this.epsilon = 1.0;
-        this.epsilonMin = 0.01;
-        this.epsilonDecay = epsilonDecay;
-        this.model = new DQNModel([...stateShape, 1], numActions);
-        this.memory = new PrioritizedReplayBuffer(memorySize);
+        this.epsilonStart = epsilonStart;
+        this.epsilonEnd = epsilonEnd;
+        this.epsilonDecaySteps = epsilonDecaySteps;
+        this.epsilon = epsilonStart;
+        this.totalSteps = 0;
+
+        this.model = new DQNModel(stateShape, numActions);
+        this.targetModel = new DQNModel(stateShape, numActions);
+        this.updateTargetModel();
+
+        this.memory = [];
+        this.updateFrequency = 10000;
+        this.stepsSinceUpdate = 0;
+        this.losses = [];
     }
 
     act(state, training = true) {
         if (training && Math.random() < this.epsilon) {
             return Math.floor(Math.random() * this.numActions);
         } else {
-            return tf.tidy(() => {
-                const stateTensor = tf.tensor2d(state.flat(), [1, state.flat().length]);
-                const prediction = this.model.predict(stateTensor);
-                return prediction.argMax(1).dataSync()[0];
-            });
+            // Remove tf.tidy() and manage tensors manually
+            const stateTensor = tf.tensor3d([state]);
+            const prediction = this.model.predict(stateTensor);
+            const actionTensor = prediction.argMax(1);
+            const action = actionTensor.dataSync()[0];
+
+            // Dispose tensors
+            stateTensor.dispose();
+            prediction.dispose();
+            actionTensor.dispose();
+
+            return action;
         }
     }
 
     remember(state, action, reward, nextState, done) {
-        this.memory.add(state, action, reward, nextState, done);
+        if (this.memory.length >= this.memorySize) {
+            this.memory.shift();
+        }
+        this.memory.push([state, action, reward, nextState, done]);
+
+        this.totalSteps++;
+        this.stepsSinceUpdate++;
+        this.updateEpsilon();
+
+        if (this.stepsSinceUpdate >= this.updateFrequency) {
+            this.updateTargetModel();
+            this.stepsSinceUpdate = 0;
+        }
     }
 
-    async trainOnEpisode(episodeMemory) {
-        // Add episode memory to the agent's memory
-        for (const experience of episodeMemory) {
-            this.remember(...experience);
-        }
+    updateTargetModel() {
+        this.targetModel.model.setWeights(this.model.model.getWeights());
+    }
 
-        // Perform multiple replay steps
-        const replaySteps = Math.min(10, Math.floor(episodeMemory.length / this.batchSize));
-        for (let i = 0; i < replaySteps; i++) {
-            await this.replay();
-        }
-
-        // Decay epsilon
-        if (this.epsilon > this.epsilonMin) {
-            this.epsilon *= this.epsilonDecay;
-        }
+    updateEpsilon() {
+        this.epsilon = Math.max(
+            this.epsilonEnd,
+            this.epsilonStart - (this.epsilonStart - this.epsilonEnd) * (this.totalSteps / this.epsilonDecaySteps)
+        );
     }
 
     async replay() {
-        if (this.memory.buffer.length < this.batchSize) return;
+        if (this.memory.length < this.batchSize) return;
 
-        try {
-            const { samples, indices, weights } = this.memory.sample(this.batchSize);
+        const samples = this.sampleMemory(this.batchSize);
 
-            const states = tf.tensor2d(samples.map(x => x[0].flat()), [this.batchSize, this.stateShape[0] * this.stateShape[1]]);
-            const nextStates = tf.tensor2d(samples.map(x => x[3].flat()), [this.batchSize, this.stateShape[0] * this.stateShape[1]]);
+        const states = tf.tensor3d(samples.map(x => x[0]));
+        const nextStates = tf.tensor3d(samples.map(x => x[3]));
 
-            const currentQs = this.model.predict(states);
-            const nextQs = this.model.predict(nextStates);
+        const currentQs = this.model.predict(states);
+        const futureQs = this.targetModel.predict(nextStates);
 
-            const updatedQs = currentQs.arraySync();
-            const errors = [];
+        // Calculate target Q-values
+        const maxFutureQs = futureQs.max(1);
+        const doneMask = tf.tensor1d(samples.map(s => s[4] ? 0 : 1));
 
-            for (let i = 0; i < this.batchSize; i++) {
-                const [, action, reward, , done] = samples[i];
-                const oldQ = updatedQs[i][action];
-                if (done) {
-                    updatedQs[i][action] = reward;
-                } else {
-                    updatedQs[i][action] = reward + this.gamma * Math.max(...nextQs.arraySync()[i]);
-                }
-                errors.push(Math.abs(oldQ - updatedQs[i][action]));
-            }
+        const rewards = tf.tensor1d(samples.map(s => s[2]));
+        const updatedQs = rewards.add(maxFutureQs.mul(this.gamma).mul(doneMask));
 
-            const targets = tf.tensor2d(updatedQs);
+        const oneHotActions = tf.oneHot(tf.tensor1d(samples.map(s => s[1]), 'int32'), this.numActions);
+        const masks = oneHotActions;
 
-            // Apply importance sampling weights manually
-            const weightedTargets = tf.tidy(() => {
-                const weightsTensor = tf.tensor1d(weights);
-                return targets.mul(weightsTensor.expandDims(1));
-            });
+        const targets = currentQs.mul(tf.scalar(1).sub(masks)).add(oneHotActions.mul(tf.expandDims(updatedQs, 1)));
 
-            await this.model.train(states, weightedTargets);
+        const loss = await this.model.train(states, targets);
 
-            this.memory.update(indices, errors);
+        // Dispose tensors to free memory
+        states.dispose();
+        nextStates.dispose();
+        currentQs.dispose();
+        futureQs.dispose();
+        maxFutureQs.dispose();
+        doneMask.dispose();
+        rewards.dispose();
+        updatedQs.dispose();
+        oneHotActions.dispose();
+        masks.dispose();
+        targets.dispose();
 
-            states.dispose();
-            nextStates.dispose();
-            currentQs.dispose();
-            nextQs.dispose();
-            targets.dispose();
-            weightedTargets.dispose();
-        } catch (error) {
-            console.error('Error in replay method:', error);
-        }
+        return loss;
     }
 
-    // ... (remove getBatch and flattenState methods as they're no longer needed)
+    sampleMemory(batchSize) {
+        const samples = [];
+        for (let i = 0; i < batchSize; i++) {
+            const randomIndex = Math.floor(Math.random() * this.memory.length);
+            samples.push(this.memory[randomIndex]);
+        }
+        return samples;
+    }
 }

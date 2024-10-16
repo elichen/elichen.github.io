@@ -12,8 +12,9 @@ class Game {
         this.colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'];
         this.initBricks();
         this.lastBallY = this.ball.y; // Add this line to track the ball's last Y position
-        this.rewardForKeepingBallInPlay = 0.1; // Small positive reward
         this.penaltyForLosingBall = -1; // Negative reward for losing the ball
+        this.rewardForHittingPaddle = 1; // New reward for hitting the paddle
+        this.ballHitPaddle = false; // New flag to track if the ball hit the paddle
     }
 
     initBricks() {
@@ -77,6 +78,7 @@ class Game {
             this.ball.x < this.paddle.x + this.paddle.width
         ) {
             this.ball.dy = -this.ball.dy;
+            this.ballHitPaddle = true; // Set the flag when the ball hits the paddle
         }
 
         // Ball collision with bricks
@@ -110,17 +112,21 @@ class Game {
 
         // Reward for breaking bricks
         if (this.score > 0) {
+            console.log("rewarding for breaking bricks", this.score);
             reward += this.score;
             this.score = 0; // Reset the score after adding it to the reward
         }
 
-        // Small positive reward for keeping the ball in play
-        if (this.ball.y < this.lastBallY && !this.gameOver) {
-            reward += this.rewardForKeepingBallInPlay;
+        // Reward for hitting the paddle
+        if (this.ballHitPaddle) {
+            console.log("rewarding for hitting paddle", this.rewardForHittingPaddle);
+            reward += this.rewardForHittingPaddle;
+            this.ballHitPaddle = false; // Reset the flag after giving the reward
         }
 
         // Penalty for losing the ball
         if (this.gameOver) {
+            console.log("penalizing for losing ball", this.penaltyForLosingBall);
             reward += this.penaltyForLosingBall;
         }
 
@@ -173,6 +179,7 @@ class Game {
         this.gameOver = false;
         this.initBricks();
         this.lastBallY = this.ball.y;
+        this.ballHitPaddle = false;
     }
 
     getRandomAngle() {
