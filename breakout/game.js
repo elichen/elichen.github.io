@@ -206,38 +206,27 @@ class Game {
     }
 
     getState() {
-        const state = new Array(this.height).fill(0).map(() => new Array(this.width).fill(0));
+        const state = [];
         
-        // Add paddle
-        for (let x = Math.floor(this.paddle.x); x < Math.floor(this.paddle.x + this.paddle.width); x++) {
-            if (x >= 0 && x < this.width) {
-                state[Math.floor(this.paddle.y)][x] = 1;
-            }
-        }
+        // Add paddle position
+        state.push(this.paddle.x / this.width);
+        state.push(this.paddle.y / this.height);
         
-        // Add ball
-        const ballX = Math.floor(this.ball.x);
-        const ballY = Math.floor(this.ball.y);
-        if (ballX >= 0 && ballX < this.width && ballY >= 0 && ballY < this.height) {
-            state[ballY][ballX] = 2;
-        }
+        // Add ball position
+        state.push(this.ball.x / this.width);
+        state.push(this.ball.y / this.height);
         
-        // Add bricks
+        // Add brick positions (only for active bricks)
         for (const brick of this.bricks) {
             if (brick.status === 1) {
-                for (let y = Math.floor(brick.y); y < Math.floor(brick.y + brick.height); y++) {
-                    for (let x = Math.floor(brick.x); x < Math.floor(brick.x + brick.width); x++) {
-                        if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-                            state[y][x] = 3;
-                        }
-                    }
-                }
+                state.push(brick.x / this.width);
+                state.push(brick.y / this.height);
+            } else {
+                state.push(-1); // Use -1 to represent inactive bricks
+                state.push(-1);
             }
         }
         
-        // Resize the state and add channel dimension
-        let resizedState = this.resizeState(state, 42, 42).map(row => row.map(value => value / 3)); // Normalize between 0 and 1
-
-        return resizedState; // This is now a 42x42x1 array
+        return state;
     }
 }
