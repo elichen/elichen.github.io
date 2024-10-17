@@ -1,5 +1,5 @@
 class DQNAgent {
-    constructor(inputSize, numActions, batchSize = 1000, memorySize = 100000, gamma = 0.99, epsilonStart = 1.0, epsilonEnd = 0.1, fixedEpsilonEpisodes = 250, decayEpsilonEpisodes = 250) {
+    constructor(inputSize, numActions, batchSize = 1000, memorySize = 100000, gamma = 0.99, epsilonStart = 1.0, epsilonEnd = 0.1, fixedEpsilonEpisodes = 1000, decayEpsilonEpisodes = 1000, targetUpdateEpisodes = 10) {
         this.inputSize = inputSize;
         this.numActions = numActions;
         this.batchSize = batchSize;
@@ -11,14 +11,14 @@ class DQNAgent {
         this.decayEpsilonEpisodes = decayEpsilonEpisodes;
         this.epsilon = epsilonStart;
         this.episodeCount = 0;
+        this.targetUpdateEpisodes = targetUpdateEpisodes;
+        this.episodesSinceUpdate = 0;
 
         this.model = new DQNModel(inputSize, numActions);
         this.targetModel = new DQNModel(inputSize, numActions);
         this.updateTargetModel();
 
         this.memory = [];
-        this.updateFrequency = 1000;
-        this.stepsSinceUpdate = 0;
         this.losses = [];
     }
 
@@ -43,18 +43,12 @@ class DQNAgent {
         }
         this.memory.push([state, action, reward, nextState, done]);
 
-        this.totalSteps++;
-        this.stepsSinceUpdate++;
         this.updateEpsilon();
-
-        if (this.stepsSinceUpdate >= this.updateFrequency) {
-            this.updateTargetModel();
-            this.stepsSinceUpdate = 0;
-        }
     }
 
     updateTargetModel() {
         this.targetModel.model.setWeights(this.model.model.getWeights());
+        console.log("Target model updated");
     }
 
     updateEpsilon() {
@@ -114,6 +108,12 @@ class DQNAgent {
     // Add a new method to increment episode count
     incrementEpisode() {
         this.episodeCount++;
+        this.episodesSinceUpdate++;
         this.updateEpsilon();
+
+        if (this.episodesSinceUpdate >= this.targetUpdateEpisodes) {
+            this.updateTargetModel();
+            this.episodesSinceUpdate = 0;
+        }
     }
 }
