@@ -1,22 +1,23 @@
 class DQNAgent {
-    constructor(stateShape, numActions, batchSize = 1000, memorySize = 100000, gamma = 0.99, epsilonStart = 0.7, epsilonEnd = 0.1, epsilonDecaySteps = 100000) {
-        this.stateShape = stateShape;
+    constructor(inputSize, numActions, batchSize = 1000, memorySize = 100000, gamma = 0.99, epsilonStart = 1.0, epsilonEnd = 0.1, fixedEpsilonEpisodes = 250, decayEpsilonEpisodes = 250) {
+        this.inputSize = inputSize;
         this.numActions = numActions;
         this.batchSize = batchSize;
         this.memorySize = memorySize;
         this.gamma = gamma;
         this.epsilonStart = epsilonStart;
         this.epsilonEnd = epsilonEnd;
-        this.epsilonDecaySteps = epsilonDecaySteps;
+        this.fixedEpsilonEpisodes = fixedEpsilonEpisodes;
+        this.decayEpsilonEpisodes = decayEpsilonEpisodes;
         this.epsilon = epsilonStart;
-        this.totalSteps = 0;
+        this.episodeCount = 0;
 
-        this.model = new DQNModel(stateShape, numActions);
-        this.targetModel = new DQNModel(stateShape, numActions);
+        this.model = new DQNModel(inputSize, numActions);
+        this.targetModel = new DQNModel(inputSize, numActions);
         this.updateTargetModel();
 
         this.memory = [];
-        this.updateFrequency = 10000;
+        this.updateFrequency = 1000;
         this.stepsSinceUpdate = 0;
         this.losses = [];
     }
@@ -25,14 +26,10 @@ class DQNAgent {
         if (training && Math.random() < this.epsilon) {
             return Math.floor(Math.random() * this.numActions);
         } else {
-            // Remove tf.tidy() and manage tensors manually
-            const stateTensor = tf.tensor3d([state]);
-            const prediction = this.model.predict(stateTensor);
+            const prediction = this.model.predict(state);
             const actionTensor = prediction.argMax(1);
             const action = actionTensor.dataSync()[0];
 
-            // Dispose tensors
-            stateTensor.dispose();
             prediction.dispose();
             actionTensor.dispose();
 
@@ -61,10 +58,17 @@ class DQNAgent {
     }
 
     updateEpsilon() {
-        this.epsilon = Math.max(
-            this.epsilonEnd,
-            this.epsilonStart - (this.epsilonStart - this.epsilonEnd) * (this.totalSteps / this.epsilonDecaySteps)
-        );
+        if (this.episodeCount <= this.fixedEpsilonEpisodes) {
+            // Maintain epsilonStart for fixedEpsilonEpisodes
+            this.epsilon = this.epsilonStart;
+        } else {
+            // Linear decay from epsilonStart to epsilonEnd over decayEpsilonEpisodes
+            const decayProgress = Math.min(1, (this.episodeCount - this.fixedEpsilonEpisodes) / this.decayEpsilonEpisodes);
+            this.epsilon = Math.max(
+                this.epsilonEnd,
+                this.epsilonStart - (this.epsilonStart - this.epsilonEnd) * decayProgress
+            );
+        }
     }
 
     async replay() {
@@ -72,38 +76,28 @@ class DQNAgent {
 
         const samples = this.sampleMemory(this.batchSize);
 
-        const states = tf.tensor3d(samples.map(x => x[0]));
-        const nextStates = tf.tensor3d(samples.map(x => x[3]));
+        const states = samples.map(x => x[0]);
+        const nextStates = samples.map(x => x[3]);
 
         const currentQs = this.model.predict(states);
         const futureQs = this.targetModel.predict(nextStates);
 
-        // Calculate target Q-values
-        const maxFutureQs = futureQs.max(1);
-        const doneMask = tf.tensor1d(samples.map(s => s[4] ? 0 : 1));
+        const updatedQValues = samples.map((sample, index) => {
+            const [, action, reward, , done] = sample;
+            const currentQ = currentQs.arraySync()[index];
+            const futureQ = futureQs.arraySync()[index];
+            const maxFutureQ = Math.max(...futureQ);
+            
+            const updatedQ = [...currentQ];
+            updatedQ[action] = reward + (done ? 0 : this.gamma * maxFutureQ);
+            
+            return updatedQ;
+        });
 
-        const rewards = tf.tensor1d(samples.map(s => s[2]));
-        const updatedQs = rewards.add(maxFutureQs.mul(this.gamma).mul(doneMask));
+        const loss = await this.model.train(states, updatedQValues);
 
-        const oneHotActions = tf.oneHot(tf.tensor1d(samples.map(s => s[1]), 'int32'), this.numActions);
-        const masks = oneHotActions;
-
-        const targets = currentQs.mul(tf.scalar(1).sub(masks)).add(oneHotActions.mul(tf.expandDims(updatedQs, 1)));
-
-        const loss = await this.model.train(states, targets);
-
-        // Dispose tensors to free memory
-        states.dispose();
-        nextStates.dispose();
         currentQs.dispose();
         futureQs.dispose();
-        maxFutureQs.dispose();
-        doneMask.dispose();
-        rewards.dispose();
-        updatedQs.dispose();
-        oneHotActions.dispose();
-        masks.dispose();
-        targets.dispose();
 
         return loss;
     }
@@ -115,5 +109,11 @@ class DQNAgent {
             samples.push(this.memory[randomIndex]);
         }
         return samples;
+    }
+
+    // Add a new method to increment episode count
+    incrementEpisode() {
+        this.episodeCount++;
+        this.updateEpsilon();
     }
 }

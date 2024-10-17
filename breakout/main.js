@@ -3,7 +3,8 @@ canvas.width = 800;
 canvas.height = 600;
 
 const game = new Game(canvas);
-const agent = new DQNAgent([42, 42, 1], 3); // Ensure this matches the game state shape
+const inputSize = 2 + 2 + (6 * 13 * 2); // paddle (2) + ball (2) + bricks (6 rows * 13 columns * 2 coordinates)
+const agent = new DQNAgent(inputSize, 3);
 const visualization = new Visualization();
 
 let isTraining = true;
@@ -56,6 +57,7 @@ async function runEpisode() {
 
         if (isTraining) {
             loss = await agent.replay();
+            agent.incrementEpisode(); // Add this line to increment the episode count
         }
 
         episode++;
