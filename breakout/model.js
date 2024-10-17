@@ -1,30 +1,15 @@
 class DQNModel {
     constructor(inputSize, numActions) {
-        this.model = tf.sequential();
-        
-        // Input layer
-        this.model.add(tf.layers.dense({
-            inputShape: [inputSize],
-            units: 128,
-            activation: 'relu'
-        }));
-        
-        // Hidden layers
-        this.model.add(tf.layers.dense({
-            units: 64,
-            activation: 'relu'
-        }));
-        
-        this.model.add(tf.layers.dense({
-            units: 32,
-            activation: 'relu'
-        }));
-        
-        // Output layer
-        this.model.add(tf.layers.dense({
-            units: numActions,
-            activation: 'linear'
-        }));
+        this.model = tf.sequential({
+            layers: [
+                tf.layers.dense({inputShape: [inputSize], units: 128, activation: 'relu'}),
+                tf.layers.dense({units: 256, activation: 'relu'}),
+                tf.layers.dense({units: 256, activation: 'relu'}),
+                tf.layers.dense({units: 256, activation: 'relu'}),
+                tf.layers.dense({units: 256, activation: 'relu'}),
+                tf.layers.dense({units: numActions, activation: 'linear'})
+            ]
+        });
         
         this.model.compile({
             optimizer: tf.train.adam(0.001),
