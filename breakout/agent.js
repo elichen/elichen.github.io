@@ -1,5 +1,5 @@
 class DQNAgent {
-    constructor(inputSize, numActions, batchSize = 1000, memorySize = 100000, gamma = 0.99, epsilonStart = 1.0, epsilonEnd = 0.1, fixedEpsilonEpisodes = 1000, decayEpsilonEpisodes = 1000, targetUpdateEpisodes = 10) {
+    constructor(inputSize, numActions, batchSize = 1000, memorySize = 100000, gamma = 0.99, epsilonStart = 1.0, epsilonEnd = 0.1, fixedEpsilonEpisodes = 1000, decayEpsilonEpisodes = 2000, targetUpdateEpisodes = 10) {
         this.inputSize = inputSize;
         this.numActions = numActions;
         this.batchSize = batchSize;
