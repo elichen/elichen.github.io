@@ -12,8 +12,8 @@ class Game {
         this.colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'];
         this.initBricks();
         this.lastBallY = this.ball.y; // Add this line to track the ball's last Y position
-        this.penaltyForLosingBall = -1; // Negative reward for losing the ball
-        this.rewardForHittingPaddle = 1; // New reward for hitting the paddle
+        this.penaltyForLosingBall = 0; // Negative reward for losing the ball
+        this.rewardForHittingPaddle = .1; // New reward for hitting the paddle
         this.ballHitPaddle = false; // New flag to track if the ball hit the paddle
     }
 
