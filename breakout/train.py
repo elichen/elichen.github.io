@@ -164,10 +164,10 @@ class DQNModel:
         self.model.compile(optimizer=tf.keras.optimizers.Adam(0.001), loss='mse')
 
     def predict(self, state):
-        return self.model.predict(state)
+        return self.model.predict(state, verbose=0)
 
-    def train(self, states, targets, batch_size):
-        return self.model.fit(states, targets, epochs=1, verbose=0, batch_size=batch_size)
+    def train(self, states, targets):
+        return self.model.fit(states, targets, epochs=1, verbose=0)
     
 class DQNAgent:
     def __init__(self, input_size, num_actions, batch_size=1000, memory_size=100000, gamma=0.99,
@@ -236,7 +236,7 @@ class DQNAgent:
             else:
                 targets[i, actions[i]] = rewards[i] + self.gamma * np.max(next_q_values[i])
 
-        loss = self.model.train(states, targets, batch_size=self.batch_size).history['loss'][0]
+        loss = self.model.train(states, targets).history['loss'][0]
         return loss
 
     def sample_memory(self, batch_size):
@@ -304,9 +304,7 @@ def train_dqn(num_episodes, plot_interval=100):
             agent.remember(state, action, reward, next_state, game.game_over)
             state = next_state
             
-            if len(agent.memory) >= agent.batch_size:
-                loss = agent.replay()
-        
+        loss = agent.replay()
         agent.increment_episode()
         scores.append(total_reward)
         epsilons.append(agent.epsilon)
