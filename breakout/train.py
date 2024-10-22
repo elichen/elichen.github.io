@@ -5,6 +5,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 from IPython.display import clear_output
 import random
+from collections import deque
 
 class Game:
     def __init__(self, width=800, height=600):
@@ -18,8 +19,9 @@ class Game:
         self.colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3']
         self.init_bricks()
         self.last_ball_y = self.ball['y']
-        self.penalty_for_losing_ball = 0
+        self.penalty_for_losing_ball = -1  # Change from 0 to -1
         self.reward_for_hitting_paddle = 0.1
+        self.reward_for_breaking_brick = 1  # Add this line
         self.ball_hit_paddle = False
 
     def init_bricks(self):
@@ -97,7 +99,7 @@ class Game:
 
         # Reward for breaking bricks
         if self.score > 0:
-            reward += self.score
+            reward += self.score * self.reward_for_breaking_brick
             self.score = 0
 
         # Reward for hitting the paddle
@@ -170,7 +172,7 @@ class DQNModel:
         return self.model.fit(states, targets, epochs=1, verbose=0)
     
 class DQNAgent:
-    def __init__(self, input_size, num_actions, batch_size=1000, memory_size=100000, gamma=0.99,
+    def __init__(self, input_size, num_actions, batch_size=1000, memory_size=10000, gamma=0.99,
                  epsilon_start=1.0, epsilon_end=0.1, fixed_epsilon_episodes=1000,
                  decay_epsilon_episodes=2000, target_update_episodes=10):
         self.input_size = input_size
@@ -191,8 +193,8 @@ class DQNAgent:
         self.target_model = DQNModel(input_size, num_actions)
         self.update_target_model()
 
-        self.memory = []
-        self.losses = []
+        # Add this line to use deque for efficient memory management
+        self.memory = deque(maxlen=memory_size)
 
     def act(self, state, training=True):
         if training and np.random.rand() < self.epsilon:
@@ -202,8 +204,6 @@ class DQNAgent:
             return np.argmax(q_values)
 
     def remember(self, state, action, reward, next_state, done):
-        if len(self.memory) >= self.memory_size:
-            self.memory.pop(0)
         self.memory.append((np.array(state), action, reward, np.array(next_state), done))
 
     def update_target_model(self):
@@ -251,36 +251,13 @@ class DQNAgent:
             self.update_target_model()
             self.episodes_since_update = 0
 
-def plot_training_progress(scores, epsilons, losses):
-    clear_output(wait=True)
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 15))
-    
-    ax1.plot(scores)
-    ax1.set_title('Score per Episode')
-    ax1.set_xlabel('Episode')
-    ax1.set_ylabel('Score')
-    
-    ax2.plot(epsilons)
-    ax2.set_title('Epsilon Value')
-    ax2.set_xlabel('Episode')
-    ax2.set_ylabel('Epsilon')
-    
-    ax3.plot(losses)
-    ax3.set_title('Smoothed Loss')
-    ax3.set_xlabel('Episode')
-    ax3.set_ylabel('Loss')
-    
-    plt.tight_layout()
-    plt.show()
+from memory_profiler import profile
 
+@profile
 def train_dqn(num_episodes, plot_interval=100):
     game = Game()
     input_size = 2 + 2 + (6 * 13 * 2)  # paddle (2) + ball (2) + bricks (6 rows * 13 columns * 2 coordinates)
     agent = DQNAgent(input_size, 3)
-    
-    scores = []
-    epsilons = []
-    losses = []
     
     for episode in range(num_episodes):
         game.reset()
@@ -306,19 +283,16 @@ def train_dqn(num_episodes, plot_interval=100):
             
         loss = agent.replay()
         agent.increment_episode()
-        scores.append(total_reward)
-        epsilons.append(agent.epsilon)
-        losses.append(loss)
         
         if (episode + 1) % plot_interval == 0:
-            plot_training_progress(scores, epsilons, losses)
-            print(f"Episode: {episode + 1}, Score: {total_reward}, Epsilon: {agent.epsilon:.4f}, Loss: {loss:.4f}")
+            print(f"Episode: {episode + 1}, Score: {total_reward}, Epsilon: {agent.epsilon:.4f}, Loss: {loss if loss is not None else 'N/A'}")
     
     return agent, scores, epsilons, losses
 
 # This part is not executed when the file is imported
 if __name__ == "__main__":
     num_episodes = 10000  # You can adjust this value
-    agent, scores, epsilons, losses = train_dqn(num_episodes)
+    agent = train_dqn(num_episodes)
     agent.model.model.save('breakout_dqn_model')
     print("Training completed. Model saved as 'breakout_dqn_model'.")
+
