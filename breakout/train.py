@@ -289,8 +289,10 @@ def train_dqn(num_episodes, plot_interval=100):
 
 # This part is not executed when the file is imported
 if __name__ == "__main__":
+    import os
+    os.environ['TF_USE_LEGACY_KERAS'] = '1'
+    
     num_episodes = 10000  # You can adjust this value
     agent = train_dqn(num_episodes)
-    agent.model.model.save('breakout_dqn_model')
+    agent.model.model.save('breakout_dqn_model.keras')
     print("Training completed. Model saved as 'breakout_dqn_model'.")
-
