@@ -286,8 +286,9 @@ def train_dqn(num_episodes, plot_interval=100):
         
         if (episode + 1) % plot_interval == 0:
             print(f"Episode: {episode + 1}, Score: {total_reward}, Epsilon: {agent.epsilon:.4f}, Loss: {loss if loss is not None else 'N/A'}")
+            tf.keras.backend.clear_session()
     
-    return agent, scores, epsilons, losses
+    return agent
 
 # This part is not executed when the file is imported
 if __name__ == "__main__":
