@@ -251,9 +251,6 @@ class DQNAgent:
             self.update_target_model()
             self.episodes_since_update = 0
 
-from memory_profiler import profile
-
-@profile
 def train_dqn(num_episodes, plot_interval=100):
     game = Game()
     input_size = 2 + 2 + (6 * 13 * 2)  # paddle (2) + ball (2) + bricks (6 rows * 13 columns * 2 coordinates)
