@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from IPython.display import clear_output
 import random
 from collections import deque
+import time  # Add this import at the top of the file
 
 class Game:
     def __init__(self, width=800, height=600):
@@ -72,9 +73,18 @@ class Game:
 
         # Ball collision with paddle
         if (self.ball['y'] + self.ball['radius'] > self.paddle['y'] and
+            self.ball['y'] - self.ball['radius'] < self.paddle['y'] + self.paddle['height'] and
             self.ball['x'] > self.paddle['x'] and
             self.ball['x'] < self.paddle['x'] + self.paddle['width']):
-            self.ball['dy'] = -self.ball['dy']
+            # Only reverse direction if the ball is moving downward
+            if self.ball['dy'] > 0:
+                self.ball['dy'] = -self.ball['dy']
+                
+                # Add variation to ball direction based on paddle hit position
+                hit_position = (self.ball['x'] - self.paddle['x']) / self.paddle['width']
+                max_angle_offset = 1
+                self.ball['dx'] = self.ball['dx'] + (hit_position - 0.5) * max_angle_offset
+            
             self.ball_hit_paddle = True
 
         # Ball collision with bricks
@@ -163,7 +173,7 @@ class DQNModel:
             tf.keras.layers.Dense(num_actions, activation='linear')
         ])
         
-        self.model.compile(optimizer=tf.keras.optimizers.Adam(0.001), loss='mse')
+        self.model.compile(optimizer=tf.keras.optimizers.Adam(0.0003), loss='mse')
 
     def predict(self, state):
         return self.model.predict(state, verbose=0)
@@ -251,10 +261,44 @@ class DQNAgent:
             self.update_target_model()
             self.episodes_since_update = 0
 
-def train_dqn(num_episodes, plot_interval=100):
+def train_dqn(num_episodes, should_plot=False, plot_interval=100):
     game = Game()
-    input_size = 2 + 2 + (6 * 13 * 2)  # paddle (2) + ball (2) + bricks (6 rows * 13 columns * 2 coordinates)
+    input_size = 2 + 2 + (6 * 13 * 2)
     agent = DQNAgent(input_size, 3)
+    
+    last_time = time.time()
+    rewards_history = []
+    loss_history = []
+    epsilon_history = []
+    
+    # Create persistent figure and axes
+    if should_plot:
+        plt.ioff()  # Turn off interactive mode
+        fig = plt.figure(figsize=(10, 6))
+        ax = fig.add_subplot(111)
+        ax2 = ax.twinx()
+        ax3 = ax.twinx()
+        
+        # Offset the right axes
+        ax3.spines['right'].set_position(('outward', 60))
+        
+        # Create lines for each plot
+        line_reward, = ax.plot([], [], label='Reward', color='blue')
+        line_loss, = ax2.plot([], [], label='Loss', color='red')
+        line_epsilon, = ax3.plot([], [], label='Epsilon', color='green')
+        
+        # Set labels
+        ax.set_xlabel('Episode')
+        ax.set_ylabel('Reward', color='blue')
+        ax2.set_ylabel('Loss', color='red')
+        ax3.set_ylabel('Epsilon', color='green')
+        
+        # Add legends
+        lines = [line_reward, line_loss, line_epsilon]
+        labels = [l.get_label() for l in lines]
+        ax.legend(lines, labels, loc='upper left')
+        
+        plt.tight_layout()
     
     for episode in range(num_episodes):
         game.reset()
@@ -264,7 +308,6 @@ def train_dqn(num_episodes, plot_interval=100):
         
         while not game.game_over:
             action = agent.act(state)
-            
             if action == 0:
                 game.move_paddle('left')
             elif action == 1:
@@ -274,16 +317,56 @@ def train_dqn(num_episodes, plot_interval=100):
             next_state = game.get_state()
             reward = game.get_reward()
             total_reward += reward
-            
             agent.remember(state, action, reward, next_state, game.game_over)
             state = next_state
             
         loss = agent.replay()
         agent.increment_episode()
         
+        rewards_history.append(total_reward)
+        loss_history.append(loss if loss is not None else 0)
+        epsilon_history.append(agent.epsilon)
+        
         if (episode + 1) % plot_interval == 0:
-            print(f"Episode: {episode + 1}, Score: {total_reward}, Epsilon: {agent.epsilon:.4f}, Loss: {loss if loss is not None else 'N/A'}")
+            current_time = time.time()
+            interval_duration = current_time - last_time
+            avg_reward = np.mean(rewards_history[-plot_interval:])
+            
+            if should_plot:
+                window_size = 20
+                
+                if len(loss_history) >= window_size:
+                    smoothed_loss = np.convolve(loss_history, np.ones(window_size)/window_size, mode='valid')
+                    
+                    x_rewards = list(range(len(rewards_history)))
+                    x_loss = list(range(window_size-1, len(loss_history)))
+                    x_epsilon = list(range(len(epsilon_history)))
+                    
+                    # Update data
+                    line_reward.set_data(x_rewards, rewards_history)
+                    line_loss.set_data(x_loss, smoothed_loss)
+                    line_epsilon.set_data(x_epsilon, epsilon_history)
+                    
+                    # Update limits
+                    ax.relim()
+                    ax2.relim()
+                    ax3.relim()
+                    ax.autoscale_view()
+                    ax2.autoscale_view()
+                    ax3.autoscale_view()
+                    
+                    # Update display
+                    fig.canvas.draw()
+                    clear_output(wait=True)
+                    display(fig)
+            
+            print(f"Episode: {episode + 1}, Avg Score: {avg_reward:.2f}, Epsilon: {agent.epsilon:.4f}, Loss: {loss if loss is not None else 'N/A'}, Time: {interval_duration:.2f}s")
+            
+            last_time = current_time
             tf.keras.backend.clear_session()
+    
+    if should_plot:
+        plt.close(fig)
     
     return agent
 
@@ -292,7 +375,20 @@ if __name__ == "__main__":
     import os
     os.environ['TF_USE_LEGACY_KERAS'] = '1'
     
-    num_episodes = 10000  # You can adjust this value
+    # Add a flag to control profiling
+    ENABLE_PROFILING = False
+    num_episodes = 1000
+
+    if ENABLE_PROFILING:
+        import cProfile
+        import pstats
+        profiler = cProfile.Profile()
+        profiler.enable()
+        
     agent = train_dqn(num_episodes)
-    agent.model.model.save('breakout_dqn_model.keras')
-    print("Training completed. Model saved as 'breakout_dqn_model'.")
+    
+    if ENABLE_PROFILING:
+        profiler.disable()
+        stats = pstats.Stats(profiler).sort_stats('cumulative')
+        stats.print_stats(30)
+
