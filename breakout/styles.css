@@ -49,13 +49,3 @@ body {
     font-size: 16px;
     cursor: pointer;
 }
-
-#chart-container {
-    width: 800px;
-    height: 400px;
-}
-
-#chart {
-    width: 100%;
-    height: 100%;
-}
