@@ -27,7 +27,7 @@ function toggleMode() {
 }
 
 async function loadModelAndRun() {
-    await agent.loadModel('model.json');
+    await agent.loadModel('./model.json');
     runEpisode();
 }
 
