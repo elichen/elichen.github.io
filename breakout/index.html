@@ -6,7 +6,6 @@
     <title>Breakout DQN</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div id="container">
@@ -14,16 +13,13 @@
             <canvas id="gameCanvas"></canvas>
             <div id="score">Score: <span id="scoreValue">0</span></div>
             <div id="message"></div>
-            <button id="toggleMode">Switch to Test Mode</button>
-        </div>
-        <div id="chart-container">
-            <canvas id="chart"></canvas>
+            <button id="toggleMode">Switch to Human Mode</button>
         </div>
     </div>
     <script src="game.js"></script>
     <script src="model.js"></script>
     <script src="agent.js"></script>
-    <script src="visualization.js"></script>
+    <script src="human.js"></script>
     <script src="main.js"></script>
 </body>
 </html>
