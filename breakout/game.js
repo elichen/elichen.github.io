@@ -74,11 +74,20 @@ class Game {
         // Ball collision with paddle
         if (
             this.ball.y + this.ball.radius > this.paddle.y &&
+            this.ball.y - this.ball.radius < this.paddle.y + this.paddle.height &&
             this.ball.x > this.paddle.x &&
             this.ball.x < this.paddle.x + this.paddle.width
         ) {
-            this.ball.dy = -this.ball.dy;
-            this.ballHitPaddle = true; // Set the flag when the ball hits the paddle
+            // Only reverse direction if the ball is moving downward
+            if (this.ball.dy > 0) {
+                this.ball.dy = -this.ball.dy;
+                
+                // Add some variation to the ball's direction based on where it hits the paddle
+                const hitPosition = (this.ball.x - this.paddle.x) / this.paddle.width;
+                const maxAngleOffset = 1;
+                this.ball.dx = this.ball.dx + (hitPosition - 0.5) * maxAngleOffset;
+            }
+            this.ballHitPaddle = true;
         }
 
         // Ball collision with bricks
