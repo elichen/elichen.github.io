@@ -7,6 +7,7 @@ from IPython.display import clear_output
 import random
 from collections import deque
 import time  # Add this import at the top of the file
+import psutil
 
 class Game:
     def __init__(self, width=800, height=600):
@@ -173,16 +174,16 @@ class DQNModel:
             tf.keras.layers.Dense(num_actions, activation='linear')
         ])
         
-        self.model.compile(optimizer=tf.keras.optimizers.Adam(0.0003), loss='mse')
+        self.model.compile(optimizer=tf.keras.optimizers.Adam(0.0003), loss='mse', sample_weight_mode='temporal')
 
     def predict(self, state):
         return self.model.predict(state, verbose=0)
 
-    def train(self, states, targets):
-        return self.model.fit(states, targets, epochs=1, verbose=0)
+    def train(self, states, targets, sample_weight=None):
+        return self.model.fit(states, targets, sample_weight=sample_weight, epochs=1, verbose=0)
     
 class DQNAgent:
-    def __init__(self, input_size, num_actions, batch_size=1000, memory_size=10000, gamma=0.99,
+    def __init__(self, input_size, num_actions, batch_size=1000, memory_size=100000, gamma=0.99,
                  epsilon_start=1.0, epsilon_end=0.1, fixed_epsilon_episodes=1000,
                  decay_epsilon_episodes=2000, target_update_episodes=10):
         self.input_size = input_size
@@ -206,6 +207,14 @@ class DQNAgent:
         # Add this line to use deque for efficient memory management
         self.memory = deque(maxlen=memory_size)
 
+        # Priority replay parameters
+        self.memory = SumTree(memory_size)
+        self.abs_err_upper = 1.0  # clipping error
+        self.PER_e = 0.01  # small amount to avoid zero priority
+        self.PER_a = 0.6  # priority exponent
+        self.PER_b = 0.4  # importance sampling starting value
+        self.PER_b_increment = 0.001
+
     def act(self, state, training=True):
         if training and np.random.rand() < self.epsilon:
             return np.random.randint(self.num_actions)
@@ -214,7 +223,12 @@ class DQNAgent:
             return np.argmax(q_values)
 
     def remember(self, state, action, reward, next_state, done):
-        self.memory.append((np.array(state), action, reward, np.array(next_state), done))
+        # Set maximum priority for new experiences
+        max_priority = np.max(self.memory.tree[-self.memory.capacity:])
+        if max_priority == 0:
+            max_priority = self.abs_err_upper
+        
+        self.memory.add(max_priority, (state, action, reward, next_state, done))
 
     def update_target_model(self):
         self.target_model.model.set_weights(self.model.model.get_weights())
@@ -230,27 +244,62 @@ class DQNAgent:
             )
 
     def replay(self):
-        if len(self.memory) < self.batch_size:
+        if self.memory.n_entries < self.batch_size:
             return
-
-        samples = self.sample_memory(self.batch_size)
+            
+        samples, idxs, priorities = self.sample_memory(self.batch_size)
         states, actions, rewards, next_states, dones = map(np.array, zip(*samples))
-
+        
+        # Calculate importance sampling weights
+        sampling_probabilities = priorities / self.memory.total()
+        is_weights = np.power(self.memory.n_entries * sampling_probabilities, -self.PER_b)
+        is_weights /= is_weights.max()
+        
         current_q_values = self.model.predict(states)
         next_q_values = self.target_model.predict(next_states)
-
+        
         targets = current_q_values.copy()
+        
         for i in range(self.batch_size):
             if dones[i]:
                 targets[i, actions[i]] = rewards[i]
             else:
                 targets[i, actions[i]] = rewards[i] + self.gamma * np.max(next_q_values[i])
-
-        loss = self.model.train(states, targets).history['loss'][0]
+        
+        # Train with importance sampling weights
+        loss = self.model.train(states, targets, sample_weight=is_weights).history['loss'][0]
+        
+        # Update priorities
+        for i in range(self.batch_size):
+            td_error = np.abs(targets[i, actions[i]] - current_q_values[i, actions[i]])
+            priority = np.minimum((td_error + self.PER_e) ** self.PER_a, self.abs_err_upper)
+            self.memory.update(idxs[i], priority)
+        
+        # Increase beta each time we sample
+        self.PER_b = np.minimum(1., self.PER_b + self.PER_b_increment)
+        
         return loss
 
     def sample_memory(self, batch_size):
-        return random.sample(self.memory, batch_size)
+        batch = []
+        idxs = []
+        segment = self.memory.total() / batch_size
+        priorities = []
+        
+        for i in range(batch_size):
+            a = segment * i
+            b = segment * (i + 1)
+            
+            s = np.random.uniform(a, b)
+            idx, priority, data = self.memory.get(s)
+            
+            batch.append(data)
+            idxs.append(idx)
+            priorities.append(priority)
+            
+        samples = batch
+        
+        return samples, idxs, priorities
 
     def increment_episode(self):
         self.episode_count += 1
@@ -260,6 +309,52 @@ class DQNAgent:
         if self.episodes_since_update >= self.target_update_episodes:
             self.update_target_model()
             self.episodes_since_update = 0
+
+class SumTree:
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.tree = np.zeros(2 * capacity - 1)
+        self.data = np.zeros(capacity, dtype=object)
+        self.write = 0
+        self.n_entries = 0
+        
+    def _propagate(self, idx, change):
+        parent = (idx - 1) // 2
+        self.tree[parent] += change
+        if parent != 0:
+            self._propagate(parent, change)
+    
+    def _retrieve(self, idx, s):
+        left = 2 * idx + 1
+        right = left + 1
+        
+        if left >= len(self.tree):
+            return idx
+            
+        if s <= self.tree[left]:
+            return self._retrieve(left, s)
+        else:
+            return self._retrieve(right, s - self.tree[left])
+        
+    def total(self):
+        return self.tree[0]
+    
+    def add(self, p, data):
+        idx = self.write + self.capacity - 1
+        self.data[self.write] = data
+        self.update(idx, p)
+        self.write = (self.write + 1) % self.capacity
+        self.n_entries = min(self.n_entries + 1, self.capacity)
+        
+    def update(self, idx, p):
+        change = p - self.tree[idx]
+        self.tree[idx] = p
+        self._propagate(idx, change)
+        
+    def get(self, s):
+        idx = self._retrieve(0, s)
+        dataIdx = idx - self.capacity + 1
+        return (idx, self.tree[idx], self.data[dataIdx])
 
 def train_dqn(num_episodes, should_plot=False, plot_interval=100):
     game = Game()
