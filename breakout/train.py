@@ -166,11 +166,10 @@ class Game:
 class DQNModel:
     def __init__(self, input_size, num_actions):
         self.model = tf.keras.Sequential([
-            tf.keras.layers.Dense(256, activation='relu', input_shape=(input_size,)),
-            tf.keras.layers.Dense(512, activation='relu'),
-            tf.keras.layers.Dense(512, activation='relu'),
-            tf.keras.layers.Dense(512, activation='relu'),
+            tf.keras.layers.Dense(128, activation='relu', input_shape=(input_size,)),
             tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dense(128, activation='relu'),
             tf.keras.layers.Dense(num_actions, activation='linear')
         ])
         
@@ -180,10 +179,10 @@ class DQNModel:
         return self.model(state)
 
     def train(self, states, targets, sample_weight=None):
-        return self.model.fit(states, targets, sample_weight=sample_weight, epochs=3, verbose=0)
+        return self.model.fit(states, targets, sample_weight=sample_weight, epochs=1, verbose=0)
     
 class DQNAgent:
-    def __init__(self, input_size, num_actions, batch_size=100, memory_size=10000, gamma=0.99,
+    def __init__(self, input_size, num_actions, batch_size=1000, memory_size=100000, gamma=0.99,
                  epsilon_start=1.0, epsilon_end=0.1, fixed_epsilon_episodes=1000,
                  decay_epsilon_episodes=1000, target_update_episodes=50):
         self.input_size = input_size
