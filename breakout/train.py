@@ -184,7 +184,7 @@ class DQNModel:
 class DQNAgent:
     def __init__(self, input_size, num_actions, batch_size=1000, memory_size=100000, gamma=0.99,
                  epsilon_start=1.0, epsilon_end=0.1, fixed_epsilon_episodes=1000,
-                 decay_epsilon_episodes=1000, target_update_episodes=50):
+                 decay_epsilon_episodes=5000, target_update_episodes=50):
         self.input_size = input_size
         self.num_actions = num_actions
         self.batch_size = batch_size
@@ -375,19 +375,14 @@ def train_dqn(num_episodes, should_plot=False, plot_interval=100):
     rewards_history = []
     loss_history = []
     epsilon_history = []
-    steps_history = []
     
     if should_plot:
         plt.ioff()
         # Create figure
         fig = plt.figure(figsize=(12, 8))
         
-        # Create GridSpec to control subplot heights
-        gs = fig.add_gridspec(2, 1, height_ratios=[2, 1])
-        
-        # Create subplots using GridSpec
-        ax1 = fig.add_subplot(gs[0])
-        ax2 = fig.add_subplot(gs[1])
+        # Remove GridSpec and create single plot
+        ax1 = fig.add_subplot(111)
         
         # Top subplot for reward, loss, epsilon
         ax1_twin = ax1.twinx()
@@ -403,17 +398,10 @@ def train_dqn(num_episodes, should_plot=False, plot_interval=100):
         ax1_twin.set_ylabel('Loss', color='red')
         ax1_twin2.set_ylabel('Epsilon', color='green')
         
-        # Bottom subplot for steps
-        line_steps, = ax2.plot([], [], label='Steps', color='purple')
-        ax2.set_xlabel('Episode')
-        ax2.set_ylabel('Steps', color='purple')
-        
-        # Add legends
+        # Add legend
         lines1 = [line_reward, line_loss, line_epsilon]
         labels1 = [l.get_label() for l in lines1]
         ax1.legend(lines1, labels1, loc='upper left')
-        
-        ax2.legend(loc='upper left')
         
         plt.tight_layout()
     
@@ -422,10 +410,8 @@ def train_dqn(num_episodes, should_plot=False, plot_interval=100):
         state = game.get_state()
         total_reward = 0
         loss = 0
-        steps = 0  # Add steps counter
         
         while not game.game_over:
-            steps += 1  # Increment steps
             action = agent.act(state)
             if action == 0:
                 game.move_paddle('left')
@@ -445,7 +431,6 @@ def train_dqn(num_episodes, should_plot=False, plot_interval=100):
         rewards_history.append(total_reward)
         loss_history.append(loss if loss is not None else 0)
         epsilon_history.append(agent.epsilon)
-        steps_history.append(steps)  # Add steps to history
         
         if (episode + 1) % plot_interval == 0:
             current_time = time.time()
@@ -461,30 +446,26 @@ def train_dqn(num_episodes, should_plot=False, plot_interval=100):
                     x_rewards = list(range(len(rewards_history)))
                     x_loss = list(range(window_size-1, len(loss_history)))
                     x_epsilon = list(range(len(epsilon_history)))
-                    x_steps = list(range(len(steps_history)))
                     
-                    # Update data for both subplots
+                    # Update data for plots (remove steps)
                     line_reward.set_data(x_rewards, rewards_history)
                     line_loss.set_data(x_loss, smoothed_loss)
                     line_epsilon.set_data(x_epsilon, epsilon_history)
-                    line_steps.set_data(x_steps, steps_history)
                     
                     # Update limits
                     ax1.relim()
                     ax1_twin.relim()
                     ax1_twin2.relim()
-                    ax2.relim()
                     
                     ax1.autoscale_view()
                     ax1_twin.autoscale_view()
                     ax1_twin2.autoscale_view()
-                    ax2.autoscale_view()
                     
                     fig.canvas.draw()
                     clear_output(wait=True)
                     display(fig)
             
-            print(f"Episode: {episode + 1}, Steps: {steps}, Avg Score: {avg_reward:.2f}, Epsilon: {agent.epsilon:.4f}, Loss: {loss if loss is not None else 'N/A'}, Time: {interval_duration:.2f}s")
+            print(f"Episode: {episode + 1}, Avg Score: {avg_reward:.2f}, Epsilon: {agent.epsilon:.4f}, Loss: {loss if loss is not None else 'N/A'}, Time: {interval_duration:.2f}s")
             
             last_time = current_time
             tf.keras.backend.clear_session()
