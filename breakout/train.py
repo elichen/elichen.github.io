@@ -166,14 +166,14 @@ class Game:
 class DQNModel:
     def __init__(self, input_size, num_actions):
         self.model = tf.keras.Sequential([
-            tf.keras.layers.Dense(128, activation='relu', input_shape=(input_size,)),
+            tf.keras.layers.Dense(256, activation='relu', input_shape=(input_size,)),
             tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dense(128, activation='relu'),
+            tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(num_actions, activation='linear')
         ])
         
-        self.model.compile(optimizer=tf.keras.optimizers.Adam(0.0003), loss='mse', sample_weight_mode='temporal')
+        self.model.compile(optimizer=tf.keras.optimizers.Adam(0.003), loss='mse', sample_weight_mode='temporal')
 
     def predict(self, state):
         return self.model(state)
@@ -184,7 +184,7 @@ class DQNModel:
 class DQNAgent:
     def __init__(self, input_size, num_actions, batch_size=1000, memory_size=100000, gamma=0.99,
                  epsilon_start=1.0, epsilon_end=0.1, fixed_epsilon_episodes=1000,
-                 decay_epsilon_episodes=5000, target_update_episodes=50):
+                 decay_epsilon_episodes=1000, target_update_episodes=50):
         self.input_size = input_size
         self.num_actions = num_actions
         self.batch_size = batch_size
