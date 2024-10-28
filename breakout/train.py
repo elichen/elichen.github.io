@@ -148,15 +148,22 @@ class Game:
         return np.random.uniform(210, 330) * np.pi / 180
 
     def get_state(self):
+        # Basic state information (paddle and ball)
         state = [
             self.paddle['x'] / self.width,
             self.paddle['y'] / self.height,
             self.ball['x'] / self.width,
             self.ball['y'] / self.height,
-            self.ball['dx'] / 4,  # Adding ball velocity components (normalized)
+            self.ball['dx'] / 4,
             self.ball['dy'] / 4
         ]
-        # Remove brick state information
+        
+        # Add brick states
+        for brick in self.bricks:
+            state.append(brick['x'] / self.width)  # Normalized x position
+            state.append(brick['y'] / self.height)  # Normalized y position
+            state.append(float(brick['status']))    # Status (1 for active, 0 for broken)
+        
         return np.array(state)
 
 class DQNModel:
@@ -178,17 +185,20 @@ class DQNModel:
         return self.model.fit(states, targets, sample_weight=sample_weight, epochs=1, verbose=0)
     
 class DQNAgent:
-    def __init__(self, input_size, num_actions, 
-                 batch_size=1000,           # Reduced from 1000
-                 memory_size=100000,       # Reduced from 100000
+    def __init__(self, 
+                 batch_size=1000,
+                 memory_size=100000,
                  gamma=0.99,
                  epsilon_start=1.0,
-                 epsilon_end=0.01,        # Reduced from 0.1
-                 fixed_epsilon_episodes=200,  # Reduced from 1000
+                 epsilon_end=0.01,
+                 fixed_epsilon_episodes=200,
                  decay_epsilon_episodes=2000,
-                 target_update_episodes=100):  # Reduced from 50
-        self.input_size = input_size
-        self.num_actions = num_actions
+                 target_update_episodes=100):
+        # Create a game instance to determine input size
+        game = Game()
+        self.input_size = len(game.get_state())  # Get input size from game state
+        self.num_actions = 3  # Left, Right, or No action
+        
         self.batch_size = batch_size
         self.memory_size = memory_size
         self.gamma = gamma
@@ -201,19 +211,16 @@ class DQNAgent:
         self.target_update_episodes = target_update_episodes
         self.episodes_since_update = 0
 
-        self.model = DQNModel(input_size, num_actions)
-        self.target_model = DQNModel(input_size, num_actions)
+        self.model = DQNModel(self.input_size, self.num_actions)
+        self.target_model = DQNModel(self.input_size, self.num_actions)
         self.update_target_model()
-
-        # Add this line to use deque for efficient memory management
-        self.memory = deque(maxlen=memory_size)
 
         # Priority replay parameters
         self.memory = SumTree(memory_size)
-        self.abs_err_upper = 1.0  # clipping error
-        self.PER_e = 0.01  # small amount to avoid zero priority
-        self.PER_a = 0.6  # priority exponent
-        self.PER_b = 0.4  # importance sampling starting value
+        self.abs_err_upper = 1.0
+        self.PER_e = 0.01
+        self.PER_a = 0.6
+        self.PER_b = 0.4
         self.PER_b_increment = 0.001
 
     def act(self, state, training=True):
@@ -322,6 +329,105 @@ class DQNAgent:
             self.update_target_model()
             self.episodes_since_update = 0
 
+    def train(self, num_episodes, should_plot=False, plot_interval=100):
+        game = Game()
+        last_time = time.time()
+        rewards_history = []
+        loss_history = []
+        epsilon_history = []
+        
+        if should_plot:
+            plt.ioff()
+            fig = plt.figure(figsize=(12, 8))
+            
+            ax1 = fig.add_subplot(111)
+            ax1_twin = ax1.twinx()
+            ax1_twin2 = ax1.twinx()
+            ax1_twin2.spines['right'].set_position(('outward', 60))
+            
+            line_reward, = ax1.plot([], [], label='Reward', color='blue')
+            line_loss, = ax1_twin.plot([], [], label='Loss', color='red')
+            line_epsilon, = ax1_twin2.plot([], [], label='Epsilon', color='green')
+            
+            ax1.set_xlabel('Episode')
+            ax1.set_ylabel('Reward', color='blue')
+            ax1_twin.set_ylabel('Loss', color='red')
+            ax1_twin2.set_ylabel('Epsilon', color='green')
+            
+            lines1 = [line_reward, line_loss, line_epsilon]
+            labels1 = [l.get_label() for l in lines1]
+            ax1.legend(lines1, labels1, loc='upper left')
+            
+            plt.tight_layout()
+        
+        for episode in range(num_episodes):
+            game.reset()
+            state = game.get_state()
+            total_reward = 0
+            loss = 0
+            
+            while not game.game_over:
+                action = self.act(state)
+                if action == 0:
+                    game.move_paddle('left')
+                elif action == 1:
+                    game.move_paddle('right')
+                
+                game.update()
+                next_state = game.get_state()
+                reward = game.get_reward()
+                total_reward += reward
+                self.remember(state, action, reward, next_state, game.game_over)
+                state = next_state
+                
+            loss = self.replay()
+            self.increment_episode()
+            
+            rewards_history.append(total_reward)
+            loss_history.append(loss if loss is not None else 0)
+            epsilon_history.append(self.epsilon)
+            
+            if (episode + 1) % plot_interval == 0:
+                current_time = time.time()
+                interval_duration = current_time - last_time
+                avg_reward = np.mean(rewards_history[-plot_interval:])
+                
+                if should_plot:
+                    window_size = 20
+                    
+                    if len(loss_history) >= window_size:
+                        smoothed_loss = np.convolve(loss_history, np.ones(window_size)/window_size, mode='valid')
+                        
+                        x_rewards = list(range(len(rewards_history)))
+                        x_loss = list(range(window_size-1, len(loss_history)))
+                        x_epsilon = list(range(len(epsilon_history)))
+                        
+                        line_reward.set_data(x_rewards, rewards_history)
+                        line_loss.set_data(x_loss, smoothed_loss)
+                        line_epsilon.set_data(x_epsilon, epsilon_history)
+                        
+                        ax1.relim()
+                        ax1_twin.relim()
+                        ax1_twin2.relim()
+                        
+                        ax1.autoscale_view()
+                        ax1_twin.autoscale_view()
+                        ax1_twin2.autoscale_view()
+                        
+                        fig.canvas.draw()
+                        clear_output(wait=True)
+                        display(fig)
+                
+                print(f"Episode: {episode + 1}, Avg Score: {avg_reward:.2f}, Epsilon: {self.epsilon:.4f}, Loss: {loss if loss is not None else 'N/A'}, Time: {interval_duration:.2f}s")
+                
+                last_time = current_time
+                tf.keras.backend.clear_session()
+        
+        if should_plot:
+            plt.close(fig)
+        
+        return rewards_history, loss_history, epsilon_history
+
 class SumTree:
     def __init__(self, capacity):
         self.capacity = capacity
@@ -368,123 +474,16 @@ class SumTree:
         dataIdx = idx - self.capacity + 1
         return (idx, self.tree[idx], self.data[dataIdx])
 
-def train_dqn(num_episodes, should_plot=False, plot_interval=100):
-    game = Game()
-    input_size = 6  # Update input size to match new state space (paddle_x, paddle_y, ball_x, ball_y, ball_dx, ball_dy)
-    agent = DQNAgent(input_size, 3)
-    
-    last_time = time.time()
-    rewards_history = []
-    loss_history = []
-    epsilon_history = []
-    
-    if should_plot:
-        plt.ioff()
-        # Create figure
-        fig = plt.figure(figsize=(12, 8))
-        
-        # Remove GridSpec and create single plot
-        ax1 = fig.add_subplot(111)
-        
-        # Top subplot for reward, loss, epsilon
-        ax1_twin = ax1.twinx()
-        ax1_twin2 = ax1.twinx()
-        ax1_twin2.spines['right'].set_position(('outward', 60))
-        
-        line_reward, = ax1.plot([], [], label='Reward', color='blue')
-        line_loss, = ax1_twin.plot([], [], label='Loss', color='red')
-        line_epsilon, = ax1_twin2.plot([], [], label='Epsilon', color='green')
-        
-        ax1.set_xlabel('Episode')
-        ax1.set_ylabel('Reward', color='blue')
-        ax1_twin.set_ylabel('Loss', color='red')
-        ax1_twin2.set_ylabel('Epsilon', color='green')
-        
-        # Add legend
-        lines1 = [line_reward, line_loss, line_epsilon]
-        labels1 = [l.get_label() for l in lines1]
-        ax1.legend(lines1, labels1, loc='upper left')
-        
-        plt.tight_layout()
-    
-    for episode in range(num_episodes):
-        game.reset()
-        state = game.get_state()
-        total_reward = 0
-        loss = 0
-        
-        while not game.game_over:
-            action = agent.act(state)
-            if action == 0:
-                game.move_paddle('left')
-            elif action == 1:
-                game.move_paddle('right')
-            
-            game.update()
-            next_state = game.get_state()
-            reward = game.get_reward()
-            total_reward += reward
-            agent.remember(state, action, reward, next_state, game.game_over)
-            state = next_state
-            
-        loss = agent.replay()
-        agent.increment_episode()
-        
-        rewards_history.append(total_reward)
-        loss_history.append(loss if loss is not None else 0)
-        epsilon_history.append(agent.epsilon)
-        
-        if (episode + 1) % plot_interval == 0:
-            current_time = time.time()
-            interval_duration = current_time - last_time
-            avg_reward = np.mean(rewards_history[-plot_interval:])
-            
-            if should_plot:
-                window_size = 20
-                
-                if len(loss_history) >= window_size:
-                    smoothed_loss = np.convolve(loss_history, np.ones(window_size)/window_size, mode='valid')
-                    
-                    x_rewards = list(range(len(rewards_history)))
-                    x_loss = list(range(window_size-1, len(loss_history)))
-                    x_epsilon = list(range(len(epsilon_history)))
-                    
-                    # Update data for plots (remove steps)
-                    line_reward.set_data(x_rewards, rewards_history)
-                    line_loss.set_data(x_loss, smoothed_loss)
-                    line_epsilon.set_data(x_epsilon, epsilon_history)
-                    
-                    # Update limits
-                    ax1.relim()
-                    ax1_twin.relim()
-                    ax1_twin2.relim()
-                    
-                    ax1.autoscale_view()
-                    ax1_twin.autoscale_view()
-                    ax1_twin2.autoscale_view()
-                    
-                    fig.canvas.draw()
-                    clear_output(wait=True)
-                    display(fig)
-            
-            print(f"Episode: {episode + 1}, Avg Score: {avg_reward:.2f}, Epsilon: {agent.epsilon:.4f}, Loss: {loss if loss is not None else 'N/A'}, Time: {interval_duration:.2f}s")
-            
-            last_time = current_time
-            tf.keras.backend.clear_session()
-    
-    if should_plot:
-        plt.close(fig)
-    
-    return agent
-
 # This part is not executed when the file is imported
 if __name__ == "__main__":
     import os
     os.environ['TF_USE_LEGACY_KERAS'] = '1'
     
-    # Add a flag to control profiling
     ENABLE_PROFILING = True
     num_episodes = 2000
+    
+    # Create the agent (now without input_size parameter)
+    agent = DQNAgent()
 
     if ENABLE_PROFILING:
         import cProfile
@@ -492,7 +491,8 @@ if __name__ == "__main__":
         profiler = cProfile.Profile()
         profiler.enable()
         
-    agent = train_dqn(num_episodes)
+    # Train the agent
+    rewards, losses, epsilons = agent.train(num_episodes)
     
     if ENABLE_PROFILING:
         profiler.disable()
