@@ -152,15 +152,11 @@ class Game:
             self.paddle['x'] / self.width,
             self.paddle['y'] / self.height,
             self.ball['x'] / self.width,
-            self.ball['y'] / self.height
+            self.ball['y'] / self.height,
+            self.ball['dx'] / 4,  # Adding ball velocity components (normalized)
+            self.ball['dy'] / 4
         ]
-        
-        for brick in self.bricks:
-            if brick['status'] == 1:
-                state.extend([brick['x'] / self.width, brick['y'] / self.height])
-            else:
-                state.extend([-1, -1])
-        
+        # Remove brick state information
         return np.array(state)
 
 class DQNModel:
@@ -173,7 +169,7 @@ class DQNModel:
             tf.keras.layers.Dense(num_actions, activation='linear')
         ])
         
-        self.model.compile(optimizer=tf.keras.optimizers.Adam(0.003), loss='mse', sample_weight_mode='temporal')
+        self.model.compile(optimizer=tf.keras.optimizers.Adam(0.001), loss='mse', sample_weight_mode='temporal')
 
     def predict(self, state):
         return self.model(state)
@@ -182,9 +178,15 @@ class DQNModel:
         return self.model.fit(states, targets, sample_weight=sample_weight, epochs=1, verbose=0)
     
 class DQNAgent:
-    def __init__(self, input_size, num_actions, batch_size=1000, memory_size=100000, gamma=0.99,
-                 epsilon_start=1.0, epsilon_end=0.1, fixed_epsilon_episodes=1000,
-                 decay_epsilon_episodes=1000, target_update_episodes=50):
+    def __init__(self, input_size, num_actions, 
+                 batch_size=1000,           # Reduced from 1000
+                 memory_size=100000,       # Reduced from 100000
+                 gamma=0.99,
+                 epsilon_start=1.0,
+                 epsilon_end=0.01,        # Reduced from 0.1
+                 fixed_epsilon_episodes=200,  # Reduced from 1000
+                 decay_epsilon_episodes=2000,
+                 target_update_episodes=100):  # Reduced from 50
         self.input_size = input_size
         self.num_actions = num_actions
         self.batch_size = batch_size
@@ -368,7 +370,7 @@ class SumTree:
 
 def train_dqn(num_episodes, should_plot=False, plot_interval=100):
     game = Game()
-    input_size = 2 + 2 + (6 * 13 * 2)
+    input_size = 6  # Update input size to match new state space (paddle_x, paddle_y, ball_x, ball_y, ball_dx, ball_dy)
     agent = DQNAgent(input_size, 3)
     
     last_time = time.time()
