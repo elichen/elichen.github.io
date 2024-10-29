@@ -49,3 +49,42 @@ body {
     font-size: 16px;
     cursor: pointer;
 }
+
+#explanation {
+    max-width: 800px;
+    margin: 30px auto;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#explanation h2 {
+    color: #333;
+    margin-bottom: 15px;
+}
+
+#explanation p {
+    line-height: 1.6;
+    color: #444;
+    margin-bottom: 15px;
+}
+
+#explanation ul {
+    margin-left: 20px;
+    margin-bottom: 15px;
+}
+
+#explanation li {
+    margin-bottom: 8px;
+    color: #444;
+}
+
+#explanation a {
+    color: #2196F3;
+    text-decoration: none;
+}
+
+#explanation a:hover {
+    text-decoration: underline;
+}
