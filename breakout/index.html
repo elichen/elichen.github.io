@@ -15,6 +15,20 @@
             <div id="message"></div>
             <button id="toggleMode">Switch to Human Mode</button>
         </div>
+        
+        <div id="explanation">
+            <h2>About This Project</h2>
+            <p>This is an implementation of Deep Q-Network (DQN) playing Breakout. DQN is a groundbreaking reinforcement learning algorithm introduced by DeepMind in their seminal paper <a href="https://www.nature.com/articles/nature14236" target="_blank">"Human-level control through deep reinforcement learning"</a> (Nature, 2015). The algorithm combines Q-learning with deep neural networks to learn optimal gameplay directly from pixels.</p>
+            
+            <p>In this implementation:</p>
+            <ul>
+                <li>The model was trained offline using Python and TensorFlow - you can view the training code <a href="./train.py">here</a></li>
+                <li>The trained model is loaded and run in this web app using TensorFlow.js with WebGPU acceleration for inference</li>
+                <li>The agent learns to position the paddle to bounce the ball and break bricks by maximizing expected future rewards</li>
+            </ul>
+            
+            <p>Try switching between AI and human mode to compare your skills against the trained agent!</p>
+        </div>
     </div>
     <script src="game.js"></script>
     <script src="model.js"></script>
