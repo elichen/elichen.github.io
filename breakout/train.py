@@ -198,9 +198,9 @@ class DQNAgent:
                  gamma=0.99,
                  epsilon_start=1.0,
                  epsilon_end=0.1,
-                 fixed_epsilon_steps=50000,
-                 decay_epsilon_steps=1000000,
-                 target_update_steps=10000):
+                 fixed_epsilon_steps=2000,
+                 decay_epsilon_steps=4000,
+                 target_update_steps=1000):
         # Create a game instance to determine input size
         game = Game()
         self.input_size = len(game.get_state())
