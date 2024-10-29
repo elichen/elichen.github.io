@@ -11,10 +11,11 @@ class Game {
         this.gameOver = false;
         this.colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'];
         this.initBricks();
-        this.lastBallY = this.ball.y; // Add this line to track the ball's last Y position
-        this.penaltyForLosingBall = 0; // Negative reward for losing the ball
-        this.rewardForHittingPaddle = .1; // New reward for hitting the paddle
-        this.ballHitPaddle = false; // New flag to track if the ball hit the paddle
+        this.lastBallY = this.ball.y;
+        this.penaltyForLosingBall = 0;
+        this.rewardForHittingPaddle = .1;
+        this.ballHitPaddle = false;
+        this.brickWasHit = false;
     }
 
     initBricks() {
@@ -103,6 +104,7 @@ class Game {
                     this.ball.dy = -this.ball.dy;
                     brick.status = 0;
                     this.score++;
+                    this.brickWasHit = true;
                     if (this.score === this.bricks.length) {
                         this.gameOver = true;
                     }
@@ -120,17 +122,17 @@ class Game {
         let reward = 0;
 
         // Reward for breaking bricks
-        if (this.score > 0) {
-            console.log("rewarding for breaking bricks", this.score);
-            reward += this.score;
-            this.score = 0; // Reset the score after adding it to the reward
+        if (this.brickWasHit) {
+            console.log("rewarding for breaking brick", 1);
+            reward += 1;
+            this.brickWasHit = false;
         }
 
         // Reward for hitting the paddle
         if (this.ballHitPaddle) {
             console.log("rewarding for hitting paddle", this.rewardForHittingPaddle);
             reward += this.rewardForHittingPaddle;
-            this.ballHitPaddle = false; // Reset the flag after giving the reward
+            this.ballHitPaddle = false;
         }
 
         // Penalty for losing the ball
@@ -188,6 +190,7 @@ class Game {
         this.gameOver = false;
         this.initBricks();
         this.lastBallY = this.ball.y;
+        this.brickWasHit = false;
         this.ballHitPaddle = false;
     }
 
