@@ -215,26 +215,15 @@ class Game {
     }
 
     getState() {
-        const state = [];
-        
-        // Add paddle position
-        state.push(this.paddle.x / this.width);
-        state.push(this.paddle.y / this.height);
-        
-        // Add ball position
-        state.push(this.ball.x / this.width);
-        state.push(this.ball.y / this.height);
-        
-        // Add brick positions (only for active bricks)
-        for (const brick of this.bricks) {
-            if (brick.status === 1) {
-                state.push(brick.x / this.width);
-                state.push(brick.y / this.height);
-            } else {
-                state.push(-1); // Use -1 to represent inactive bricks
-                state.push(-1);
-            }
-        }
+        // Match Python state representation:
+        // [paddle_x, ball_x, ball_y, ball_dx, ball_dy]
+        const state = [
+            this.paddle.x / this.width,    // Normalized paddle x position
+            this.ball.x / this.width,      // Normalized ball x position
+            this.ball.y / this.height,     // Normalized ball y position
+            this.ball.dx / 4,              // Normalized ball x velocity
+            this.ball.dy / 4               // Normalized ball y velocity
+        ];
         
         return state;
     }

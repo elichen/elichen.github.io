@@ -148,21 +148,14 @@ class Game:
         return np.random.uniform(210, 330) * np.pi / 180
 
     def get_state(self):
-        # Basic state information (paddle and ball)
+        # Only include paddle and ball information
         state = [
-            self.paddle['x'] / self.width,
-            self.paddle['y'] / self.height,
-            self.ball['x'] / self.width,
-            self.ball['y'] / self.height,
-            self.ball['dx'] / 4,
-            self.ball['dy'] / 4
+            self.paddle['x'] / self.width,    # Normalized paddle x position
+            self.ball['x'] / self.width,      # Normalized ball x position
+            self.ball['y'] / self.height,     # Normalized ball y position
+            self.ball['dx'] / 4,              # Normalized ball x velocity
+            self.ball['dy'] / 4               # Normalized ball y velocity
         ]
-        
-        # Add brick states
-        for brick in self.bricks:
-            state.append(brick['x'] / self.width)  # Normalized x position
-            state.append(brick['y'] / self.height)  # Normalized y position
-            state.append(float(brick['status']))    # Status (1 for active, 0 for broken)
         
         return np.array(state)
 
@@ -176,27 +169,41 @@ class DQNModel:
             tf.keras.layers.Dense(num_actions, activation='linear')
         ])
         
-        self.model.compile(optimizer=tf.keras.optimizers.Adam(0.001), loss='mse', sample_weight_mode='temporal')
+        # Custom Huber loss that only considers the taken actions
+        def masked_huber_loss(y_true, y_pred):
+            error = y_true - y_pred
+            # Create mask where y_true != y_pred (where we updated values)
+            mask = tf.cast(tf.not_equal(y_true, y_pred), tf.float32)
+            # Apply Huber loss only to the masked values
+            quadratic = tf.minimum(tf.abs(error), 1.0)
+            linear = tf.abs(error) - quadratic
+            loss = 0.5 * quadratic**2 + linear
+            return tf.reduce_mean(loss * mask)
+        
+        self.model.compile(
+            optimizer=tf.keras.optimizers.Adam(0.00025),
+            loss=masked_huber_loss
+        )
 
     def predict(self, state):
         return self.model(state)
 
-    def train(self, states, targets, sample_weight=None):
-        return self.model.fit(states, targets, sample_weight=sample_weight, epochs=1, verbose=0)
+    def train(self, states, targets):
+        return self.model.fit(states, targets, epochs=1, verbose=0)
     
 class DQNAgent:
     def __init__(self, 
-                 batch_size=1000,
-                 memory_size=100000,
+                 batch_size=32,
+                 memory_size=1000000,
                  gamma=0.99,
                  epsilon_start=1.0,
-                 epsilon_end=0.01,
-                 fixed_epsilon_episodes=200,
-                 decay_epsilon_episodes=2000,
-                 target_update_episodes=100):
+                 epsilon_end=0.1,
+                 fixed_epsilon_steps=50000,
+                 decay_epsilon_steps=1000000,
+                 target_update_steps=10000):
         # Create a game instance to determine input size
         game = Game()
-        self.input_size = len(game.get_state())  # Get input size from game state
+        self.input_size = len(game.get_state())
         self.num_actions = 3  # Left, Right, or No action
         
         self.batch_size = batch_size
@@ -204,24 +211,17 @@ class DQNAgent:
         self.gamma = gamma
         self.epsilon_start = epsilon_start
         self.epsilon_end = epsilon_end
-        self.fixed_epsilon_episodes = fixed_epsilon_episodes
-        self.decay_epsilon_episodes = decay_epsilon_episodes
+        self.fixed_epsilon_steps = fixed_epsilon_steps
+        self.decay_epsilon_steps = decay_epsilon_steps
         self.epsilon = epsilon_start
-        self.episode_count = 0
-        self.target_update_episodes = target_update_episodes
-        self.episodes_since_update = 0
+        self.steps = 0
+        self.target_update_steps = target_update_steps
+        self.steps_since_update = 0
 
         self.model = DQNModel(self.input_size, self.num_actions)
         self.target_model = DQNModel(self.input_size, self.num_actions)
         self.update_target_model()
-
-        # Priority replay parameters
-        self.memory = SumTree(memory_size)
-        self.abs_err_upper = 1.0
-        self.PER_e = 0.01
-        self.PER_a = 0.6
-        self.PER_b = 0.4
-        self.PER_b_increment = 0.001
+        self.memory = deque(maxlen=memory_size)
 
     def act(self, state, training=True):
         if training and np.random.rand() < self.epsilon:
@@ -231,140 +231,100 @@ class DQNAgent:
             return np.argmax(q_values)
 
     def remember(self, state, action, reward, next_state, done):
-        # Set maximum priority for new experiences
-        max_priority = np.max(self.memory.tree[-self.memory.capacity:])
-        if max_priority == 0:
-            max_priority = self.abs_err_upper
-        
-        self.memory.add(max_priority, (state, action, reward, next_state, done))
+        # Simple memory addition
+        self.memory.append((state, action, reward, next_state, done))
 
     def update_target_model(self):
         self.target_model.model.set_weights(self.model.model.get_weights())
 
     def update_epsilon(self):
-        if self.episode_count <= self.fixed_epsilon_episodes:
+        if self.steps <= self.fixed_epsilon_steps:
             self.epsilon = self.epsilon_start
         else:
-            decay_progress = min(1, (self.episode_count - self.fixed_epsilon_episodes) / self.decay_epsilon_episodes)
+            decay_progress = min(1, (self.steps - self.fixed_epsilon_steps) / self.decay_epsilon_steps)
             self.epsilon = max(
                 self.epsilon_end,
                 self.epsilon_start - (self.epsilon_start - self.epsilon_end) * decay_progress
             )
 
     def replay(self):
-        if self.memory.n_entries < self.batch_size:
+        if len(self.memory) < self.batch_size:
             return
             
-        samples, idxs, priorities = self.sample_memory(self.batch_size)
-        states, actions, rewards, next_states, dones = map(np.array, zip(*samples))
-        
-        # Calculate importance sampling weights
-        sampling_probabilities = priorities / self.memory.total()
-        is_weights = np.power(self.memory.n_entries * sampling_probabilities, -self.PER_b)
-        is_weights /= is_weights.max()
+        batch = random.sample(self.memory, self.batch_size)
+        states, actions, rewards, next_states, dones = map(np.array, zip(*batch))
         
         current_q_values = self.model.predict(states)
         next_q_values = self.target_model.predict(next_states)
         
-        # Use tf.identity to copy the tensor
-        targets = tf.identity(current_q_values)
-        
-        # Prepare indices and updates for tensor_scatter_nd_update
-        indices = []
-        updates = []
+        targets = current_q_values.numpy()
         
         for i in range(self.batch_size):
             if dones[i]:
-                update_value = rewards[i]
+                targets[i, actions[i]] = rewards[i]
             else:
-                update_value = rewards[i] + self.gamma * np.max(next_q_values[i])
-            
-            indices.append([i, actions[i]])
-            updates.append(update_value)
+                targets[i, actions[i]] = rewards[i] + self.gamma * np.max(next_q_values[i])
         
-        # Update the targets tensor
-        targets = tf.tensor_scatter_nd_update(targets, indices, updates)
-        
-        # Train with importance sampling weights
-        loss = self.model.train(states, targets, sample_weight=is_weights).history['loss'][0]
-        
-        # Update priorities
-        for i in range(self.batch_size):
-            td_error = np.abs(targets[i, actions[i]] - current_q_values[i, actions[i]])
-            priority = np.minimum((td_error + self.PER_e) ** self.PER_a, self.abs_err_upper)
-            self.memory.update(idxs[i], priority)
-        
-        # Increase beta each time we sample
-        self.PER_b = np.minimum(1., self.PER_b + self.PER_b_increment)
+        loss = self.model.train(states, targets).history['loss'][0]
         
         return loss
 
-    def sample_memory(self, batch_size):
-        batch = []
-        idxs = []
-        segment = self.memory.total() / batch_size
-        priorities = []
-        
-        for i in range(batch_size):
-            a = segment * i
-            b = segment * (i + 1)
-            
-            s = np.random.uniform(a, b)
-            idx, priority, data = self.memory.get(s)
-            
-            batch.append(data)
-            idxs.append(idx)
-            priorities.append(priority)
-            
-        samples = batch
-        
-        return samples, idxs, priorities
-
-    def increment_episode(self):
-        self.episode_count += 1
-        self.episodes_since_update += 1
+    def increment_step(self):
+        self.steps += 1
+        self.steps_since_update += 1
         self.update_epsilon()
 
-        if self.episodes_since_update >= self.target_update_episodes:
+        if self.steps_since_update >= self.target_update_steps:
             self.update_target_model()
-            self.episodes_since_update = 0
+            self.steps_since_update = 0
 
-    def train(self, num_episodes, should_plot=False, plot_interval=100):
+    def train(self, num_episodes=None, should_plot=False, plot_interval=1000):
         game = Game()
         last_time = time.time()
         rewards_history = []
         loss_history = []
         epsilon_history = []
+        frame_count = 0
+        training_count = 0
+        episode = 0
         
         if should_plot:
             plt.ioff()
             fig = plt.figure(figsize=(12, 8))
             
-            ax1 = fig.add_subplot(111)
-            ax1_twin = ax1.twinx()
-            ax1_twin2 = ax1.twinx()
-            ax1_twin2.spines['right'].set_position(('outward', 60))
+            # Create two subplots
+            ax1 = fig.add_subplot(211)  # Episode rewards subplot
+            ax2 = fig.add_subplot(212)  # Training metrics subplot
+            ax2_twin = ax2.twinx()
             
-            line_reward, = ax1.plot([], [], label='Reward', color='blue')
-            line_loss, = ax1_twin.plot([], [], label='Loss', color='red')
-            line_epsilon, = ax1_twin2.plot([], [], label='Epsilon', color='green')
-            
+            # Episode rewards plot
+            line_reward, = ax1.plot([], [], label='Episode Reward', color='blue')
             ax1.set_xlabel('Episode')
             ax1.set_ylabel('Reward', color='blue')
-            ax1_twin.set_ylabel('Loss', color='red')
-            ax1_twin2.set_ylabel('Epsilon', color='green')
+            ax1.legend(loc='upper left')
             
-            lines1 = [line_reward, line_loss, line_epsilon]
-            labels1 = [l.get_label() for l in lines1]
-            ax1.legend(lines1, labels1, loc='upper left')
+            # Training metrics plot
+            line_loss, = ax2.plot([], [], label='Loss', color='red')
+            line_epsilon, = ax2_twin.plot([], [], label='Epsilon', color='green')
+            
+            ax2.set_xlabel('Training step')
+            ax2.set_ylabel('Loss', color='red')
+            ax2_twin.set_ylabel('Epsilon', color='green')
+            
+            # Combine legends for second subplot
+            lines2 = [line_loss, line_epsilon]
+            labels2 = [l.get_label() for l in lines2]
+            ax2.legend(lines2, labels2, loc='upper left')
             
             plt.tight_layout()
         
-        for episode in range(num_episodes):
+        while True:  # Run indefinitely if num_episodes is None
+            if num_episodes is not None and episode >= num_episodes:
+                break
+            
             game.reset()
             state = game.get_state()
             total_reward = 0
-            loss = 0
             
             while not game.game_over:
                 action = self.act(state)
@@ -377,102 +337,73 @@ class DQNAgent:
                 next_state = game.get_state()
                 reward = game.get_reward()
                 total_reward += reward
+                
                 self.remember(state, action, reward, next_state, game.game_over)
+                
+                # Train every 4 frames
+                frame_count += 1
+                if frame_count % 4 == 0:
+                    loss = self.replay()
+                    self.increment_step()
+                    loss_history.append(loss if loss is not None else 0)
+                    epsilon_history.append(self.epsilon)
+                    training_count += 1
+                    
+                    if training_count % plot_interval == 0:
+                        current_time = time.time()
+                        interval_duration = current_time - last_time
+                        avg_reward = np.mean(rewards_history[-50:]) if rewards_history else 0
+                        
+                        if should_plot:
+                            window_size = 20
+                            if len(loss_history) >= window_size:
+                                smoothed_loss = np.convolve(loss_history, np.ones(window_size)/window_size, mode='valid')
+                                
+                                x_rewards = list(range(len(rewards_history)))
+                                x_loss = list(range(window_size-1, len(loss_history)))
+                                x_epsilon = list(range(len(epsilon_history)))
+                                
+                                line_reward.set_data(x_rewards, rewards_history)
+                                line_loss.set_data(x_loss, smoothed_loss)
+                                line_epsilon.set_data(x_epsilon, epsilon_history)
+                                
+                                ax1.relim()
+                                ax1.autoscale_view()
+                                ax2.relim()
+                                ax2_twin.relim()
+                                ax2.autoscale_view()
+                                ax2_twin.autoscale_view()
+                                
+                                fig.canvas.draw()
+                                clear_output(wait=True)
+                                display(fig)
+                        
+                        print(f"Training step: {training_count}, Game steps: {self.steps}, "
+                              f"Episode: {episode + 1}, Avg Score: {avg_reward:.2f}, "
+                              f"Epsilon: {self.epsilon:.4f}, Loss: {loss if loss is not None else 'N/A'}, "
+                              f"Time: {interval_duration:.2f}s")
+                        
+                        last_time = current_time
+                
                 state = next_state
                 
-            loss = self.replay()
-            self.increment_episode()
+                # Check if all bricks are destroyed
+                if game.score == len(game.bricks):
+                    print(f"\nSolved! All bricks destroyed in episode {episode + 1}")
+                    print(f"Final training step: {training_count}")
+                    print(f"Final epsilon: {self.epsilon:.4f}")
+                    rewards_history.append(total_reward)
+                    if should_plot:
+                        plt.close(fig)
+                    return rewards_history, loss_history, epsilon_history
             
             rewards_history.append(total_reward)
-            loss_history.append(loss if loss is not None else 0)
-            epsilon_history.append(self.epsilon)
-            
-            if (episode + 1) % plot_interval == 0:
-                current_time = time.time()
-                interval_duration = current_time - last_time
-                avg_reward = np.mean(rewards_history[-plot_interval:])
-                
-                if should_plot:
-                    window_size = 20
-                    
-                    if len(loss_history) >= window_size:
-                        smoothed_loss = np.convolve(loss_history, np.ones(window_size)/window_size, mode='valid')
-                        
-                        x_rewards = list(range(len(rewards_history)))
-                        x_loss = list(range(window_size-1, len(loss_history)))
-                        x_epsilon = list(range(len(epsilon_history)))
-                        
-                        line_reward.set_data(x_rewards, rewards_history)
-                        line_loss.set_data(x_loss, smoothed_loss)
-                        line_epsilon.set_data(x_epsilon, epsilon_history)
-                        
-                        ax1.relim()
-                        ax1_twin.relim()
-                        ax1_twin2.relim()
-                        
-                        ax1.autoscale_view()
-                        ax1_twin.autoscale_view()
-                        ax1_twin2.autoscale_view()
-                        
-                        fig.canvas.draw()
-                        clear_output(wait=True)
-                        display(fig)
-                
-                print(f"Episode: {episode + 1}, Avg Score: {avg_reward:.2f}, Epsilon: {self.epsilon:.4f}, Loss: {loss if loss is not None else 'N/A'}, Time: {interval_duration:.2f}s")
-                
-                last_time = current_time
-                tf.keras.backend.clear_session()
+            episode += 1  # Increment episode counter at the end of each episode
         
         if should_plot:
             plt.close(fig)
         
         return rewards_history, loss_history, epsilon_history
-
-class SumTree:
-    def __init__(self, capacity):
-        self.capacity = capacity
-        self.tree = np.zeros(2 * capacity - 1)
-        self.data = np.zeros(capacity, dtype=object)
-        self.write = 0
-        self.n_entries = 0
-        
-    def _propagate(self, idx, change):
-        parent = (idx - 1) // 2
-        self.tree[parent] += change
-        if parent != 0:
-            self._propagate(parent, change)
-    
-    def _retrieve(self, idx, s):
-        left = 2 * idx + 1
-        right = left + 1
-        
-        if left >= len(self.tree):
-            return idx
-            
-        if s <= self.tree[left]:
-            return self._retrieve(left, s)
-        else:
-            return self._retrieve(right, s - self.tree[left])
-        
-    def total(self):
-        return self.tree[0]
-    
-    def add(self, p, data):
-        idx = self.write + self.capacity - 1
-        self.data[self.write] = data
-        self.update(idx, p)
-        self.write = (self.write + 1) % self.capacity
-        self.n_entries = min(self.n_entries + 1, self.capacity)
-        
-    def update(self, idx, p):
-        change = p - self.tree[idx]
-        self.tree[idx] = p
-        self._propagate(idx, change)
-        
-    def get(self, s):
-        idx = self._retrieve(0, s)
-        dataIdx = idx - self.capacity + 1
-        return (idx, self.tree[idx], self.data[dataIdx])
 
 # This part is not executed when the file is imported
 if __name__ == "__main__":
