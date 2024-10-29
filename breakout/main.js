@@ -3,7 +3,7 @@ canvas.width = 800;
 canvas.height = 600;
 
 const game = new Game(canvas);
-const inputSize = 2 + 2 + (6 * 13 * 2); // paddle (2) + ball (2) + bricks (6 rows * 13 columns * 2 coordinates)
+const inputSize = 5;  // [paddle_x, ball_x, ball_y, ball_dx, ball_dy]
 const agent = new DQNAgent(inputSize, 3);
 const humanPlayer = new HumanPlayer(game);
 
