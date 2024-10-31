@@ -8,6 +8,7 @@ import random
 from collections import deque
 import time  # Add this import at the top of the file
 import psutil
+import pandas as pd
 
 class Game:
     def __init__(self, width=800, height=600):
@@ -22,7 +23,7 @@ class Game:
         self.init_bricks()
         self.last_ball_y = self.ball['y']
         self.penalty_for_losing_ball = -1  # Change from 0 to -1
-        self.reward_for_hitting_paddle = 0.1
+        self.reward_for_hitting_paddle = 0
         self.reward_for_breaking_brick = 1  # Add this line
         self.ball_hit_paddle = False
 
@@ -122,6 +123,9 @@ class Game:
         if self.game_over:
             reward += self.penalty_for_losing_ball
 
+        # Small time penalty to encourage faster solutions
+        reward -= 0.001  # Add small penalty per step
+
         return reward
 
     def reset(self):
@@ -148,24 +152,32 @@ class Game:
         return np.random.uniform(210, 330) * np.pi / 180
 
     def get_state(self):
-        # Only include paddle and ball information
+        # Include paddle, ball, and brick information
         state = [
             self.paddle['x'] / self.width,    # Normalized paddle x position
             self.ball['x'] / self.width,      # Normalized ball x position
             self.ball['y'] / self.height,     # Normalized ball y position
-            self.ball['dx'] / 4,              # Normalized ball x velocity
-            self.ball['dy'] / 4               # Normalized ball y velocity
         ]
+        
+        # Add normalized brick positions and status
+        for brick in self.bricks:
+            if brick['status'] == 1:
+                state.extend([
+                    brick['x'] / self.width,   # Normalized brick x position
+                    brick['y'] / self.height,  # Normalized brick y position
+                ])
+            else:
+                state.extend([-1, -1])
         
         return np.array(state)
 
 class DQNModel:
     def __init__(self, input_size, num_actions):
         self.model = tf.keras.Sequential([
-            tf.keras.layers.Dense(256, activation='relu', input_shape=(input_size,)),
-            tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dense(512, activation='relu', input_shape=(input_size,)),
+            tf.keras.layers.Dense(512, activation='relu'),
+            tf.keras.layers.Dense(512, activation='relu'),
+            tf.keras.layers.Dense(512, activation='relu'),
             tf.keras.layers.Dense(num_actions, activation='linear')
         ])
         
@@ -350,33 +362,32 @@ class DQNAgent:
                     training_count += 1
                     
                     if training_count % plot_interval == 0:
+                        plot_window = 50
                         current_time = time.time()
                         interval_duration = current_time - last_time
-                        avg_reward = np.mean(rewards_history[-50:]) if rewards_history else 0
+                        avg_reward = np.mean(rewards_history[-plot_window:]) if rewards_history else 0
                         
                         if should_plot:
-                            window_size = 20
-                            if len(loss_history) >= window_size:
-                                smoothed_loss = np.convolve(loss_history, np.ones(window_size)/window_size, mode='valid')
-                                
-                                x_rewards = list(range(len(rewards_history)))
-                                x_loss = list(range(window_size-1, len(loss_history)))
-                                x_epsilon = list(range(len(epsilon_history)))
-                                
-                                line_reward.set_data(x_rewards, rewards_history)
-                                line_loss.set_data(x_loss, smoothed_loss)
-                                line_epsilon.set_data(x_epsilon, epsilon_history)
-                                
-                                ax1.relim()
-                                ax1.autoscale_view()
-                                ax2.relim()
-                                ax2_twin.relim()
-                                ax2.autoscale_view()
-                                ax2_twin.autoscale_view()
-                                
-                                fig.canvas.draw()
-                                clear_output(wait=True)
-                                display(fig)
+                            smoothed_loss = pd.Series(loss_history).rolling(window=plot_window).mean()
+                            
+                            x_rewards = list(range(len(rewards_history)))
+                            x_loss = list(range(len(loss_history)))
+                            x_epsilon = list(range(len(epsilon_history)))
+                            
+                            line_reward.set_data(x_rewards, rewards_history)
+                            line_loss.set_data(x_loss, smoothed_loss)
+                            line_epsilon.set_data(x_epsilon, epsilon_history)
+                            
+                            ax1.relim()
+                            ax1.autoscale_view()
+                            ax2.relim()
+                            ax2_twin.relim()
+                            ax2.autoscale_view()
+                            ax2_twin.autoscale_view()
+                            
+                            fig.canvas.draw()
+                            clear_output(wait=True)
+                            display(fig)
                         
                         print(f"Training step: {training_count}, Game steps: {self.steps}, "
                               f"Episode: {episode + 1}, Avg Score: {avg_reward:.2f}, "
