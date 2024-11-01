@@ -6,9 +6,26 @@ import matplotlib.pyplot as plt
 from IPython.display import clear_output
 import random
 from collections import deque
-import time  # Add this import at the top of the file
+import time
 import psutil
 import pandas as pd
+
+# tf-agents imports
+from tf_agents.environments import py_environment
+from tf_agents.environments import tf_py_environment
+from tf_agents.environments import utils
+from tf_agents.environments import wrappers
+from tf_agents.environments import suite_gym
+from tf_agents.specs import array_spec
+from tf_agents.trajectories import time_step as ts
+
+from tf_agents.agents.dqn import dqn_agent
+from tf_agents.networks import q_network
+from tf_agents.utils import common
+from tf_agents.replay_buffers import tf_uniform_replay_buffer
+from tf_agents.trajectories import trajectory
+from tf_agents.policies import random_tf_policy
+from tf_agents.policies import epsilon_greedy_policy
 
 class Game:
     def __init__(self, width=800, height=600):
@@ -148,265 +165,271 @@ class Game:
                     brick['y'] / self.height,  # Normalized brick y position
                 ])
             else:
-                state.extend([-1, -1])
-        
-        return np.array(state)
+                state.extend([0.0, 0.0])  # Use 0.0 instead of -1
 
-class DQNModel:
-    def __init__(self, input_size, num_actions):
-        self.model = tf.keras.Sequential([
-            tf.keras.layers.Dense(256, activation='relu', input_shape=(input_size,)),
+        return np.array(state, dtype=np.float32)
+
+class BreakoutEnv(py_environment.PyEnvironment):
+    def __init__(self):
+        super().__init__()
+        self._game = Game()
+        
+        # Define action and observation specs
+        # Actions: 0 - stay, 1 - left, 2 - right
+        self._action_spec = array_spec.BoundedArraySpec(
+            shape=(), dtype=np.int32, minimum=0, maximum=2, name='action')
+        
+        # Observation: A vector of game state as defined in Game.get_state()
+        self._observation_spec = array_spec.BoundedArraySpec(
+            shape=(self._game.get_state().shape[0],), dtype=np.float32, minimum=0.0, maximum=1.0, name='observation')
+        
+        self._state = self._game.get_state()
+        self._episode_ended = False
+    
+    def action_spec(self):
+        return self._action_spec
+    
+    def observation_spec(self):
+        return self._observation_spec
+    
+    def _reset(self):
+        self._game.reset()
+        self._state = self._game.get_state()
+        self._episode_ended = False
+        return ts.restart(self._state)
+    
+    def _step(self, action):
+        if self._episode_ended:
+            # The last action ended the episode. Ignore the current action and start a new episode.
+            return self.reset()
+        
+        # Map the action to game moves
+        if action == 1:
+            self._game.move_paddle('left')
+        elif action == 2:
+            self._game.move_paddle('right')
+        # If action == 0, do nothing (stay)
+        
+        reward = self._game.update()
+        self._state = self._game.get_state()
+        
+        if self._game.game_over:
+            self._episode_ended = True
+            return ts.termination(self._state, reward)
+        else:
+            return ts.transition(self._state, reward=reward, discount=1.0)
+
+def create_dqn_agent(tf_env, learning_rate=1e-3):
+    # Create global step for epsilon decay
+    global_step = tf.Variable(0, trainable=False, dtype=tf.int64, name='global_step')
+    
+    # Define epsilon decay
+    start_epsilon = 1.0
+    end_epsilon = 0.01
+    decay_steps = 10000
+    
+    epsilon = tf.compat.v1.train.polynomial_decay(
+        start_epsilon,
+        global_step,
+        decay_steps,
+        end_learning_rate=end_epsilon,
+        power=1.0  # Linear decay
+    )
+
+    q_net = q_network.QNetwork(
+        tf_env.observation_spec(),
+        tf_env.action_spec(),
+        fc_layer_params=(256, 256, 256)
+    )
+
+    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+
+    agent = dqn_agent.DqnAgent(
+        tf_env.time_step_spec(),
+        tf_env.action_spec(),
+        q_network=q_net,
+        optimizer=optimizer,
+        epsilon_greedy=epsilon,  # Pass the decaying epsilon
+        target_update_period=1000,
+        td_errors_loss_fn=common.element_wise_huber_loss,
+        gamma=0.99,
+        train_step_counter=global_step  # Use the same global step for epsilon decay
+    )
+
+    agent.initialize()
+    return agent
+
+def create_replay_buffer(agent, tf_env, replay_buffer_max_length=100000):
+    replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
+        data_spec=agent.collect_data_spec,
+        batch_size=tf_env.batch_size,
+        max_length=replay_buffer_max_length
+    )
+    return replay_buffer
+
+def collect_step(environment, policy, buffer):
+    time_step = environment.current_time_step()
+    action_step = policy.action(time_step)
+    next_time_step = environment.step(action_step.action)
+    traj = trajectory.from_transition(time_step, action_step, next_time_step)
+
+    # Add trajectory to the replay buffer
+    buffer.add_batch(traj)
+
+def collect_initial_data(environment, policy, buffer, n_steps):
+    for _ in range(n_steps):
+        collect_step(environment, policy, buffer)
+
+def train_agent(num_iterations, collect_steps_per_iteration, batch_size, log_interval, tf_env, agent, replay_buffer):
+    dataset = replay_buffer.as_dataset(
+        num_parallel_calls=3,
+        sample_batch_size=batch_size,
+        num_steps=2,
+        single_deterministic_pass=False
+    ).prefetch(3)
+
+    iterator = iter(dataset)
+    agent.train = common.function(agent.train)
+
+    avg_return = []
+    rewards_history = []
+    episode_reward = 0
+    
+    for iteration in range(num_iterations):
+        # Collect steps using agent's collect policy
+        time_step = tf_env.current_time_step()
+        action_step = agent.collect_policy.action(time_step)
+        next_time_step = tf_env.step(action_step.action)
+        
+        # Add to episode reward
+        episode_reward += next_time_step.reward.numpy()[0]
+        
+        # If episode ended, record the reward
+        if next_time_step.is_last():
+            rewards_history.append(episode_reward)
+            episode_reward = 0
+        
+        # Add to replay buffer
+        traj = trajectory.from_transition(time_step, action_step, next_time_step)
+        replay_buffer.add_batch(traj)
+
+        # Sample a batch of data from the buffer and update the agent's network
+        experience, unused_info = next(iterator)
+        train_loss = agent.train(experience).loss
+
+        if iteration % log_interval == 0:
+            avg_reward = np.mean(rewards_history[-100:]) if rewards_history else 0
+            print(f'step = {iteration}: loss = {train_loss.numpy():.6f}, avg_reward = {avg_reward:.2f}')
+            avg_return.append(train_loss.numpy())
+
+    return avg_return, rewards_history
+
+class BreakoutTrainer:
+    def __init__(self, learning_rate=1e-3):
+        # Create the environment
+        self.py_env = BreakoutEnv()
+        self.tf_env = tf_py_environment.TFPyEnvironment(self.py_env)
+        
+        # Create the DQN agent
+        self.agent = create_dqn_agent(self.tf_env, learning_rate)
+        
+        # Create the replay buffer
+        self.replay_buffer = create_replay_buffer(self.agent, self.tf_env)
+        
+        # Create a random policy for initial data collection
+        self.random_policy = random_tf_policy.RandomTFPolicy(
+            self.tf_env.time_step_spec(), 
+            self.tf_env.action_spec()
+        )
+        
+        self.rewards_history = []
+
+    def train(self, num_iterations=20000, batch_size=64, log_interval=200):
+        """Train the agent for the specified number of iterations."""
+        # Collect initial data if buffer is empty
+        if self.replay_buffer.num_frames() == 0:
+            initial_collect_steps = max(1000, batch_size * 2)
+            collect_initial_data(self.tf_env, self.random_policy, self.replay_buffer, initial_collect_steps)
+        
+        # Train the agent
+        collect_steps_per_iteration = 1
+        avg_loss, rewards_history = train_agent(
+            num_iterations=num_iterations,
+            collect_steps_per_iteration=collect_steps_per_iteration,
+            batch_size=batch_size,
+            log_interval=log_interval,
+            tf_env=self.tf_env,
+            agent=self.agent,
+            replay_buffer=self.replay_buffer
+        )
+        
+        self.rewards_history = rewards_history
+        return avg_loss
+
+    def plot_rewards(self):
+        """Plot the rewards history."""
+        import matplotlib.pyplot as plt
+        
+        plt.figure(figsize=(10, 5))
+        plt.plot(self.rewards_history)
+        plt.title('Rewards per Episode')
+        plt.xlabel('Episode')
+        plt.ylabel('Total Reward')
+        plt.show()
+        
+        # Also plot moving average
+        window_size = 100
+        moving_avg = np.convolve(self.rewards_history, 
+                                np.ones(window_size)/window_size, 
+                                mode='valid')
+        plt.figure(figsize=(10, 5))
+        plt.plot(moving_avg)
+        plt.title(f'Moving Average of Rewards (Window Size: {window_size})')
+        plt.xlabel('Episode')
+        plt.ylabel('Average Reward')
+        plt.show()
+
+    def save_model(self, path="."):
+        """Save the trained model."""
+        import tensorflowjs as tfjs
+        import tensorflow as tf
+        
+        # Get the underlying Keras model
+        q_net = self.agent._q_network
+        
+        # Create a new model that replicates the Q-network structure
+        input_shape = self.tf_env.observation_spec().shape
+        num_actions = self.tf_env.action_spec().maximum - self.tf_env.action_spec().minimum + 1
+        
+        model = tf.keras.Sequential([
+            tf.keras.layers.Dense(256, activation='relu', input_shape=input_shape),
             tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dense(num_actions, activation='linear')
+            tf.keras.layers.Dense(num_actions)
         ])
         
-        self.model.compile(
-            optimizer=tf.keras.optimizers.Adam(0.00025),
-            loss=tf.keras.losses.Huber()  # Changed to Huber loss
-        )
-
-    def predict(self, state):
-        return self.model(state)
-
-    def train(self, states, targets):
-        return self.model.fit(states, targets, epochs=1, verbose=0)
-    
-class DQNAgent:
-    def __init__(self, 
-                 batch_size=32,
-                 memory_size=100000,
-                 gamma=0.99,
-                 epsilon_start=1.0,
-                 epsilon_end=0.1,
-                 fixed_epsilon_steps=10000,
-                 decay_epsilon_steps=90000,
-                 target_update_steps=1000):
-        # Create a game instance to determine input size
-        game = Game()
-        self.input_size = len(game.get_state())
-        self.num_actions = 3  # Left, Right, or No action
+        # Copy the weights
+        time_step = self.tf_env.current_time_step()
+        q_values = q_net(time_step.observation, step_type=time_step.step_type)
+        model(time_step.observation.numpy())  # Build the model
         
-        self.batch_size = batch_size
-        self.memory_size = memory_size
-        self.gamma = gamma
-        self.epsilon_start = epsilon_start
-        self.epsilon_end = epsilon_end
-        self.fixed_epsilon_steps = fixed_epsilon_steps
-        self.decay_epsilon_steps = decay_epsilon_steps
-        self.epsilon = epsilon_start
-        self.steps = 0
-        self.target_update_steps = target_update_steps
-        self.steps_since_update = 0
-
-        self.model = DQNModel(self.input_size, self.num_actions)
-        self.target_model = DQNModel(self.input_size, self.num_actions)
-        self.update_target_model()
-        self.memory = deque(maxlen=memory_size)
-
-    def act(self, state, training=True):
-        if training and np.random.rand() < self.epsilon:
-            return np.random.randint(self.num_actions)
-        else:
-            q_values = self.model.predict(state[np.newaxis, :])[0]
-            return np.argmax(q_values)
-
-    def remember(self, state, action, reward, next_state, done):
-        # Simple memory addition
-        self.memory.append((state, action, reward, next_state, done))
-
-    def update_target_model(self):
-        self.target_model.model.set_weights(self.model.model.get_weights())
-
-    def update_epsilon(self):
-        if self.steps <= self.fixed_epsilon_steps:
-            self.epsilon = self.epsilon_start
-        else:
-            decay_progress = min(1, (self.steps - self.fixed_epsilon_steps) / self.decay_epsilon_steps)
-            self.epsilon = max(
-                self.epsilon_end,
-                self.epsilon_start - (self.epsilon_start - self.epsilon_end) * decay_progress
-            )
-
-    def replay(self):
-        if len(self.memory) < self.batch_size:
-            return
-            
-        batch = random.sample(self.memory, self.batch_size)
-        states, actions, rewards, next_states, dones = map(np.array, zip(*batch))
+        # Get weights from q_net layers
+        q_weights = []
+        for layer in q_net.layers:
+            if hasattr(layer, 'get_weights'):
+                weights = layer.get_weights()
+                if weights:  # only add if weights is not empty
+                    q_weights.extend(weights)
         
-        current_q_values = self.model.predict(states)
-        next_q_values = self.target_model.predict(next_states)
+        # Distribute weights to model layers
+        weight_index = 0
+        for layer in model.layers:
+            num_weights = len(layer.get_weights())
+            if num_weights > 0:
+                layer_weights = q_weights[weight_index:weight_index + num_weights]
+                layer.set_weights(layer_weights)
+                weight_index += num_weights
         
-        targets = current_q_values.numpy()
-        
-        for i in range(self.batch_size):
-            if dones[i]:
-                targets[i, actions[i]] = rewards[i]
-            else:
-                targets[i, actions[i]] = rewards[i] + self.gamma * np.max(next_q_values[i])
-        
-        loss = self.model.train(states, targets).history['loss'][0]
-        
-        return loss
-
-    def increment_step(self):
-        self.steps += 1
-        self.steps_since_update += 1
-        self.update_epsilon()
-
-        if self.steps_since_update >= self.target_update_steps:
-            self.update_target_model()
-            self.steps_since_update = 0
-
-    def train(self, num_episodes=None, should_plot=False, plot_interval=1000):
-        game = Game()
-        last_time = time.time()
-        rewards_history = []
-        loss_history = []
-        epsilon_history = []
-        frame_count = 0
-        training_count = 0
-        episode = 0
-        
-        if should_plot:
-            plt.ioff()
-            fig = plt.figure(figsize=(12, 8))
-            
-            # Create two subplots
-            ax1 = fig.add_subplot(211)  # Episode rewards subplot
-            ax2 = fig.add_subplot(212)  # Training metrics subplot
-            ax2_twin = ax2.twinx()
-            
-            # Episode rewards plot
-            line_reward, = ax1.plot([], [], label='Episode Reward', color='blue')
-            ax1.set_xlabel('Episode')
-            ax1.set_ylabel('Reward', color='blue')
-            ax1.legend(loc='upper left')
-            
-            # Training metrics plot
-            line_loss, = ax2.plot([], [], label='Loss', color='red')
-            line_epsilon, = ax2_twin.plot([], [], label='Epsilon', color='green')
-            
-            ax2.set_xlabel('Training step')
-            ax2.set_ylabel('Loss', color='red')
-            ax2_twin.set_ylabel('Epsilon', color='green')
-            
-            # Combine legends for second subplot
-            lines2 = [line_loss, line_epsilon]
-            labels2 = [l.get_label() for l in lines2]
-            ax2.legend(lines2, labels2, loc='upper left')
-            
-            plt.tight_layout()
-        
-        while True:  # Run indefinitely if num_episodes is None
-            if num_episodes is not None and episode >= num_episodes:
-                break
-            
-            game.reset()
-            state = game.get_state()
-            total_reward = 0
-            
-            while not game.game_over:
-                action = self.act(state)
-                if action == 0:
-                    game.move_paddle('left')
-                elif action == 1:
-                    game.move_paddle('right')
-                
-                reward = game.update()  # Get reward directly from update
-                next_state = game.get_state()
-                total_reward += reward
-                
-                self.remember(state, action, reward, next_state, game.game_over)
-                
-                # Train every 4 frames
-                frame_count += 1
-                if frame_count % 4 == 0:
-                    loss = self.replay()
-                    self.increment_step()
-                    loss_history.append(loss if loss is not None else 0)
-                    epsilon_history.append(self.epsilon)
-                    training_count += 1
-                    
-                    if training_count % plot_interval == 0:
-                        plot_window = 50
-                        current_time = time.time()
-                        interval_duration = current_time - last_time
-                        avg_reward = np.mean(rewards_history[-plot_window:]) if rewards_history else 0
-                        
-                        if should_plot:
-                            smoothed_loss = pd.Series(loss_history).rolling(window=plot_window).mean()
-                            
-                            x_rewards = list(range(len(rewards_history)))
-                            x_loss = list(range(len(loss_history)))
-                            x_epsilon = list(range(len(epsilon_history)))
-                            
-                            line_reward.set_data(x_rewards, rewards_history)
-                            line_loss.set_data(x_loss, smoothed_loss)
-                            line_epsilon.set_data(x_epsilon, epsilon_history)
-                            
-                            ax1.relim()
-                            ax1.autoscale_view()
-                            ax2.relim()
-                            ax2_twin.relim()
-                            ax2.autoscale_view()
-                            ax2_twin.autoscale_view()
-                            
-                            fig.canvas.draw()
-                            clear_output(wait=True)
-                            display(fig)
-                        
-                        print(f"Training step: {training_count}, Game steps: {self.steps}, "
-                              f"Episode: {episode + 1}, Avg Score: {avg_reward:.2f}, "
-                              f"Epsilon: {self.epsilon:.4f}, Loss: {loss if loss is not None else 'N/A'}, "
-                              f"Time: {interval_duration:.2f}s")
-                        
-                        last_time = current_time
-                
-                state = next_state
-                
-                # Check if all bricks are destroyed
-                if game.score == len(game.bricks):
-                    print(f"\nSolved! All bricks destroyed in episode {episode + 1}")
-                    print(f"Final training step: {training_count}")
-                    print(f"Final epsilon: {self.epsilon:.4f}")
-                    rewards_history.append(total_reward)
-                    if should_plot:
-                        plt.close(fig)
-                    return rewards_history, loss_history, epsilon_history
-            
-            rewards_history.append(total_reward)
-            episode += 1  # Increment episode counter at the end of each episode
-        
-        if should_plot:
-            plt.close(fig)
-        
-        return rewards_history, loss_history, epsilon_history
-
-# This part is not executed when the file is imported
-if __name__ == "__main__":
-    import os
-    os.environ['TF_USE_LEGACY_KERAS'] = '1'
-    
-    ENABLE_PROFILING = True
-    num_episodes = 2000
-    
-    # Create the agent (now without input_size parameter)
-    agent = DQNAgent()
-
-    if ENABLE_PROFILING:
-        import cProfile
-        import pstats
-        profiler = cProfile.Profile()
-        profiler.enable()
-        
-    # Train the agent
-    rewards, losses, epsilons = agent.train(num_episodes)
-    
-    if ENABLE_PROFILING:
-        profiler.disable()
-        stats = pstats.Stats(profiler).sort_stats('cumulative')
-        stats.print_stats(30)
+        # Save the replicated model
+        tfjs.converters.save_keras_model(model, path)
 
