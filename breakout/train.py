@@ -26,6 +26,13 @@ from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.trajectories import trajectory
 from tf_agents.policies import random_tf_policy
 from tf_agents.policies import epsilon_greedy_policy
+from tf_agents.train import learner
+from tf_agents.train import triggers
+
+# Set up multi-CPU strategy
+strategy = tf.distribute.MirroredStrategy(
+    devices=[f"/cpu:{i}" for i in range(8)]
+)
 
 class Game:
     def __init__(self, width=800, height=600):
@@ -219,74 +226,34 @@ class BreakoutEnv(py_environment.PyEnvironment):
         else:
             return ts.transition(self._state, reward=reward, discount=1.0)
 
-def create_dqn_agent(tf_env, learning_rate=1e-3):
-    # Create global step for epsilon decay
-    global_step = tf.Variable(0, trainable=False, dtype=tf.int64, name='global_step')
-    
-    # Define epsilon decay
-    start_epsilon = 1.0
-    end_epsilon = 0.01
-    decay_steps = 10000
-    
-    epsilon = tf.compat.v1.train.polynomial_decay(
-        start_epsilon,
-        global_step,
-        decay_steps,
-        end_learning_rate=end_epsilon,
-        power=1.0  # Linear decay
-    )
-
-    q_net = q_network.QNetwork(
-        tf_env.observation_spec(),
-        tf_env.action_spec(),
-        fc_layer_params=(256, 256, 256)
-    )
-
-    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-
-    agent = dqn_agent.DqnAgent(
-        tf_env.time_step_spec(),
-        tf_env.action_spec(),
-        q_network=q_net,
-        optimizer=optimizer,
-        epsilon_greedy=epsilon,  # Pass the decaying epsilon
-        target_update_period=1000,
-        td_errors_loss_fn=common.element_wise_huber_loss,
-        gamma=0.99,
-        train_step_counter=global_step  # Use the same global step for epsilon decay
-    )
-
-    agent.initialize()
-    return agent
-
-def create_replay_buffer(agent, tf_env, replay_buffer_max_length=100000):
-    replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
+def create_replay_buffer(agent, tf_env, max_length=100000):
+    return tf_uniform_replay_buffer.TFUniformReplayBuffer(
         data_spec=agent.collect_data_spec,
         batch_size=tf_env.batch_size,
-        max_length=replay_buffer_max_length
+        max_length=max_length
     )
-    return replay_buffer
 
 def collect_step(environment, policy, buffer):
     time_step = environment.current_time_step()
     action_step = policy.action(time_step)
     next_time_step = environment.step(action_step.action)
     traj = trajectory.from_transition(time_step, action_step, next_time_step)
-
-    # Add trajectory to the replay buffer
-    buffer.add_batch(traj)
+    
+    # Convert to tensor before adding to buffer
+    buffer.add_batch(tf.nest.map_structure(tf.convert_to_tensor, traj))
 
 def collect_initial_data(environment, policy, buffer, n_steps):
     for _ in range(n_steps):
         collect_step(environment, policy, buffer)
 
 def train_agent(num_iterations, collect_steps_per_iteration, batch_size, log_interval, tf_env, agent, replay_buffer):
+    # Create dataset with parallel processing
     dataset = replay_buffer.as_dataset(
-        num_parallel_calls=3,
+        num_parallel_calls=8,  # Use all cores for dataset processing
         sample_batch_size=batch_size,
         num_steps=2,
         single_deterministic_pass=False
-    ).prefetch(3)
+    ).prefetch(tf.data.AUTOTUNE)  # Optimize prefetching
 
     iterator = iter(dataset)
     agent.train = common.function(agent.train)
@@ -330,41 +297,117 @@ class BreakoutTrainer:
         self.py_env = BreakoutEnv()
         self.tf_env = tf_py_environment.TFPyEnvironment(self.py_env)
         
-        # Create the DQN agent
-        self.agent = create_dqn_agent(self.tf_env, learning_rate)
+        # Create global step
+        self.global_step = tf.Variable(0, trainable=False, dtype=tf.int64, name='global_step')
         
-        # Create the replay buffer
-        self.replay_buffer = create_replay_buffer(self.agent, self.tf_env)
+        # Define epsilon decay
+        epsilon = tf.compat.v1.train.polynomial_decay(
+            1.0,  # start epsilon
+            self.global_step,
+            10000,  # decay steps
+            end_learning_rate=0.01,
+            power=1.0
+        )
         
-        # Create a random policy for initial data collection
+        # Create agent
+        self.agent = self._create_agent(learning_rate, epsilon)
+        
+        # Create replay buffer
+        self.replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
+            data_spec=self.agent.collect_data_spec,
+            batch_size=1,
+            max_length=100000
+        )
+        
+        # Create random policy for initial collection
         self.random_policy = random_tf_policy.RandomTFPolicy(
-            self.tf_env.time_step_spec(), 
-            self.tf_env.action_spec()
+            time_step_spec=self.tf_env.time_step_spec(),
+            action_spec=self.tf_env.action_spec()
         )
         
-        self.rewards_history = []
-
-    def train(self, num_iterations=20000, batch_size=64, log_interval=200):
-        """Train the agent for the specified number of iterations."""
-        # Collect initial data if buffer is empty
-        if self.replay_buffer.num_frames() == 0:
-            initial_collect_steps = max(1000, batch_size * 2)
-            collect_initial_data(self.tf_env, self.random_policy, self.replay_buffer, initial_collect_steps)
-        
-        # Train the agent
-        collect_steps_per_iteration = 1
-        avg_loss, rewards_history = train_agent(
-            num_iterations=num_iterations,
-            collect_steps_per_iteration=collect_steps_per_iteration,
-            batch_size=batch_size,
-            log_interval=log_interval,
-            tf_env=self.tf_env,
+        # Create learner
+        self.learner = learner.Learner(
+            root_dir='tmp/breakout_training',
+            train_step=self.global_step,
             agent=self.agent,
-            replay_buffer=self.replay_buffer
+            experience_dataset_fn=lambda: self.replay_buffer.as_dataset(
+                num_parallel_calls=8,
+                sample_batch_size=64,
+                num_steps=2
+            ).prefetch(tf.data.AUTOTUNE)
         )
+
+        self.rewards_history = []
+        self.episode_reward = 0
+
+    def _create_agent(self, learning_rate, epsilon):
+        q_net = q_network.QNetwork(
+            self.tf_env.observation_spec(),
+            self.tf_env.action_spec(),
+            fc_layer_params=(256, 256, 256)
+        )
+
+        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+
+        agent = dqn_agent.DqnAgent(
+            self.tf_env.time_step_spec(),
+            self.tf_env.action_spec(),
+            q_network=q_net,
+            optimizer=optimizer,
+            epsilon_greedy=epsilon,
+            target_update_period=1000,
+            td_errors_loss_fn=common.element_wise_huber_loss,
+            gamma=0.99,
+            train_step_counter=self.global_step
+        )
+
+        agent.initialize()
+        return agent
+
+    def collect_step(self, policy):
+        time_step = self.tf_env.current_time_step()
+        action_step = policy.action(time_step)
+        next_time_step = self.tf_env.step(action_step.action)
+        traj = trajectory.from_transition(time_step, action_step, next_time_step)
         
-        self.rewards_history = rewards_history
-        return avg_loss
+        # Track rewards
+        self.episode_reward += next_time_step.reward.numpy()[0]
+        if next_time_step.is_last():
+            self.rewards_history.append(self.episode_reward)
+            self.episode_reward = 0
+            
+        self.replay_buffer.add_batch(traj)
+
+    def collect_data(self, steps, policy):
+        for _ in range(steps):
+            self.collect_step(policy)
+
+    def train(self, num_iterations=1000000, batch_size=64, log_interval=10000):
+        """Train the agent using the learner."""
+        try:
+            # Collect initial data
+            if self.replay_buffer.num_frames() == 0:
+                print('Collecting initial data')
+                self.collect_data(batch_size * 2, self.random_policy)
+                print('Finished collecting initial data')
+
+            print('Starting training...')
+            for i in range(0, num_iterations, log_interval):
+                # Collect experience
+                self.collect_data(log_interval, self.agent.collect_policy)
+                
+                # Train
+                loss_info = self.learner.run(iterations=log_interval)
+                
+                # Calculate average reward over last 100 episodes
+                avg_reward = np.mean(self.rewards_history[-100:]) if self.rewards_history else 0
+                print(f'Iteration {i}, Loss: {loss_info.loss.numpy():.6f}, Avg Reward: {avg_reward:.2f}')
+
+            return loss_info
+
+        except Exception as e:
+            print(f"Training error: {str(e)}")
+            raise
 
     def plot_rewards(self):
         """Plot the rewards history."""
