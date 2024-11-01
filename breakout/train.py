@@ -312,7 +312,7 @@ class BreakoutTrainer:
         # Create agent
         self.agent = self._create_agent(learning_rate, epsilon)
         
-        # Create replay buffer
+        # Create replay buffer with proper dataset options
         self.replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
             data_spec=self.agent.collect_data_spec,
             batch_size=1,
@@ -324,19 +324,29 @@ class BreakoutTrainer:
             time_step_spec=self.tf_env.time_step_spec(),
             action_spec=self.tf_env.action_spec()
         )
+
+        # Create dataset function that returns the correct format
+        def experience_dataset_fn():
+            dataset = self.replay_buffer.as_dataset(
+                num_parallel_calls=3,
+                sample_batch_size=64,
+                num_steps=2,
+                single_deterministic_pass=False
+            )
+            return dataset
         
-        # Create learner
+        # Create learner with proper configuration
         self.learner = learner.Learner(
             root_dir='tmp/breakout_training',
             train_step=self.global_step,
             agent=self.agent,
-            experience_dataset_fn=lambda: self.replay_buffer.as_dataset(
-                num_parallel_calls=8,
-                sample_batch_size=64,
-                num_steps=2
-            ).prefetch(tf.data.AUTOTUNE)
+            experience_dataset_fn=experience_dataset_fn,
+            checkpoint_interval=10000,
+            summary_interval=1000,
+            max_checkpoints_to_keep=3,
+            use_reverb_v2=False  # Important: tells learner to expect (data, info) tuple
         )
-
+        
         self.rewards_history = []
         self.episode_reward = 0
 
@@ -349,6 +359,8 @@ class BreakoutTrainer:
 
         optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
+        train_step_counter = self.global_step  # Use the same counter
+        
         agent = dqn_agent.DqnAgent(
             self.tf_env.time_step_spec(),
             self.tf_env.action_spec(),
@@ -358,10 +370,9 @@ class BreakoutTrainer:
             target_update_period=1000,
             td_errors_loss_fn=common.element_wise_huber_loss,
             gamma=0.99,
-            train_step_counter=self.global_step
+            train_step_counter=train_step_counter
         )
 
-        agent.initialize()
         return agent
 
     def collect_step(self, policy):
@@ -399,7 +410,7 @@ class BreakoutTrainer:
                 # Train
                 loss_info = self.learner.run(iterations=log_interval)
                 
-                # Calculate average reward over last 100 episodes
+                # Calculate average reward
                 avg_reward = np.mean(self.rewards_history[-100:]) if self.rewards_history else 0
                 print(f'Iteration {i}, Loss: {loss_info.loss.numpy():.6f}, Avg Reward: {avg_reward:.2f}')
 
