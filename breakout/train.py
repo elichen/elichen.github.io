@@ -18,12 +18,13 @@ class Game:
         self.ball = {'radius': 5, 'x': width / 2, 'y': height - 30, 'dx': 2, 'dy': -2}
         self.bricks = []
         self.score = 0
+        self.total_score = 0  # Add total score to track overall progress
         self.game_over = False
         self.colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3']
         self.init_bricks()
         self.last_ball_y = self.ball['y']
         self.penalty_for_losing_ball = -1  # Change from 0 to -1
-        self.reward_for_hitting_paddle = 0
+        self.reward_for_hitting_paddle = 0.1
         self.reward_for_breaking_brick = 1  # Add this line
         self.ball_hit_paddle = False
 
@@ -59,8 +60,9 @@ class Game:
 
     def update(self):
         if self.game_over:
-            return
+            return 0
 
+        reward = 0
         self.last_ball_y = self.ball['y']
 
         # Move the ball
@@ -78,16 +80,11 @@ class Game:
             self.ball['y'] - self.ball['radius'] < self.paddle['y'] + self.paddle['height'] and
             self.ball['x'] > self.paddle['x'] and
             self.ball['x'] < self.paddle['x'] + self.paddle['width']):
-            # Only reverse direction if the ball is moving downward
-            if self.ball['dy'] > 0:
+            if self.ball['dy'] > 0:  # Only bounce if moving downward
                 self.ball['dy'] = -self.ball['dy']
-                
-                # Add variation to ball direction based on paddle hit position
                 hit_position = (self.ball['x'] - self.paddle['x']) / self.paddle['width']
                 max_angle_offset = 1
                 self.ball['dx'] = self.ball['dx'] + (hit_position - 0.5) * max_angle_offset
-            
-            self.ball_hit_paddle = True
 
         # Ball collision with bricks
         for brick in self.bricks:
@@ -98,33 +95,16 @@ class Game:
                     self.ball['y'] < brick['y'] + brick['height']):
                     self.ball['dy'] = -self.ball['dy']
                     brick['status'] = 0
-                    self.score += 1
-                    if self.score == len(self.bricks):
+                    self.total_score += 1
+                    reward += 1.0  # Reward for breaking brick
+                    if self.total_score == len(self.bricks):
+                        print(f"\nSolved! All bricks destroyed!")
                         self.game_over = True
 
         # Game over if ball touches bottom
         if self.ball['y'] + self.ball['radius'] > self.height:
             self.game_over = True
-
-    def get_reward(self):
-        reward = 0
-
-        # Reward for breaking bricks
-        if self.score > 0:
-            reward += self.score * self.reward_for_breaking_brick
-            self.score = 0
-
-        # Reward for hitting the paddle
-        if self.ball_hit_paddle:
-            reward += self.reward_for_hitting_paddle
-            self.ball_hit_paddle = False
-
-        # Penalty for losing the ball
-        if self.game_over:
-            reward += self.penalty_for_losing_ball
-
-        # Small time penalty to encourage faster solutions
-        reward -= 0.001  # Add small penalty per step
+            reward += -1  # Penalty for losing ball
 
         return reward
 
@@ -143,6 +123,7 @@ class Game:
 
         self.bricks = []
         self.score = 0
+        self.total_score = 0  # Reset total score too
         self.game_over = False
         self.init_bricks()
         self.last_ball_y = self.ball['y']
@@ -174,27 +155,16 @@ class Game:
 class DQNModel:
     def __init__(self, input_size, num_actions):
         self.model = tf.keras.Sequential([
-            tf.keras.layers.Dense(512, activation='relu', input_shape=(input_size,)),
-            tf.keras.layers.Dense(512, activation='relu'),
-            tf.keras.layers.Dense(512, activation='relu'),
-            tf.keras.layers.Dense(512, activation='relu'),
+            tf.keras.layers.Dense(256, activation='relu', input_shape=(input_size,)),
+            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(num_actions, activation='linear')
         ])
         
-        # Custom Huber loss that only considers the taken actions
-        def masked_huber_loss(y_true, y_pred):
-            error = y_true - y_pred
-            # Create mask where y_true != y_pred (where we updated values)
-            mask = tf.cast(tf.not_equal(y_true, y_pred), tf.float32)
-            # Apply Huber loss only to the masked values
-            quadratic = tf.minimum(tf.abs(error), 1.0)
-            linear = tf.abs(error) - quadratic
-            loss = 0.5 * quadratic**2 + linear
-            return tf.reduce_mean(loss * mask)
-        
         self.model.compile(
             optimizer=tf.keras.optimizers.Adam(0.00025),
-            loss=masked_huber_loss
+            loss=tf.keras.losses.Huber()  # Changed to Huber loss
         )
 
     def predict(self, state):
@@ -206,12 +176,12 @@ class DQNModel:
 class DQNAgent:
     def __init__(self, 
                  batch_size=32,
-                 memory_size=1000000,
+                 memory_size=100000,
                  gamma=0.99,
                  epsilon_start=1.0,
                  epsilon_end=0.1,
-                 fixed_epsilon_steps=2000,
-                 decay_epsilon_steps=4000,
+                 fixed_epsilon_steps=10000,
+                 decay_epsilon_steps=90000,
                  target_update_steps=1000):
         # Create a game instance to determine input size
         game = Game()
@@ -345,9 +315,8 @@ class DQNAgent:
                 elif action == 1:
                     game.move_paddle('right')
                 
-                game.update()
+                reward = game.update()  # Get reward directly from update
                 next_state = game.get_state()
-                reward = game.get_reward()
                 total_reward += reward
                 
                 self.remember(state, action, reward, next_state, game.game_over)
