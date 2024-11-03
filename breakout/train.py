@@ -109,6 +109,7 @@ class Game:
                 hit_position = (self.ball['x'] - self.paddle['x']) / self.paddle['width']
                 max_angle_offset = 1
                 self.ball['dx'] = self.ball['dx'] + (hit_position - 0.5) * max_angle_offset
+                reward += 0.1
 
         # Ball collision with bricks
         for brick in self.bricks:
@@ -304,8 +305,8 @@ class BreakoutTrainer:
         epsilon = tf.compat.v1.train.polynomial_decay(
             1.0,  # start epsilon
             self.global_step,
-            10000,  # decay steps
-            end_learning_rate=0.01,
+            100000,  # decay steps
+            end_learning_rate=0.1,
             power=1.0
         )
         
@@ -354,7 +355,7 @@ class BreakoutTrainer:
         q_net = q_network.QNetwork(
             self.tf_env.observation_spec(),
             self.tf_env.action_spec(),
-            fc_layer_params=(256, 256, 256)
+            fc_layer_params=(256, 256, 256, 256)
         )
 
         optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
@@ -370,7 +371,8 @@ class BreakoutTrainer:
             target_update_period=1000,
             td_errors_loss_fn=common.element_wise_huber_loss,
             gamma=0.99,
-            train_step_counter=train_step_counter
+            train_step_counter=train_step_counter,
+            gradient_clipping=1.0
         )
 
         return agent
@@ -457,6 +459,7 @@ class BreakoutTrainer:
         
         model = tf.keras.Sequential([
             tf.keras.layers.Dense(256, activation='relu', input_shape=input_shape),
+            tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(num_actions)
