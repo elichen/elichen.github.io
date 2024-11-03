@@ -1,4 +1,4 @@
-# breakout_dqn.py
+# breakout_ppo.py
 
 import numpy as np
 import tensorflow as tf
@@ -9,6 +9,9 @@ from collections import deque
 import time
 import psutil
 import pandas as pd
+from time import time
+import datetime
+import tensorflowjs as tfjs
 
 # tf-agents imports
 from tf_agents.environments import py_environment
@@ -18,16 +21,16 @@ from tf_agents.environments import wrappers
 from tf_agents.environments import suite_gym
 from tf_agents.specs import array_spec
 from tf_agents.trajectories import time_step as ts
-
-from tf_agents.agents.dqn import dqn_agent
-from tf_agents.networks import q_network
-from tf_agents.utils import common
-from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.trajectories import trajectory
-from tf_agents.policies import random_tf_policy
-from tf_agents.policies import epsilon_greedy_policy
-from tf_agents.train import learner
-from tf_agents.train import triggers
+
+from tf_agents.agents.ppo import ppo_clip_agent
+from tf_agents.networks import actor_distribution_network
+from tf_agents.networks import value_network
+from tf_agents.utils import nest_utils
+from tf_agents.specs import tensor_spec
+from tf_agents.metrics import tf_metrics
+from tf_agents.metrics import py_metrics
+from tf_agents.policies import policy_saver
 
 # Set up multi-CPU strategy
 strategy = tf.distribute.MirroredStrategy(
@@ -183,310 +186,245 @@ class BreakoutEnv(py_environment.PyEnvironment):
         self._game = Game()
         
         # Define action and observation specs
-        # Actions: 0 - stay, 1 - left, 2 - right
         self._action_spec = array_spec.BoundedArraySpec(
             shape=(), dtype=np.int32, minimum=0, maximum=2, name='action')
         
-        # Observation: A vector of game state as defined in Game.get_state()
+        # Observation: Same as before
         self._observation_spec = array_spec.BoundedArraySpec(
-            shape=(self._game.get_state().shape[0],), dtype=np.float32, minimum=0.0, maximum=1.0, name='observation')
+            shape=(self._game.get_state().shape[0],), 
+            dtype=np.float32, 
+            minimum=0.0, 
+            maximum=1.0, 
+            name='observation')
         
         self._state = self._game.get_state()
         self._episode_ended = False
-    
-    def action_spec(self):
-        return self._action_spec
-    
-    def observation_spec(self):
-        return self._observation_spec
+        
+        # Add episode step counter for PPO
+        self._steps_in_episode = 0
+        self._max_steps_per_episode = 1000  # Prevent infinite episodes
     
     def _reset(self):
         self._game.reset()
         self._state = self._game.get_state()
         self._episode_ended = False
+        self._steps_in_episode = 0
         return ts.restart(self._state)
     
     def _step(self, action):
         if self._episode_ended:
-            # The last action ended the episode. Ignore the current action and start a new episode.
             return self.reset()
+
+        self._steps_in_episode += 1
         
         # Map the action to game moves
         if action == 1:
             self._game.move_paddle('left')
         elif action == 2:
             self._game.move_paddle('right')
-        # If action == 0, do nothing (stay)
         
         reward = self._game.update()
         self._state = self._game.get_state()
         
-        if self._game.game_over:
+        # End episode if game over or max steps reached
+        if self._game.game_over or self._steps_in_episode >= self._max_steps_per_episode:
             self._episode_ended = True
             return ts.termination(self._state, reward)
-        else:
-            return ts.transition(self._state, reward=reward, discount=1.0)
-
-def create_replay_buffer(agent, tf_env, max_length=100000):
-    return tf_uniform_replay_buffer.TFUniformReplayBuffer(
-        data_spec=agent.collect_data_spec,
-        batch_size=tf_env.batch_size,
-        max_length=max_length
-    )
-
-def collect_step(environment, policy, buffer):
-    time_step = environment.current_time_step()
-    action_step = policy.action(time_step)
-    next_time_step = environment.step(action_step.action)
-    traj = trajectory.from_transition(time_step, action_step, next_time_step)
-    
-    # Convert to tensor before adding to buffer
-    buffer.add_batch(tf.nest.map_structure(tf.convert_to_tensor, traj))
-
-def collect_initial_data(environment, policy, buffer, n_steps):
-    for _ in range(n_steps):
-        collect_step(environment, policy, buffer)
-
-def train_agent(num_iterations, collect_steps_per_iteration, batch_size, log_interval, tf_env, agent, replay_buffer):
-    # Create dataset with parallel processing
-    dataset = replay_buffer.as_dataset(
-        num_parallel_calls=8,  # Use all cores for dataset processing
-        sample_batch_size=batch_size,
-        num_steps=2,
-        single_deterministic_pass=False
-    ).prefetch(tf.data.AUTOTUNE)  # Optimize prefetching
-
-    iterator = iter(dataset)
-    agent.train = common.function(agent.train)
-
-    avg_return = []
-    rewards_history = []
-    episode_reward = 0
-    
-    for iteration in range(num_iterations):
-        # Collect steps using agent's collect policy
-        time_step = tf_env.current_time_step()
-        action_step = agent.collect_policy.action(time_step)
-        next_time_step = tf_env.step(action_step.action)
         
-        # Add to episode reward
-        episode_reward += next_time_step.reward.numpy()[0]
-        
-        # If episode ended, record the reward
-        if next_time_step.is_last():
-            rewards_history.append(episode_reward)
-            episode_reward = 0
-        
-        # Add to replay buffer
-        traj = trajectory.from_transition(time_step, action_step, next_time_step)
-        replay_buffer.add_batch(traj)
+        return ts.transition(self._state, reward=reward, discount=0.99)
 
-        # Sample a batch of data from the buffer and update the agent's network
-        experience, unused_info = next(iterator)
-        train_loss = agent.train(experience).loss
+    def action_spec(self):
+        return self._action_spec
 
-        if iteration % log_interval == 0:
-            avg_reward = np.mean(rewards_history[-100:]) if rewards_history else 0
-            print(f'step = {iteration}: loss = {train_loss.numpy():.6f}, avg_reward = {avg_reward:.2f}')
-            avg_return.append(train_loss.numpy())
-
-    return avg_return, rewards_history
+    def observation_spec(self):
+        return self._observation_spec
 
 class BreakoutTrainer:
-    def __init__(self, learning_rate=1e-3):
-        # Create the environment
+    def __init__(self, learning_rate=3e-4):  # PPO's recommended learning rate
         self.py_env = BreakoutEnv()
         self.tf_env = tf_py_environment.TFPyEnvironment(self.py_env)
         
-        # Create global step
-        self.global_step = tf.Variable(0, trainable=False, dtype=tf.int64, name='global_step')
-        
-        # Define epsilon decay
-        epsilon = tf.compat.v1.train.polynomial_decay(
-            1.0,  # start epsilon
-            self.global_step,
-            100000,  # decay steps
-            end_learning_rate=0.1,
-            power=1.0
-        )
-        
-        # Create agent
-        self.agent = self._create_agent(learning_rate, epsilon)
-        
-        # Create replay buffer with proper dataset options
-        self.replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
-            data_spec=self.agent.collect_data_spec,
-            batch_size=1,
-            max_length=100000
-        )
-        
-        # Create random policy for initial collection
-        self.random_policy = random_tf_policy.RandomTFPolicy(
-            time_step_spec=self.tf_env.time_step_spec(),
-            action_spec=self.tf_env.action_spec()
-        )
-
-        # Create dataset function that returns the correct format
-        def experience_dataset_fn():
-            dataset = self.replay_buffer.as_dataset(
-                num_parallel_calls=3,
-                sample_batch_size=64,
-                num_steps=2,
-                single_deterministic_pass=False
-            )
-            return dataset
-        
-        # Create learner with proper configuration
-        self.learner = learner.Learner(
-            root_dir='tmp/breakout_training',
-            train_step=self.global_step,
-            agent=self.agent,
-            experience_dataset_fn=experience_dataset_fn,
-            checkpoint_interval=10000,
-            summary_interval=1000,
-            max_checkpoints_to_keep=3,
-            use_reverb_v2=False  # Important: tells learner to expect (data, info) tuple
-        )
-        
-        self.rewards_history = []
-        self.episode_reward = 0
-
-    def _create_agent(self, learning_rate, epsilon):
-        q_net = q_network.QNetwork(
+        # Create networks
+        actor_net = actor_distribution_network.ActorDistributionNetwork(
             self.tf_env.observation_spec(),
             self.tf_env.action_spec(),
-            fc_layer_params=(256, 256, 256, 256)
+            fc_layer_params=(256, 256, 256, 256),
+            activation_fn=tf.keras.activations.relu
         )
-
-        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-
-        train_step_counter = self.global_step  # Use the same counter
         
-        agent = dqn_agent.DqnAgent(
-            self.tf_env.time_step_spec(),
-            self.tf_env.action_spec(),
-            q_network=q_net,
-            optimizer=optimizer,
-            epsilon_greedy=epsilon,
-            target_update_period=1000,
-            td_errors_loss_fn=common.element_wise_huber_loss,
-            gamma=0.99,
-            train_step_counter=train_step_counter,
-            gradient_clipping=1.0
+        value_net = value_network.ValueNetwork(
+            self.tf_env.observation_spec(),
+            fc_layer_params=(256, 256, 256, 256),
+            activation_fn=tf.keras.activations.relu
         )
-
-        return agent
-
-    def collect_step(self, policy):
-        time_step = self.tf_env.current_time_step()
-        action_step = policy.action(time_step)
-        next_time_step = self.tf_env.step(action_step.action)
-        traj = trajectory.from_transition(time_step, action_step, next_time_step)
         
-        # Track rewards
-        self.episode_reward += next_time_step.reward.numpy()[0]
-        if next_time_step.is_last():
-            self.rewards_history.append(self.episode_reward)
-            self.episode_reward = 0
+        # Create PPO agent with correct import and parameters
+        self.agent = ppo_clip_agent.PPOClipAgent(
+            time_step_spec=self.tf_env.time_step_spec(),
+            action_spec=self.tf_env.action_spec(),
+            optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+            actor_net=actor_net,
+            value_net=value_net,
+            # PPO specific parameters
+            entropy_regularization=0.01,
+            importance_ratio_clipping=0.2,  # PPO clip parameter
+            discount_factor=0.99,
+            lambda_value=0.95,  # Changed from gae_lambda
+            num_epochs=10,
+            use_gae=True,
+            use_td_lambda_return=True,
+            normalize_rewards=True,
+            reward_norm_clipping=10.0,
+            normalize_observations=True,
+            policy_l2_reg=0.0,
+            value_function_l2_reg=0.0,
+            shared_vars_l2_reg=0.0,
+            value_pred_loss_coef=0.5,
+            debug_summaries=True,
+            summarize_grads_and_vars=True,
+        )
+        
+        self.agent.initialize()
+        
+        # Add train step counter
+        self.train_step = tf.Variable(0, dtype=tf.int64)
+        
+        # Add metrics
+        self.train_metrics = [
+            tf_metrics.AverageReturnMetric(),
+            tf_metrics.AverageEpisodeLengthMetric(),
+        ]
+        
+        self.eval_metrics = [
+            py_metrics.AverageReturnMetric(),
+            py_metrics.AverageEpisodeLengthMetric(),
+        ]
+        
+        # Initialize policy saver
+        self.policy_saver = policy_saver.PolicySaver(
+            self.agent.policy,
+            batch_size=None,  # Allows for variable batch sizes
+            train_step=self.train_step  # Add train step counter for versioning
+        )
+    
+    def collect_episode(self, policy, num_episodes=1):
+        episodes = []
+        for _ in range(num_episodes):
+            time_step = self.tf_env.reset()
+            episode_steps = []
             
-        self.replay_buffer.add_batch(traj)
-
-    def collect_data(self, steps, policy):
-        for _ in range(steps):
-            self.collect_step(policy)
-
-    def train(self, num_iterations=1000000, batch_size=64, log_interval=10000):
-        """Train the agent using the learner."""
-        try:
-            # Collect initial data
-            if self.replay_buffer.num_frames() == 0:
-                print('Collecting initial data')
-                self.collect_data(batch_size * 2, self.random_policy)
-                print('Finished collecting initial data')
-
-            print('Starting training...')
-            for i in range(0, num_iterations, log_interval):
-                # Collect experience
-                self.collect_data(log_interval, self.agent.collect_policy)
+            while not time_step.is_last():
+                action_step = policy.action(time_step)
+                next_time_step = self.tf_env.step(action_step.action)
                 
-                # Train
-                loss_info = self.learner.run(iterations=log_interval)
+                # Create a Trajectory from the time steps and action
+                traj = trajectory.from_transition(
+                    time_step, 
+                    action_step, 
+                    next_time_step
+                )
+                episode_steps.append(traj)
+                time_step = next_time_step
+            
+            # Stack the trajectories into a single batch with time dimension
+            if episode_steps:
+                episodes.append(
+                    tf.nest.map_structure(
+                        lambda *arrays: tf.stack(arrays), 
+                        *episode_steps
+                    )
+                )
+        return episodes
+
+    def train(self, num_iterations=1000, eval_interval=100):
+        # Training metrics
+        returns = []
+        steps = []
+        
+        # Timing metrics
+        start_time = time()
+        episode_times = []
+        
+        # Training loop
+        for iteration in range(num_iterations):
+            iter_start = time()
+            
+            # Collect experience
+            episodes = self.collect_episode(self.agent.collect_policy, num_episodes=1)
+            
+            # Train on collected experience
+            for episode in episodes:
+                processed_episode = tf.nest.map_structure(
+                    lambda x: tf.reshape(x, [1, -1] + list(x.shape[2:])) if len(x.shape) > 2 else tf.reshape(x, [1, -1]),
+                    episode
+                )
+                self.agent.train(experience=processed_episode)
+            
+            # Update timing metrics
+            iter_time = time() - iter_start
+            episode_times.append(iter_time)
+            
+            # Evaluation and logging
+            if iteration % eval_interval == 0:
+                avg_return = self.evaluate()
+                returns.append(avg_return)
+                steps.append(iteration)
                 
-                # Calculate average reward
-                avg_reward = np.mean(self.rewards_history[-100:]) if self.rewards_history else 0
-                print(f'Iteration {i}, Loss: {loss_info.loss.numpy():.6f}, Avg Reward: {avg_reward:.2f}')
+                # Calculate timing estimates
+                avg_episode_time = sum(episode_times[-eval_interval:]) / len(episode_times[-eval_interval:])
+                elapsed_time = time() - start_time
+                estimated_remaining = avg_episode_time * (num_iterations - iteration)
+                
+                print(f'\nIteration: {iteration}/{num_iterations}')
+                print(f'Average Return: {float(avg_return):.2f}')
+                print(f'Average episode time: {avg_episode_time:.2f}s')
+                print(f'Elapsed time: {datetime.timedelta(seconds=int(elapsed_time))}')
+                print(f'Estimated remaining: {datetime.timedelta(seconds=int(estimated_remaining))}')
+                print(f'Estimated total: {datetime.timedelta(seconds=int(elapsed_time + estimated_remaining))}')
+                
+                self.plot_metrics(steps, returns)
 
-            return loss_info
+    def evaluate(self, num_episodes=5):
+        total_return = 0.0
+        for _ in range(num_episodes):
+            time_step = self.tf_env.reset()
+            episode_return = 0.0
+            
+            while not time_step.is_last():
+                action_step = self.agent.policy.action(time_step)
+                time_step = self.tf_env.step(action_step.action)
+                episode_return += time_step.reward
+            
+            total_return += episode_return
 
-        except Exception as e:
-            print(f"Training error: {str(e)}")
-            raise
+        # Return average over episodes
+        return total_return / num_episodes
 
-    def plot_rewards(self):
-        """Plot the rewards history."""
-        import matplotlib.pyplot as plt
-        
-        plt.figure(figsize=(10, 5))
-        plt.plot(self.rewards_history)
-        plt.title('Rewards per Episode')
-        plt.xlabel('Episode')
-        plt.ylabel('Total Reward')
+    def plot_metrics(self, steps, returns):
+        clear_output(wait=True)
+        plt.figure(figsize=(10, 4))
+        plt.subplot(1, 1, 1)
+        plt.plot(steps, returns)
+        plt.xlabel('Iterations')
+        plt.ylabel('Average Return')
         plt.show()
-        
-        # Also plot moving average
-        window_size = 100
-        moving_avg = np.convolve(self.rewards_history, 
-                                np.ones(window_size)/window_size, 
-                                mode='valid')
-        plt.figure(figsize=(10, 5))
-        plt.plot(moving_avg)
-        plt.title(f'Moving Average of Rewards (Window Size: {window_size})')
-        plt.xlabel('Episode')
-        plt.ylabel('Average Reward')
-        plt.show()
 
-    def save_model(self, path="."):
-        """Save the trained model."""
-        import tensorflowjs as tfjs
-        import tensorflow as tf
+    def save_model(self, export_dir='saved_model', tfjs_dir='web_model'):
+        """Save the trained policy for both TF and TFJS formats.
         
-        # Get the underlying Keras model
-        q_net = self.agent._q_network
+        Args:
+            export_dir: Directory to save the TF policy to
+            tfjs_dir: Directory to save the TFJS model to
+        """
+        # First save the policy using PolicySaver
+        self.policy_saver.save(export_dir)
+        print(f"TF Model saved to: {export_dir}")
         
-        # Create a new model that replicates the Q-network structure
-        input_shape = self.tf_env.observation_spec().shape
-        num_actions = self.tf_env.action_spec().maximum - self.tf_env.action_spec().minimum + 1
-        
-        model = tf.keras.Sequential([
-            tf.keras.layers.Dense(256, activation='relu', input_shape=input_shape),
-            tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dense(num_actions)
-        ])
-        
-        # Copy the weights
-        time_step = self.tf_env.current_time_step()
-        q_values = q_net(time_step.observation, step_type=time_step.step_type)
-        model(time_step.observation.numpy())  # Build the model
-        
-        # Get weights from q_net layers
-        q_weights = []
-        for layer in q_net.layers:
-            if hasattr(layer, 'get_weights'):
-                weights = layer.get_weights()
-                if weights:  # only add if weights is not empty
-                    q_weights.extend(weights)
-        
-        # Distribute weights to model layers
-        weight_index = 0
-        for layer in model.layers:
-            num_weights = len(layer.get_weights())
-            if num_weights > 0:
-                layer_weights = q_weights[weight_index:weight_index + num_weights]
-                layer.set_weights(layer_weights)
-                weight_index += num_weights
-        
-        # Save the replicated model
-        tfjs.converters.save_keras_model(model, path)
+        # For TFJS, convert using the 'action' signature
+        tfjs.converters.convert_tf_saved_model(
+            export_dir, 
+            tfjs_dir,
+            signature_def='action'  # Use the action signature from the policy
+        )
+        print(f"TFJS Model saved to: {tfjs_dir}")
 
