@@ -43,9 +43,9 @@ async function runEpisode() {
         const action = agent.act(state);
         
         switch(action) {
-            case 0: game.movePaddle('left'); break;
-            case 1: game.movePaddle('right'); break;
-            // case 2 is 'stay', so we don't need to do anything
+            case 1: game.movePaddle('left'); break;
+            case 2: game.movePaddle('right'); break;
+            // case 0 is no action
         }
 
         game.update();
