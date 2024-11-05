@@ -424,21 +424,30 @@ class BreakoutTrainer:
         plt.show()
 
     def save_model(self, export_dir='saved_model', tfjs_dir='.'):
-        """Save the trained policy for both TF and TFJS formats.
+        """Save the trained policy for both TF and TFJS formats."""
+        from tf_agents.policies import policy_saver
         
-        Args:
-            export_dir: Directory to save the TF policy to
-            tfjs_dir: Directory to save the TFJS model to
-        """
-        # First save the policy using PolicySaver
-        self.policy_saver.save(export_dir)
+        # Create policy saver (using a different variable name)
+        saver = policy_saver.PolicySaver(
+            self.agent.policy,
+            batch_size=None,
+            train_step=self.train_step
+        )
+        
+        # Save the policy
+        saver.save(export_dir)
         print(f"TF Model saved to: {export_dir}")
         
-        # For TFJS, convert using the 'action' signature
+        # Print model structure information
+        print("\nModel structure:")
+        print("Input spec:", self.tf_env.time_step_spec())
+        print("Action spec:", self.tf_env.action_spec())
+        
+        # For TFJS, convert using the action signature
         tfjs.converters.convert_tf_saved_model(
             export_dir, 
             tfjs_dir,
-            signature_def='action'  # Use the action signature from the policy
+            signature_def='action',  # Use the action signature
+            control_flow_v2=True     # Enable control flow v2
         )
-        print(f"TFJS Model saved to: {tfjs_dir}")
 
