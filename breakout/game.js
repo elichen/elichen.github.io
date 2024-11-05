@@ -218,16 +218,36 @@ class Game {
     }
 
     getState() {
-        // Match Python state representation:
-        // [paddle_x, ball_x, ball_y, ball_dx, ball_dy]
+        // Initialize state array with paddle and ball info
         const state = [
-            this.paddle.x / this.width,    // Normalized paddle x position
-            this.ball.x / this.width,      // Normalized ball x position
-            this.ball.y / this.height,     // Normalized ball y position
-            this.ball.dx / 4,              // Normalized ball x velocity
-            this.ball.dy / 4               // Normalized ball y velocity
+            this.paddle.x / this.width,  // Normalized paddle x position
+            this.ball.x / this.width,    // Normalized ball x position
+            this.ball.y / this.height,   // Normalized ball y position
         ];
-        
+
+        // Add normalized brick positions
+        for (const brick of this.bricks) {
+            if (brick.status === 1) {
+                state.push(
+                    brick.x / this.width,   // Normalized brick x position
+                    brick.y / this.height   // Normalized brick y position
+                );
+            } else {
+                state.push(0.0, 0.0);  // Placeholder for broken bricks
+            }
+        }
+
+        // Ensure we have exactly 159 values
+        // 3 (paddle+ball) + (13*6*2) brick values = 159
+        const expectedLength = 159;
+        if (state.length !== expectedLength) {
+            console.error(`State length mismatch. Expected ${expectedLength}, got ${state.length}`);
+            // Pad with zeros if necessary
+            while (state.length < expectedLength) {
+                state.push(0.0);
+            }
+        }
+
         return state;
     }
 }

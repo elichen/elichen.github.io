@@ -50,9 +50,11 @@ class Game:
         self.colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3']
         self.init_bricks()
         self.last_ball_y = self.ball['y']
-        self.penalty_for_losing_ball = -1  # Change from 0 to -1
-        self.reward_for_hitting_paddle = 0.1
-        self.reward_for_breaking_brick = 1  # Add this line
+        self.penalty_for_losing_ball = -10  # Increased negative reward
+        self.reward_for_hitting_paddle = 0.5  # Increased positive reward
+        self.reward_for_breaking_brick = 5  # Increased brick reward
+        self.reward_for_survival = 0.01  # New: small reward for staying alive
+        self.last_paddle_distance = None  # New: track paddle-ball distance
         self.ball_hit_paddle = False
 
     def init_bricks(self):
@@ -89,8 +91,17 @@ class Game:
         if self.game_over:
             return 0
 
-        reward = 0
+        reward = self.reward_for_survival  # Small reward for each step survived
         self.last_ball_y = self.ball['y']
+
+        # Calculate paddle-ball distance for reward shaping
+        paddle_center = self.paddle['x'] + self.paddle['width'] / 2
+        ball_distance = abs(self.ball['x'] - paddle_center)
+        if self.last_paddle_distance is not None:
+            # Reward getting closer to ball, penalize getting further
+            distance_delta = self.last_paddle_distance - ball_distance
+            reward += distance_delta * 0.01
+        self.last_paddle_distance = ball_distance
 
         # Move the ball
         self.ball['x'] += self.ball['dx']
@@ -112,7 +123,10 @@ class Game:
                 hit_position = (self.ball['x'] - self.paddle['x']) / self.paddle['width']
                 max_angle_offset = 1
                 self.ball['dx'] = self.ball['dx'] + (hit_position - 0.5) * max_angle_offset
-                reward += 0.1
+                reward += self.reward_for_hitting_paddle
+                # Additional reward for hitting center of paddle
+                hit_position = abs((self.ball['x'] - self.paddle['x']) / self.paddle['width'] - 0.5)
+                reward += 0.5 * (1 - hit_position)  # More reward for center hits
 
         # Ball collision with bricks
         for brick in self.bricks:
@@ -124,15 +138,15 @@ class Game:
                     self.ball['dy'] = -self.ball['dy']
                     brick['status'] = 0
                     self.total_score += 1
-                    reward += 1.0  # Reward for breaking brick
-                    if self.total_score == len(self.bricks):
-                        print(f"\nSolved! All bricks destroyed!")
-                        self.game_over = True
+                    reward += self.reward_for_breaking_brick
+                    # Additional reward for breaking higher bricks
+                    height_factor = 1 - (brick['y'] / self.height)
+                    reward += 2 * height_factor  # More reward for higher bricks
 
         # Game over if ball touches bottom
         if self.ball['y'] + self.ball['radius'] > self.height:
             self.game_over = True
-            reward += -1  # Penalty for losing ball
+            reward += self.penalty_for_losing_ball
 
         return reward
 
@@ -409,7 +423,7 @@ class BreakoutTrainer:
         plt.ylabel('Average Return')
         plt.show()
 
-    def save_model(self, export_dir='saved_model', tfjs_dir='web_model'):
+    def save_model(self, export_dir='saved_model', tfjs_dir='.'):
         """Save the trained policy for both TF and TFJS formats.
         
         Args:

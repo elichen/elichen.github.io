@@ -1,8 +1,6 @@
 class DQNAgent {
-    constructor(inputSize, numActions) {
-        this.inputSize = inputSize;
-        this.numActions = numActions;
-        this.model = new DQNModel(inputSize, numActions);
+    constructor() {
+        this.model = new DQNModel();
     }
 
     async loadModel(modelUrl) {
@@ -10,13 +8,20 @@ class DQNAgent {
     }
 
     act(state) {
-        const prediction = this.model.predict(state);
-        const actionTensor = prediction.argMax(1);
-        const action = actionTensor.dataSync()[0];
-
-        prediction.dispose();
-        actionTensor.dispose();
-
-        return action;
+        return tf.tidy(() => {
+            // Get prediction from model
+            const prediction = this.model.predict(state);
+            
+            // Cast to float32 before applying softmax
+            const predictionFloat = tf.cast(prediction, 'float32');
+            
+            // PPO outputs logits/probabilities for each action
+            const actionProbs = tf.softmax(predictionFloat);
+            const actionTensor = actionProbs.argMax(0);
+            const action = actionTensor.dataSync()[0];
+            
+            // Map to valid actions: 0 = no action, 1 = left, 2 = right
+            return action;
+        });
     }
 }
