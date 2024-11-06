@@ -347,10 +347,8 @@ class BreakoutTrainer:
         for iteration in range(num_iterations):
             iter_start = time()
             
-            # Collect experience
+            # Collect experience and train
             episodes = self.collect_episode(self.agent.collect_policy, num_episodes=1)
-            
-            # Train on collected experience
             for episode in episodes:
                 processed_episode = tf.nest.map_structure(
                     lambda x: tf.reshape(x, [1, -1] + list(x.shape[2:])) if len(x.shape) > 2 else tf.reshape(x, [1, -1]),
@@ -373,14 +371,15 @@ class BreakoutTrainer:
                 elapsed_time = time() - start_time
                 estimated_remaining = avg_episode_time * (num_iterations - iteration)
                 
+                # Plot first, then print metrics
+                self.plot_metrics(steps, returns)
+                
                 print(f'\nIteration: {iteration}/{num_iterations}')
                 print(f'Average Return: {float(avg_return):.2f}')
                 print(f'Average episode time: {avg_episode_time:.2f}s')
                 print(f'Elapsed time: {datetime.timedelta(seconds=int(elapsed_time))}')
                 print(f'Estimated remaining: {datetime.timedelta(seconds=int(estimated_remaining))}')
                 print(f'Estimated total: {datetime.timedelta(seconds=int(elapsed_time + estimated_remaining))}')
-                
-                self.plot_metrics(steps, returns)
 
     def evaluate(self, num_episodes=5):
         total_return = 0.0
@@ -399,7 +398,6 @@ class BreakoutTrainer:
         return total_return / num_episodes
 
     def plot_metrics(self, steps, returns):
-        clear_output(wait=True)
         plt.figure(figsize=(10, 4))
         plt.subplot(1, 1, 1)
         plt.plot(steps, returns)
