@@ -50,11 +50,10 @@ class Game:
         self.colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3']
         self.init_bricks()
         self.last_ball_y = self.ball['y']
-        self.penalty_for_losing_ball = -10  # Increased negative reward
-        self.reward_for_hitting_paddle = 0.5  # Increased positive reward
-        self.reward_for_breaking_brick = 5  # Increased brick reward
-        self.reward_for_survival = 0.01  # New: small reward for staying alive
-        self.last_paddle_distance = None  # New: track paddle-ball distance
+        self.penalty_for_losing_ball = -10
+        self.reward_for_hitting_paddle = 0.5
+        self.reward_for_breaking_brick = 5
+        self.reward_for_survival = 0.01
         self.ball_hit_paddle = False
 
     def init_bricks(self):
@@ -91,17 +90,8 @@ class Game:
         if self.game_over:
             return 0
 
-        reward = self.reward_for_survival  # Small reward for each step survived
+        reward = self.reward_for_survival  # Keep basic survival reward
         self.last_ball_y = self.ball['y']
-
-        # Calculate paddle-ball distance for reward shaping
-        paddle_center = self.paddle['x'] + self.paddle['width'] / 2
-        ball_distance = abs(self.ball['x'] - paddle_center)
-        if self.last_paddle_distance is not None:
-            # Reward getting closer to ball, penalize getting further
-            distance_delta = self.last_paddle_distance - ball_distance
-            reward += distance_delta * 0.01
-        self.last_paddle_distance = ball_distance
 
         # Move the ball
         self.ball['x'] += self.ball['dx']
@@ -124,9 +114,6 @@ class Game:
                 max_angle_offset = 1
                 self.ball['dx'] = self.ball['dx'] + (hit_position - 0.5) * max_angle_offset
                 reward += self.reward_for_hitting_paddle
-                # Additional reward for hitting center of paddle
-                hit_position = abs((self.ball['x'] - self.paddle['x']) / self.paddle['width'] - 0.5)
-                reward += 0.5 * (1 - hit_position)  # More reward for center hits
 
         # Ball collision with bricks
         for brick in self.bricks:
@@ -139,9 +126,6 @@ class Game:
                     brick['status'] = 0
                     self.total_score += 1
                     reward += self.reward_for_breaking_brick
-                    # Additional reward for breaking higher bricks
-                    height_factor = 1 - (brick['y'] / self.height)
-                    reward += 2 * height_factor  # More reward for higher bricks
 
         # Game over if ball touches bottom
         if self.ball['y'] + self.ball['radius'] > self.height:
