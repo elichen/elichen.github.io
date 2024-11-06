@@ -31,10 +31,11 @@ from tf_agents.specs import tensor_spec
 from tf_agents.metrics import tf_metrics
 from tf_agents.metrics import py_metrics
 from tf_agents.policies import policy_saver
+import multiprocessing
 
 # Set up multi-CPU strategy
 strategy = tf.distribute.MirroredStrategy(
-    devices=[f"/cpu:{i}" for i in range(8)]
+    devices=[f"/cpu:{i}" for i in range(multiprocessing.cpu_count())]
 )
 
 class Game:
@@ -239,6 +240,12 @@ class BreakoutEnv(py_environment.PyEnvironment):
 
 class BreakoutTrainer:
     def __init__(self, learning_rate=3e-4):  # PPO's recommended learning rate
+        # Initialize distribution strategy
+        self.strategy = tf.distribute.MirroredStrategy(
+            devices=[f"/cpu:{i}" for i in range(8)]
+        )
+        print(f'Number of devices: {self.strategy.num_replicas_in_sync}')
+        
         self.py_env = BreakoutEnv()
         self.tf_env = tf_py_environment.TFPyEnvironment(self.py_env)
         
@@ -306,80 +313,87 @@ class BreakoutTrainer:
         )
     
     def collect_episode(self, policy, num_episodes=1):
-        episodes = []
-        for _ in range(num_episodes):
-            time_step = self.tf_env.reset()
-            episode_steps = []
-            
-            while not time_step.is_last():
-                action_step = policy.action(time_step)
-                next_time_step = self.tf_env.step(action_step.action)
+        episodes_per_replica = num_episodes // self.strategy.num_replicas_in_sync
+        
+        @tf.function
+        def collect_replica_episodes():
+            replica_episodes = []
+            for _ in range(episodes_per_replica):
+                time_step = self.tf_env.reset()
+                episode_steps = []
                 
-                # Create a Trajectory from the time steps and action
-                traj = trajectory.from_transition(
-                    time_step, 
-                    action_step, 
-                    next_time_step
-                )
-                episode_steps.append(traj)
-                time_step = next_time_step
-            
-            # Stack the trajectories into a single batch with time dimension
-            if episode_steps:
-                episodes.append(
-                    tf.nest.map_structure(
-                        lambda *arrays: tf.stack(arrays), 
-                        *episode_steps
+                while not time_step.is_last():
+                    action_step = policy.action(time_step)
+                    next_time_step = self.tf_env.step(action_step.action)
+                    traj = trajectory.from_transition(time_step, action_step, next_time_step)
+                    episode_steps.append(traj)
+                    time_step = next_time_step
+                
+                if episode_steps:
+                    replica_episodes.append(
+                        tf.nest.map_structure(
+                            lambda *arrays: tf.stack(arrays), 
+                            *episode_steps
+                        )
                     )
-                )
-        return episodes
+            return replica_episodes
+
+        distributed_episodes = self.strategy.run(collect_replica_episodes)
+        
+        all_episodes = []
+        for replica_episodes in distributed_episodes:
+            all_episodes.extend(replica_episodes)
+        
+        return all_episodes
 
     def train(self, num_iterations=1000, eval_interval=100):
-        # Training metrics
-        returns = []
-        steps = []
-        
-        # Timing metrics
-        start_time = time()
-        episode_times = []
-        
-        # Training loop
-        for iteration in range(num_iterations):
-            iter_start = time()
+        # Wrap the training loop in the distribution strategy scope
+        with self.strategy.scope():
+            # Training metrics
+            returns = []
+            steps = []
             
-            # Collect experience and train
-            episodes = self.collect_episode(self.agent.collect_policy, num_episodes=1)
-            for episode in episodes:
-                processed_episode = tf.nest.map_structure(
-                    lambda x: tf.reshape(x, [1, -1] + list(x.shape[2:])) if len(x.shape) > 2 else tf.reshape(x, [1, -1]),
-                    episode
-                )
-                self.agent.train(experience=processed_episode)
+            # Timing metrics
+            start_time = time()
+            episode_times = []
             
-            # Update timing metrics
-            iter_time = time() - iter_start
-            episode_times.append(iter_time)
-            
-            # Evaluation and logging
-            if iteration % eval_interval == 0:
-                avg_return = self.evaluate()
-                returns.append(avg_return)
-                steps.append(iteration)
+            # Training loop
+            for iteration in range(num_iterations):
+                iter_start = time()
                 
-                # Calculate timing estimates
-                avg_episode_time = sum(episode_times[-eval_interval:]) / len(episode_times[-eval_interval:])
-                elapsed_time = time() - start_time
-                estimated_remaining = avg_episode_time * (num_iterations - iteration)
+                # Collect experience and train
+                episodes = self.collect_episode(self.agent.collect_policy, num_episodes=1)
+                for episode in episodes:
+                    processed_episode = tf.nest.map_structure(
+                        lambda x: tf.reshape(x, [1, -1] + list(x.shape[2:])) if len(x.shape) > 2 else tf.reshape(x, [1, -1]),
+                        episode
+                    )
+                    self.agent.train(experience=processed_episode)
                 
-                # Plot first, then print metrics
-                self.plot_metrics(steps, returns)
+                # Update timing metrics
+                iter_time = time() - iter_start
+                episode_times.append(iter_time)
                 
-                print(f'\nIteration: {iteration}/{num_iterations}')
-                print(f'Average Return: {float(avg_return):.2f}')
-                print(f'Average episode time: {avg_episode_time:.2f}s')
-                print(f'Elapsed time: {datetime.timedelta(seconds=int(elapsed_time))}')
-                print(f'Estimated remaining: {datetime.timedelta(seconds=int(estimated_remaining))}')
-                print(f'Estimated total: {datetime.timedelta(seconds=int(elapsed_time + estimated_remaining))}')
+                # Evaluation and logging
+                if iteration % eval_interval == 0:
+                    avg_return = self.evaluate()
+                    returns.append(avg_return)
+                    steps.append(iteration)
+                    
+                    # Calculate timing estimates
+                    avg_episode_time = sum(episode_times[-eval_interval:]) / len(episode_times[-eval_interval:])
+                    elapsed_time = time() - start_time
+                    estimated_remaining = avg_episode_time * (num_iterations - iteration)
+                    
+                    # Plot first, then print metrics
+                    self.plot_metrics(steps, returns)
+                    
+                    print(f'\nIteration: {iteration}/{num_iterations}')
+                    print(f'Average Return: {float(avg_return):.2f}')
+                    print(f'Average episode time: {avg_episode_time:.2f}s')
+                    print(f'Elapsed time: {datetime.timedelta(seconds=int(elapsed_time))}')
+                    print(f'Estimated remaining: {datetime.timedelta(seconds=int(estimated_remaining))}')
+                    print(f'Estimated total: {datetime.timedelta(seconds=int(elapsed_time + estimated_remaining))}')
 
     def evaluate(self, num_episodes=5):
         total_return = 0.0
@@ -398,6 +412,7 @@ class BreakoutTrainer:
         return total_return / num_episodes
 
     def plot_metrics(self, steps, returns):
+        clear_output(wait=True)
         plt.figure(figsize=(10, 4))
         plt.subplot(1, 1, 1)
         plt.plot(steps, returns)
