@@ -3,9 +3,10 @@ import tensorflow as tf
 import random
 import matplotlib.pyplot as plt
 from collections import deque
+import time
 
 class AirHockeyEnv:
-    def __init__(self, canvas_width=600, canvas_height=800):
+    def __init__(self, canvas_width=600, canvas_height=800, player_id=0):
         # Game constants from JS version
         self.canvas_width = canvas_width
         self.canvas_height = canvas_height
@@ -13,16 +14,18 @@ class AirHockeyEnv:
         self.GOAL_POSTS = 20
         self.paddle_radius = 20
         self.puck_radius = 15
-        self.friction = 0.99  # Matches JS
-        self.max_speed = 20   # Matches JS
+        self.friction = 0.99
+        self.max_speed = 20
         
-        # Track stuck puck state
-        self.stuck_time = 0
-        self.last_puck_pos = {'x': 0, 'y': 0}
-        self.same_position_time = 0
+        # Track which player's perspective (0 = top, 1 = bottom)
+        self.player_id = player_id
         
         # Define action space: 8 directions + stay = 9 actions
         self.action_dim = 9
+        
+        # Initialize stuck detection variables
+        self.last_puck_pos = {'x': 0, 'y': 0}
+        self.same_position_time = 0
         
         # Initialize game state
         self.reset()
@@ -40,19 +43,26 @@ class AirHockeyEnv:
         return norm_dx, norm_dy
     
     def _get_obs(self):
-        # Get normalized observations
+        """Get normalized observations from current player's perspective"""
         puck_x, puck_y = self._normalize_position(self.puck['x'], self.puck['y'])
         puck_dx, puck_dy = self._normalize_velocity(self.puck['dx'], self.puck['dy'])
-        paddle_x, paddle_y = self._normalize_position(
-            self.ai_paddle['x'], 
-            self.ai_paddle['y']
-        )
         
-        return np.array([
-            puck_x, puck_y,
-            puck_dx, puck_dy,
-            paddle_x, paddle_y
-        ], dtype=np.float32)
+        # Get both paddle positions
+        top_x, top_y = self._normalize_position(self.top_paddle['x'], self.top_paddle['y'])
+        bottom_x, bottom_y = self._normalize_position(self.bottom_paddle['x'], self.bottom_paddle['y'])
+        
+        if self.player_id == 0:  # Top player's perspective
+            return np.array([
+                puck_x, puck_y, puck_dx, puck_dy,
+                top_x, top_y,      # Own paddle
+                bottom_x, bottom_y  # Opponent paddle
+            ], dtype=np.float32)
+        else:  # Bottom player's perspective (flip coordinates)
+            return np.array([
+                puck_x, -puck_y, puck_dx, -puck_dy,  # Flip y coordinates
+                bottom_x, -bottom_y,  # Own paddle
+                top_x, -top_y        # Opponent paddle
+            ], dtype=np.float32)
     
     def reset(self, seed=None):
         if seed is not None:
@@ -60,78 +70,134 @@ class AirHockeyEnv:
             random.seed(seed)
         
         # Reset paddles
-        self.ai_paddle = {
+        self.top_paddle = {
             'x': self.canvas_width / 2,
             'y': 50,
             'speed': 5
         }
         
-        self.player_paddle = {
+        self.bottom_paddle = {
             'x': self.canvas_width / 2,
             'y': self.canvas_height - 50,
             'speed': 5
         }
         
-        # Reset puck to center
+        # Reset puck to center with random velocity
         self.puck = {
             'x': self.canvas_width / 2,
             'y': self.canvas_height / 2,
-            'dx': 0,
-            'dy': 0
+            'dx': np.random.uniform(-2, 2),
+            'dy': np.random.uniform(-2, 2)
         }
+        
+        # Reset stuck detection variables
+        self.last_puck_pos = {'x': self.puck['x'], 'y': self.puck['y']}
+        self.same_position_time = 0
         
         return self._get_obs(), {}
     
     def step(self, action):
-        # Store previous positions
-        prev_ai_x = self.ai_paddle['x']
-        prev_ai_y = self.ai_paddle['y']
+        """Execute one step from current player's perspective"""
+        # Store previous state for reward calculation
+        prev_puck_pos = (self.puck['x'], self.puck['y'])
+        prev_puck_dx = self.puck['dx']
+        prev_puck_dy = self.puck['dy']
+        prev_paddle_pos = (self.top_paddle['x'], self.top_paddle['y']) if self.player_id == 0 else (self.bottom_paddle['x'], self.bottom_paddle['y'])
+        prev_dist_to_puck = np.sqrt((prev_paddle_pos[0] - prev_puck_pos[0])**2 + (prev_paddle_pos[1] - prev_puck_pos[1])**2)
         
-        # Update AI paddle position based on action
+        # Store previous positions
+        prev_top_x = self.top_paddle['x']
+        prev_top_y = self.top_paddle['y']
+        prev_bottom_x = self.bottom_paddle['x']
+        prev_bottom_y = self.bottom_paddle['y']
+        
+        # Update current player's paddle based on action
         if action < 8:  # Movement action
             angle = action * (2 * np.pi / 8)
-            dx = np.cos(angle) * self.ai_paddle['speed']
-            dy = np.sin(angle) * self.ai_paddle['speed']
+            dx = np.cos(angle) * self.top_paddle['speed']
+            dy = np.sin(angle) * self.top_paddle['speed']
             
-            self.ai_paddle['x'] = np.clip(
-                self.ai_paddle['x'] + dx,
+            if self.player_id == 0:  # Top player
+                paddle = self.top_paddle
+                y_min = self.paddle_radius
+                y_max = self.canvas_height/2 - self.paddle_radius
+            else:  # Bottom player
+                paddle = self.bottom_paddle
+                y_min = self.canvas_height/2 + self.paddle_radius
+                y_max = self.canvas_height - self.paddle_radius
+            
+            paddle['x'] = np.clip(
+                paddle['x'] + dx,
                 self.paddle_radius,
                 self.canvas_width - self.paddle_radius
             )
-            self.ai_paddle['y'] = np.clip(
-                self.ai_paddle['y'] + dy,
-                self.paddle_radius,
-                self.canvas_height/2 - self.paddle_radius
+            paddle['y'] = np.clip(
+                paddle['y'] + dy,
+                y_min,
+                y_max
             )
         
-        # Update puck physics (matches JS)
+        # Update puck physics
         self.puck['x'] += self.puck['dx']
         self.puck['y'] += self.puck['dy']
-        
         self.puck['dx'] *= self.friction
         self.puck['dy'] *= self.friction
         
         # Handle collisions
         self._handle_wall_collision()
-        self._handle_paddle_collision(self.ai_paddle, prev_ai_x, prev_ai_y)
-        self._handle_paddle_collision(self.player_paddle)
+        self._handle_paddle_collision(self.top_paddle, prev_top_x, prev_top_y)
+        self._handle_paddle_collision(self.bottom_paddle, prev_bottom_x, prev_bottom_y)
         
         # Check for stuck puck
         if self._is_puck_stuck():
             self._unstick_puck()
         
-        # Calculate reward and check if done
+        # Calculate shaped rewards
         reward = 0
+        
+        # 1. Proximity reward
+        curr_paddle_pos = (self.top_paddle['x'], self.top_paddle['y']) if self.player_id == 0 else (self.bottom_paddle['x'], self.bottom_paddle['y'])
+        curr_dist_to_puck = np.sqrt((curr_paddle_pos[0] - self.puck['x'])**2 + (curr_paddle_pos[1] - self.puck['y'])**2)
+        dist_change = prev_dist_to_puck - curr_dist_to_puck
+        if abs(dist_change) > 5.0:
+            reward += dist_change * 0.01
+        
+        # 2. Hit reward (increased threshold and reward)
+        prev_velocity = np.sqrt(prev_puck_dx**2 + prev_puck_dy**2)
+        curr_velocity = np.sqrt(self.puck['dx']**2 + self.puck['dy']**2)
+        if curr_velocity > prev_velocity + 2.0:  # More significant hits only
+            hit_reward = 0.2  # Increased reward
+            reward += hit_reward
+        
+        # 3. Progress reward (increased threshold)
+        if self.player_id == 0:
+            puck_progress = prev_puck_pos[1] - self.puck['y']
+        else:
+            puck_progress = self.puck['y'] - prev_puck_pos[1]
+        if abs(puck_progress) > 5.0:  # Only reward significant progress
+            progress_reward = puck_progress * 0.02
+            reward += progress_reward
+        
+        # 4. Goal rewards (only print these)
+        goal = self._check_goal()
         done = False
         
-        goal = self._check_goal()
         if goal == 'top':
-            reward = -1
+            reward += -1.0 if self.player_id == 0 else 1.0
+            print(f"Goal scored on top!")
             done = True
         elif goal == 'bottom':
-            reward = 1
+            reward += 1.0 if self.player_id == 0 else -1.0
+            print(f"Goal scored on bottom!")
             done = True
-            
+        
+        # 5. Defense penalty (increased and only when puck is close)
+        if self.player_id == 0 and self.puck['y'] < self.canvas_height/3:  # Top third
+            dist_from_defense = abs(self.top_paddle['x'] - self.puck['x'])
+            if dist_from_defense > 50:  # Only penalize if significantly out of position
+                defense_penalty = -0.05
+                reward += defense_penalty
+        
         return self._get_obs(), reward, done, False, {}
     
     def _handle_wall_collision(self):
@@ -236,20 +302,22 @@ class AirHockeyEnv:
         self.same_position_time = 0
 
     def _check_goal(self):
-        """Check if a goal has been scored."""
-        # Check vertical position
-        if self.puck['y'] - self.puck_radius <= 0:
-            # Check if within goal posts
-            if (self.canvas_width - self.GOAL_WIDTH)/2 <= self.puck['x'] <= (self.canvas_width + self.GOAL_WIDTH)/2:
-                return 'top'
-        elif self.puck['y'] + self.puck_radius >= self.canvas_height:
-            # Check if within goal posts
-            if (self.canvas_width - self.GOAL_WIDTH)/2 <= self.puck['x'] <= (self.canvas_width + self.GOAL_WIDTH)/2:
-                return 'bottom'
+        """Check if a goal has been scored. Match JS version exactly."""
+        # Check if within goal posts in X direction
+        in_x_range = (
+            (self.canvas_width - self.GOAL_WIDTH)/2 <= self.puck['x'] <= 
+            (self.canvas_width + self.GOAL_WIDTH)/2
+        )
+        
+        # Check Y position and X range
+        if self.puck['y'] - self.puck_radius < self.GOAL_POSTS and in_x_range:
+            return 'top'
+        elif self.puck['y'] + self.puck_radius > self.canvas_height - self.GOAL_POSTS and in_x_range:
+            return 'bottom'
         return None
 
 class DistributionalDQN:
-    def __init__(self, state_dim=6, action_dim=9, learning_rate=0.00025):
+    def __init__(self, state_dim=8, action_dim=9, learning_rate=0.00025):
         # Distributional DQN parameters
         self.num_atoms = 51
         self.v_min = -10.0
@@ -278,9 +346,9 @@ class DistributionalDQN:
         
         # Training parameters
         self.epsilon = 1.0
-        self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
-        self.target_update_freq = 1000
+        self.epsilon_min = 0.1
+        self.epsilon_decay = 0.9995
+        self.target_update_freq = 100
         self.train_step_counter = 0
 
     def _build_network(self):
@@ -436,106 +504,62 @@ class DistributionalDQN:
         
         return loss.numpy()
 
-def train_agent(env, plot=False, num_episodes=10000, max_steps=1000, batch_size=32):
-    """
-    Train the agent and return the trained model along with training metrics.
+def train_self_play(num_episodes=10000, max_steps=1000, batch_size=32):
+    # Create two environments (one for each player's perspective)
+    env_p1 = AirHockeyEnv(player_id=0)  # Top player
+    env_p2 = AirHockeyEnv(player_id=1)  # Bottom player
     
-    Args:
-        env: The Air Hockey environment
-        plot: Whether to plot training metrics (useful in notebooks)
-        num_episodes: Number of episodes to train
-        max_steps: Maximum steps per episode
-        batch_size: Batch size for training
+    # Create two agents
+    agent_p1 = DistributionalDQN(state_dim=8)
+    agent_p2 = DistributionalDQN(state_dim=8)
     
-    Returns:
-        agent: Trained DistributionalDQN agent
-        metrics: Dictionary containing training metrics
-    """
-    # Initialize agent
-    agent = DistributionalDQN()
-    
-    # Metrics tracking
-    metrics = {
-        'episode_rewards': [],
-        'episode_losses': [],
-        'moving_avg_reward': [],
-        'moving_avg_loss': []
-    }
+    print("Starting self-play training...")
+    start_time = time.time()
     
     for episode in range(num_episodes):
-        state, _ = env.reset()
-        episode_reward = 0
-        episode_loss = 0
+        state_p1, _ = env_p1.reset(seed=episode)
+        state_p2, _ = env_p2.reset(seed=episode)
+        
+        episode_reward_p1 = 0
+        episode_reward_p2 = 0
         
         for step in range(max_steps):
-            # Select and perform action
-            action = agent.select_action(state)
-            next_state, reward, done, _, _ = env.step(action)
+            # Get actions from both agents
+            action_p1 = agent_p1.select_action(state_p1)
+            action_p2 = agent_p2.select_action(state_p2)
             
-            # Store transition
-            agent.store_transition(state, action, reward, next_state, done)
+            # Step both environments
+            next_state_p1, reward_p1, done_p1, _, _ = env_p1.step(action_p1)
+            next_state_p2, reward_p2, done_p2, _, _ = env_p2.step(action_p2)
             
-            # Train agent
-            if len(agent.replay_buffer) >= batch_size:
-                loss = agent.train()
-                episode_loss += loss
+            # Store transitions and train
+            agent_p1.store_transition(state_p1, action_p1, reward_p1, next_state_p1, done_p1)
+            agent_p2.store_transition(state_p2, action_p2, reward_p2, next_state_p2, done_p2)
             
-            episode_reward += reward
-            state = next_state
+            if len(agent_p1.replay_buffer) >= batch_size:
+                agent_p1.train()
+                agent_p2.train()
             
-            if done:
+            episode_reward_p1 += reward_p1
+            episode_reward_p2 += reward_p2
+            
+            if done_p1 or done_p2:
                 break
-        
-        # Track metrics
-        metrics['episode_rewards'].append(episode_reward)
-        if episode_loss > 0:
-            metrics['episode_losses'].append(episode_loss / (step + 1))
-        else:
-            metrics['episode_losses'].append(0)
-        
-        # Calculate moving averages
-        window = 100
-        if episode >= window:
-            avg_reward = np.mean(metrics['episode_rewards'][-window:])
-            avg_loss = np.mean(metrics['episode_losses'][-window:])
-        else:
-            avg_reward = np.mean(metrics['episode_rewards'])
-            avg_loss = np.mean(metrics['episode_losses'])
             
-        metrics['moving_avg_reward'].append(avg_reward)
-        metrics['moving_avg_loss'].append(avg_loss)
+            state_p1 = next_state_p1
+            state_p2 = next_state_p2
         
-        # Print progress
-        if (episode + 1) % 100 == 0:
-            print(f"Episode {episode + 1}")
-            print(f"Average Reward (last 100): {avg_reward:.2f}")
-            print(f"Average Loss (last 100): {avg_loss:.4f}")
-            print(f"Epsilon: {agent.epsilon:.3f}")
+        # Print progress more frequently for first 10 episodes, then every 100
+        if episode < 10 or episode % 100 == 0:
+            elapsed_time = time.time() - start_time
+            print(f"\nEpisode {episode}/{num_episodes} ({elapsed_time:.1f}s)")
+            print(f"Steps: {step + 1}")
+            print(f"P1: reward={episode_reward_p1:.2f}, ε={agent_p1.epsilon:.2f}")
+            print(f"P2: reward={episode_reward_p2:.2f}, ε={agent_p2.epsilon:.2f}")
+            print(f"Buffer size: {len(agent_p1.replay_buffer)}")
             print("----------------------------------------")
     
-    if plot:
-        # Create figure with two subplots
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
-        
-        # Plot rewards
-        ax1.plot(metrics['episode_rewards'], alpha=0.3, label='Episode Reward')
-        ax1.plot(metrics['moving_avg_reward'], label='Moving Average')
-        ax1.set_title('Training Rewards')
-        ax1.set_xlabel('Episode')
-        ax1.set_ylabel('Reward')
-        ax1.legend()
-        ax1.grid(True)
-        
-        # Plot losses
-        ax2.plot(metrics['episode_losses'], alpha=0.3, label='Episode Loss')
-        ax2.plot(metrics['moving_avg_loss'], label='Moving Average')
-        ax2.set_title('Training Losses')
-        ax2.set_xlabel('Episode')
-        ax2.set_ylabel('Loss')
-        ax2.legend()
-        ax2.grid(True)
-        
-        plt.tight_layout()
-        plt.show()
-    
-    return agent, metrics
+    return agent_p1, agent_p2
+
+# Train the agents
+agent_p1, agent_p2 = train_self_play()
