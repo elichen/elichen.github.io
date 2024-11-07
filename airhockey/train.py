@@ -159,34 +159,26 @@ class AirHockeyEnv:
         if self._is_puck_stuck():
             self._unstick_puck()
         
-        # Calculate shaped rewards
+        # Calculate rewards
         reward = 0
         
-        # 1. Proximity reward
+        # 1. Proximity reward (when getting significantly closer to puck)
         curr_paddle_pos = (self.top_paddle['x'], self.top_paddle['y']) if self.player_id == 0 else (self.bottom_paddle['x'], self.bottom_paddle['y'])
         curr_dist_to_puck = np.sqrt((curr_paddle_pos[0] - self.puck['x'])**2 + (curr_paddle_pos[1] - self.puck['y'])**2)
         dist_change = prev_dist_to_puck - curr_dist_to_puck
         if abs(dist_change) > 5.0:
-            reward += dist_change * 0.01
+            proximity_reward = dist_change * 0.01
+            reward += proximity_reward
         
-        # 2. Hit reward (increased threshold and reward)
+        # 2. Hit reward (when significantly changing puck velocity)
         prev_velocity = np.sqrt(prev_puck_dx**2 + prev_puck_dy**2)
         curr_velocity = np.sqrt(self.puck['dx']**2 + self.puck['dy']**2)
-        if curr_velocity > prev_velocity + 2.0:  # More significant hits only
+        if curr_velocity > prev_velocity + 2.0:
             hit_reward = 0.2
             reward += hit_reward
             print(f"Player {self.player_id} hit the puck! Velocity: {curr_velocity:.1f}")
         
-        # 3. Progress reward (increased threshold)
-        if self.player_id == 0:
-            puck_progress = prev_puck_pos[1] - self.puck['y']
-        else:
-            puck_progress = self.puck['y'] - prev_puck_pos[1]
-        if abs(puck_progress) > 5.0:  # Only reward significant progress
-            progress_reward = puck_progress * 0.02
-            reward += progress_reward
-        
-        # 4. Goal rewards (only print these)
+        # 3. Goal rewards
         goal = self._check_goal()
         done = False
         
@@ -198,13 +190,6 @@ class AirHockeyEnv:
             reward += 1.0 if self.player_id == 0 else -1.0
             print(f"Goal scored on bottom!")
             done = True
-        
-        # 5. Defense penalty (increased and only when puck is close)
-        if self.player_id == 0 and self.puck['y'] < self.canvas_height/3:  # Top third
-            dist_from_defense = abs(self.top_paddle['x'] - self.puck['x'])
-            if dist_from_defense > 50:  # Only penalize if significantly out of position
-                defense_penalty = -0.05
-                reward += defense_penalty
         
         # Track position after movement
         if self.player_id == 0:
