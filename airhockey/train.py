@@ -166,8 +166,9 @@ class AirHockeyEnv:
         prev_velocity = np.sqrt(prev_puck_dx**2 + prev_puck_dy**2)
         curr_velocity = np.sqrt(self.puck['dx']**2 + self.puck['dy']**2)
         if curr_velocity > prev_velocity + 2.0:  # More significant hits only
-            hit_reward = 0.2  # Increased reward
+            hit_reward = 0.2
             reward += hit_reward
+            print(f"Player {self.player_id} hit the puck! Velocity: {curr_velocity:.1f}")
         
         # 3. Progress reward (increased threshold)
         if self.player_id == 0:
@@ -509,12 +510,14 @@ def train_self_play(num_episodes=10000, max_steps=1000, batch_size=32):
     env_p1 = AirHockeyEnv(player_id=0)  # Top player
     env_p2 = AirHockeyEnv(player_id=1)  # Bottom player
     
-    # Create two agents
-    agent_p1 = DistributionalDQN(state_dim=8)
-    agent_p2 = DistributionalDQN(state_dim=8)
+    # Create single agent for both players
+    agent = DistributionalDQN(state_dim=8)
     
     print("Starting self-play training...")
-    start_time = time.time()
+    last_print_time = time.time()
+    
+    train_frequency = 4  # Train every 4 steps
+    step_counter = 0
     
     for episode in range(num_episodes):
         state_p1, _ = env_p1.reset(seed=episode)
@@ -524,21 +527,22 @@ def train_self_play(num_episodes=10000, max_steps=1000, batch_size=32):
         episode_reward_p2 = 0
         
         for step in range(max_steps):
-            # Get actions from both agents
-            action_p1 = agent_p1.select_action(state_p1)
-            action_p2 = agent_p2.select_action(state_p2)
+            # Get actions from the same agent
+            action_p1 = agent.select_action(state_p1)
+            action_p2 = agent.select_action(state_p2)
             
             # Step both environments
             next_state_p1, reward_p1, done_p1, _, _ = env_p1.step(action_p1)
             next_state_p2, reward_p2, done_p2, _, _ = env_p2.step(action_p2)
             
-            # Store transitions and train
-            agent_p1.store_transition(state_p1, action_p1, reward_p1, next_state_p1, done_p1)
-            agent_p2.store_transition(state_p2, action_p2, reward_p2, next_state_p2, done_p2)
+            # Store both transitions in the same buffer
+            agent.store_transition(state_p1, action_p1, reward_p1, next_state_p1, done_p1)
+            agent.store_transition(state_p2, action_p2, reward_p2, next_state_p2, done_p2)
             
-            if len(agent_p1.replay_buffer) >= batch_size:
-                agent_p1.train()
-                agent_p2.train()
+            # Train agent every 4 steps if buffer is large enough
+            step_counter += 1
+            if step_counter % train_frequency == 0 and len(agent.replay_buffer) >= batch_size:
+                agent.train()
             
             episode_reward_p1 += reward_p1
             episode_reward_p2 += reward_p2
@@ -551,15 +555,19 @@ def train_self_play(num_episodes=10000, max_steps=1000, batch_size=32):
         
         # Print progress more frequently for first 10 episodes, then every 100
         if episode < 10 or episode % 100 == 0:
-            elapsed_time = time.time() - start_time
+            current_time = time.time()
+            elapsed_time = current_time - last_print_time
+            last_print_time = current_time
+            
             print(f"\nEpisode {episode}/{num_episodes} ({elapsed_time:.1f}s)")
             print(f"Steps: {step + 1}")
-            print(f"P1: reward={episode_reward_p1:.2f}, ε={agent_p1.epsilon:.2f}")
-            print(f"P2: reward={episode_reward_p2:.2f}, ε={agent_p2.epsilon:.2f}")
-            print(f"Buffer size: {len(agent_p1.replay_buffer)}")
+            print(f"P1: reward={episode_reward_p1:.2f}")
+            print(f"P2: reward={episode_reward_p2:.2f}")
+            print(f"ε={agent.epsilon:.2f}")
+            print(f"Buffer size: {len(agent.replay_buffer)}")
             print("----------------------------------------")
     
-    return agent_p1, agent_p2
+    return agent
 
 # Train the agents
-agent_p1, agent_p2 = train_self_play()
+agent = train_self_play()
