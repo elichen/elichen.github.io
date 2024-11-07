@@ -4,6 +4,7 @@ import random
 import matplotlib.pyplot as plt
 from collections import deque
 import time
+import seaborn as sns
 
 class AirHockeyEnv:
     def __init__(self, canvas_width=600, canvas_height=800, player_id=0):
@@ -29,6 +30,12 @@ class AirHockeyEnv:
         
         # Initialize game state
         self.reset()
+        
+        # Initialize position tracking (using lower resolution for heatmap)
+        self.position_resolution = 30  # Grid size for heatmap
+        self.position_heatmap = np.zeros((self.position_resolution, self.position_resolution))
+        self.grid_width = canvas_width / self.position_resolution
+        self.grid_height = canvas_height / self.position_resolution
     
     def _normalize_position(self, x, y):
         """Normalize position coordinates to [-1, 1]"""
@@ -199,6 +206,12 @@ class AirHockeyEnv:
                 defense_penalty = -0.05
                 reward += defense_penalty
         
+        # Track position after movement
+        if self.player_id == 0:
+            self._update_position_heatmap(self.top_paddle['x'], self.top_paddle['y'])
+        else:
+            self._update_position_heatmap(self.bottom_paddle['x'], self.bottom_paddle['y'])
+        
         return self._get_obs(), reward, done, False, {}
     
     def _handle_wall_collision(self):
@@ -316,6 +329,18 @@ class AirHockeyEnv:
         elif self.puck['y'] + self.puck_radius > self.canvas_height - self.GOAL_POSTS and in_x_range:
             return 'bottom'
         return None
+
+    def _update_position_heatmap(self, x, y):
+        # Convert position to grid coordinates
+        grid_x = int(x / self.grid_width)
+        grid_y = int(y / self.grid_height)
+        
+        # Ensure within bounds
+        grid_x = np.clip(grid_x, 0, self.position_resolution - 1)
+        grid_y = np.clip(grid_y, 0, self.position_resolution - 1)
+        
+        # Update heatmap
+        self.position_heatmap[grid_y, grid_x] += 1
 
 class DistributionalDQN:
     def __init__(self, state_dim=8, action_dim=9, learning_rate=0.00025):
@@ -505,18 +530,35 @@ class DistributionalDQN:
         
         return loss.numpy()
 
-def train_self_play(num_episodes=10000, max_steps=1000, batch_size=32):
-    # Create two environments (one for each player's perspective)
-    env_p1 = AirHockeyEnv(player_id=0)  # Top player
-    env_p2 = AirHockeyEnv(player_id=1)  # Bottom player
+def plot_heatmaps(env_p1, env_p2, episode):
+    plt.figure(figsize=(15, 5))
     
-    # Create single agent for both players
+    # Plot P1 heatmap
+    plt.subplot(121)
+    sns.heatmap(env_p1.position_heatmap, cmap='YlOrRd')
+    plt.title(f'Player 1 Positions (Episode {episode})')
+    
+    # Plot P2 heatmap
+    plt.subplot(122)
+    sns.heatmap(env_p2.position_heatmap, cmap='YlOrRd')
+    plt.title(f'Player 2 Positions (Episode {episode})')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Clear heatmaps for next period
+    env_p1.position_heatmap.fill(0)
+    env_p2.position_heatmap.fill(0)
+
+def train_self_play(num_episodes=10000, max_steps=1000, batch_size=32):
+    env_p1 = AirHockeyEnv(player_id=0)
+    env_p2 = AirHockeyEnv(player_id=1)
     agent = DistributionalDQN(state_dim=8)
     
     print("Starting self-play training...")
     last_print_time = time.time()
     
-    train_frequency = 4  # Train every 4 steps
+    train_frequency = 4
     step_counter = 0
     
     for episode in range(num_episodes):
@@ -553,7 +595,7 @@ def train_self_play(num_episodes=10000, max_steps=1000, batch_size=32):
             state_p1 = next_state_p1
             state_p2 = next_state_p2
         
-        # Print progress more frequently for first 10 episodes, then every 100
+        # Print progress and plot heatmaps more frequently for first 10 episodes, then every 100
         if episode < 10 or episode % 100 == 0:
             current_time = time.time()
             elapsed_time = current_time - last_print_time
@@ -566,6 +608,9 @@ def train_self_play(num_episodes=10000, max_steps=1000, batch_size=32):
             print(f"ε={agent.epsilon:.2f}")
             print(f"Buffer size: {len(agent.replay_buffer)}")
             print("----------------------------------------")
+            
+            # Plot and reset heatmaps
+            plot_heatmaps(env_p1, env_p2, episode)
     
     return agent
 
