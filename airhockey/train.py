@@ -36,6 +36,10 @@ class AirHockeyEnv:
         self.position_heatmap = np.zeros((self.position_resolution, self.position_resolution))
         self.grid_width = canvas_width / self.position_resolution
         self.grid_height = canvas_height / self.position_resolution
+        
+        # Add timeout tracking
+        self.frames_since_last_hit = 0
+        self.max_frames_without_hit = 200  # End episode if no hits for 200 frames
     
     def _normalize_position(self, x, y):
         """Normalize position coordinates to [-1, 1]"""
@@ -100,6 +104,9 @@ class AirHockeyEnv:
         # Reset stuck detection variables
         self.last_puck_pos = {'x': self.puck['x'], 'y': self.puck['y']}
         self.same_position_time = 0
+        
+        # Reset timeout counter
+        self.frames_since_last_hit = 0
         
         return self._get_obs(), {}
     
@@ -177,6 +184,9 @@ class AirHockeyEnv:
             hit_reward = 0.2
             reward += hit_reward
             print(f"Player {self.player_id} hit the puck! Velocity: {curr_velocity:.1f}")
+            self.frames_since_last_hit = 0  # Reset counter on hit
+        else:
+            self.frames_since_last_hit += 1
         
         # 3. Goal rewards
         goal = self._check_goal()
@@ -189,6 +199,11 @@ class AirHockeyEnv:
         elif goal == 'bottom':
             reward += 1.0 if self.player_id == 0 else -1.0
             print(f"Goal scored on bottom!")
+            done = True
+        
+        # End episode if no hits for too long
+        if self.frames_since_last_hit >= self.max_frames_without_hit:
+            print("Episode ended: No hits for too long")
             done = True
         
         # Track position after movement
