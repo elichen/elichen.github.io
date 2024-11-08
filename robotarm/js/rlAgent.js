@@ -8,6 +8,10 @@ class RLAgent {
         this.batchSize = 32;
         this.episodeCount = 0;
         this.totalReward = 0;
+        this.angleStep = 0.1;
+        this.lastState = null;
+        this.lastAction = null;
+        this.isTraining = false;
         
         this.initializeModel();
     }
@@ -38,10 +42,12 @@ class RLAgent {
     }
 
     async update(robotArm, environment) {
+        let action;
+
         // Only take new actions if the arm isn't moving
-        if (!robotArm.isMoving) {
+        if (!robotArm.isMoving && !this.isTraining) {
             const state = environment.getState(robotArm);
-            const action = await this.selectAction(state);
+            action = await this.selectAction(state);
             this.executeAction(action, robotArm);
         }
 
@@ -49,14 +55,14 @@ class RLAgent {
         robotArm.update();
         
         // Calculate rewards etc. only after movement is complete
-        if (!robotArm.isMoving) {
+        if (!robotArm.isMoving && !this.isTraining) {
             const { reward, done } = environment.calculateReward(robotArm);
             const nextState = environment.getState(robotArm);
             
             this.totalReward += reward;
 
             // Store experience and train
-            if (this.lastState && this.lastAction !== undefined) {
+            if (this.lastState && this.lastAction !== null) {
                 this.replayBuffer.store({
                     state: this.lastState,
                     action: this.lastAction,
@@ -66,8 +72,10 @@ class RLAgent {
                 });
             }
 
-            this.lastState = nextState;
-            this.lastAction = action;
+            if (action !== undefined) {
+                this.lastState = nextState;
+                this.lastAction = action;
+            }
 
             if (this.replayBuffer.size >= this.batchSize) {
                 await this.train();
@@ -79,15 +87,15 @@ class RLAgent {
                 environment.reset();
                 robotArm.reset();
                 this.lastState = null;
-                this.lastAction = undefined;
+                this.lastAction = null;
             }
-        }
 
-        // Update epsilon
-        this.epsilon = Math.max(
-            this.epsilonMin,
-            this.epsilon * this.epsilonDecay
-        );
+            // Update epsilon
+            this.epsilon = Math.max(
+                this.epsilonMin,
+                this.epsilon * this.epsilonDecay
+            );
+        }
     }
 
     async selectAction(state) {
@@ -107,30 +115,29 @@ class RLAgent {
         // Don't execute new actions if the arm is still moving
         if (robotArm.isMoving) return;
 
-        const angleChange = this.angleStep;
         switch(action) {
             case 0: 
                 robotArm.setTargetAngles(
-                    robotArm.angle1 + angleChange, 
+                    robotArm.angle1 + this.angleStep, 
                     robotArm.angle2
                 ); 
                 break;
             case 1: 
                 robotArm.setTargetAngles(
-                    robotArm.angle1 - angleChange, 
+                    robotArm.angle1 - this.angleStep, 
                     robotArm.angle2
                 ); 
                 break;
             case 2: 
                 robotArm.setTargetAngles(
                     robotArm.angle1, 
-                    robotArm.angle2 + angleChange
+                    robotArm.angle2 + this.angleStep
                 ); 
                 break;
             case 3: 
                 robotArm.setTargetAngles(
                     robotArm.angle1, 
-                    robotArm.angle2 - angleChange
+                    robotArm.angle2 - this.angleStep
                 ); 
                 break;
             case 4: robotArm.targetClawClosed = false; break;
@@ -139,31 +146,45 @@ class RLAgent {
     }
 
     async train() {
+        // Don't start training if already training
+        if (this.isTraining) {
+            console.log('Training already in progress, skipping...');
+            return;
+        }
+
         const batch = this.replayBuffer.sample(this.batchSize);
         if (!batch) return;
 
-        const states = batch.map(exp => exp.state);
-        const nextStates = batch.map(exp => exp.nextState);
+        try {
+            this.isTraining = true;
 
-        const currentQs = await this.model.predict(tf.tensor2d(states)).array();
-        const nextQs = await this.model.predict(tf.tensor2d(nextStates)).array();
+            const states = batch.map(exp => exp.state);
+            const nextStates = batch.map(exp => exp.nextState);
 
-        const x = [];
-        const y = [];
+            const currentQs = await this.model.predict(tf.tensor2d(states)).array();
+            const nextQs = await this.model.predict(tf.tensor2d(nextStates)).array();
 
-        for (let i = 0; i < batch.length; i++) {
-            const { state, action, reward, done } = batch[i];
-            const currentQ = [...currentQs[i]];
-            
-            currentQ[action] = reward + (done ? 0 : this.gamma * Math.max(...nextQs[i]));
-            
-            x.push(state);
-            y.push(currentQ);
+            const x = [];
+            const y = [];
+
+            for (let i = 0; i < batch.length; i++) {
+                const { state, action, reward, done } = batch[i];
+                const currentQ = [...currentQs[i]];
+                
+                currentQ[action] = reward + (done ? 0 : this.gamma * Math.max(...nextQs[i]));
+                
+                x.push(state);
+                y.push(currentQ);
+            }
+
+            await this.model.fit(tf.tensor2d(x), tf.tensor2d(y), {
+                epochs: 1,
+                verbose: 0
+            });
+        } catch (error) {
+            console.error('Training error:', error);
+        } finally {
+            this.isTraining = false;
         }
-
-        await this.model.fit(tf.tensor2d(x), tf.tensor2d(y), {
-            epochs: 1,
-            verbose: 0
-        });
     }
 } 

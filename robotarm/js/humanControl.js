@@ -47,6 +47,16 @@ class HumanControl {
             this.robotArm.baseY - this.targetY
         );
 
+        if (!solutions) {
+            console.log('Target position is unreachable:', {
+                x: this.targetX,
+                y: this.targetY,
+                relativeX: this.targetX - this.robotArm.baseX,
+                relativeY: this.robotArm.baseY - this.targetY
+            });
+            return;
+        }
+
         console.log('IK solutions (detailed):', solutions.map(sol => ({
             theta1: sol.theta1,
             theta2: sol.theta2,
