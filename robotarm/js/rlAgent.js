@@ -2,7 +2,7 @@ class RLAgent {
     constructor(replayBuffer) {
         this.replayBuffer = replayBuffer;
         this.epsilon = 1.0;
-        this.epsilonMin = 0.01;
+        this.epsilonMin = 0.1;
         this.epsilonDecay = 0.995;
         this.gamma = 0.99;
         this.batchSize = 32;
@@ -56,11 +56,11 @@ class RLAgent {
         });
     }
 
-    async update(robotArm, environment) {
+    async update(robotArm, environment, shouldTrain = false) {
         this.frameCount++;
 
-        // Store the current state-action pair's outcome if we have one
-        if (this.lastState && this.lastAction !== null && !this.isTraining) {
+        // Store the current state-action pair's outcome if we have one and we're training
+        if (this.lastState && this.lastAction !== null && shouldTrain) {
             const currentState = environment.getState(robotArm);
             const { reward, done } = environment.calculateReward(robotArm);
             
@@ -90,9 +90,11 @@ class RLAgent {
             const state = environment.getState(robotArm);
             const action = await this.selectAction(state);
             
-            // Store current state and action before executing
-            this.lastState = state;
-            this.lastAction = action;
+            // Only store state and action if we're training
+            if (shouldTrain) {
+                this.lastState = state;
+                this.lastAction = action;
+            }
             
             this.executeAction(action, robotArm);
         }
@@ -101,17 +103,20 @@ class RLAgent {
         robotArm.update();
 
         // Train if we have enough experiences and it's a training frame
-        if (this.replayBuffer.size >= this.batchSize && 
+        if (shouldTrain && 
+            this.replayBuffer.size >= this.batchSize && 
             !this.isTraining && 
             this.frameCount % this.frameSkip === 0) {
             await this.train();
         }
 
-        // Update epsilon
-        this.epsilon = Math.max(
-            this.epsilonMin,
-            this.epsilon * this.epsilonDecay
-        );
+        // Update epsilon only during training
+        if (shouldTrain) {
+            this.epsilon = Math.max(
+                this.epsilonMin,
+                this.epsilon * this.epsilonDecay
+            );
+        }
     }
 
     async selectAction(state) {
@@ -164,7 +169,6 @@ class RLAgent {
     async train() {
         // Don't start training if already training
         if (this.isTraining) {
-            console.log('Training already in progress, skipping...');
             return;
         }
 

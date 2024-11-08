@@ -4,21 +4,57 @@ class Environment {
         this.height = height;
         this.blockSize = 30;
         this.groundY = height - 20;
+        this.maxHeight = this.groundY - 150;
         
-        // Calculate a reachable maxHeight
-        // Base is at 380, arm length is 200
-        // Let's set it to a point definitely reachable by the arm
-        this.maxHeight = this.groundY - 150; // This should be reachable
+        // Robot arm parameters for reachability calculation
+        this.armBaseX = 300;
+        this.armBaseY = 380;
+        this.armLength1 = 100;
+        this.armLength2 = 100;
         
         this.reset();
     }
 
     reset() {
-        // Place block randomly within reachable area
-        this.blockX = Math.random() * 200 + 200; // Between 200 and 400
-        this.blockY = this.groundY - this.blockSize/2;
+        // Keep trying until we get a valid position
+        do {
+            this.blockX = Math.random() * 200 + 200;  // Between 200 and 400
+            this.blockY = this.groundY - this.blockSize/2;
+        } while (!this.isPositionReachable(this.blockX, this.blockY));
+
         this.isBlockHeld = false;
         this.currentReward = 0;
+    }
+
+    isPositionReachable(x, y) {
+        // Calculate distance from arm base to target
+        const dx = x - this.armBaseX;
+        const dy = this.armBaseY - y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Check if point is within arm's reach
+        const maxReach = this.armLength1 + this.armLength2;
+        const minReach = Math.abs(this.armLength1 - this.armLength2);
+        
+        // Must be:
+        // 1. Within maximum reach
+        // 2. Outside minimum reach (can't fold arm completely)
+        // 3. Not too close to base (prevent collisions)
+        // 4. Not behind the arm base
+        const minDistanceFromBase = 50;  // Minimum safe distance from base
+        
+        return distance <= maxReach && 
+               distance >= minReach && 
+               distance >= minDistanceFromBase &&
+               x > this.armBaseX - minDistanceFromBase;  // Not too far left of base
+    }
+
+    update() {
+        // Check if block has fallen to unreachable position
+        if (!this.isBlockHeld && !this.isPositionReachable(this.blockX, this.blockY)) {
+            return { reset: true };
+        }
+        return { reset: false };
     }
 
     getState(robotArm) {
@@ -33,6 +69,11 @@ class Environment {
     }
 
     calculateReward(robotArm) {
+        // Check if block is in unreachable position
+        if (!this.isBlockHeld && !this.isPositionReachable(this.blockX, this.blockY)) {
+            return { reward: -50, done: true };  // Penalty for letting block fall to unreachable position
+        }
+
         const clawPos = robotArm.getClawPosition();
         const distanceToBlock = Math.sqrt(
             Math.pow(clawPos.x - this.blockX, 2) +

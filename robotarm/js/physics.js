@@ -1,20 +1,29 @@
 class Physics {
     constructor() {
-        this.gravity = 9.81;
+        this.gravity = 9.81 * 60;
         this.timeStep = 1/60;
+        this.blockVelocityY = 0;
     }
 
     update(robotArm, environment, deltaTime) {
         // Apply gravity to the block if it's not held
         if (!environment.isBlockHeld) {
-            environment.blockY += this.gravity * this.timeStep;
-            
-            // Ground collision
+            this.blockVelocityY += this.gravity * this.timeStep;
+            environment.blockY += this.blockVelocityY * this.timeStep;
             if (environment.blockY > environment.groundY - environment.blockSize/2) {
                 environment.blockY = environment.groundY - environment.blockSize/2;
+                this.blockVelocityY = 0;
+            }
+
+            // Check if block has fallen to unreachable position
+            const { reset } = environment.update();
+            if (reset) {
+                environment.reset();
+                robotArm.reset();
+                return;
             }
         } else {
-            // Update block position based on robot arm
+            this.blockVelocityY = 0;
             const clawPos = robotArm.getClawPosition();
             environment.blockX = clawPos.x;
             environment.blockY = clawPos.y;

@@ -21,6 +21,13 @@ class SimulationApp {
     setupEventListeners() {
         document.getElementById('mode-switch').addEventListener('click', () => {
             this.isHumanMode = !this.isHumanMode;
+            
+            // Automatically enable training when switching to RL mode
+            if (!this.isHumanMode) {
+                this.isTraining = true;
+                document.getElementById('start-training').textContent = 'Stop Training';
+            }
+            
             document.getElementById('current-mode').textContent = 
                 this.isHumanMode ? 'Human Control' : 'RL Agent';
         });
@@ -79,8 +86,9 @@ class SimulationApp {
             // Update display with human mode rewards
             document.getElementById('total-reward').textContent = 
                 this.humanControl.totalReward.toFixed(2);
-        } else if (this.isTraining) {
-            this.rlAgent.update(this.robotArm, this.environment);
+        } else {
+            // In RL mode, always run the agent but only store experiences and train if isTraining is true
+            this.rlAgent.update(this.robotArm, this.environment, this.isTraining);
             this.updateStats();
         }
 
