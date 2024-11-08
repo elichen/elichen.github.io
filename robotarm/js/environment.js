@@ -66,12 +66,25 @@ class Environment {
 
     getState(robotArm) {
         const clawPos = robotArm.getClawPosition();
+        
+        // Pre-calculate which actions would be valid from current state
+        const validActions = [
+            robotArm.setTargetAngles(robotArm.angle1 + robotArm.angleStep, robotArm.angle2), // action 0
+            robotArm.setTargetAngles(robotArm.angle1 - robotArm.angleStep, robotArm.angle2), // action 1
+            robotArm.setTargetAngles(robotArm.angle1, robotArm.angle2 + robotArm.angleStep), // action 2
+            robotArm.setTargetAngles(robotArm.angle1, robotArm.angle2 - robotArm.angleStep)  // action 3
+        ].map(Number);  // Convert booleans to 0 or 1
+
+        // Reset angles after checking
+        robotArm.setTargetAngles(robotArm.angle1, robotArm.angle2);
+        
         return [
             robotArm.angle1,
             robotArm.angle2,
             this.blockX,
             this.blockY,
-            robotArm.isClawClosed ? 1 : 0
+            robotArm.isClawClosed ? 1 : 0,
+            ...validActions  // Add valid action flags to state
         ];
     }
 
@@ -91,8 +104,17 @@ class Environment {
 
         let reward = 0;
 
-        // Reward for being close to block
-        reward -= distanceToBlock * 0.01;
+        // Add configuration preference to reward
+        // Encourage "elbow-up" configuration when above block
+        if (clawPos.y < this.blockY) {
+            reward += robotArm.angle2 > 0 ? 0.1 : -0.1;  // Prefer positive angle2 (elbow up)
+        }
+
+        // Reward for being close to block with proper orientation
+        const approachAngle = robotArm.angle1 + robotArm.angle2;
+        const desiredAngle = Math.atan2(this.blockY - clawPos.y, this.blockX - clawPos.x);
+        const angleDiff = Math.abs(approachAngle - desiredAngle);
+        reward -= (distanceToBlock * 0.01) * (1 + angleDiff);  // Distance penalty increases with bad angle
 
         // Reward for holding block
         if (this.isBlockHeld) {

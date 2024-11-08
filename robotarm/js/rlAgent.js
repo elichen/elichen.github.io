@@ -14,62 +14,103 @@ class RLAgent {
         this.isTraining = false;
         this.frameCount = 0;
         this.frameSkip = 4;
+        this.targetUpdateFreq = 1000;  // Update target network every 1000 frames
         
         this.initializeModel();
     }
 
     async initializeModel() {
-        // Create Q-Network using TensorFlow.js
+        // Create main Q-Network
         this.model = tf.sequential();
-        
-        // Larger first layer to learn spatial features
         this.model.add(tf.layers.dense({
             units: 128,
             activation: 'relu',
-            inputShape: [5]
+            inputShape: [9]
         }));
-        
-        // Multiple hidden layers for complex relationships
         this.model.add(tf.layers.dense({
             units: 128,
             activation: 'relu'
         }));
-
         this.model.add(tf.layers.dense({
             units: 64,
             activation: 'relu'
         }));
-
         this.model.add(tf.layers.dense({
             units: 32,
             activation: 'relu'
         }));
-        
-        // Output layer
         this.model.add(tf.layers.dense({
-            units: 6  // Number of possible actions
+            units: 6
         }));
 
         this.model.compile({
             optimizer: tf.train.adam(0.001),
             loss: 'meanSquaredError'
         });
+
+        // Create target network with same architecture
+        this.targetModel = tf.sequential();
+        this.targetModel.add(tf.layers.dense({
+            units: 128,
+            activation: 'relu',
+            inputShape: [9]
+        }));
+        this.targetModel.add(tf.layers.dense({
+            units: 128,
+            activation: 'relu'
+        }));
+        this.targetModel.add(tf.layers.dense({
+            units: 64,
+            activation: 'relu'
+        }));
+        this.targetModel.add(tf.layers.dense({
+            units: 32,
+            activation: 'relu'
+        }));
+        this.targetModel.add(tf.layers.dense({
+            units: 6
+        }));
+
+        // Initialize target network with main network's weights
+        await this.updateTargetNetwork();
+    }
+
+    async updateTargetNetwork() {
+        const weights = this.model.getWeights();
+        const targetWeights = this.targetModel.getWeights();
+        
+        for (let i = 0; i < weights.length; i++) {
+            const w = weights[i];
+            targetWeights[i].assign(w);
+        }
     }
 
     async update(robotArm, environment, shouldTrain = false) {
         this.frameCount++;
 
-        // Store the current state-action pair's outcome if we have one and we're training
+        const state = environment.getState(robotArm);
+        const action = await this.selectAction(state, shouldTrain);
+        
+        // Store the previous state-action pair's outcome if we have one and we're training
         if (this.lastState && this.lastAction !== null && shouldTrain) {
-            const currentState = environment.getState(robotArm);
-            const { reward, done } = environment.calculateReward(robotArm);
+            let reward;
+            let done;
+
+            // Check if the last action was invalid
+            if (this.lastInvalidAction) {
+                reward = -10;  // Penalty for invalid action
+                done = false;
+                this.lastInvalidAction = false;
+            } else {
+                ({ reward, done } = environment.calculateReward(robotArm));
+            }
             
             // Store the experience from the last action
             this.replayBuffer.store({
                 state: this.lastState,
                 action: this.lastAction,
                 reward: reward,
-                nextState: currentState,
+                nextState: state,
                 done: done
             });
             
@@ -78,29 +119,30 @@ class RLAgent {
             if (done) {
                 this.episodeCount++;
                 this.totalReward = 0;
+                console.log(`Episode ${this.episodeCount} - Replay Buffer Stats:`);
+                console.log(`  AI Experiences: ${this.replayBuffer.aiExperienceCount}`);
+                console.log(`  Human Experiences: ${this.replayBuffer.humanExperienceCount}`);
+                console.log(`  Total: ${this.replayBuffer.size}`);
+                
                 environment.reset();
                 robotArm.reset();
                 this.lastState = null;
                 this.lastAction = null;
+                return;
             }
         }
-
-        // Take new action if arm isn't moving
-        if (!robotArm.isMoving && !this.isTraining) {
-            const state = environment.getState(robotArm);
-            const action = await this.selectAction(state);
-            
-            // Only store state and action if we're training
-            if (shouldTrain) {
-                this.lastState = state;
-                this.lastAction = action;
-            }
-            
-            this.executeAction(action, robotArm);
+        
+        // Only store state and action if we're training
+        if (shouldTrain) {
+            this.lastState = state;
+            this.lastAction = action;
         }
-
-        // Update arm position
-        robotArm.update();
+        
+        // Execute action and track if it was invalid
+        const success = this.executeAction(action, robotArm);
+        if (!success && shouldTrain) {
+            this.lastInvalidAction = true;
+        }
 
         // Train if we have enough experiences and it's a training frame
         if (shouldTrain && 
@@ -119,13 +161,22 @@ class RLAgent {
         }
     }
 
-    async selectAction(state) {
-        // Only use epsilon-greedy during training
-        if (this.isTraining && Math.random() < this.epsilon) {
-            return Math.floor(Math.random() * 6);  // Random action
+    async selectAction(state, shouldTrain = false) {
+        if (shouldTrain) {
+            // Regular epsilon-greedy exploration
+            if (Math.random() < this.epsilon) {
+                return Math.floor(Math.random() * 6);
+            }
+            
+            // Occasionally force a large configuration change
+            if (Math.random() < 0.05) {  // 5% chance
+                // Choose between elbow-up and elbow-down configurations
+                const preferUp = Math.random() < 0.5;
+                return preferUp ? 2 : 3;  // Force large angle2 change
+            }
         }
 
-        // Otherwise, always choose best action (pure exploitation)
+        // Otherwise use model prediction
         const stateTensor = tf.tensor2d([state]);
         const predictions = await this.model.predict(stateTensor).array();
         stateTensor.dispose();
@@ -134,44 +185,45 @@ class RLAgent {
     }
 
     executeAction(action, robotArm) {
-        // Don't execute new actions if the arm is still moving
-        if (robotArm.isMoving) return;
+        console.log(`Executing action ${action}`);
+        let newAngle1 = robotArm.angle1;
+        let newAngle2 = robotArm.angle2;
 
         switch(action) {
             case 0: 
-                robotArm.setTargetAngles(
-                    robotArm.angle1 + this.angleStep, 
-                    robotArm.angle2
-                ); 
+                newAngle1 += this.angleStep;
                 break;
             case 1: 
-                robotArm.setTargetAngles(
-                    robotArm.angle1 - this.angleStep, 
-                    robotArm.angle2
-                ); 
+                newAngle1 -= this.angleStep;
                 break;
             case 2: 
-                robotArm.setTargetAngles(
-                    robotArm.angle1, 
-                    robotArm.angle2 + this.angleStep
-                ); 
+                newAngle2 += this.angleStep;
                 break;
             case 3: 
-                robotArm.setTargetAngles(
-                    robotArm.angle1, 
-                    robotArm.angle2 - this.angleStep
-                ); 
+                newAngle2 -= this.angleStep;
                 break;
-            case 4: robotArm.targetClawClosed = false; break;
-            case 5: robotArm.targetClawClosed = true; break;
+            case 4: 
+                robotArm.isClawClosed = false; 
+                console.log("Opening claw");
+                return true;
+            case 5: 
+                robotArm.isClawClosed = true; 
+                console.log("Closing claw");
+                return true;
         }
+
+        // Only apply the new angles if they're valid
+        const success = robotArm.setTargetAngles(newAngle1, newAngle2);
+        if (!success) {
+            console.log(`Model predicted invalid action ${action} at angles (${robotArm.angle1.toFixed(2)}, ${robotArm.angle2.toFixed(2)})`);
+        } else {
+            console.log(`Successfully moved to angles (${newAngle1.toFixed(2)}, ${newAngle2.toFixed(2)})`);
+        }
+        return success;
     }
 
     async train() {
-        // Don't start training if already training
-        if (this.isTraining) {
-            return;
-        }
+        if (this.isTraining) return;
 
         const batch = this.replayBuffer.sample(this.batchSize);
         if (!batch) return;
@@ -183,7 +235,8 @@ class RLAgent {
             const nextStates = batch.map(exp => exp.nextState);
 
             const currentQs = await this.model.predict(tf.tensor2d(states)).array();
-            const nextQs = await this.model.predict(tf.tensor2d(nextStates)).array();
+            // Use target network for next state Q-values
+            const nextQs = await this.targetModel.predict(tf.tensor2d(nextStates)).array();
 
             const x = [];
             const y = [];
@@ -202,6 +255,12 @@ class RLAgent {
                 epochs: 1,
                 verbose: 0
             });
+
+            // Update target network periodically
+            if (this.frameCount % this.targetUpdateFreq === 0) {
+                await this.updateTargetNetwork();
+                console.log("Target network updated");
+            }
         } catch (error) {
             console.error('Training error:', error);
         } finally {

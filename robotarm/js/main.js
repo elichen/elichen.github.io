@@ -40,7 +40,7 @@ class SimulationApp {
 
         document.getElementById('claw-control').addEventListener('click', () => {
             if (this.isHumanMode) {
-                this.robotArm.toggleClaw();
+                this.robotArm.isClawClosed = !this.robotArm.isClawClosed;
             }
         });
 
@@ -87,8 +87,20 @@ class SimulationApp {
             document.getElementById('total-reward').textContent = 
                 this.humanControl.totalReward.toFixed(2);
         } else {
-            // In RL mode, always run the agent but only store experiences and train if isTraining is true
+            // In RL mode, always run the agent
+            // Pass shouldTrain=false to disable training but still take actions
             this.rlAgent.update(this.robotArm, this.environment, this.isTraining);
+            
+            // Log Q-values for debugging
+            if (!this.isTraining) {
+                const state = this.environment.getState(this.robotArm);
+                const stateTensor = tf.tensor2d([state]);
+                this.rlAgent.model.predict(stateTensor).array().then(predictions => {
+                    console.log('Q-values:', predictions[0]);
+                });
+                stateTensor.dispose();
+            }
+            
             this.updateStats();
         }
 
