@@ -15,6 +15,8 @@ class Environment {
         this.reset();
         this.successMessage = null;
         this.successMessageDuration = 1000; // Display for 1 second
+        this.lastBlockY = null;  // Track previous block height
+        this.lastDistance = null;  // Track previous distance to block
     }
 
     reset() {
@@ -30,6 +32,8 @@ class Environment {
 
         this.isBlockHeld = false;
         this.currentReward = 0;
+        this.lastBlockY = null;
+        this.lastDistance = null;
     }
 
     isPositionReachable(x, y) {
@@ -79,21 +83,24 @@ class Environment {
         robotArm.setTargetAngles(robotArm.angle1, robotArm.angle2);
         
         return [
-            robotArm.angle1,
-            robotArm.angle2,
-            this.blockX,
-            this.blockY,
-            robotArm.isClawClosed ? 1 : 0,
-            ...validActions  // Add valid action flags to state
+            robotArm.angle1 / Math.PI,              // [-1, 1]
+            robotArm.angle2 / (150 * Math.PI/180),  // [-1, 1]
+            (this.blockX - this.armBaseX) / 200,    // [-1, 1] for reachable area
+            (this.blockY - this.maxHeight) / 
+                (this.groundY - this.maxHeight),    // [0, 1]
+            robotArm.isClawClosed ? 1 : 0,         // [0, 1]
+            ...validActions                         // [0, 1] each
         ];
     }
 
     calculateReward(robotArm) {
-        // Only check for unreachable position if block is on the ground
+        // Catastrophic failure (keep this as is)
         if (!this.isBlockHeld && 
             Math.abs(this.blockY - (this.groundY - this.blockSize/2)) < 0.1 && 
             !this.isPositionReachable(this.blockX, this.blockY)) {
-            return { reward: -50, done: true };  // Penalty for letting block fall to unreachable position
+            this.lastBlockY = null;
+            this.lastDistance = null;
+            return { reward: -50, done: true };
         }
 
         const clawPos = robotArm.getClawPosition();
@@ -104,38 +111,30 @@ class Environment {
 
         let reward = 0;
 
-        // Add configuration preference to reward
-        // Encourage elbow-up configuration relative to ground
-        if (clawPos.y < this.blockY) {
-            // Calculate absolute angle of second segment relative to ground
-            const absoluteAngle = robotArm.angle1 + robotArm.angle2;
-            // Reward when second segment points more upward than downward
-            reward += (Math.sin(absoluteAngle) < 0) ? 0.1 : -0.1;
+        // Proximity improvement reward
+        if (this.lastDistance !== null && !this.isBlockHeld) {
+            const distanceImprovement = this.lastDistance - distanceToBlock;
+            reward += distanceImprovement * 0.5;  // Reward for getting closer
         }
+        this.lastDistance = distanceToBlock;
 
-        // Reward for being close to block with proper orientation
-        const approachAngle = robotArm.angle1 + robotArm.angle2;
-        const desiredAngle = Math.atan2(this.blockY - clawPos.y, this.blockX - clawPos.x);
-        const angleDiff = Math.abs(approachAngle - desiredAngle);
-        reward -= (distanceToBlock * 0.01) * (1 + angleDiff);  // Distance penalty increases with bad angle
-
-        // Reward for holding block
+        // Height improvement reward when holding
         if (this.isBlockHeld) {
-            reward += 1;
-            
-            // Additional reward for lifting block higher
-            const heightReward = (this.groundY - this.blockY) * 0.1;
-            reward += heightReward;
+            if (this.lastBlockY !== null) {
+                const heightImprovement = this.lastBlockY - this.blockY;  // Y decreases as we go up
+                reward += heightImprovement * 0.5;  // Reward for lifting higher
+            }
+            this.lastBlockY = this.blockY;
 
-            // Bonus reward for reaching target height
+            // Keep success reward
             if (this.blockY < this.maxHeight) {
+                this.lastBlockY = null;
+                this.lastDistance = null;
                 reward += 100;
-                this.successMessage = {
-                    text: "Success!",
-                    timestamp: Date.now()
-                };
                 return { reward, done: true };
             }
+        } else {
+            this.lastBlockY = null;  // Reset height tracking when not holding
         }
 
         return { reward, done: false };
