@@ -105,9 +105,12 @@ class Environment {
         let reward = 0;
 
         // Add configuration preference to reward
-        // Encourage "elbow-up" configuration when above block
+        // Encourage elbow-up configuration relative to ground
         if (clawPos.y < this.blockY) {
-            reward += robotArm.angle2 > 0 ? 0.1 : -0.1;  // Prefer positive angle2 (elbow up)
+            // Calculate absolute angle of second segment relative to ground
+            const absoluteAngle = robotArm.angle1 + robotArm.angle2;
+            // Reward when second segment points more upward than downward
+            reward += (Math.sin(absoluteAngle) < 0) ? 0.1 : -0.1;
         }
 
         // Reward for being close to block with proper orientation

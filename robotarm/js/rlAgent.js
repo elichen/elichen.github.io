@@ -234,8 +234,9 @@ class RLAgent {
             const states = batch.map(exp => exp.state);
             const nextStates = batch.map(exp => exp.nextState);
 
+            // Get Q-values for current states
             const currentQs = await this.model.predict(tf.tensor2d(states)).array();
-            // Use target network for next state Q-values
+            // Get Q-values for next states using target network
             const nextQs = await this.targetModel.predict(tf.tensor2d(nextStates)).array();
 
             const x = [];
@@ -243,14 +244,22 @@ class RLAgent {
 
             for (let i = 0; i < batch.length; i++) {
                 const { state, action, reward, done } = batch[i];
-                const currentQ = [...currentQs[i]];
                 
-                currentQ[action] = reward + (done ? 0 : this.gamma * Math.max(...nextQs[i]));
+                // Find max Q-value for next state
+                const maxNextQ = Math.max(...nextQs[i]);
+                
+                // Calculate target Q-value for the taken action only
+                const targetQ = reward + (done ? 0 : this.gamma * maxNextQ);
+                
+                // Create a mask where only the taken action's Q-value is updated
+                const currentQ = [...currentQs[i]];
+                currentQ[action] = targetQ;
                 
                 x.push(state);
                 y.push(currentQ);
             }
 
+            // Train the model
             await this.model.fit(tf.tensor2d(x), tf.tensor2d(y), {
                 epochs: 1,
                 verbose: 0
