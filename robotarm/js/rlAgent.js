@@ -12,6 +12,8 @@ class RLAgent {
         this.lastState = null;
         this.lastAction = null;
         this.isTraining = false;
+        this.frameCount = 0;
+        this.frameSkip = 4;
         
         this.initializeModel();
     }
@@ -42,44 +44,23 @@ class RLAgent {
     }
 
     async update(robotArm, environment) {
-        let action;
+        this.frameCount++;
 
-        // Only take new actions if the arm isn't moving
-        if (!robotArm.isMoving && !this.isTraining) {
-            const state = environment.getState(robotArm);
-            action = await this.selectAction(state);
-            this.executeAction(action, robotArm);
-        }
-
-        // Update arm position
-        robotArm.update();
-        
-        // Calculate rewards etc. only after movement is complete
-        if (!robotArm.isMoving && !this.isTraining) {
+        // Store the current state-action pair's outcome if we have one
+        if (this.lastState && this.lastAction !== null && !this.isTraining) {
+            const currentState = environment.getState(robotArm);
             const { reward, done } = environment.calculateReward(robotArm);
-            const nextState = environment.getState(robotArm);
+            
+            // Store the experience from the last action
+            this.replayBuffer.store({
+                state: this.lastState,
+                action: this.lastAction,
+                reward: reward,
+                nextState: currentState,
+                done: done
+            });
             
             this.totalReward += reward;
-
-            // Store experience and train
-            if (this.lastState && this.lastAction !== null) {
-                this.replayBuffer.store({
-                    state: this.lastState,
-                    action: this.lastAction,
-                    reward: reward,
-                    nextState: nextState,
-                    done: done
-                });
-            }
-
-            if (action !== undefined) {
-                this.lastState = nextState;
-                this.lastAction = action;
-            }
-
-            if (this.replayBuffer.size >= this.batchSize) {
-                await this.train();
-            }
 
             if (done) {
                 this.episodeCount++;
@@ -89,13 +70,35 @@ class RLAgent {
                 this.lastState = null;
                 this.lastAction = null;
             }
-
-            // Update epsilon
-            this.epsilon = Math.max(
-                this.epsilonMin,
-                this.epsilon * this.epsilonDecay
-            );
         }
+
+        // Take new action if arm isn't moving
+        if (!robotArm.isMoving && !this.isTraining) {
+            const state = environment.getState(robotArm);
+            const action = await this.selectAction(state);
+            
+            // Store current state and action before executing
+            this.lastState = state;
+            this.lastAction = action;
+            
+            this.executeAction(action, robotArm);
+        }
+
+        // Update arm position
+        robotArm.update();
+
+        // Train if we have enough experiences and it's a training frame
+        if (this.replayBuffer.size >= this.batchSize && 
+            !this.isTraining && 
+            this.frameCount % this.frameSkip === 0) {
+            await this.train();
+        }
+
+        // Update epsilon
+        this.epsilon = Math.max(
+            this.epsilonMin,
+            this.epsilon * this.epsilonDecay
+        );
     }
 
     async selectAction(state) {

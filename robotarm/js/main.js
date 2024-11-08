@@ -9,8 +9,8 @@ class SimulationApp {
         this.physics = new Physics();
         this.robotArm = new RobotArm();
         this.environment = new Environment(this.canvas.width, this.canvas.height);
-        this.humanControl = new HumanControl(this.robotArm, this.environment);
         this.replayBuffer = new ReplayBuffer(5000);
+        this.humanControl = new HumanControl(this.robotArm, this.environment, this.replayBuffer);
         this.rlAgent = new RLAgent(this.replayBuffer);
         
         this.setupEventListeners();
