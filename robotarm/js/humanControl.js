@@ -15,6 +15,13 @@ class HumanControl {
         this.targetX = x;
         this.targetY = y;
         
+        console.log('Click position:', {
+            x: this.targetX,
+            y: this.targetY,
+            relativeX: this.targetX - this.robotArm.baseX,
+            relativeY: this.robotArm.baseY - this.targetY
+        });
+        
         this.moveToTarget();
     }
 
@@ -40,6 +47,8 @@ class HumanControl {
             this.robotArm.baseY - this.targetY
         );
 
+        console.log('IK solutions:', solutions);
+
         if (solutions) {
             const targetPoint = {
                 x: this.targetX,
@@ -52,8 +61,19 @@ class HumanControl {
                     Math.pow(endPoint.x - targetPoint.x, 2) +
                     Math.pow(endPoint.y - targetPoint.y, 2)
                 );
-                return distance < 1;
+                const isValid = distance < 1;
+                
+                console.log('Solution validation:', {
+                    angles: solution,
+                    endPoint,
+                    distance,
+                    isValid
+                });
+                
+                return isValid;
             });
+
+            console.log('Valid solutions:', validSolutions);
 
             if (validSolutions.length > 0) {
                 const currentAngles = {
@@ -61,7 +81,11 @@ class HumanControl {
                     theta2: this.robotArm.angle2
                 };
 
+                console.log('Current angles:', currentAngles);
+
                 const bestSolution = this.chooseBestSolution(validSolutions, currentAngles);
+                console.log('Chosen solution:', bestSolution);
+                
                 this.robotArm.setTargetAngles(bestSolution.theta1, bestSolution.theta2);
             }
         }
