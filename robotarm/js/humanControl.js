@@ -22,7 +22,9 @@ class HumanControl {
     }
 
     update() {
-        if (this.lastState && this.lastAction !== null) {
+        if (this.lastState && this.lastAction !== null && 
+            (this.robotArm.isMoving || this.robotArm.targetClawClosed !== this.robotArm.isClawClosed)) {
+            
             const currentState = this.environment.getState(this.robotArm);
             const { reward, done } = this.environment.calculateReward(this.robotArm);
             

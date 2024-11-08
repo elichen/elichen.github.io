@@ -18,7 +18,11 @@ class Environment {
     reset() {
         // Keep trying until we get a valid position
         do {
-            this.blockX = Math.random() * 200 + 200;  // Between 200 and 400
+            // Random position across full reachable width
+            const side = Math.random() < 0.5 ? -1 : 1;  // Randomly choose left or right side
+            const minX = this.armBaseX - 200;  // 200 pixels to the left
+            const maxX = this.armBaseX + 200;  // 200 pixels to the right
+            this.blockX = Math.random() * 400 + minX;
             this.blockY = this.groundY - this.blockSize/2;
         } while (!this.isPositionReachable(this.blockX, this.blockY));
 
@@ -40,13 +44,12 @@ class Environment {
         // 1. Within maximum reach
         // 2. Outside minimum reach (can't fold arm completely)
         // 3. Not too close to base (prevent collisions)
-        // 4. Not behind the arm base
         const minDistanceFromBase = 50;  // Minimum safe distance from base
         
         return distance <= maxReach && 
                distance >= minReach && 
                distance >= minDistanceFromBase &&
-               x > this.armBaseX - minDistanceFromBase;  // Not too far left of base
+               Math.abs(x - this.armBaseX) >= minDistanceFromBase;  // Allow both sides
     }
 
     update() {

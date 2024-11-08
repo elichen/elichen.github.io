@@ -3,7 +3,7 @@ class RLAgent {
         this.replayBuffer = replayBuffer;
         this.epsilon = 1.0;
         this.epsilonMin = 0.1;
-        this.epsilonDecay = 0.995;
+        this.epsilonDecay = 0.999;
         this.gamma = 0.99;
         this.batchSize = 32;
         this.episodeCount = 0;
