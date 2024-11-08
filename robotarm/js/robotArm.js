@@ -42,7 +42,6 @@ class RobotArm {
     }
 
     setTargetAngles(angle1, angle2) {
-        // Normalize angles to -PI to PI range
         const normalizeAngle = (angle) => {
             while (angle > Math.PI) angle -= 2 * Math.PI;
             while (angle < -Math.PI) angle += 2 * Math.PI;
@@ -52,43 +51,112 @@ class RobotArm {
         angle1 = normalizeAngle(angle1);
         angle2 = normalizeAngle(angle2);
 
-        // Try both direct and alternative configurations
+        console.log('setTargetAngles input:', { angle1, angle2 });
+
+        // Calculate target end position
+        const targetPos = this.calculatePositionsForAngles(angle1, angle2);
+
+        // Try multiple configurations to reach the target
         const configs = [
-            { angle1, angle2 },  // Direct configuration
-            { angle1: normalizeAngle(angle1 + Math.PI), angle2: -angle2 }  // Alternative configuration
+            // Direct configurations
+            { angle1, angle2 },  // Original
+            { 
+                angle1: normalizeAngle(angle1 + Math.PI - angle2), 
+                angle2: -angle2 
+            },  // Elbow flip
+            
+            // Approach from above with both elbow directions
+            ...[-1, 1].flatMap(elbowDir => {
+                const baseAngles = [
+                    Math.PI/3, Math.PI/2, 2*Math.PI/3  // Different approach angles
+                ];
+                
+                return baseAngles.map(baseAngle => ({
+                    angle1: baseAngle,
+                    angle2: elbowDir * Math.abs(angle2)  // Keep magnitude but try both directions
+                }));
+            }),
+
+            // Additional configurations for near-ground targets
+            {
+                angle1: Math.PI/6,  // Shallow angle
+                angle2: Math.abs(angle2)  // Keep magnitude
+            },
+            {
+                angle1: Math.PI/6,
+                angle2: -Math.abs(angle2)
+            }
         ];
+
+        console.log('Trying configurations:', configs);
 
         let bestConfig = null;
         let bestScore = -Infinity;
 
         for (const config of configs) {
+            // Check if this configuration would hit ground before clamping
+            const initialPos = this.calculatePositionsForAngles(config.angle1, config.angle2);
+            const wouldHitGround = initialPos.y1 > this.groundY || initialPos.y2 > this.groundY;
+
+            // Skip configurations that would hit ground
+            if (wouldHitGround) {
+                console.log('Configuration would hit ground:', config);
+                continue;
+            }
+
             const clampedAngles = this.clampAnglesForGround(config.angle1, config.angle2);
             
-            // Calculate how much movement this configuration allows
-            const movementPossible = Math.abs(clampedAngles.angle1 - this.angle1) + 
-                                   Math.abs(clampedAngles.angle2 - this.angle2);
-            
-            // Check if this configuration reaches closer to target
-            const targetPos = this.calculatePositionsForAngles(angle1, angle2);
+            // Calculate end position for this config
             const configPos = this.calculatePositionsForAngles(clampedAngles.angle1, clampedAngles.angle2);
             
+            // Calculate distance to target position
             const targetDistance = Math.sqrt(
                 Math.pow(configPos.x2 - targetPos.x2, 2) + 
                 Math.pow(configPos.y2 - targetPos.y2, 2)
             );
 
-            // Score this configuration based on movement possible and target distance
-            const score = movementPossible - targetDistance;
+            // Calculate how much clamping was needed
+            const clampAmount = Math.abs(clampedAngles.angle1 - config.angle1) + 
+                              Math.abs(clampedAngles.angle2 - config.angle2);
+
+            // Calculate total angle change required from current position
+            const angleChange = Math.abs(normalizeAngle(clampedAngles.angle1 - this.angle1)) + 
+                              Math.abs(normalizeAngle(clampedAngles.angle2 - this.angle2));
+
+            // Score based on reaching target and minimizing movement
+            const score = -targetDistance * 10 - angleChange * 0.1 - clampAmount * 100;
+
+            console.log('Configuration evaluation:', {
+                original: config,
+                clamped: clampedAngles,
+                targetPos,
+                configPos,
+                targetDistance,
+                clampAmount,
+                angleChange,
+                score
+            });
 
             if (score > bestScore) {
                 bestScore = score;
                 bestConfig = clampedAngles;
+                console.log('New best configuration:', { bestConfig, bestScore });
             }
         }
 
         if (bestConfig) {
+            console.log('Final chosen configuration:', bestConfig);
             this.targetAngle1 = bestConfig.angle1;
             this.targetAngle2 = bestConfig.angle2;
+            this.isMoving = true;
+        } else {
+            // If no valid configuration found, try to move to a safe position
+            const safeAngle1 = Math.PI/2;  // Point upward
+            const safeAngle2 = 0;          // Straighten arm
+            console.log('No valid configuration found, moving to safe position:', 
+                       { angle1: safeAngle1, angle2: safeAngle2 });
+            this.targetAngle1 = safeAngle1;
+            this.targetAngle2 = safeAngle2;
             this.isMoving = true;
         }
     }
