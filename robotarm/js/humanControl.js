@@ -20,19 +20,13 @@ class HumanControl {
     moveToTarget() {
         if (!this.targetX || !this.targetY) return;
 
-        const clawPos = this.robotArm.getClawPosition();
-        const dx = this.targetX - clawPos.x;
-        const dy = this.targetY - clawPos.y;
-        
-        // Calculate angles using inverse kinematics
         const angles = this.calculateInverseKinematics(
             this.targetX - this.robotArm.baseX,
             this.robotArm.baseY - this.targetY
         );
 
         if (angles) {
-            this.robotArm.angle1 = angles.theta1;
-            this.robotArm.angle2 = angles.theta2;
+            this.robotArm.setTargetAngles(angles.theta1, angles.theta2);
         }
     }
 

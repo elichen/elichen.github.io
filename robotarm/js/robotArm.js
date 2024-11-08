@@ -4,21 +4,62 @@ class RobotArm {
         this.segment2Length = 100;
         this.angle1 = Math.PI / 4; // First joint angle
         this.angle2 = Math.PI / 4; // Second joint angle
+        this.targetAngle1 = this.angle1;
+        this.targetAngle2 = this.angle2;
         this.isClawClosed = false;
-        this.baseX = 300; // Center of canvas
-        this.baseY = 380; // Near bottom of canvas
+        this.targetClawClosed = false;
+        this.baseX = 300;
+        this.baseY = 380;
         this.clawSize = 20;
-        this.angleStep = 0.05; // Radians per movement
+        this.angleStep = 0.05;
+        this.movementSpeed = 0.1; // Radians per frame
+        this.isMoving = false;
     }
 
     reset() {
         this.angle1 = Math.PI / 4;
         this.angle2 = Math.PI / 4;
+        this.targetAngle1 = this.angle1;
+        this.targetAngle2 = this.angle2;
         this.isClawClosed = false;
+        this.targetClawClosed = false;
+        this.isMoving = false;
+    }
+
+    setTargetAngles(angle1, angle2) {
+        this.targetAngle1 = angle1;
+        this.targetAngle2 = angle2;
+        this.isMoving = true;
     }
 
     toggleClaw() {
-        this.isClawClosed = !this.isClawClosed;
+        this.targetClawClosed = !this.isClawClosed;
+    }
+
+    update() {
+        let stillMoving = false;
+
+        // Update angles smoothly
+        if (Math.abs(this.targetAngle1 - this.angle1) > 0.01) {
+            const diff = this.targetAngle1 - this.angle1;
+            this.angle1 += Math.sign(diff) * Math.min(Math.abs(diff), this.movementSpeed);
+            stillMoving = true;
+        }
+
+        if (Math.abs(this.targetAngle2 - this.angle2) > 0.01) {
+            const diff = this.targetAngle2 - this.angle2;
+            this.angle2 += Math.sign(diff) * Math.min(Math.abs(diff), this.movementSpeed);
+            stillMoving = true;
+        }
+
+        // Update claw state smoothly (could add animation frames for claw)
+        if (this.targetClawClosed !== this.isClawClosed) {
+            this.isClawClosed = this.targetClawClosed;
+            stillMoving = true;
+        }
+
+        this.isMoving = stillMoving;
+        return this.isMoving;
     }
 
     getClawPosition() {
