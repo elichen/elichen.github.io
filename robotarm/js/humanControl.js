@@ -8,6 +8,8 @@ class HumanControl {
         this.totalReward = 0;
         this.lastState = null;
         this.lastAction = null;
+        this.targetAngles = null;
+        this.angleThreshold = 0.05;  // How close we need to get to target angles
     }
 
     handleClick(event) {
@@ -18,61 +20,18 @@ class HumanControl {
         this.targetX = x;
         this.targetY = y;
         
-        this.moveToTarget();
-    }
-
-    update() {
-        if (this.lastState && this.lastAction !== null && 
-            (this.robotArm.isMoving || this.robotArm.targetClawClosed !== this.robotArm.isClawClosed)) {
-            
-            const currentState = this.environment.getState(this.robotArm);
-            const { reward, done } = this.environment.calculateReward(this.robotArm);
-            
-            this.replayBuffer.store({
-                state: this.lastState,
-                action: this.lastAction,
-                reward: reward,
-                nextState: currentState,
-                done: done
-            });
-
-            this.totalReward += reward;
-
-            if (done) {
-                this.totalReward = 0;
-                this.environment.reset();
-                this.robotArm.reset();
-                this.lastState = null;
-                this.lastAction = null;
-            }
-        }
-
-        return { reward: 0, done: false };
-    }
-
-    moveToTarget() {
-        if (!this.targetX || !this.targetY) return;
-
+        // Calculate target angles but don't set them directly
         const solutions = this.calculateInverseKinematics(
             this.targetX - this.robotArm.baseX,
             this.robotArm.baseY - this.targetY
         );
 
-        if (!solutions) {
-            return;
-        }
-
         if (solutions) {
-            const targetPoint = {
-                x: this.targetX,
-                y: this.targetY
-            };
-
             const validSolutions = solutions.filter(solution => {
                 const endPoint = this.calculateEndPoint(solution.theta1, solution.theta2);
                 const distance = Math.sqrt(
-                    Math.pow(endPoint.x - targetPoint.x, 2) +
-                    Math.pow(endPoint.y - targetPoint.y, 2)
+                    Math.pow(endPoint.x - this.targetX, 2) +
+                    Math.pow(endPoint.y - this.targetY, 2)
                 );
                 const wouldHitGround = this.checkGroundCollision(solution.theta1, solution.theta2);
                 
@@ -85,19 +44,109 @@ class HumanControl {
                     theta2: this.robotArm.angle2
                 };
 
-                const bestSolution = this.chooseBestSolution(validSolutions, currentAngles);
-                
-                this.lastState = this.environment.getState(this.robotArm);
-                
-                const angleChanges = {
-                    theta1: bestSolution.theta1 - this.robotArm.angle1,
-                    theta2: bestSolution.theta2 - this.robotArm.angle2
-                };
-
-                this.lastAction = this.determineAction(angleChanges, this.robotArm.isClawClosed);
-
-                this.robotArm.setTargetAngles(bestSolution.theta1, bestSolution.theta2);
+                this.targetAngles = this.chooseBestSolution(validSolutions, currentAngles);
             }
+        }
+    }
+
+    update() {
+        // If we have target angles, generate next discrete action
+        if (this.targetAngles) {
+            const state = this.environment.getState(this.robotArm);
+            const action = this.determineNextAction();
+            
+            if (action !== null) {
+                // Store previous state-action pair's outcome
+                if (this.lastState && this.lastAction !== null) {
+                    const { reward, done } = this.environment.calculateReward(this.robotArm);
+                    
+                    this.replayBuffer.store({
+                        state: this.lastState,
+                        action: this.lastAction,
+                        reward: reward,
+                        nextState: state,
+                        done: done
+                    }, true);
+
+                    this.totalReward += reward;
+
+                    if (done) {
+                        console.log(`Human Episode - Replay Buffer Stats:`);
+                        console.log(`  AI Experiences: ${this.replayBuffer.aiExperienceCount}`);
+                        console.log(`  Human Experiences: ${this.replayBuffer.humanExperienceCount}`);
+                        console.log(`  Total: ${this.replayBuffer.size}`);
+                        
+                        this.totalReward = 0;
+                        this.environment.reset();
+                        this.robotArm.reset();
+                        this.lastState = null;
+                        this.lastAction = null;
+                        this.targetAngles = null;
+                        return { reward: 0, done: true };
+                    }
+                }
+
+                // Store current state and action
+                this.lastState = state;
+                this.lastAction = action;
+                
+                // Execute the action
+                this.executeAction(action);
+            }
+        }
+
+        return { reward: 0, done: false };
+    }
+
+    determineNextAction() {
+        if (!this.targetAngles) return null;
+
+        const angle1Diff = this.targetAngles.theta1 - this.robotArm.angle1;
+        const angle2Diff = this.targetAngles.theta2 - this.robotArm.angle2;
+
+        // If we're close enough to target, we're done
+        if (Math.abs(angle1Diff) < this.angleThreshold && 
+            Math.abs(angle2Diff) < this.angleThreshold) {
+            this.targetAngles = null;
+            return null;
+        }
+
+        // Determine which joint to move based on which is further from target
+        if (Math.abs(angle1Diff) > Math.abs(angle2Diff)) {
+            return angle1Diff > 0 ? 0 : 1;  // 0: increase angle1, 1: decrease angle1
+        } else {
+            return angle2Diff > 0 ? 2 : 3;  // 2: increase angle2, 3: decrease angle2
+        }
+    }
+
+    executeAction(action) {
+        switch(action) {
+            case 0: 
+                this.robotArm.setTargetAngles(
+                    this.robotArm.angle1 + this.robotArm.angleStep, 
+                    this.robotArm.angle2
+                ); 
+                break;
+            case 1: 
+                this.robotArm.setTargetAngles(
+                    this.robotArm.angle1 - this.robotArm.angleStep, 
+                    this.robotArm.angle2
+                ); 
+                break;
+            case 2: 
+                this.robotArm.setTargetAngles(
+                    this.robotArm.angle1, 
+                    this.robotArm.angle2 + this.robotArm.angleStep
+                ); 
+                break;
+            case 3: 
+                this.robotArm.setTargetAngles(
+                    this.robotArm.angle1, 
+                    this.robotArm.angle2 - this.robotArm.angleStep
+                ); 
+                break;
+            case 4: this.robotArm.isClawClosed = false; break;
+            case 5: this.robotArm.isClawClosed = true; break;
         }
     }
 
@@ -169,20 +218,5 @@ class HumanControl {
 
         const bestIndex = distances.indexOf(Math.min(...distances));
         return solutions[bestIndex];
-    }
-
-    determineAction(angleChanges, isClawClosed) {
-        const angleThreshold = 0.1;
-
-        if (Math.abs(angleChanges.theta1) > Math.abs(angleChanges.theta2)) {
-            if (angleChanges.theta1 > angleThreshold) return 0;
-            if (angleChanges.theta1 < -angleThreshold) return 1;
-        } else {
-            if (angleChanges.theta2 > angleThreshold) return 2;
-            if (angleChanges.theta2 < -angleThreshold) return 3;
-        }
-
-        if (!isClawClosed) return 5;
-        return 4;
     }
 } 
