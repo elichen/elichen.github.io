@@ -70,6 +70,9 @@ class SimulationApp {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+        // Update robot arm position
+        this.robotArm.update();
+
         // Update simulation
         if (!this.isHumanMode && this.isTraining) {
             this.rlAgent.update(this.robotArm, this.environment);

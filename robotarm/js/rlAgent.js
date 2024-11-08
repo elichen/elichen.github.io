@@ -38,30 +38,49 @@ class RLAgent {
     }
 
     async update(robotArm, environment) {
-        const state = environment.getState(robotArm);
-        const action = await this.selectAction(state);
-        
-        // Execute action
-        this.executeAction(action, robotArm);
-        
-        // Get reward and next state
-        const { reward, done } = environment.calculateReward(robotArm);
-        const nextState = environment.getState(robotArm);
-        
-        // Store experience
-        this.replayBuffer.store({
-            state,
-            action,
-            reward,
-            nextState,
-            done
-        });
-        
-        this.totalReward += reward;
+        // Only take new actions if the arm isn't moving
+        if (!robotArm.isMoving) {
+            const state = environment.getState(robotArm);
+            const action = await this.selectAction(state);
+            this.executeAction(action, robotArm);
+        }
 
-        // Train the network
-        if (this.replayBuffer.size >= this.batchSize) {
-            await this.train();
+        // Update arm position
+        robotArm.update();
+        
+        // Calculate rewards etc. only after movement is complete
+        if (!robotArm.isMoving) {
+            const { reward, done } = environment.calculateReward(robotArm);
+            const nextState = environment.getState(robotArm);
+            
+            this.totalReward += reward;
+
+            // Store experience and train
+            if (this.lastState && this.lastAction !== undefined) {
+                this.replayBuffer.store({
+                    state: this.lastState,
+                    action: this.lastAction,
+                    reward: reward,
+                    nextState: nextState,
+                    done: done
+                });
+            }
+
+            this.lastState = nextState;
+            this.lastAction = action;
+
+            if (this.replayBuffer.size >= this.batchSize) {
+                await this.train();
+            }
+
+            if (done) {
+                this.episodeCount++;
+                this.totalReward = 0;
+                environment.reset();
+                robotArm.reset();
+                this.lastState = null;
+                this.lastAction = undefined;
+            }
         }
 
         // Update epsilon
@@ -69,13 +88,6 @@ class RLAgent {
             this.epsilonMin,
             this.epsilon * this.epsilonDecay
         );
-
-        if (done) {
-            this.episodeCount++;
-            this.totalReward = 0;
-            environment.reset();
-            robotArm.reset();
-        }
     }
 
     async selectAction(state) {
@@ -92,13 +104,37 @@ class RLAgent {
     }
 
     executeAction(action, robotArm) {
+        // Don't execute new actions if the arm is still moving
+        if (robotArm.isMoving) return;
+
+        const angleChange = this.angleStep;
         switch(action) {
-            case 0: robotArm.moveJoint(1, 1); break;  // Increase angle1
-            case 1: robotArm.moveJoint(1, -1); break; // Decrease angle1
-            case 2: robotArm.moveJoint(2, 1); break;  // Increase angle2
-            case 3: robotArm.moveJoint(2, -1); break; // Decrease angle2
-            case 4: robotArm.isClawClosed = false; break; // Open claw
-            case 5: robotArm.isClawClosed = true; break;  // Close claw
+            case 0: 
+                robotArm.setTargetAngles(
+                    robotArm.angle1 + angleChange, 
+                    robotArm.angle2
+                ); 
+                break;
+            case 1: 
+                robotArm.setTargetAngles(
+                    robotArm.angle1 - angleChange, 
+                    robotArm.angle2
+                ); 
+                break;
+            case 2: 
+                robotArm.setTargetAngles(
+                    robotArm.angle1, 
+                    robotArm.angle2 + angleChange
+                ); 
+                break;
+            case 3: 
+                robotArm.setTargetAngles(
+                    robotArm.angle1, 
+                    robotArm.angle2 - angleChange
+                ); 
+                break;
+            case 4: robotArm.targetClawClosed = false; break;
+            case 5: robotArm.targetClawClosed = true; break;
         }
     }
 
