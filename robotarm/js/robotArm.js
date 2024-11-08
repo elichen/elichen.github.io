@@ -60,8 +60,6 @@ class RobotArm {
         angle1 = normalizeAngle(angle1);
         angle2 = constrainAngle2(angle2);  // Constrain angle2 before proceeding
 
-        console.log('setTargetAngles input:', { angle1, angle2 });
-
         // Calculate target end position
         const targetPos = this.calculatePositionsForAngles(angle1, angle2);
 
@@ -93,8 +91,6 @@ class RobotArm {
             }
         }
 
-        console.log('Trying configurations:', allConfigs);
-
         let bestConfig = null;
         let bestScore = -Infinity;
         let bestDistance = Infinity;
@@ -103,7 +99,6 @@ class RobotArm {
             // Check if this configuration would hit ground
             const initialPos = this.calculatePositionsForAngles(config.angle1, config.angle2);
             if (initialPos.y1 > this.groundY || initialPos.y2 > this.groundY) {
-                console.log('Configuration would hit ground:', config);
                 continue;
             }
 
@@ -123,27 +118,16 @@ class RobotArm {
             // Score based primarily on reaching target
             const score = -targetDistance * 1000 - angleChange;
 
-            console.log('Configuration evaluation:', {
-                original: config,
-                targetPos,
-                configPos,
-                targetDistance,
-                angleChange,
-                score
-            });
-
             // Update best configuration if this one is better
             if (targetDistance < bestDistance || 
                 (targetDistance === bestDistance && score > bestScore)) {
                 bestDistance = targetDistance;
                 bestScore = score;
                 bestConfig = config;
-                console.log('New best configuration:', { bestConfig, bestScore, bestDistance });
             }
         }
 
         if (bestConfig) {
-            console.log('Final chosen configuration:', bestConfig);
             this.targetAngle1 = bestConfig.angle1;
             this.targetAngle2 = bestConfig.angle2;
             this.isMoving = true;

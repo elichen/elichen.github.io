@@ -18,13 +18,6 @@ class HumanControl {
         this.targetX = x;
         this.targetY = y;
         
-        console.log('Click position:', {
-            x: this.targetX,
-            y: this.targetY,
-            relativeX: this.targetX - this.robotArm.baseX,
-            relativeY: this.robotArm.baseY - this.targetY
-        });
-        
         this.moveToTarget();
     }
 
@@ -44,7 +37,6 @@ class HumanControl {
             this.totalReward += reward;
 
             if (done) {
-                console.log('Episode complete! Total reward:', this.totalReward);
                 this.totalReward = 0;
                 this.environment.reset();
                 this.robotArm.reset();
@@ -65,23 +57,8 @@ class HumanControl {
         );
 
         if (!solutions) {
-            console.log('Target position is unreachable:', {
-                x: this.targetX,
-                y: this.targetY,
-                relativeX: this.targetX - this.robotArm.baseX,
-                relativeY: this.robotArm.baseY - this.targetY
-            });
             return;
         }
-
-        console.log('IK solutions (detailed):', solutions.map(sol => ({
-            theta1: sol.theta1,
-            theta2: sol.theta2,
-            theta1_deg: (sol.theta1 * 180 / Math.PI),
-            theta2_deg: (sol.theta2 * 180 / Math.PI),
-            endPoint: this.calculateEndPoint(sol.theta1, sol.theta2),
-            wouldHitGround: this.checkGroundCollision(sol.theta1, sol.theta2)
-        })));
 
         if (solutions) {
             const targetPoint = {
@@ -97,28 +74,8 @@ class HumanControl {
                 );
                 const wouldHitGround = this.checkGroundCollision(solution.theta1, solution.theta2);
                 
-                console.log('Solution validation:', {
-                    angles: solution,
-                    angles_deg: {
-                        theta1: solution.theta1 * 180 / Math.PI,
-                        theta2: solution.theta2 * 180 / Math.PI
-                    },
-                    endPoint,
-                    distance,
-                    wouldHitGround,
-                    isValid: distance < 1 && !wouldHitGround
-                });
-                
                 return distance < 1 && !wouldHitGround;
             });
-
-            console.log('Valid solutions:', validSolutions.map(sol => ({
-                theta1: sol.theta1,
-                theta2: sol.theta2,
-                theta1_deg: (sol.theta1 * 180 / Math.PI),
-                theta2_deg: (sol.theta2 * 180 / Math.PI),
-                wouldHitGround: this.checkGroundCollision(sol.theta1, sol.theta2)
-            })));
 
             if (validSolutions.length > 0) {
                 const currentAngles = {
