@@ -120,11 +120,12 @@ class RLAgent {
     }
 
     async selectAction(state) {
-        // Epsilon-greedy action selection
-        if (Math.random() < this.epsilon) {
-            return Math.floor(Math.random() * 6);
+        // Only use epsilon-greedy during training
+        if (this.isTraining && Math.random() < this.epsilon) {
+            return Math.floor(Math.random() * 6);  // Random action
         }
 
+        // Otherwise, always choose best action (pure exploitation)
         const stateTensor = tf.tensor2d([state]);
         const predictions = await this.model.predict(stateTensor).array();
         stateTensor.dispose();
