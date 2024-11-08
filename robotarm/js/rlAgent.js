@@ -22,17 +22,30 @@ class RLAgent {
         // Create Q-Network using TensorFlow.js
         this.model = tf.sequential();
         
+        // Larger first layer to learn spatial features
         this.model.add(tf.layers.dense({
-            units: 24,
+            units: 128,
             activation: 'relu',
-            inputShape: [5]  // State size
+            inputShape: [5]
         }));
         
+        // Multiple hidden layers for complex relationships
         this.model.add(tf.layers.dense({
-            units: 24,
+            units: 128,
+            activation: 'relu'
+        }));
+
+        this.model.add(tf.layers.dense({
+            units: 64,
+            activation: 'relu'
+        }));
+
+        this.model.add(tf.layers.dense({
+            units: 32,
             activation: 'relu'
         }));
         
+        // Output layer
         this.model.add(tf.layers.dense({
             units: 6  // Number of possible actions
         }));
