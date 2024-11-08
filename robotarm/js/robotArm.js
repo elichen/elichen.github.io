@@ -48,8 +48,17 @@ class RobotArm {
             return angle;
         };
 
+        // Constrain angle2 to prevent wrapping around segment1
+        const constrainAngle2 = (a2) => {
+            a2 = normalizeAngle(a2);
+            // Prevent second segment from crossing first segment
+            // Limit range to [-150 degrees, 150 degrees] relative to segment1
+            const maxBend = (150 * Math.PI) / 180;
+            return Math.max(-maxBend, Math.min(maxBend, a2));
+        };
+
         angle1 = normalizeAngle(angle1);
-        angle2 = normalizeAngle(angle2);
+        angle2 = constrainAngle2(angle2);  // Constrain angle2 before proceeding
 
         console.log('setTargetAngles input:', { angle1, angle2 });
 
@@ -61,7 +70,7 @@ class RobotArm {
             { angle1, angle2 },  // Original
             { 
                 angle1: normalizeAngle(angle1 + Math.PI - angle2), 
-                angle2: -angle2 
+                angle2: -constrainAngle2(angle2)  // Constrain flipped angle2 as well
             }  // Elbow flip
         ];
 
@@ -73,9 +82,13 @@ class RobotArm {
             const steps = 20;
             for (let i = 0; i <= steps; i++) {
                 const t = i / steps;
+                const newAngle1 = this.angle1 + normalizeAngle(targetConfig.angle1 - this.angle1) * t;
+                const newAngle2 = constrainAngle2(
+                    this.angle2 + normalizeAngle(targetConfig.angle2 - this.angle2) * t
+                );
                 allConfigs.push({
-                    angle1: this.angle1 + normalizeAngle(targetConfig.angle1 - this.angle1) * t,
-                    angle2: this.angle2 + normalizeAngle(targetConfig.angle2 - this.angle2) * t
+                    angle1: newAngle1,
+                    angle2: newAngle2
                 });
             }
         }
@@ -194,6 +207,13 @@ class RobotArm {
     update() {
         let stillMoving = false;
 
+        const constrainAngle2 = (a2) => {
+            while (a2 > Math.PI) a2 -= 2 * Math.PI;
+            while (a2 < -Math.PI) a2 += 2 * Math.PI;
+            const maxBend = (150 * Math.PI) / 180;
+            return Math.max(-maxBend, Math.min(maxBend, a2));
+        };
+
         // Update angles smoothly
         if (Math.abs(this.targetAngle1 - this.angle1) > 0.01) {
             const diff = this.targetAngle1 - this.angle1;
@@ -203,11 +223,13 @@ class RobotArm {
 
         if (Math.abs(this.targetAngle2 - this.angle2) > 0.01) {
             const diff = this.targetAngle2 - this.angle2;
-            this.angle2 += Math.sign(diff) * Math.min(Math.abs(diff), this.movementSpeed);
+            this.angle2 = constrainAngle2(
+                this.angle2 + Math.sign(diff) * Math.min(Math.abs(diff), this.movementSpeed)
+            );
             stillMoving = true;
         }
 
-        // Update claw state smoothly (could add animation frames for claw)
+        // Update claw state smoothly
         if (this.targetClawClosed !== this.isClawClosed) {
             this.isClawClosed = this.targetClawClosed;
             stillMoving = true;
@@ -231,10 +253,22 @@ class RobotArm {
     }
 
     moveJoint(jointIndex, direction) {
+        const normalizeAngle = (angle) => {
+            while (angle > Math.PI) angle -= 2 * Math.PI;
+            while (angle < -Math.PI) angle += 2 * Math.PI;
+            return angle;
+        };
+
+        const constrainAngle2 = (a2) => {
+            a2 = normalizeAngle(a2);
+            const maxBend = (150 * Math.PI) / 180;
+            return Math.max(-maxBend, Math.min(maxBend, a2));
+        };
+
         if (jointIndex === 1) {
-            this.angle1 = (this.angle1 + direction * this.angleStep) % (2 * Math.PI);
+            this.angle1 = normalizeAngle(this.angle1 + direction * this.angleStep);
         } else if (jointIndex === 2) {
-            this.angle2 = (this.angle2 + direction * this.angleStep) % (2 * Math.PI);
+            this.angle2 = constrainAngle2(this.angle2 + direction * this.angleStep);
         }
     }
 
