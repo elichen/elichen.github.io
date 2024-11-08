@@ -47,7 +47,14 @@ class HumanControl {
             this.robotArm.baseY - this.targetY
         );
 
-        console.log('IK solutions:', solutions);
+        console.log('IK solutions (detailed):', solutions.map(sol => ({
+            theta1: sol.theta1,
+            theta2: sol.theta2,
+            theta1_deg: (sol.theta1 * 180 / Math.PI),
+            theta2_deg: (sol.theta2 * 180 / Math.PI),
+            endPoint: this.calculateEndPoint(sol.theta1, sol.theta2),
+            wouldHitGround: this.checkGroundCollision(sol.theta1, sol.theta2)
+        })));
 
         if (solutions) {
             const targetPoint = {
@@ -61,19 +68,30 @@ class HumanControl {
                     Math.pow(endPoint.x - targetPoint.x, 2) +
                     Math.pow(endPoint.y - targetPoint.y, 2)
                 );
-                const isValid = distance < 1;
+                const wouldHitGround = this.checkGroundCollision(solution.theta1, solution.theta2);
                 
                 console.log('Solution validation:', {
                     angles: solution,
+                    angles_deg: {
+                        theta1: solution.theta1 * 180 / Math.PI,
+                        theta2: solution.theta2 * 180 / Math.PI
+                    },
                     endPoint,
                     distance,
-                    isValid
+                    wouldHitGround,
+                    isValid: distance < 1 && !wouldHitGround
                 });
                 
-                return isValid;
+                return distance < 1 && !wouldHitGround;
             });
 
-            console.log('Valid solutions:', validSolutions);
+            console.log('Valid solutions:', validSolutions.map(sol => ({
+                theta1: sol.theta1,
+                theta2: sol.theta2,
+                theta1_deg: (sol.theta1 * 180 / Math.PI),
+                theta2_deg: (sol.theta2 * 180 / Math.PI),
+                wouldHitGround: this.checkGroundCollision(sol.theta1, sol.theta2)
+            })));
 
             if (validSolutions.length > 0) {
                 const currentAngles = {
@@ -81,14 +99,39 @@ class HumanControl {
                     theta2: this.robotArm.angle2
                 };
 
-                console.log('Current angles:', currentAngles);
+                console.log('Current angles:', {
+                    rad: currentAngles,
+                    deg: {
+                        theta1: currentAngles.theta1 * 180 / Math.PI,
+                        theta2: currentAngles.theta2 * 180 / Math.PI
+                    }
+                });
 
                 const bestSolution = this.chooseBestSolution(validSolutions, currentAngles);
-                console.log('Chosen solution:', bestSolution);
+                console.log('Chosen solution:', {
+                    rad: bestSolution,
+                    deg: {
+                        theta1: bestSolution.theta1 * 180 / Math.PI,
+                        theta2: bestSolution.theta2 * 180 / Math.PI
+                    },
+                    wouldHitGround: this.checkGroundCollision(bestSolution.theta1, bestSolution.theta2)
+                });
                 
                 this.robotArm.setTargetAngles(bestSolution.theta1, bestSolution.theta2);
             }
         }
+    }
+
+    checkGroundCollision(theta1, theta2) {
+        const L1 = this.robotArm.segment1Length;
+        const L2 = this.robotArm.segment2Length;
+        
+        const x1 = this.robotArm.baseX + L1 * Math.cos(theta1);
+        const y1 = this.robotArm.baseY - L1 * Math.sin(theta1);
+        const x2 = x1 + L2 * Math.cos(theta1 + theta2);
+        const y2 = y1 - L2 * Math.sin(theta1 + theta2);
+        
+        return y1 > this.robotArm.groundY || y2 > this.robotArm.groundY;
     }
 
     calculateEndPoint(theta1, theta2) {

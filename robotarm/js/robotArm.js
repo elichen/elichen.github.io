@@ -56,58 +56,46 @@ class RobotArm {
         // Calculate target end position
         const targetPos = this.calculatePositionsForAngles(angle1, angle2);
 
-        // Try multiple configurations to reach the target
-        const configs = [
-            // Direct configurations
+        // Get both IK solutions
+        const directConfigs = [
             { angle1, angle2 },  // Original
             { 
                 angle1: normalizeAngle(angle1 + Math.PI - angle2), 
                 angle2: -angle2 
-            },  // Elbow flip
-            
-            // Approach from above with both elbow directions
-            ...[-1, 1].flatMap(elbowDir => {
-                const baseAngles = [
-                    Math.PI/3, Math.PI/2, 2*Math.PI/3  // Different approach angles
-                ];
-                
-                return baseAngles.map(baseAngle => ({
-                    angle1: baseAngle,
-                    angle2: elbowDir * Math.abs(angle2)  // Keep magnitude but try both directions
-                }));
-            }),
-
-            // Additional configurations for near-ground targets
-            {
-                angle1: Math.PI/6,  // Shallow angle
-                angle2: Math.abs(angle2)  // Keep magnitude
-            },
-            {
-                angle1: Math.PI/6,
-                angle2: -Math.abs(angle2)
-            }
+            }  // Elbow flip
         ];
 
-        console.log('Trying configurations:', configs);
+        // Try paths to each IK solution
+        const allConfigs = [];
+        
+        for (const targetConfig of directConfigs) {
+            // Generate a direct path with small steps
+            const steps = 20;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                allConfigs.push({
+                    angle1: this.angle1 + normalizeAngle(targetConfig.angle1 - this.angle1) * t,
+                    angle2: this.angle2 + normalizeAngle(targetConfig.angle2 - this.angle2) * t
+                });
+            }
+        }
+
+        console.log('Trying configurations:', allConfigs);
 
         let bestConfig = null;
         let bestScore = -Infinity;
+        let bestDistance = Infinity;
 
-        for (const config of configs) {
-            // Check if this configuration would hit ground before clamping
+        for (const config of allConfigs) {
+            // Check if this configuration would hit ground
             const initialPos = this.calculatePositionsForAngles(config.angle1, config.angle2);
-            const wouldHitGround = initialPos.y1 > this.groundY || initialPos.y2 > this.groundY;
-
-            // Skip configurations that would hit ground
-            if (wouldHitGround) {
+            if (initialPos.y1 > this.groundY || initialPos.y2 > this.groundY) {
                 console.log('Configuration would hit ground:', config);
                 continue;
             }
 
-            const clampedAngles = this.clampAnglesForGround(config.angle1, config.angle2);
-            
             // Calculate end position for this config
-            const configPos = this.calculatePositionsForAngles(clampedAngles.angle1, clampedAngles.angle2);
+            const configPos = this.calculatePositionsForAngles(config.angle1, config.angle2);
             
             // Calculate distance to target position
             const targetDistance = Math.sqrt(
@@ -115,32 +103,29 @@ class RobotArm {
                 Math.pow(configPos.y2 - targetPos.y2, 2)
             );
 
-            // Calculate how much clamping was needed
-            const clampAmount = Math.abs(clampedAngles.angle1 - config.angle1) + 
-                              Math.abs(clampedAngles.angle2 - config.angle2);
-
             // Calculate total angle change required from current position
-            const angleChange = Math.abs(normalizeAngle(clampedAngles.angle1 - this.angle1)) + 
-                              Math.abs(normalizeAngle(clampedAngles.angle2 - this.angle2));
+            const angleChange = Math.abs(normalizeAngle(config.angle1 - this.angle1)) + 
+                              Math.abs(normalizeAngle(config.angle2 - this.angle2));
 
-            // Score based on reaching target and minimizing movement
-            const score = -targetDistance * 10 - angleChange * 0.1 - clampAmount * 100;
+            // Score based primarily on reaching target
+            const score = -targetDistance * 1000 - angleChange;
 
             console.log('Configuration evaluation:', {
                 original: config,
-                clamped: clampedAngles,
                 targetPos,
                 configPos,
                 targetDistance,
-                clampAmount,
                 angleChange,
                 score
             });
 
-            if (score > bestScore) {
+            // Update best configuration if this one is better
+            if (targetDistance < bestDistance || 
+                (targetDistance === bestDistance && score > bestScore)) {
+                bestDistance = targetDistance;
                 bestScore = score;
-                bestConfig = clampedAngles;
-                console.log('New best configuration:', { bestConfig, bestScore });
+                bestConfig = config;
+                console.log('New best configuration:', { bestConfig, bestScore, bestDistance });
             }
         }
 
@@ -148,15 +133,6 @@ class RobotArm {
             console.log('Final chosen configuration:', bestConfig);
             this.targetAngle1 = bestConfig.angle1;
             this.targetAngle2 = bestConfig.angle2;
-            this.isMoving = true;
-        } else {
-            // If no valid configuration found, try to move to a safe position
-            const safeAngle1 = Math.PI/2;  // Point upward
-            const safeAngle2 = 0;          // Straighten arm
-            console.log('No valid configuration found, moving to safe position:', 
-                       { angle1: safeAngle1, angle2: safeAngle2 });
-            this.targetAngle1 = safeAngle1;
-            this.targetAngle2 = safeAngle2;
             this.isMoving = true;
         }
     }
