@@ -42,33 +42,55 @@ class RobotArm {
     }
 
     setTargetAngles(angle1, angle2) {
-        // First try direct path
-        const clampedAngles = this.clampAnglesForGround(angle1, angle2);
-        
-        // If direct path is blocked (angles barely changed), try alternative configuration
-        if (Math.abs(clampedAngles.angle1 - this.angle1) < 0.1 && 
-            Math.abs(clampedAngles.angle2 - this.angle2) < 0.1) {
+        // Normalize angles to -PI to PI range
+        const normalizeAngle = (angle) => {
+            while (angle > Math.PI) angle -= 2 * Math.PI;
+            while (angle < -Math.PI) angle += 2 * Math.PI;
+            return angle;
+        };
+
+        angle1 = normalizeAngle(angle1);
+        angle2 = normalizeAngle(angle2);
+
+        // Try both direct and alternative configurations
+        const configs = [
+            { angle1, angle2 },  // Direct configuration
+            { angle1: normalizeAngle(angle1 + Math.PI), angle2: -angle2 }  // Alternative configuration
+        ];
+
+        let bestConfig = null;
+        let bestScore = -Infinity;
+
+        for (const config of configs) {
+            const clampedAngles = this.clampAnglesForGround(config.angle1, config.angle2);
             
-            // Try alternative elbow configuration
-            const altAngle2 = -angle2; // Flip elbow direction
-            const altAngle1 = angle1 + Math.PI; // Compensate base angle
+            // Calculate how much movement this configuration allows
+            const movementPossible = Math.abs(clampedAngles.angle1 - this.angle1) + 
+                                   Math.abs(clampedAngles.angle2 - this.angle2);
             
-            const altClampedAngles = this.clampAnglesForGround(altAngle1, altAngle2);
+            // Check if this configuration reaches closer to target
+            const targetPos = this.calculatePositionsForAngles(angle1, angle2);
+            const configPos = this.calculatePositionsForAngles(clampedAngles.angle1, clampedAngles.angle2);
             
-            // Use alternative if it provides more movement
-            if (Math.abs(altClampedAngles.angle1 - this.angle1) > 0.1 || 
-                Math.abs(altClampedAngles.angle2 - this.angle2) > 0.1) {
-                this.targetAngle1 = altClampedAngles.angle1;
-                this.targetAngle2 = altClampedAngles.angle2;
-                this.isMoving = true;
-                return;
+            const targetDistance = Math.sqrt(
+                Math.pow(configPos.x2 - targetPos.x2, 2) + 
+                Math.pow(configPos.y2 - targetPos.y2, 2)
+            );
+
+            // Score this configuration based on movement possible and target distance
+            const score = movementPossible - targetDistance;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestConfig = clampedAngles;
             }
         }
-        
-        // Use original angles if alternative wasn't better
-        this.targetAngle1 = clampedAngles.angle1;
-        this.targetAngle2 = clampedAngles.angle2;
-        this.isMoving = true;
+
+        if (bestConfig) {
+            this.targetAngle1 = bestConfig.angle1;
+            this.targetAngle2 = bestConfig.angle2;
+            this.isMoving = true;
+        }
     }
 
     clampAnglesForGround(angle1, angle2) {
@@ -77,26 +99,37 @@ class RobotArm {
         
         // If segment endpoints are below ground, adjust angles
         if (pos.y1 > this.groundY || pos.y2 > this.groundY) {
-            // Start with current valid angles
-            let validAngle1 = this.angle1;
-            let validAngle2 = this.angle2;
+            // Try multiple steps to find valid angles
+            const steps = 20; // Increased from 10 for finer granularity
+            let bestValidAngles = {
+                angle1: this.angle1,
+                angle2: this.angle2
+            };
+            let bestDistance = Infinity;
             
-            // Try to get as close as possible to target while staying above ground
-            const steps = 10;
-            for (let i = 0; i < steps; i++) {
+            for (let i = 0; i <= steps; i++) {
                 const testAngle1 = this.angle1 + (angle1 - this.angle1) * (i / steps);
-                const testAngle2 = this.angle2 + (angle2 - this.angle2) * (i / steps);
-                const testPos = this.calculatePositionsForAngles(testAngle1, testAngle2);
-                
-                if (testPos.y1 <= this.groundY && testPos.y2 <= this.groundY) {
-                    validAngle1 = testAngle1;
-                    validAngle2 = testAngle2;
-                } else {
-                    break;
+                for (let j = 0; j <= steps; j++) {
+                    const testAngle2 = this.angle2 + (angle2 - this.angle2) * (j / steps);
+                    const testPos = this.calculatePositionsForAngles(testAngle1, testAngle2);
+                    
+                    if (testPos.y1 <= this.groundY && testPos.y2 <= this.groundY) {
+                        // Calculate distance to target position
+                        const targetPos = this.calculatePositionsForAngles(angle1, angle2);
+                        const distance = Math.sqrt(
+                            Math.pow(testPos.x2 - targetPos.x2, 2) + 
+                            Math.pow(testPos.y2 - targetPos.y2, 2)
+                        );
+                        
+                        if (distance < bestDistance) {
+                            bestDistance = distance;
+                            bestValidAngles = { angle1: testAngle1, angle2: testAngle2 };
+                        }
+                    }
                 }
             }
             
-            return { angle1: validAngle1, angle2: validAngle2 };
+            return bestValidAngles;
         }
         
         return { angle1, angle2 };

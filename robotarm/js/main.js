@@ -73,9 +73,15 @@ class SimulationApp {
         // Update robot arm position
         this.robotArm.update();
 
-        // Update simulation
-        if (!this.isHumanMode && this.isTraining) {
+        // Update simulation based on mode
+        if (this.isHumanMode) {
+            const { reward, done } = this.humanControl.update();
+            // Update display with human mode rewards
+            document.getElementById('total-reward').textContent = 
+                this.humanControl.totalReward.toFixed(2);
+        } else if (this.isTraining) {
             this.rlAgent.update(this.robotArm, this.environment);
+            this.updateStats();
         }
 
         // Update physics
@@ -84,9 +90,6 @@ class SimulationApp {
         // Render
         this.environment.render(this.ctx);
         this.robotArm.render(this.ctx);
-
-        // Update stats
-        this.updateStats();
 
         requestAnimationFrame(this.animate);
     }
