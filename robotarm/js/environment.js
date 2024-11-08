@@ -13,6 +13,8 @@ class Environment {
         this.armLength2 = 100;
         
         this.reset();
+        this.successMessage = null;
+        this.successMessageDuration = 1000; // Display for 1 second
     }
 
     reset() {
@@ -103,6 +105,10 @@ class Environment {
             // Bonus reward for reaching target height
             if (this.blockY < this.maxHeight) {
                 reward += 100;
+                this.successMessage = {
+                    text: "Success!",
+                    timestamp: Date.now()
+                };
                 return { reward, done: true };
             }
         }
@@ -132,5 +138,18 @@ class Environment {
             this.blockSize,
             this.blockSize
         );
+
+        // Draw success message if active
+        if (this.successMessage) {
+            const elapsed = Date.now() - this.successMessage.timestamp;
+            if (elapsed < this.successMessageDuration) {
+                ctx.font = "bold 48px Arial";
+                ctx.fillStyle = "#00ff00";
+                ctx.textAlign = "center";
+                ctx.fillText(this.successMessage.text, this.width/2, this.height/2);
+            } else {
+                this.successMessage = null;
+            }
+        }
     }
 } 
