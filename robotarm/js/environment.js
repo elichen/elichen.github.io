@@ -4,6 +4,12 @@ class Environment {
         this.height = height;
         this.blockSize = 30;
         this.groundY = height - 20;
+        
+        // Calculate a reachable maxHeight
+        // Base is at 380, arm length is 200
+        // Let's set it to a point definitely reachable by the arm
+        this.maxHeight = this.groundY - 150; // This should be reachable
+        
         this.reset();
     }
 
@@ -12,7 +18,6 @@ class Environment {
         this.blockX = Math.random() * 200 + 200; // Between 200 and 400
         this.blockY = this.groundY - this.blockSize/2;
         this.isBlockHeld = false;
-        this.maxHeight = 100; // Target height for block
         this.currentReward = 0;
     }
 
