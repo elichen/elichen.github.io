@@ -53,8 +53,10 @@ class Environment {
     }
 
     update() {
-        // Check if block has fallen to unreachable position
-        if (!this.isBlockHeld && !this.isPositionReachable(this.blockX, this.blockY)) {
+        // Only check for unreachable position if block is on the ground
+        if (!this.isBlockHeld && 
+            Math.abs(this.blockY - (this.groundY - this.blockSize/2)) < 0.1 && 
+            !this.isPositionReachable(this.blockX, this.blockY)) {
             return { reset: true };
         }
         return { reset: false };
@@ -72,8 +74,10 @@ class Environment {
     }
 
     calculateReward(robotArm) {
-        // Check if block is in unreachable position
-        if (!this.isBlockHeld && !this.isPositionReachable(this.blockX, this.blockY)) {
+        // Only check for unreachable position if block is on the ground
+        if (!this.isBlockHeld && 
+            Math.abs(this.blockY - (this.groundY - this.blockSize/2)) < 0.1 && 
+            !this.isPositionReachable(this.blockX, this.blockY)) {
             return { reward: -50, done: true };  // Penalty for letting block fall to unreachable position
         }
 
