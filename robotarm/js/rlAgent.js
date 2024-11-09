@@ -16,6 +16,9 @@ class RLAgent {
         this.frameSkip = 4;
         this.targetUpdateFreq = 1000;  // Update target network every 1000 frames
         
+        this.maxFramesPerEpisode = 500;  // Add max frames per episode
+        this.episodeFrames = 0;
+        
         this.initializeModel();
     }
 
@@ -25,7 +28,7 @@ class RLAgent {
         this.model.add(tf.layers.dense({
             units: 128,
             activation: 'relu',
-            inputShape: [9]
+            inputShape: [11]
         }));
         this.model.add(tf.layers.dense({
             units: 128,
@@ -40,7 +43,7 @@ class RLAgent {
             activation: 'relu'
         }));
         this.model.add(tf.layers.dense({
-            units: 6
+            units: 5
         }));
 
         this.model.compile({
@@ -53,7 +56,7 @@ class RLAgent {
         this.targetModel.add(tf.layers.dense({
             units: 128,
             activation: 'relu',
-            inputShape: [9]
+            inputShape: [11]
         }));
         this.targetModel.add(tf.layers.dense({
             units: 128,
@@ -68,7 +71,7 @@ class RLAgent {
             activation: 'relu'
         }));
         this.targetModel.add(tf.layers.dense({
-            units: 6
+            units: 5
         }));
 
         // Initialize target network with main network's weights
@@ -87,6 +90,20 @@ class RLAgent {
 
     async update(robotArm, environment, shouldTrain = false) {
         this.frameCount++;
+        this.episodeFrames++;
+
+        // Force episode end if max frames reached
+        if (this.episodeFrames >= this.maxFramesPerEpisode) {
+            console.log("Episode terminated due to frame limit");
+            this.episodeCount++;
+            this.totalReward = 0;
+            this.episodeFrames = 0;
+            environment.reset();
+            robotArm.reset();
+            this.lastState = null;
+            this.lastAction = null;
+            return;
+        }
 
         const state = environment.getState(robotArm);
         const action = await this.selectAction(state, shouldTrain);
@@ -105,7 +122,7 @@ class RLAgent {
                 ({ reward, done } = environment.calculateReward(robotArm));
             }
             
-            // Store the experience from the last action
+            // Store the experience
             this.replayBuffer.store({
                 state: this.lastState,
                 action: this.lastAction,
@@ -119,6 +136,7 @@ class RLAgent {
             if (done) {
                 this.episodeCount++;
                 this.totalReward = 0;
+                this.episodeFrames = 0;  // Reset episode frames counter
                 console.log(`Episode ${this.episodeCount} - Replay Buffer Stats:`);
                 console.log(`  AI Experiences: ${this.replayBuffer.aiExperienceCount}`);
                 console.log(`  Human Experiences: ${this.replayBuffer.humanExperienceCount}`);
@@ -162,20 +180,21 @@ class RLAgent {
     }
 
     async selectAction(state, shouldTrain = false) {
-        if (shouldTrain) {
-            // Regular epsilon-greedy exploration
-            if (Math.random() < this.epsilon) {
-                return Math.floor(Math.random() * 6);
-            }
+        const epsilon = shouldTrain ? this.epsilon : 0;
+        
+        if (Math.random() < epsilon) {
+            // Use different epsilon for claw action
+            const clawEpsilon = 0.1;  // Much lower random probability for claw
+            const isClawAction = Math.random() < clawEpsilon;
             
-            // Occasionally force a large configuration change
-            if (Math.random() < 0.05) {  // 5% chance
-                // Choose between elbow-up and elbow-down configurations
-                const preferUp = Math.random() < 0.5;
-                return preferUp ? 2 : 3;  // Force large angle2 change
+            if (isClawAction) {
+                return 4;  // Claw toggle action
+            } else {
+                // Random movement action
+                return Math.floor(Math.random() * 4);  // 0-3 for movement
             }
         }
-
+        
         // Otherwise use model prediction
         const stateTensor = tf.tensor2d([state]);
         const predictions = await this.model.predict(stateTensor).array();
@@ -203,12 +222,8 @@ class RLAgent {
                 newAngle2 -= this.angleStep;
                 break;
             case 4: 
-                robotArm.isClawClosed = false; 
-                console.log("Opening claw");
-                return true;
-            case 5: 
-                robotArm.isClawClosed = true; 
-                console.log("Closing claw");
+                robotArm.isClawClosed = !robotArm.isClawClosed;  // Toggle claw
+                console.log(robotArm.isClawClosed ? "Closing claw" : "Opening claw");
                 return true;
         }
 
