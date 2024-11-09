@@ -5,53 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Robot Arm RL Demo</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-    <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
-        }
-        
-        #simulation-container {
-            margin: 20px;
-            padding: 20px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        #canvas {
-            border: 1px solid #ccc;
-        }
-        
-        #controls {
-            margin-top: 20px;
-            display: flex;
-            gap: 10px;
-        }
-        
-        button {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-        }
-        
-        button:hover {
-            background-color: #0056b3;
-        }
-        
-        #stats {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-        }
-    </style>
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
     <div id="simulation-container">
@@ -67,6 +21,51 @@
             <p>Epsilon: <span id="epsilon-value">1.0</span></p>
             <p>Episode: <span id="episode-count">0</span></p>
             <p>Reward: <span id="total-reward">0</span></p>
+        </div>
+    </div>
+
+    <div id="explainer">
+        <h2>Robot Arm Control Modes</h2>
+        
+        <div class="mode-section">
+            <h3>Human Control Mode</h3>
+            <p>In this mode, you can control the robot arm directly:</p>
+            <ul>
+                <li><strong>Mouse Click:</strong> Click anywhere to set target position for the arm</li>
+                <li><strong>Toggle Claw Button:</strong> Open/close the claw to grab blocks</li>
+                <li><strong>Goal:</strong> Pick up the red block and lift it above the green line</li>
+            </ul>
+            <p>Your demonstrations are recorded and used to help train the AI agent.</p>
+        </div>
+
+        <div class="mode-section">
+            <h3>RL Agent Mode</h3>
+            <p>Watch the AI agent learn to control the arm through trial and error:</p>
+            <ul>
+                <li>Uses Deep Q-Learning to learn optimal actions</li>
+                <li>Learns from both its own experiences and human demonstrations</li>
+                <li>Explores using random actions (epsilon-greedy strategy)</li>
+                <li>Gets rewards for:
+                    <ul>
+                        <li>Getting closer to the block</li>
+                        <li>Lifting the block higher</li>
+                        <li>Keeping the elbow on the opposite side of the block</li>
+                        <li>Successfully reaching the target height</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <div class="mode-section">
+            <h3>Training Process</h3>
+            <p>The agent learns through these steps:</p>
+            <ol>
+                <li>Collects experiences (state, action, reward, next state)</li>
+                <li>Stores experiences in a replay buffer (mixed with human demos)</li>
+                <li>Periodically updates its neural network to predict better actions</li>
+                <li>Gradually reduces random exploration as it improves</li>
+            </ol>
+            <p>The epsilon value shows how often the agent takes random actions (1.0 = always, 0.0 = never).</p>
         </div>
     </div>
 
