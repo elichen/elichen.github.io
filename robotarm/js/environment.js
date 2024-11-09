@@ -70,6 +70,10 @@ class Environment {
 
     getState(robotArm) {
         const clawPos = robotArm.getClawPosition();
+        const distanceToBlock = Math.sqrt(
+            Math.pow(clawPos.x - this.blockX, 2) +
+            Math.pow(clawPos.y - this.blockY, 2)
+        );
         
         // Pre-calculate which actions would be valid from current state
         const validActions = [
@@ -89,12 +93,14 @@ class Environment {
             (this.blockY - this.maxHeight) / 
                 (this.groundY - this.maxHeight),    // [0, 1]
             robotArm.isClawClosed ? 1 : 0,         // [0, 1]
-            ...validActions                         // [0, 1] each
+            distanceToBlock / 200,                 // [0, 1] normalized distance to block
+            this.isBlockHeld ? 1 : 0,             // [0, 1] whether block is held
+            ...validActions                        // [0, 1] each
         ];
     }
 
     calculateReward(robotArm) {
-        // Catastrophic failure (keep this as is)
+        // Catastrophic failure check
         if (!this.isBlockHeld && 
             Math.abs(this.blockY - (this.groundY - this.blockSize/2)) < 0.1 && 
             !this.isPositionReachable(this.blockX, this.blockY)) {
@@ -111,63 +117,58 @@ class Environment {
 
         let reward = 0;
 
-        // Proximity improvement reward
-        if (this.lastDistance !== null && !this.isBlockHeld) {
-            const distanceImprovement = this.lastDistance - distanceToBlock;
-            reward += distanceImprovement * 0.5;  // Reward for getting closer
-        }
-        this.lastDistance = distanceToBlock;
-
-        // Height improvement reward when holding
-        if (this.isBlockHeld) {
-            if (this.lastBlockY !== null) {
-                const heightImprovement = this.lastBlockY - this.blockY;  // Y decreases as we go up
-                reward += heightImprovement * 0.5;  // Reward for lifting higher
+        // Proximity reward when not holding block
+        if (!this.isBlockHeld) {
+            // Reward for getting closer to block
+            if (this.lastDistance !== null) {
+                const distanceImprovement = this.lastDistance - distanceToBlock;
+                reward += distanceImprovement * 1.0;  // Increased from 0.5
             }
-            this.lastBlockY = this.blockY;
-
+            
+            // Reward for appropriate claw state based on distance
+            if (distanceToBlock < this.blockSize * 1.5) {
+                // When close to block
+                if (!robotArm.isClawClosed) {
+                    reward += 0.2;  // Reward for having claw open when close
+                } else {
+                    reward -= 0.1;  // Small penalty for having claw closed too early
+                }
+            } else {
+                // When far from block
+                if (!robotArm.isClawClosed) {
+                    reward += 0.1;  // Small reward for keeping claw open while approaching
+                }
+            }
+            
+            // Reward for successful grasp attempt
+            if (distanceToBlock < this.blockSize && robotArm.isClawClosed) {
+                reward += 1.0;  // Significant reward for closing claw when very close
+            }
+        } else {
+            // When holding block
+            if (this.lastBlockY !== null) {
+                const heightImprovement = this.lastBlockY - this.blockY;
+                reward += heightImprovement * 1.0;  // Increased from 0.5
+            }
+            
+            // Strong penalty for opening claw while holding
+            if (!robotArm.isClawClosed) {
+                reward -= 5.0;  // Increased from 2.0
+            }
+            
             // Success condition
             if (this.blockY < this.maxHeight) {
-                this.lastBlockY = null;
-                this.lastDistance = null;
                 reward += 100;
-                // Add success message
                 this.successMessage = {
                     text: "Success!",
                     timestamp: Date.now()
                 };
                 return { reward, done: true };
             }
-        } else {
-            this.lastBlockY = null;  // Reset height tracking when not holding
         }
-
-        // Calculate base-to-claw line and elbow position
-        const baseToClawX = clawPos.x - this.armBaseX;
-        const baseToClawY = clawPos.y - this.armBaseY;
         
-        // Get elbow position
-        const elbowPos = {
-            x: this.armBaseX + this.armLength1 * Math.cos(robotArm.angle1),
-            y: this.armBaseY + this.armLength1 * Math.sin(robotArm.angle1)
-        };
-
-        // Calculate which side of the base-to-claw line the block and elbow are on
-        // using cross product: (P2-P1) × (P3-P1)
-        const blockSide = Math.sign(
-            baseToClawX * (this.blockY - this.armBaseY) - 
-            baseToClawY * (this.blockX - this.armBaseX)
-        );
-        
-        const elbowSide = Math.sign(
-            baseToClawX * (elbowPos.y - this.armBaseY) - 
-            baseToClawY * (elbowPos.x - this.armBaseX)
-        );
-
-        // Reward when block and elbow are on opposite sides
-        if (blockSide !== 0 && elbowSide !== 0) {  // Only if not directly on the line
-            reward += (blockSide * elbowSide < 0) ? 0.1 : -0.1;
-        }
+        this.lastDistance = distanceToBlock;
+        this.lastBlockY = this.blockY;
 
         return { reward, done: false };
     }
