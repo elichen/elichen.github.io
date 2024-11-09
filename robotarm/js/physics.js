@@ -3,6 +3,7 @@ class Physics {
         this.gravity = 9.81 * 60;
         this.timeStep = 1/60;
         this.blockVelocityY = 0;
+        this.wasClawOpen = true;
     }
 
     update(robotArm, environment, deltaTime) {
@@ -40,12 +41,17 @@ class Physics {
             Math.pow(clawPos.y - environment.blockY, 2)
         );
 
-        // If claw is close enough to block and closed, pick up block
-        if (distance < environment.blockSize && robotArm.isClawClosed) {
+        // If claw just closed (was open last frame) and is close enough to block, pick up block
+        if (distance < environment.blockSize && 
+            robotArm.isClawClosed && 
+            this.wasClawOpen) {
             environment.isBlockHeld = true;
         } else if (!robotArm.isClawClosed) {
             environment.isBlockHeld = false;
         }
+
+        // Update previous claw state
+        this.wasClawOpen = !robotArm.isClawClosed;
     }
 
     calculateArmPosition(angle1, angle2, length1, length2) {
