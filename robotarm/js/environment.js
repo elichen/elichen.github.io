@@ -126,11 +126,16 @@ class Environment {
             }
             this.lastBlockY = this.blockY;
 
-            // Keep success reward
+            // Success condition
             if (this.blockY < this.maxHeight) {
                 this.lastBlockY = null;
                 this.lastDistance = null;
                 reward += 100;
+                // Add success message
+                this.successMessage = {
+                    text: "Success!",
+                    timestamp: Date.now()
+                };
                 return { reward, done: true };
             }
         } else {
