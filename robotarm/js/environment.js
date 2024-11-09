@@ -137,6 +137,33 @@ class Environment {
             this.lastBlockY = null;  // Reset height tracking when not holding
         }
 
+        // Calculate base-to-claw line and elbow position
+        const baseToClawX = clawPos.x - this.armBaseX;
+        const baseToClawY = clawPos.y - this.armBaseY;
+        
+        // Get elbow position
+        const elbowPos = {
+            x: this.armBaseX + this.armLength1 * Math.cos(robotArm.angle1),
+            y: this.armBaseY + this.armLength1 * Math.sin(robotArm.angle1)
+        };
+
+        // Calculate which side of the base-to-claw line the block and elbow are on
+        // using cross product: (P2-P1) × (P3-P1)
+        const blockSide = Math.sign(
+            baseToClawX * (this.blockY - this.armBaseY) - 
+            baseToClawY * (this.blockX - this.armBaseX)
+        );
+        
+        const elbowSide = Math.sign(
+            baseToClawX * (elbowPos.y - this.armBaseY) - 
+            baseToClawY * (elbowPos.x - this.armBaseX)
+        );
+
+        // Reward when block and elbow are on opposite sides
+        if (blockSide !== 0 && elbowSide !== 0) {  // Only if not directly on the line
+            reward += (blockSide * elbowSide < 0) ? 0.1 : -0.1;
+        }
+
         return { reward, done: false };
     }
 
