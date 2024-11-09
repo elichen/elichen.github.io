@@ -20,30 +20,51 @@ class HumanControl {
         this.targetX = x;
         this.targetY = y;
         
-        // Calculate target angles but don't set them directly
+        // Calculate distance from base
+        const dx = this.targetX - this.robotArm.baseX;
+        const dy = this.robotArm.baseY - this.targetY;
+        const distanceFromBase = Math.sqrt(dx * dx + dy * dy);
+        const totalArmLength = this.robotArm.segment1Length + this.robotArm.segment2Length;
+        const minReach = Math.abs(this.robotArm.segment1Length - this.robotArm.segment2Length);
+        const minSafeDistance = 20; // Minimum safe distance from base
+        
+        let targetX = this.targetX;
+        let targetY = this.targetY;
+        
+        // Adjust position if too close or too far
+        if (distanceFromBase < minSafeDistance) {
+            // Scale up to minimum safe distance
+            const scale = minSafeDistance / distanceFromBase;
+            targetX = this.robotArm.baseX + dx * scale;
+            targetY = this.robotArm.baseY - dy * scale;
+        } else if (distanceFromBase > totalArmLength) {
+            // Scale down to maximum reach
+            const scale = totalArmLength / distanceFromBase;
+            targetX = this.robotArm.baseX + dx * scale;
+            targetY = this.robotArm.baseY - dy * scale;
+        } else if (distanceFromBase < minReach) {
+            // Scale up to minimum reach
+            const scale = minReach / distanceFromBase;
+            targetX = this.robotArm.baseX + dx * scale;
+            targetY = this.robotArm.baseY - dy * scale;
+        }
+        
+        // Calculate solutions for adjusted position
         const solutions = this.calculateInverseKinematics(
-            this.targetX - this.robotArm.baseX,
-            this.robotArm.baseY - this.targetY
+            targetX - this.robotArm.baseX,
+            this.robotArm.baseY - targetY
         );
 
         if (solutions) {
-            const validSolutions = solutions.filter(solution => {
-                const endPoint = this.calculateEndPoint(solution.theta1, solution.theta2);
-                const distance = Math.sqrt(
-                    Math.pow(endPoint.x - this.targetX, 2) +
-                    Math.pow(endPoint.y - this.targetY, 2)
-                );
-                const wouldHitGround = this.checkGroundCollision(solution.theta1, solution.theta2);
-                
-                return distance < 1 && !wouldHitGround;
-            });
+            const validSolutions = solutions.filter(solution => 
+                !this.checkGroundCollision(solution.theta1, solution.theta2)
+            );
 
             if (validSolutions.length > 0) {
                 const currentAngles = {
                     theta1: this.robotArm.angle1,
                     theta2: this.robotArm.angle2
                 };
-
                 this.targetAngles = this.chooseBestSolution(validSolutions, currentAngles);
             }
         }
