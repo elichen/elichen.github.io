@@ -19,8 +19,14 @@ class SimulationApp {
     }
 
     setupEventListeners() {
-        document.getElementById('mode-switch').addEventListener('click', () => {
+        const modeButton = document.getElementById('mode-switch');
+        
+        modeButton.addEventListener('click', () => {
             this.isHumanMode = !this.isHumanMode;
+            
+            // Update button text to show what mode you'll switch to
+            modeButton.textContent = this.isHumanMode ? 
+                'Switch to AI Mode' : 'Switch to Human Mode';
             
             // Automatically enable training when switching to RL mode
             if (!this.isHumanMode) {
