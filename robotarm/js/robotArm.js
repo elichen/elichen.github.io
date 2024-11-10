@@ -2,8 +2,8 @@ class RobotArm {
     constructor() {
         this.segment1Length = 100;
         this.segment2Length = 100;
-        this.angle1 = Math.PI / 4; // First joint angle
-        this.angle2 = Math.PI / 4; // Second joint angle
+        this.angle1 = Math.PI / 2; // First segment points straight up
+        this.angle2 = 0;            // Second segment continues straight up
         this.isClawClosed = false;
         this.baseX = 300;
         this.baseY = 380;
@@ -14,8 +14,8 @@ class RobotArm {
 
     reset() {
         // Try both elbow-up and elbow-down configurations
-        const upConfig = { angle1: Math.PI / 4, angle2: Math.PI / 4 };
-        const downConfig = { angle1: Math.PI / 4, angle2: -Math.PI / 4 };
+        const upConfig = { angle1: Math.PI / 2, angle2: 0 };
+        const downConfig = { angle1: Math.PI / 2, angle2: -Math.PI };
         
         // Choose configuration that doesn't collide with ground
         const upPos = this.calculatePositionsForAngles(upConfig.angle1, upConfig.angle2);
