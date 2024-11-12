@@ -48,7 +48,6 @@ class RobotArm {
         // Check if new angles would cause ground collision
         const newPos = this.calculatePositionsForAngles(angle1, angle2);
         if (newPos.y1 > this.groundY || newPos.y2 > this.groundY) {
-            console.log(`Invalid move: Would hit ground at angles (${angle1.toFixed(2)}, ${angle2.toFixed(2)})`);
             return false;  // Don't update angles if they would cause collision
         }
 
