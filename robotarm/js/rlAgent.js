@@ -204,7 +204,6 @@ class RLAgent {
     }
 
     executeAction(action, robotArm) {
-        console.log(`Executing action ${action}`);
         let newAngle1 = robotArm.angle1;
         let newAngle2 = robotArm.angle2;
 
@@ -222,18 +221,12 @@ class RLAgent {
                 newAngle2 -= this.angleStep;
                 break;
             case 4: 
-                robotArm.isClawClosed = !robotArm.isClawClosed;  // Toggle claw
-                console.log(robotArm.isClawClosed ? "Closing claw" : "Opening claw");
+                robotArm.isClawClosed = !robotArm.isClawClosed;
                 return true;
         }
 
         // Only apply the new angles if they're valid
         const success = robotArm.setTargetAngles(newAngle1, newAngle2);
-        if (!success) {
-            console.log(`Model predicted invalid action ${action} at angles (${robotArm.angle1.toFixed(2)}, ${robotArm.angle2.toFixed(2)})`);
-        } else {
-            console.log(`Successfully moved to angles (${newAngle1.toFixed(2)}, ${newAngle2.toFixed(2)})`);
-        }
         return success;
     }
 

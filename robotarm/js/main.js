@@ -97,16 +97,6 @@ class SimulationApp {
             // Pass shouldTrain=false to disable training but still take actions
             this.rlAgent.update(this.robotArm, this.environment, this.isTraining);
             
-            // Log Q-values for debugging
-            if (!this.isTraining) {
-                const state = this.environment.getState(this.robotArm);
-                const stateTensor = tf.tensor2d([state]);
-                this.rlAgent.model.predict(stateTensor).array().then(predictions => {
-                    console.log('Q-values:', predictions[0]);
-                });
-                stateTensor.dispose();
-            }
-            
             this.updateStats();
         }
 

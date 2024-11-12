@@ -117,6 +117,22 @@ class Environment {
 
         let reward = 0;
 
+        // Add elbow overbending penalty
+        const blockRelativeX = this.blockX - robotArm.baseX;
+        const elbowAngle = robotArm.angle2;
+
+        if (blockRelativeX < 0) {  // Block is to the left of the base
+            if (elbowAngle < 0) {
+                const penalty = Math.abs(elbowAngle) * 0.5;
+                reward -= penalty;
+            }
+        } else {  // Block is to the right of the base
+            if (elbowAngle > 0) {
+                const penalty = elbowAngle * 0.5;
+                reward -= penalty;
+            }
+        }
+
         // Proximity reward when not holding block
         if (!this.isBlockHeld) {
             // Reward for getting closer to block
