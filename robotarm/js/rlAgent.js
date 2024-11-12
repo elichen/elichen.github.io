@@ -108,8 +108,8 @@ class RLAgent {
         const state = environment.getState(robotArm);
         const action = await this.selectAction(state, shouldTrain);
         
-        // Store the previous state-action pair's outcome if we have one and we're training
-        if (this.lastState && this.lastAction !== null && shouldTrain) {
+        // Calculate reward and done state regardless of training mode
+        if (this.lastState && this.lastAction !== null) {
             let reward;
             let done;
 
@@ -122,26 +122,31 @@ class RLAgent {
                 ({ reward, done } = environment.calculateReward(robotArm));
             }
             
-            // Store the experience
-            this.replayBuffer.store({
-                state: this.lastState,
-                action: this.lastAction,
-                reward: reward,
-                nextState: state,
-                done: done
-            });
+            // Store experience only if training
+            if (shouldTrain) {
+                this.replayBuffer.store({
+                    state: this.lastState,
+                    action: this.lastAction,
+                    reward: reward,
+                    nextState: state,
+                    done: done
+                });
+            }
             
             this.totalReward += reward;
 
             if (done) {
                 this.episodeCount++;
-                this.totalReward = 0;
-                this.episodeFrames = 0;  // Reset episode frames counter
-                console.log(`Episode ${this.episodeCount} - Replay Buffer Stats:`);
-                console.log(`  AI Experiences: ${this.replayBuffer.aiExperienceCount}`);
-                console.log(`  Human Experiences: ${this.replayBuffer.humanExperienceCount}`);
-                console.log(`  Total: ${this.replayBuffer.size}`);
+                console.log(`Episode ${this.episodeCount} completed with total reward: ${this.totalReward}`);
+                if (shouldTrain) {
+                    console.log(`Replay Buffer Stats:`);
+                    console.log(`  AI Experiences: ${this.replayBuffer.aiExperienceCount}`);
+                    console.log(`  Human Experiences: ${this.replayBuffer.humanExperienceCount}`);
+                    console.log(`  Total: ${this.replayBuffer.size}`);
+                }
                 
+                this.totalReward = 0;
+                this.episodeFrames = 0;
                 environment.reset();
                 robotArm.reset();
                 this.lastState = null;
@@ -150,19 +155,17 @@ class RLAgent {
             }
         }
         
-        // Only store state and action if we're training
-        if (shouldTrain) {
-            this.lastState = state;
-            this.lastAction = action;
-        }
+        // Store state and action regardless of training mode
+        this.lastState = state;
+        this.lastAction = action;
         
         // Execute action and track if it was invalid
         const success = this.executeAction(action, robotArm);
-        if (!success && shouldTrain) {
+        if (!success) {
             this.lastInvalidAction = true;
         }
 
-        // Train if we have enough experiences and it's a training frame
+        // Train if conditions are met
         if (shouldTrain && 
             this.replayBuffer.size >= this.batchSize && 
             !this.isTraining && 
