@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pong RL Training</title>
+    <link rel="stylesheet" href="styles/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="game-container">
+            <canvas id="game-canvas" width="600" height="400"></canvas>
+            <div class="controls">
+                <button id="start-training">Start Training</button>
+                <button id="pause-training">Pause</button>
+                <span id="episode-counter">Episode: 0</span>
+            </div>
+        </div>
+        
+        <div class="metrics-container">
+            <div class="chart-wrapper">
+                <canvas id="rewards-chart"></canvas>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="lengths-chart"></canvas>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="rally-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Core -->
+    <script src="src/game/ball.js"></script>
+    <script src="src/game/paddle.js"></script>
+    <script src="src/game/pong.js"></script>
+
+    <!-- Agent -->
+    <script src="src/agent/model.js"></script>
+    <script src="src/agent/memory.js"></script>
+    <script src="src/agent/ppo.js"></script>
+
+    <!-- Training -->
+    <script src="src/training/environment.js"></script>
+    <script src="src/training/metrics.js"></script>
+    <script src="src/training/trainer.js"></script>
+
+    <!-- Main -->
+    <script src="src/main.js"></script>
+</body>
+</html> 
