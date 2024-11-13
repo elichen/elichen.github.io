@@ -3,26 +3,33 @@ class Memory {
         this.states = [];
         this.actions = [];
         this.rewards = [];
-        this.values = [];
-        this.logProbs = [];
+        this.nextStates = [];
         this.dones = [];
+        this.maxSize = 10000;  // Limit memory size
     }
 
-    store(state, action, reward, value, logProb, done) {
+    store(state, action, reward, nextState, done) {
         this.states.push(state);
         this.actions.push(action);
         this.rewards.push(reward);
-        this.values.push(value);
-        this.logProbs.push(logProb);
+        this.nextStates.push(nextState);
         this.dones.push(done);
+
+        // Remove oldest memories if we exceed maxSize
+        if (this.states.length > this.maxSize) {
+            this.states.shift();
+            this.actions.shift();
+            this.rewards.shift();
+            this.nextStates.shift();
+            this.dones.shift();
+        }
     }
 
     clear() {
         this.states = [];
         this.actions = [];
         this.rewards = [];
-        this.values = [];
-        this.logProbs = [];
+        this.nextStates = [];
         this.dones = [];
     }
 

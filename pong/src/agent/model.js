@@ -1,7 +1,6 @@
-class PolicyNetwork {
+class DQNNetwork {
     constructor() {
-        // Create shared base network
-        this.baseNetwork = tf.sequential({
+        this.model = tf.sequential({
             layers: [
                 tf.layers.dense({
                     inputShape: [6],
@@ -13,72 +12,94 @@ class PolicyNetwork {
                     units: 64,
                     activation: 'relu',
                     kernelInitializer: 'glorotNormal'
-                })
-            ]
-        });
-
-        // Policy head (actor)
-        this.policyHead = tf.sequential({
-            layers: [
+                }),
                 tf.layers.dense({
-                    inputShape: [64],
-                    units: 3,
-                    activation: 'softmax',
-                    kernelInitializer: 'glorotNormal'
-                })
-            ]
-        });
-
-        // Value head (critic)
-        this.valueHead = tf.sequential({
-            layers: [
-                tf.layers.dense({
-                    inputShape: [64],
-                    units: 1,
+                    units: 3,  // 3 possible actions
                     activation: 'linear',
                     kernelInitializer: 'glorotNormal'
                 })
             ]
         });
 
-        // Compile models to ensure variables are created
-        this.baseNetwork.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
-        this.policyHead.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy' });
-        this.valueHead.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
+        // Create target network with same architecture
+        this.targetModel = tf.sequential({
+            layers: [
+                tf.layers.dense({
+                    inputShape: [6],
+                    units: 128,
+                    activation: 'relu',
+                    kernelInitializer: 'glorotNormal'
+                }),
+                tf.layers.dense({
+                    units: 64,
+                    activation: 'relu',
+                    kernelInitializer: 'glorotNormal'
+                }),
+                tf.layers.dense({
+                    units: 3,
+                    activation: 'linear',
+                    kernelInitializer: 'glorotNormal'
+                })
+            ]
+        });
 
-        this.optimizer = tf.train.adam(3e-4);
-    }
-
-    getTrainableVariables() {
-        const baseVars = this.baseNetwork.trainableWeights;
-        const policyVars = this.policyHead.trainableWeights;
-        const valueVars = this.valueHead.trainableWeights;
-        return [...baseVars, ...policyVars, ...valueVars];
+        this.optimizer = tf.train.adam(0.001);
+        this.model.compile({ optimizer: this.optimizer, loss: 'meanSquaredError' });
+        this.targetModel.compile({ optimizer: this.optimizer, loss: 'meanSquaredError' });
+        
+        // Sync target network initially
+        this.updateTargetNetwork();
     }
 
     predict(stateTensor) {
         return tf.tidy(() => {
-            const hidden = this.baseNetwork.predict(stateTensor);
-            const actionProbs = this.policyHead.predict(hidden);
-            const value = this.valueHead.predict(hidden);
-            return {
-                actionProbs: actionProbs.dataSync(),
-                value: value.dataSync()[0]
-            };
+            return this.model.predict(stateTensor);
         });
     }
 
-    forward(stateTensor) {
-        const hidden = this.baseNetwork.predict(stateTensor);
-        const actionProbs = this.policyHead.predict(hidden);
-        const value = this.valueHead.predict(hidden);
-        return [actionProbs, value];
+    predictTarget(stateTensor) {
+        return tf.tidy(() => {
+            return this.targetModel.predict(stateTensor);
+        });
     }
 
-    sampleAction(actionProbs) {
-        const probsTensor = tf.tensor1d(actionProbs);
-        const action = tf.multinomial(tf.log(probsTensor), 1).dataSync()[0];
-        probsTensor.dispose();
-        return action;
+    async train(states, actions, rewards, nextStates, dones) {
+        try {
+            // Get Q-values for next states using target network
+            const nextQValues = this.targetModel.predict(nextStates);
+            const maxNextQ = nextQValues.max(1);
+            
+            // Calculate target Q-values
+            const targetQValues = rewards.add(
+                tf.scalar(0.99).mul(maxNextQ).mul(tf.scalar(1).sub(dones))
+            );
+
+            // Get current Q-values and update them with new targets
+            const currentQValues = this.model.predict(states);
+            const actionMask = tf.oneHot(actions, 3);
+            const updatedQValues = currentQValues.mul(tf.scalar(1).sub(actionMask))
+                .add(actionMask.mul(targetQValues.expandDims(1)));
+
+            // Train the model
+            const result = await this.model.trainOnBatch(states, updatedQValues);
+
+            // Cleanup intermediate tensors
+            nextQValues.dispose();
+            maxNextQ.dispose();
+            targetQValues.dispose();
+            currentQValues.dispose();
+            actionMask.dispose();
+            updatedQValues.dispose();
+
+            return result;
+        } catch (error) {
+            console.error("Error in DQN training:", error);
+            throw error;
+        }
+    }
+
+    updateTargetNetwork() {
+        const weights = this.model.getWeights();
+        this.targetModel.setWeights(weights);
     }
 } 
