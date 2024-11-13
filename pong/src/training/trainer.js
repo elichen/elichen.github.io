@@ -7,6 +7,32 @@ class PongTrainer {
         this.metrics = new MetricsTracker();
         this.episodeCount = 0;
         this.isTraining = true;
+        this.isTesting = false;
+    }
+
+    setTestingMode(testing) {
+        this.isTesting = testing;
+    }
+
+    async test() {
+        console.log("Starting testing mode");
+        while (this.isTesting) {
+            let state = this.env.reset();
+            let done = false;
+
+            while (!done && this.isTesting) {
+                await new Promise(resolve => setTimeout(resolve, 16)); // ~60fps
+
+                // Get actions from both agents (inference only)
+                const { action: action1 } = this.agent1.selectAction(state);
+                const { action: action2 } = this.agent2.selectAction(state);
+
+                // Environment step
+                const { state: nextState, done: gameDone } = this.env.step(action1, action2);
+                state = nextState;
+                done = gameDone;
+            }
+        }
     }
 
     async train(numEpisodes = 1000) {
