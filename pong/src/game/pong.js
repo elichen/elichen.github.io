@@ -54,11 +54,6 @@ class PongGame {
         // Update ball
         this.ball.update();
 
-        // Check wall collisions
-        if (this.ball.y <= 0 || this.ball.y >= this.height) {
-            this.ball.bounceWall();
-        }
-
         // Check paddle collisions
         if (this.checkPaddleCollision(this.leftPaddle)) {
             reward1 += 0.1; // Reward for hitting
