@@ -1,6 +1,7 @@
 class PolicyNetwork {
     constructor() {
-        this.model = tf.sequential({
+        // Create shared base network
+        this.baseNetwork = tf.sequential({
             layers: [
                 tf.layers.dense({
                     inputShape: [6],
@@ -12,8 +13,15 @@ class PolicyNetwork {
                     units: 64,
                     activation: 'relu',
                     kernelInitializer: 'glorotNormal'
-                }),
+                })
+            ]
+        });
+
+        // Policy head (actor)
+        this.policyHead = tf.sequential({
+            layers: [
                 tf.layers.dense({
+                    inputShape: [64],
                     units: 3,
                     activation: 'softmax',
                     kernelInitializer: 'glorotNormal'
@@ -21,6 +29,7 @@ class PolicyNetwork {
             ]
         });
 
+        // Value head (critic)
         this.valueHead = tf.sequential({
             layers: [
                 tf.layers.dense({
@@ -32,17 +41,26 @@ class PolicyNetwork {
             ]
         });
 
-        // Compile both models to ensure variables are created
-        this.model.compile({optimizer: 'adam', loss: 'categoricalCrossentropy'});
-        this.valueHead.compile({optimizer: 'adam', loss: 'meanSquaredError'});
-        
+        // Compile models to ensure variables are created
+        this.baseNetwork.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
+        this.policyHead.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy' });
+        this.valueHead.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
+
         this.optimizer = tf.train.adam(3e-4);
     }
 
-    predict(state) {
+    getTrainableVariables() {
+        const baseVars = this.baseNetwork.trainableWeights;
+        const policyVars = this.policyHead.trainableWeights;
+        const valueVars = this.valueHead.trainableWeights;
+        return [...baseVars, ...policyVars, ...valueVars];
+    }
+
+    predict(stateTensor) {
         return tf.tidy(() => {
-            const stateTensor = tf.tensor2d([state]);
-            const [actionProbs, value] = this.forward(stateTensor);
+            const hidden = this.baseNetwork.predict(stateTensor);
+            const actionProbs = this.policyHead.predict(hidden);
+            const value = this.valueHead.predict(hidden);
             return {
                 actionProbs: actionProbs.dataSync(),
                 value: value.dataSync()[0]
@@ -51,18 +69,16 @@ class PolicyNetwork {
     }
 
     forward(stateTensor) {
-        const hidden = this.model.layers[1].apply(
-            this.model.layers[0].apply(stateTensor)
-        );
-        const actionProbs = this.model.layers[2].apply(hidden);
-        const value = this.valueHead.apply(hidden);
+        const hidden = this.baseNetwork.predict(stateTensor);
+        const actionProbs = this.policyHead.predict(hidden);
+        const value = this.valueHead.predict(hidden);
         return [actionProbs, value];
     }
 
     sampleAction(actionProbs) {
-        return tf.tidy(() => {
-            const action = tf.multinomial(tf.log(actionProbs), 1);
-            return action.dataSync()[0];
-        });
+        const probsTensor = tf.tensor1d(actionProbs);
+        const action = tf.multinomial(tf.log(probsTensor), 1).dataSync()[0];
+        probsTensor.dispose();
+        return action;
     }
 } 
