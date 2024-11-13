@@ -26,25 +26,29 @@ class Ball {
 
     bounceWall() {
         this.dy = -this.dy;
-        // Slightly randomize the angle
-        this.dy *= 0.9 + Math.random() * 0.2;
+        // Add small random variation to prevent loops
+        this.dx += (Math.random() - 0.5) * 0.5;
     }
 
-    bouncePaddle(paddleY, paddleHeight) {
-        // Calculate relative intersection point
-        const relativeIntersectY = (paddleY + (paddleHeight/2)) - this.y;
-        const normalizedIntersectY = relativeIntersectY / (paddleHeight/2);
+    bouncePaddle(paddleCenter, paddleHeight) {
+        // Calculate relative intersection point (-1 to 1)
+        const relativeIntersectY = (this.y - paddleCenter) / (paddleHeight/2);
         
-        // Calculate bounce angle (maximum 75 degrees)
-        const maxAngle = Math.PI * 0.75;
-        const bounceAngle = normalizedIntersectY * maxAngle;
+        // Constrain the angle (maximum 75 degrees)
+        const maxBounceAngle = 0.75 * Math.PI / 2;
+        const bounceAngle = relativeIntersectY * maxBounceAngle;
         
-        // Reverse x direction and apply new angle
-        this.dx = -this.dx;
-        this.speed *= 1.05; // Increase speed slightly
-        const direction = this.dx < 0 ? -1 : 1;
+        // Increase speed slightly (cap at maximum speed)
+        this.speed = Math.min(this.speed * 1.05, 15);
         
+        // Calculate new velocities
+        const direction = this.dx > 0 ? -1 : 1;  // Reverse x direction
+        
+        // Use bounceAngle to determine new velocity components
         this.dx = direction * this.speed * Math.cos(bounceAngle);
-        this.dy = -this.speed * Math.sin(bounceAngle);
+        this.dy = this.speed * Math.sin(bounceAngle);
+        
+        // Add small random variation to prevent loops
+        this.dy += (Math.random() - 0.5) * 0.5;
     }
 } 

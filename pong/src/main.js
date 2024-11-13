@@ -92,11 +92,6 @@ class GameVisualizer {
         // Update episode counter
         document.getElementById('episode-counter').textContent = 
             `Episode: ${this.trainer.episodeCount}`;
-
-        // Continue animation if training
-        if (this.isTraining) {
-            requestAnimationFrame(() => this.draw());
-        }
     }
 }
 
