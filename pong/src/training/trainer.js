@@ -87,12 +87,17 @@ class PongTrainer {
                 episodeReward2 += result.reward2;
                 
                 if (result.done) {
-                    console.log(`Episode finished after ${stepCount} steps`);
-                    console.log(`Rewards - Agent1: ${episodeReward1.toFixed(2)}, Agent2: ${episodeReward2.toFixed(2)}`);
-                    console.log(`Epsilon - Agent1: ${this.agent1.epsilon.toFixed(3)}, Agent2: ${this.agent2.epsilon.toFixed(3)}`);
-                    
-                    // Update metrics
                     const stats = this.env.getStats();
+                    console.log(`Episode Summary:
+                    Stage: ${stats.stage}
+                    Steps: ${stepCount}
+                    Rewards - Agent1: ${episodeReward1.toFixed(2)}, Agent2: ${episodeReward2.toFixed(2)}
+                    Epsilon - Agent1: ${this.agent1.epsilon.toFixed(4)}, Agent2: ${this.agent2.epsilon.toFixed(4)}
+                    Best Rally: ${stats.bestRally}
+                    Current Rally: ${stats.currentRally}
+                    Scores: ${stats.scores[0]} - ${stats.scores[1]}
+                    `);
+                    
                     this.metrics.addEpisodeData({
                         reward1: episodeReward1,
                         reward2: episodeReward2,
