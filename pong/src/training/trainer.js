@@ -17,20 +17,23 @@ class PongTrainer {
     async test() {
         console.log("Starting testing mode");
         while (this.isTesting) {
-            let state = this.env.reset();
+            let { state1, state2 } = this.env.reset();
             let done = false;
 
             while (!done && this.isTesting) {
                 await new Promise(resolve => setTimeout(resolve, 16)); // ~60fps
 
-                // Get actions from both agents (inference only)
-                const { action: action1 } = this.agent1.selectAction(state);
-                const { action: action2 } = this.agent2.selectAction(state);
+                // Get actions from both agents using their perspectives
+                const { action: action1 } = this.agent1.selectAction(state1);
+                const { action: action2 } = this.agent2.selectAction(state2);
 
                 // Environment step
-                const { state: nextState, done: gameDone } = this.env.step(action1, action2);
-                state = nextState;
-                done = gameDone;
+                const result = this.env.step(action1, action2);
+                if (result.done) {
+                    done = true;
+                } else {
+                    ({ state1, state2 } = result);
+                }
             }
         }
     }
@@ -53,56 +56,65 @@ class PongTrainer {
     }
 
     async trainEpisode() {
-        let state = this.env.reset();
-        let episodeReward1 = 0;
-        let episodeReward2 = 0;
-        let stepCount = 0;
+        try {
+            let { state1, state2 } = this.env.reset();
+            let episodeReward1 = 0;
+            let episodeReward2 = 0;
+            let stepCount = 0;
 
-        while (true) {
-            stepCount++;
-            
-            // Add delay to make the game visible
-            await new Promise(resolve => setTimeout(resolve, 16)); // ~60fps
-
-            // Agent 1 action
-            const { action: action1, value: value1, logProb: logProb1 } = this.agent1.selectAction(state);
-            
-            // Agent 2 action
-            const { action: action2, value: value2, logProb: logProb2 } = this.agent2.selectAction(state);
-
-            // Environment step
-            const { state: nextState, reward1, reward2, done } = this.env.step(action1, action2);
-
-            // Store experiences
-            this.agent1.memory.store(state, action1, reward1, value1, logProb1, done);
-            this.agent2.memory.store(state, action2, reward2, value2, logProb2, done);
-
-            episodeReward1 += reward1;
-            episodeReward2 += reward2;
-            state = nextState;
-
-            if (done) {
-                console.log(`Episode finished after ${stepCount} steps`);
-                console.log(`Rewards - Agent1: ${episodeReward1.toFixed(2)}, Agent2: ${episodeReward2.toFixed(2)}`);
+            while (true) {
+                stepCount++;
                 
-                // Update metrics
-                const stats = this.env.getStats();
-                this.metrics.addEpisodeData({
-                    reward1: episodeReward1,
-                    reward2: episodeReward2,
-                    steps: stats.steps,
-                    maxRally: stats.maxRally,
-                    scores: stats.scores
-                });
+                // Add delay to make the game visible
+                await new Promise(resolve => setTimeout(resolve, 16)); // ~60fps
 
-                // Update both agents
-                if (this.agent1.memory.states.length >= this.agent1.batchSize) {
-                    console.log("Updating agents with batch size:", this.agent1.memory.states.length);
-                    await this.agent1.update();
-                    await this.agent2.update();
+                // Agent 1 action using its perspective
+                const { action: action1, value: value1, logProb: logProb1 } = 
+                    this.agent1.selectAction(state1);
+                
+                // Agent 2 action using its perspective
+                const { action: action2, value: value2, logProb: logProb2 } = 
+                    this.agent2.selectAction(state2);
+
+                // Environment step
+                const result = this.env.step(action1, action2);
+
+                // Store experiences with respective perspectives
+                this.agent1.memory.store(state1, action1, result.reward1, value1, logProb1, result.done);
+                this.agent2.memory.store(state2, action2, result.reward2, value2, logProb2, result.done);
+
+                episodeReward1 += result.reward1;
+                episodeReward2 += result.reward2;
+                
+                if (result.done) {
+                    console.log(`Episode finished after ${stepCount} steps`);
+                    console.log(`Rewards - Agent1: ${episodeReward1.toFixed(2)}, Agent2: ${episodeReward2.toFixed(2)}`);
+                    
+                    // Update metrics
+                    const stats = this.env.getStats();
+                    this.metrics.addEpisodeData({
+                        reward1: episodeReward1,
+                        reward2: episodeReward2,
+                        steps: stats.steps,
+                        maxRally: stats.maxRally,
+                        scores: stats.scores
+                    });
+
+                    // Update both agents
+                    if (this.agent1.memory.states.length >= this.agent1.batchSize) {
+                        console.log("Updating agents with batch size:", this.agent1.memory.states.length);
+                        await this.agent1.update();
+                        await this.agent2.update();
+                    }
+                    break;
                 }
-                break;
+
+                // Update states for next iteration using destructuring
+                ({ state1, state2 } = result);
             }
+        } catch (error) {
+            console.error("Error in training episode:", error);
+            throw error;
         }
     }
 
