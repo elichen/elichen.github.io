@@ -5,7 +5,10 @@ class PongEnvironment {
         this.maxSteps = 2000;  // Prevent infinite episodes
         this.currentRally = 0;
         this.maxRally = 0;
-        this.lastHitBy = null; // Track which paddle last hit the ball
+        this.lastHitBy = null;
+        // Store previous distances for reward calculation
+        this.prevDist1 = null;
+        this.prevDist2 = null;
     }
 
     reset() {
@@ -13,6 +16,11 @@ class PongEnvironment {
         this.currentRally = 0;
         this.lastHitBy = null;
         const state = this.game.reset();
+        
+        // Initialize previous distances
+        this.prevDist1 = Math.abs(this.game.leftPaddle.y + this.game.leftPaddle.height/2 - this.game.ball.y);
+        this.prevDist2 = Math.abs(this.game.rightPaddle.y + this.game.rightPaddle.height/2 - this.game.ball.y);
+        
         return {
             state1: this.getStateForAgent(state, false),
             state2: this.getStateForAgent(state, true)
@@ -45,40 +53,32 @@ class PongEnvironment {
         // Flip action2 since its perspective is flipped
         normalizedAction2 = -normalizedAction2;  // Flip up/down for right paddle
         
+        // Store current paddle centers before movement
+        const prevCenter1 = this.game.leftPaddle.y + this.game.leftPaddle.height/2;
+        const prevCenter2 = this.game.rightPaddle.y + this.game.rightPaddle.height/2;
+        
+        // Take step in environment
         const result = this.game.step(normalizedAction1, normalizedAction2);
         
+        // Calculate new distances to ball
+        const newDist1 = Math.abs(this.game.leftPaddle.y + this.game.leftPaddle.height/2 - this.game.ball.y);
+        const newDist2 = Math.abs(this.game.rightPaddle.y + this.game.rightPaddle.height/2 - this.game.ball.y);
+        
+        // Calculate rewards based on distance change
+        let reward1 = (this.prevDist1 - newDist1) * 0.1; // Scale factor to keep rewards small
+        let reward2 = (this.prevDist2 - newDist2) * 0.1;
+        
+        // Store new distances for next step
+        this.prevDist1 = newDist1;
+        this.prevDist2 = newDist2;
+        
+        // Small penalty for movement to discourage constant motion
+        if (normalizedAction1 !== 0) reward1 -= 0.01;
+        if (normalizedAction2 !== 0) reward2 -= 0.01;
+
         // Transform state for each agent's perspective
         const state1 = this.getStateForAgent(result.state, false);
         const state2 = this.getStateForAgent(result.state, true);
-        
-        // Initialize rewards
-        let reward1 = 0;
-        let reward2 = 0;
-        
-        // Check paddle hits
-        if (this.game.checkPaddleCollision(this.game.leftPaddle)) {
-            reward1 = 1.0;  // Reward for successful hit
-            this.lastHitBy = 'left';
-            this.currentRally++;
-            this.maxRally = Math.max(this.maxRally, this.currentRally);
-        }
-        else if (this.game.checkPaddleCollision(this.game.rightPaddle)) {
-            reward2 = 1.0;  // Reward for successful hit
-            this.lastHitBy = 'right';
-            this.currentRally++;
-            this.maxRally = Math.max(this.maxRally, this.currentRally);
-        }
-        
-        // Small negative reward for missing the ball
-        if (result.done) {
-            if (this.game.ball.x <= 0 && this.lastHitBy !== 'left') {
-                reward1 = -0.5;  // Left paddle missed
-            } else if (this.game.ball.x >= this.game.width && this.lastHitBy !== 'right') {
-                reward2 = -0.5;  // Right paddle missed
-            }
-            this.currentRally = 0;
-            this.lastHitBy = null;
-        }
 
         // End episode if max steps reached
         if (this.episodeSteps >= this.maxSteps) {

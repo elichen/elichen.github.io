@@ -2,8 +2,8 @@ class PongTrainer {
     constructor() {
         console.log("Initializing PongTrainer");
         this.env = new PongEnvironment();
-        this.agent1 = new PPOAgent();
-        this.agent2 = new PPOAgent();
+        this.agent1 = new DQNAgent();
+        this.agent2 = new DQNAgent();
         this.metrics = new MetricsTracker();
         this.episodeCount = 0;
         this.isTraining = true;
@@ -24,8 +24,8 @@ class PongTrainer {
                 await new Promise(resolve => setTimeout(resolve, 16)); // ~60fps
 
                 // Get actions from both agents using their perspectives
-                const { action: action1 } = this.agent1.selectAction(state1);
-                const { action: action2 } = this.agent2.selectAction(state2);
+                const action1 = this.agent1.selectAction(state1);
+                const action2 = this.agent2.selectAction(state2);
 
                 // Environment step
                 const result = this.env.step(action1, action2);
@@ -68,20 +68,20 @@ class PongTrainer {
                 // Add delay to make the game visible
                 await new Promise(resolve => setTimeout(resolve, 16)); // ~60fps
 
-                // Agent 1 action using its perspective
-                const { action: action1, value: value1, logProb: logProb1 } = 
-                    this.agent1.selectAction(state1);
-                
-                // Agent 2 action using its perspective
-                const { action: action2, value: value2, logProb: logProb2 } = 
-                    this.agent2.selectAction(state2);
+                // Get actions from both agents using their perspectives
+                const action1 = this.agent1.selectAction(state1);
+                const action2 = this.agent2.selectAction(state2);
 
                 // Environment step
                 const result = this.env.step(action1, action2);
 
-                // Store experiences with respective perspectives
-                this.agent1.memory.store(state1, action1, result.reward1, value1, logProb1, result.done);
-                this.agent2.memory.store(state2, action2, result.reward2, value2, logProb2, result.done);
+                // Store experiences in replay buffer
+                this.agent1.store(state1, action1, result.reward1, result.state1, result.done);
+                this.agent2.store(state2, action2, result.reward2, result.state2, result.done);
+
+                // Update networks
+                await this.agent1.update();
+                await this.agent2.update();
 
                 episodeReward1 += result.reward1;
                 episodeReward2 += result.reward2;
@@ -89,6 +89,7 @@ class PongTrainer {
                 if (result.done) {
                     console.log(`Episode finished after ${stepCount} steps`);
                     console.log(`Rewards - Agent1: ${episodeReward1.toFixed(2)}, Agent2: ${episodeReward2.toFixed(2)}`);
+                    console.log(`Epsilon - Agent1: ${this.agent1.epsilon.toFixed(3)}, Agent2: ${this.agent2.epsilon.toFixed(3)}`);
                     
                     // Update metrics
                     const stats = this.env.getStats();
@@ -99,17 +100,10 @@ class PongTrainer {
                         maxRally: stats.maxRally,
                         scores: stats.scores
                     });
-
-                    // Update both agents
-                    if (this.agent1.memory.states.length >= this.agent1.batchSize) {
-                        console.log("Updating agents with batch size:", this.agent1.memory.states.length);
-                        await this.agent1.update();
-                        await this.agent2.update();
-                    }
                     break;
                 }
 
-                // Update states for next iteration using destructuring
+                // Update states for next iteration
                 ({ state1, state2 } = result);
             }
         } catch (error) {
