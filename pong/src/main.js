@@ -3,42 +3,66 @@ class GameVisualizer {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.trainer = new PongTrainer();
-        this.isTraining = false;
+        this.isRunning = false;
+        this.mode = 'training'; // 'training' or 'testing'
         this.setupEventListeners();
         console.log("GameVisualizer initialized");
         this.animationFrameId = null;
+        
+        // Start training immediately
+        this.startMode('training');
     }
 
     setupEventListeners() {
-        document.getElementById('start-training').addEventListener('click', () => {
-            console.log("Start training button clicked");
+        document.getElementById('toggle-mode').addEventListener('click', () => {
+            // Stop current mode
+            this.stop();
+            // Switch and start new mode
+            this.mode = this.mode === 'training' ? 'testing' : 'training';
+            this.startMode(this.mode);
+        });
+    }
+
+    startMode(mode) {
+        this.isRunning = true;
+        document.getElementById('toggle-mode').textContent = 
+            mode === 'training' ? 'Switch to Testing' : 'Switch to Training';
+            
+        if (mode === 'training') {
+            console.log("Starting training mode");
             this.startTraining();
-        });
-        document.getElementById('pause-training').addEventListener('click', () => {
-            console.log("Pause training button clicked");
-            this.pauseTraining();
-        });
+        } else {
+            console.log("Starting testing mode");
+            this.startTesting();
+        }
+        this.startAnimation();
     }
 
     async startTraining() {
-        console.log("startTraining called, isTraining:", this.isTraining);
-        if (!this.isTraining) {
-            this.isTraining = true;
-            this.trainer.resume();
-            this.startAnimation();
-            try {
-                await this.trainer.train(1000);
-            } catch (error) {
-                console.error("Error during training:", error);
-                this.pauseTraining();
-            }
+        this.trainer.resume();
+        try {
+            await this.trainer.train(1000);
+        } catch (error) {
+            console.error("Error during training:", error);
+            this.stop();
         }
     }
 
-    pauseTraining() {
-        console.log("Pausing training");
-        this.isTraining = false;
+    async startTesting() {
+        this.trainer.setTestingMode(true);
+        try {
+            await this.trainer.test();
+        } catch (error) {
+            console.error("Error during testing:", error);
+            this.stop();
+        }
+    }
+
+    stop() {
+        console.log("Stopping current mode");
+        this.isRunning = false;
         this.trainer.pause();
+        this.trainer.setTestingMode(false);
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
             this.animationFrameId = null;
@@ -48,7 +72,7 @@ class GameVisualizer {
     startAnimation() {
         const animate = () => {
             this.draw();
-            if (this.isTraining) {
+            if (this.isRunning) {
                 this.animationFrameId = requestAnimationFrame(animate);
             }
         };
