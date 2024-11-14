@@ -1,6 +1,19 @@
 class DQNNetwork {
     constructor() {
-        this.model = tf.sequential({
+        this.model = this.createModel();
+        // Create target network by cloning the architecture
+        this.targetModel = this.createModel();
+
+        this.optimizer = tf.train.adam(0.001);
+        this.model.compile({ optimizer: this.optimizer, loss: 'meanSquaredError' });
+        this.targetModel.compile({ optimizer: this.optimizer, loss: 'meanSquaredError' });
+        
+        // Sync target network initially
+        this.updateTargetNetwork();
+    }
+
+    createModel() {
+        return tf.sequential({
             layers: [
                 tf.layers.dense({
                     inputShape: [6],
@@ -20,35 +33,6 @@ class DQNNetwork {
                 })
             ]
         });
-
-        // Create target network with same architecture
-        this.targetModel = tf.sequential({
-            layers: [
-                tf.layers.dense({
-                    inputShape: [6],
-                    units: 128,
-                    activation: 'relu',
-                    kernelInitializer: 'glorotNormal'
-                }),
-                tf.layers.dense({
-                    units: 64,
-                    activation: 'relu',
-                    kernelInitializer: 'glorotNormal'
-                }),
-                tf.layers.dense({
-                    units: 3,
-                    activation: 'linear',
-                    kernelInitializer: 'glorotNormal'
-                })
-            ]
-        });
-
-        this.optimizer = tf.train.adam(0.001);
-        this.model.compile({ optimizer: this.optimizer, loss: 'meanSquaredError' });
-        this.targetModel.compile({ optimizer: this.optimizer, loss: 'meanSquaredError' });
-        
-        // Sync target network initially
-        this.updateTargetNetwork();
     }
 
     predict(stateTensor) {
