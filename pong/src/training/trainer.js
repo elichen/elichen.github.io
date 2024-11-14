@@ -11,6 +11,9 @@ class PongTrainer {
 
     setTestingMode(testing) {
         this.isTesting = testing;
+        if (testing) {
+            this.isTraining = false;
+        }
     }
 
     async test() {
@@ -38,14 +41,13 @@ class PongTrainer {
     async train() {
         console.log("Starting training");
         
-        while (this.isTraining) {
+        while (this.isTraining && !this.isTesting) {
             await this.trainEpisode();
             this.episodeCount++;
             
-            // Update metrics every episode
             if (this.episodeCount % 10 === 0) {
                 this.metrics.update();
-                await tf.nextFrame(); // Allow UI to update
+                await tf.nextFrame();
             }
         }
     }
@@ -57,20 +59,20 @@ class PongTrainer {
         let stepCount = 0;
 
         while (true) {
+            if (this.isTesting) {
+                return;
+            }
+
             stepCount++;
             
-            // Get actions from same agent using different perspectives
             const action1 = this.agent.selectAction(state1);
             const action2 = this.agent.selectAction(state2);
 
-            // Step environment with original actions
             const result = this.env.step(action1, action2);
 
-            // Store experiences from both perspectives
             this.agent.store(state1, action1, result.reward1, result.state1, result.done);
             this.agent.store(state2, action2, result.reward2, result.state2, result.done);
 
-            // Update agent
             await this.agent.update();
 
             episodeReward1 += result.reward1;

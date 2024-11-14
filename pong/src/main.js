@@ -30,9 +30,11 @@ class GameVisualizer {
             
         if (mode === 'training') {
             console.log("Starting training mode");
+            this.trainer.setTestingMode(false);
             this.startTraining();
         } else {
             console.log("Starting testing mode");
+            this.trainer.setTestingMode(true);
             this.startTesting();
         }
         this.startAnimation();
