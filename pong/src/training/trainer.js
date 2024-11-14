@@ -7,25 +7,32 @@ class PongTrainer {
         this.episodeCount = 0;
         this.isTraining = true;
         this.isTesting = false;
+        this.visualizer = null;
     }
 
-    setTestingMode(testing) {
-        this.isTesting = testing;
+    setTestingMode(testing, visualizer = null) {
         if (testing) {
             this.isTraining = false;
+            this.isTesting = true;
+            this.visualizer = visualizer;
+        } else {
+            this.isTesting = false;
+            this.visualizer = null;
         }
     }
 
     async test() {
-        console.log("Starting testing mode");
-        while (this.isTesting) {
+        console.log("Starting testing mode (Human vs AI)");
+        while (this.isTesting && this.visualizer) {
             let { state1, state2 } = this.env.reset();
             let done = false;
 
-            while (!done && this.isTesting) {
+            while (!done && this.isTesting && this.visualizer) {
                 await new Promise(resolve => setTimeout(resolve, 16));
 
-                const action1 = this.agent.selectAction(state1);
+                if (!this.visualizer) break;
+                
+                const action1 = this.visualizer.getHumanAction();
                 const action2 = this.agent.selectAction(state2);
 
                 const result = this.env.step(action1, action2);
