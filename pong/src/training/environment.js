@@ -47,7 +47,6 @@ class PongEnvironment {
         
         let normalizedAction1 = action1 - 1;
         let normalizedAction2 = action2 - 1;
-        normalizedAction2 = -normalizedAction2;
         
         const result = this.game.step(normalizedAction1, normalizedAction2);
         
