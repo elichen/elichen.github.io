@@ -1,70 +1,209 @@
+:root {
+    --cabinet-dark: #1a1005;
+    --cabinet-metal: #2a2520;
+    --pong-amber: #ffb300;
+    --pong-dim: #8b4513;
+}
+
 body {
     margin: 0;
     padding: 20px;
-    font-family: Arial, sans-serif;
-    background-color: #f0f0f0;
+    background-color: var(--cabinet-dark);
+    background-image: 
+        linear-gradient(45deg, var(--cabinet-dark) 0%, var(--cabinet-metal) 100%),
+        repeating-linear-gradient(45deg, #000 0, #000 2px, transparent 2px, transparent 4px);
+    color: var(--pong-amber);
+    font-family: "Press Start 2P", monospace;
+    min-height: 100vh;
+}
+
+.arcade-title {
+    text-align: center;
+    font-size: 2.5em;
+    margin-bottom: 30px;
+    text-shadow: 0 0 10px var(--pong-amber);
+    letter-spacing: 4px;
 }
 
 .container {
-    display: flex;
-    gap: 20px;
-    max-width: 1200px;
+    max-width: 800px;
     margin: 0 auto;
+    padding: 40px;
+    background: var(--cabinet-metal);
+    border: 12px solid #000;
+    border-radius: 10px;
+    box-shadow: 
+        0 0 0 4px var(--cabinet-dark),
+        0 0 40px rgba(0, 0, 0, 0.5);
 }
 
 .game-container {
-    flex: 0 0 600px;
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #000;
+    border-radius: 5px;
+    box-shadow: inset 0 0 20px rgba(255, 179, 0, 0.1);
 }
 
 #game-canvas {
-    background: #000;
-    border-radius: 4px;
+    margin: 0 auto;
+    display: block;
+    box-shadow: 0 0 30px rgba(255, 179, 0, 0.15);
 }
 
 .controls {
-    margin-top: 10px;
-    display: flex;
-    gap: 10px;
-    align-items: center;
+    margin-top: 20px;
+    padding: 10px;
+    border: 2px solid var(--pong-dim);
+    border-radius: 5px;
+    background: rgba(0, 0, 0, 0.3);
 }
 
 button {
-    padding: 8px 16px;
+    padding: 12px 24px;
     font-size: 14px;
-    border: none;
+    font-family: "Press Start 2P", monospace;
+    background-color: var(--cabinet-dark);
+    color: var(--pong-amber);
+    border: 2px solid var(--pong-dim);
     border-radius: 4px;
     cursor: pointer;
-    background-color: #4CAF50;
-    color: white;
+    margin-right: 20px;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
 }
 
 button:hover {
-    background-color: #45a049;
-}
-
-#pause-training {
-    background-color: #f44336;
-}
-
-#pause-training:hover {
-    background-color: #da190b;
-}
-
-.metrics-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.chart-wrapper {
-    background: white;
-    padding: 10px;
-    border-radius: 4px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    background-color: var(--pong-dim);
+    border-color: var(--pong-amber);
+    box-shadow: 0 0 10px var(--pong-amber);
 }
 
 #episode-counter {
+    font-size: 16px;
+    color: var(--pong-amber);
+    text-shadow: 0 0 5px var(--pong-amber);
+}
+
+.explanation {
+    margin-top: 30px;
+    padding: 30px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid var(--pong-dim);
+    border-radius: 5px;
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.explanation h2 {
+    font-family: "Press Start 2P", monospace;
+    color: var(--pong-amber);
+    margin-top: 0;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--pong-dim);
+    text-transform: uppercase;
+    text-shadow: 0 0 5px var(--pong-amber);
+    font-size: 1.4em;
+    letter-spacing: 1px;
+}
+
+.explanation h3 {
+    font-family: "Press Start 2P", monospace;
+    color: var(--pong-amber);
+    margin-top: 30px;
+    margin-bottom: 15px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--pong-dim);
+    font-size: 1.1em;
+    letter-spacing: 1px;
+}
+
+.explanation section {
+    margin-bottom: 30px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 20px;
+    border-radius: 4px;
+}
+
+.explanation ul, .explanation ol {
+    padding-left: 25px;
+    margin: 15px 0;
+}
+
+.explanation li {
+    margin: 10px 0;
+    line-height: 1.5;
+    color: #ffd780;
+    font-size: 0.95em;
+}
+
+.explanation p {
+    margin: 15px 0;
+    line-height: 1.6;
+    color: #ffd780;
+    font-size: 0.95em;
+}
+
+strong {
+    color: var(--pong-amber);
+    font-weight: bold;
+    text-shadow: 0 0 2px var(--pong-amber);
+}
+
+.arcade-controls {
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
+}
+
+.control-key {
+    font-family: "Press Start 2P", monospace;
+    padding: 8px 12px;
+    margin: 0 10px;
+}
+
+.explanation h2, .explanation h3 {
+    animation: gentleflicker 4s infinite;
+}
+
+@keyframes gentleflicker {
+    0% { text-shadow: 0 0 4px var(--pong-amber); }
+    50% { text-shadow: 0 0 6px var(--pong-amber); }
+    100% { text-shadow: 0 0 4px var(--pong-amber); }
+}
+
+/* Add CRT screen effect to text */
+@keyframes textflicker {
+    0% { text-shadow: 0 0 4px var(--pong-amber); }
+    50% { text-shadow: 0 0 8px var(--pong-amber); }
+    100% { text-shadow: 0 0 4px var(--pong-amber); }
+}
+
+.explanation h2, .explanation h3, strong {
+    animation: textflicker 3s infinite;
+}
+
+/* Add link to Google Fonts for Press Start 2P font */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap'); 
+
+.arcade-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.control-key {
+    background: var(--cabinet-dark);
+    border: 2px solid var(--pong-amber);
+    padding: 10px 15px;
+    border-radius: 4px;
     font-size: 14px;
-    color: #666;
+    box-shadow: 0 0 10px rgba(255, 179, 0, 0.2);
 } 

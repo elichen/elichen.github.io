@@ -36,12 +36,14 @@ class GameVisualizer {
     setupKeyboardControls() {
         window.addEventListener('keydown', (e) => {
             if (this.keys.hasOwnProperty(e.key)) {
+                e.preventDefault();  // Prevent scrolling
                 this.keys[e.key] = true;
             }
         });
 
         window.addEventListener('keyup', (e) => {
             if (this.keys.hasOwnProperty(e.key)) {
+                e.preventDefault();  // Prevent any default behavior
                 this.keys[e.key] = false;
             }
         });

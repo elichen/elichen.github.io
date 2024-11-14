@@ -2,17 +2,63 @@
 <html>
 <head>
     <title>Pong RL Training</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
 </head>
 <body>
     <div class="container">
+        <h1 class="arcade-title">PONG AI</h1>
         <div class="game-container">
             <canvas id="game-canvas" width="600" height="400"></canvas>
             <div class="controls">
-                <button id="toggle-mode">Start Training</button>
-                <span id="episode-counter">Episode: 0</span>
+                <button id="toggle-mode" class="arcade-btn">Start Training</button>
+                <span id="episode-counter" class="arcade-text">Episode: 0</span>
             </div>
+        </div>
+
+        <div class="explanation">
+            <h2 class="arcade-header">About This AI Pong Implementation</h2>
+            
+            <section>
+                <h3 class="arcade-subheader">Technical Implementation</h3>
+                <p>This project uses Deep Q-Learning (DQN) implemented in TensorFlow.js with WebGPU acceleration. The neural network learns to play Pong through experience, using:</p>
+                <ul class="arcade-list">
+                    <li>A deep neural network to approximate Q-values for actions</li>
+                    <li>Experience replay to learn from past gameplay</li>
+                    <li>Target network for stable learning</li>
+                    <li>WebGPU acceleration for fast neural network computations in the browser</li>
+                </ul>
+            </section>
+
+            <section>
+                <h3 class="arcade-subheader">Self-Play Training</h3>
+                <p>The AI learns through self-play, where:</p>
+                <ul class="arcade-list">
+                    <li>The same neural network controls both paddles</li>
+                    <li>Each paddle sees the game from its own perspective</li>
+                    <li>The AI learns to both defend and score</li>
+                    <li>Training progresses through stages:
+                        <ol>
+                            <li>Stage 1: Learn to rally (hit the ball)</li>
+                            <li>Stage 2: Learn to score while defending</li>
+                        </ol>
+                    </li>
+                </ul>
+            </section>
+
+            <section>
+                <h3 class="arcade-subheader">Game Modes</h3>
+                <p><strong>Training Mode:</strong> The AI plays against itself to learn the game.</p>
+                <p><strong>Testing Mode:</strong> You can play against the trained AI!</p>
+                <p class="controls-title"><strong>Controls:</strong></p>
+                <div class="arcade-controls">
+                    <div class="control-key">↑</div>
+                    <span>Move Up</span>
+                    <div class="control-key">↓</div>
+                    <span>Move Down</span>
+                </div>
+            </section>
         </div>
     </div>
 
