@@ -38,17 +38,15 @@ class PongTrainer {
         }
     }
 
-    async train(numEpisodes = 1000) {
-        console.log(`Starting training for ${numEpisodes} episodes`);
-        for (this.episodeCount = 0; this.episodeCount < numEpisodes; this.episodeCount++) {
-            if (!this.isTraining) break;
-            
-            console.log(`Starting episode ${this.episodeCount}`);
+    async train() {
+        console.log("Starting training");
+        
+        while (this.isTraining) {
             await this.trainEpisode();
+            this.episodeCount++;
             
             // Update metrics every episode
             if (this.episodeCount % 10 === 0) {
-                console.log(`Episode ${this.episodeCount}: Updating metrics`);
                 this.metrics.update();
                 await tf.nextFrame(); // Allow UI to update
             }
