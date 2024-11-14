@@ -2,7 +2,6 @@ class PongEnvironment {
     constructor() {
         this.game = new PongGame();
         this.episodeSteps = 0;
-        this.maxSteps = 2000;
         this.currentRally = 0;
         this.bestRally = 0;
         this.lastHitBy = null;
@@ -95,10 +94,6 @@ class PongEnvironment {
 
         const state1 = this.getStateForAgent(result.state, false);
         const state2 = this.getStateForAgent(result.state, true);
-
-        if (this.episodeSteps >= this.maxSteps) {
-            result.done = true;
-        }
 
         return {
             state1,
