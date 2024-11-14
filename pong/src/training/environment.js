@@ -68,7 +68,7 @@ class PongEnvironment {
             this.currentRally = 0;
         }
 
-        if (this.stage === 1) {
+        if (this.stage >= 1) {
             const newDist1 = Math.abs(this.game.leftPaddle.y + this.game.leftPaddle.height/2 - this.game.ball.y);
             const newDist2 = Math.abs(this.game.rightPaddle.y + this.game.rightPaddle.height/2 - this.game.ball.y);
             
@@ -80,7 +80,8 @@ class PongEnvironment {
             
             if (normalizedAction1 !== 0) reward1 -= 0.01;
             if (normalizedAction2 !== 0) reward2 -= 0.01;
-        } else {
+        }
+        if (this.stage === 2) {
             if (result.done) {
                 if (this.game.ball.x <= 0) {
                     reward1 = -1;
