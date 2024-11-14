@@ -5,11 +5,21 @@ class GameVisualizer {
         this.trainer = new PongTrainer();
         this.isRunning = false;
         this.mode = 'training'; // 'training' or 'testing'
+        
+        // Initialize keyboard state first
+        this.keys = {
+            ArrowUp: false,
+            ArrowDown: false
+        };
+        
+        // Setup all event listeners
+        this.setupKeyboardControls();
         this.setupEventListeners();
+        
         console.log("GameVisualizer initialized");
         this.animationFrameId = null;
         
-        // Start training immediately
+        // Start training after everything is initialized
         this.startMode('training');
     }
 
@@ -23,27 +33,55 @@ class GameVisualizer {
         });
     }
 
+    setupKeyboardControls() {
+        window.addEventListener('keydown', (e) => {
+            if (this.keys.hasOwnProperty(e.key)) {
+                this.keys[e.key] = true;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (this.keys.hasOwnProperty(e.key)) {
+                this.keys[e.key] = false;
+            }
+        });
+    }
+
+    // Add method to get human action
+    getHumanAction() {
+        if (this.keys.ArrowUp) return 0;     // Move up (maps to -1 in paddle)
+        if (this.keys.ArrowDown) return 2;    // Move down (maps to 1 in paddle)
+        return 1;                             // Stay still (maps to 0 in paddle)
+    }
+
     startMode(mode) {
         this.isRunning = true;
+        this.mode = mode;  // Make sure mode is set before anything else
+        
         document.getElementById('toggle-mode').textContent = 
             mode === 'training' ? 'Switch to Testing' : 'Switch to Training';
             
         if (mode === 'training') {
             console.log("Starting training mode");
-            this.trainer.setTestingMode(false);
+            this.trainer.setTestingMode(false, null);
             this.startTraining();
         } else {
-            console.log("Starting testing mode");
-            this.trainer.setTestingMode(true);
+            console.log("Starting testing mode (Human vs AI)");
+            // Set testing mode first, then start animation, then start testing
+            this.trainer.setTestingMode(true, this);
+            this.startAnimation();
             this.startTesting();
         }
-        this.startAnimation();
+        
+        if (mode === 'training') {
+            this.startAnimation();
+        }
     }
 
     async startTraining() {
         this.trainer.resume();
         try {
-            await this.trainer.train(1000);
+            await this.trainer.train();
         } catch (error) {
             console.error("Error during training:", error);
             this.stop();
@@ -51,8 +89,9 @@ class GameVisualizer {
     }
 
     async startTesting() {
-        this.trainer.setTestingMode(true);
         try {
+            // Small delay to ensure everything is initialized
+            await new Promise(resolve => setTimeout(resolve, 100));
             await this.trainer.test();
         } catch (error) {
             console.error("Error during testing:", error);
@@ -63,8 +102,10 @@ class GameVisualizer {
     stop() {
         console.log("Stopping current mode");
         this.isRunning = false;
-        this.trainer.pause();
-        this.trainer.setTestingMode(false);
+        if (this.mode === 'training') {
+            this.trainer.pause();
+        }
+        this.trainer.setTestingMode(false, null);
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
             this.animationFrameId = null;
@@ -118,6 +159,10 @@ class GameVisualizer {
         // Update episode counter
         document.getElementById('episode-counter').textContent = 
             `Episode: ${this.trainer.episodeCount}`;
+
+        // Draw mode indicator
+        ctx.font = '20px Arial';
+        ctx.fillText(this.mode === 'training' ? 'Training Mode' : 'Testing Mode (Human vs AI)', 10, 30);
     }
 }
 
