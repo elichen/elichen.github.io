@@ -19,17 +19,9 @@ class MetricsTracker {
             this.episodeLengths.shift();
             this.rallyLengths.shift();
         }
-
-        // Log metrics to console
-        console.log(`Episode Metrics:
-            Reward1: ${data.reward1.toFixed(2)}
-            Reward2: ${data.reward2.toFixed(2)}
-            Steps: ${data.steps}
-            Max Rally: ${data.maxRally}
-        `);
     }
 
     update() {
-        // No-op - removed chart updates
+        // No-op - removed console logging
     }
 } 

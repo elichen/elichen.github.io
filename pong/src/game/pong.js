@@ -44,7 +44,11 @@ class PongGame {
 
         // Check scoring
         let done = false;
-        if (this.ball.x <= 0 || this.ball.x >= this.width) {
+        if (this.ball.x <= 0) {
+            this.rightPaddle.score++;  // Right paddle scores
+            done = true;
+        } else if (this.ball.x >= this.width) {
+            this.leftPaddle.score++;   // Left paddle scores
             done = true;
         }
 

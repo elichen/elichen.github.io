@@ -88,21 +88,19 @@ class PongTrainer {
                 
                 if (result.done) {
                     const stats = this.env.getStats();
-                    console.log(`Episode Summary:
-                    Stage: ${stats.stage}
-                    Steps: ${stepCount}
-                    Rewards - Agent1: ${episodeReward1.toFixed(2)}, Agent2: ${episodeReward2.toFixed(2)}
-                    Epsilon - Agent1: ${this.agent1.epsilon.toFixed(4)}, Agent2: ${this.agent2.epsilon.toFixed(4)}
-                    Best Rally: ${stats.bestRally}
-                    Current Rally: ${stats.currentRally}
-                    Scores: ${stats.scores[0]} - ${stats.scores[1]}
-                    `);
+                    console.log(`Episode ${this.episodeCount} Summary:
+    Stage: ${stats.stage}
+    Steps: ${stepCount}
+    Rewards: ${episodeReward1.toFixed(2)} | ${episodeReward2.toFixed(2)}
+    Epsilon: ${this.agent1.epsilon.toFixed(4)}
+    Rally: ${stats.currentRally} (Best Ever: ${stats.bestRally})
+    Score: ${stats.scores[0]} - ${stats.scores[1]}`);
                     
                     this.metrics.addEpisodeData({
                         reward1: episodeReward1,
                         reward2: episodeReward2,
                         steps: stats.steps,
-                        maxRally: stats.maxRally,
+                        maxRally: stats.bestRally,
                         scores: stats.scores
                     });
                     break;

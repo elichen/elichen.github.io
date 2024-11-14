@@ -5,19 +5,24 @@ class Ball {
         this.gameWidth = gameWidth;
         this.gameHeight = gameHeight;
         this.radius = radius;
+        this.serveDirection = 1;  // Track who to serve towards (1 or -1)
         this.reset();
     }
 
     reset() {
         this.x = this.gameWidth / 2;
         this.y = this.gameHeight / 2;
-        // Random initial direction (between -45 and 45 degrees)
+        
+        // Alternate serve direction
+        this.serveDirection *= -1;
+        
+        // Random angle between -45 and 45 degrees
         const angle = (Math.random() * Math.PI/4) - Math.PI/8;
-        const direction = Math.random() < 0.5 ? 1 : -1;
-        this.dx = Math.cos(angle) * 5 * direction;
+        
+        // Use serveDirection to determine initial direction
+        this.dx = Math.cos(angle) * 5 * this.serveDirection;
         this.dy = Math.sin(angle) * 5;
         this.speed = 5;
-        console.log("Ball reset - dx:", this.dx, "dy:", this.dy);
     }
 
     update() {
@@ -26,16 +31,12 @@ class Ball {
 
         // Check wall collisions
         if (this.y - this.radius <= 0) {
-            console.log("Hit top wall - Before bounce dy:", this.dy);
             this.y = this.radius; // Prevent sticking to wall
             this.bounceWall();
-            console.log("After bounce dy:", this.dy);
         } 
         else if (this.y + this.radius >= this.gameHeight) {
-            console.log("Hit bottom wall - Before bounce dy:", this.dy);
             this.y = this.gameHeight - this.radius; // Prevent sticking to wall
             this.bounceWall();
-            console.log("After bounce dy:", this.dy);
         }
     }
 
@@ -53,8 +54,6 @@ class Ball {
             this.dx *= factor;
             this.dy *= factor;
         }
-        
-        console.log("Wall bounce - new dx:", this.dx, "new dy:", this.dy);
     }
 
     bouncePaddle(paddleCenter, paddleHeight) {
@@ -74,7 +73,5 @@ class Ball {
         // Use bounceAngle to determine new velocity components
         this.dx = direction * this.speed * Math.cos(bounceAngle);
         this.dy = this.speed * Math.sin(bounceAngle);
-        
-        console.log("Paddle bounce - new dx:", this.dx, "new dy:", this.dy);
     }
 } 

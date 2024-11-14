@@ -4,17 +4,18 @@ class PongEnvironment {
         this.episodeSteps = 0;
         this.maxSteps = 2000;
         this.currentRally = 0;
-        this.maxRally = 0;
+        this.bestRally = 0;
         this.lastHitBy = null;
         this.prevDist1 = null;
         this.prevDist2 = null;
         this.stage = 1;
-        this.bestRally = 0;
+        this.episodeRally = 0;
     }
 
     reset() {
         this.episodeSteps = 0;
         this.currentRally = 0;
+        this.episodeRally = 0;
         this.lastHitBy = null;
         const state = this.game.reset();
         
@@ -55,10 +56,10 @@ class PongEnvironment {
 
         if (result.hitPaddle) {
             this.currentRally++;
-            this.maxRally = Math.max(this.maxRally, this.currentRally);
+            this.episodeRally = Math.max(this.episodeRally, this.currentRally);
             this.bestRally = Math.max(this.bestRally, this.currentRally);
             
-            if (this.stage === 1 && this.bestRally >= 5) {
+            if (this.stage === 1 && this.bestRally >= 10) {
                 console.log("Advancing to Stage 2 - Score-based rewards");
                 this.stage = 2;
             }
@@ -111,11 +112,10 @@ class PongEnvironment {
     getStats() {
         return {
             steps: this.episodeSteps,
-            currentRally: this.currentRally,
-            maxRally: this.maxRally,
+            currentRally: this.episodeRally,
+            bestRally: this.bestRally,
             scores: [this.game.leftPaddle.score, this.game.rightPaddle.score],
-            stage: this.stage,
-            bestRally: this.bestRally
+            stage: this.stage
         };
     }
 } 
