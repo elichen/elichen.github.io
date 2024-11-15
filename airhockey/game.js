@@ -117,17 +117,180 @@ function checkCollision(circle1, circle2) {
     return distance < circle1.radius + circle2.radius;
 }
 
-function moveAI() {
-    const dx = puck.x - aiPaddle.x;
-    const dy = puck.y - aiPaddle.y;
-    const angle = Math.atan2(dy, dx);
-    
-    aiPaddle.x += Math.cos(angle) * aiPaddle.speed;
-    aiPaddle.y += Math.sin(angle) * aiPaddle.speed;
+// Add at the top with other constants
+const ACTIONS = {
+    STAY: 0,
+    N: 1,
+    NE: 2,
+    E: 3,
+    SE: 4,
+    S: 5,
+    SW: 6,
+    W: 7,
+    NW: 8
+};
 
-    // Keep AI in bounds
-    aiPaddle.x = Math.max(aiPaddle.radius, Math.min(canvas.width - aiPaddle.radius, aiPaddle.x));
-    aiPaddle.y = Math.max(aiPaddle.radius, Math.min(canvas.height/2 - aiPaddle.radius, aiPaddle.y));
+// Add after state declaration
+let isTrainingMode = true;
+let agent = null;
+let previousState = null;
+let previousAction = null;
+let episodeRewards = { top: 0, bottom: 0 };  // Track rewards per episode
+
+function logTrainingMetrics() {
+    console.log(`Step ${agent.frameCount}`);
+    console.log(`Epsilon: ${agent.epsilon.toFixed(4)}`);
+    console.log(`Episode Rewards - Top: ${episodeRewards.top.toFixed(2)}, Bottom: ${episodeRewards.bottom.toFixed(2)}`);
+    console.log(`Game Score - Top: ${state.aiScore}, Bottom: ${state.playerScore}`);
+    console.log('------------------------');
+}
+
+// Modify moveAI function to track rewards and log metrics
+function moveAI() {
+    if (!agent) return;
+
+    if (!isTrainingMode) {
+        // Use the agent in inference mode (training = false for no exploration)
+        const state = agent.getState(puck, playerPaddle, aiPaddle, true);
+        const action = agent.act(state, false);  // false = no exploration
+        
+        // Move AI paddle according to the agent's decision
+        moveAgentPaddle(aiPaddle, action, true);
+    } else {
+        const topState = agent.getState(puck, playerPaddle, aiPaddle, true);
+        const topAction = agent.act(topState, true);
+        const bottomState = agent.getState(puck, playerPaddle, aiPaddle, false);
+        const bottomAction = agent.act(bottomState, true);
+
+        // Store current distances before moving
+        const prevTopDistance = Math.sqrt(
+            Math.pow(puck.x - aiPaddle.x, 2) + 
+            Math.pow(puck.y - aiPaddle.y, 2)
+        );
+        const prevBottomDistance = Math.sqrt(
+            Math.pow(puck.x - playerPaddle.x, 2) + 
+            Math.pow(puck.y - playerPaddle.y, 2)
+        );
+
+        // Move paddles
+        moveAgentPaddle(aiPaddle, topAction, true);
+        moveAgentPaddle(playerPaddle, bottomAction, false);
+
+        // Calculate new distances after moving
+        const newTopDistance = Math.sqrt(
+            Math.pow(puck.x - aiPaddle.x, 2) + 
+            Math.pow(puck.y - aiPaddle.y, 2)
+        );
+        const newBottomDistance = Math.sqrt(
+            Math.pow(puck.x - playerPaddle.x, 2) + 
+            Math.pow(puck.y - playerPaddle.y, 2)
+        );
+
+        // Initialize rewards based on distance improvement
+        let reward = {
+            top: prevTopDistance > newTopDistance ? 0.1 : 0,
+            bottom: prevBottomDistance > newBottomDistance ? 0.1 : 0
+        };
+
+        // Add goal rewards
+        const goalHit = isInGoal();
+        if (goalHit === 'top') {
+            reward.bottom += 1.0;  // Positive reward for scoring
+            reward.top -= 1.0;     // Negative reward for being scored on
+        } else if (goalHit === 'bottom') {
+            reward.top += 1.0;     // Positive reward for scoring
+            reward.bottom -= 1.0;  // Negative reward for being scored on
+        }
+
+        // Add hit rewards
+        if (checkCollision(puck, aiPaddle)) {
+            reward.top += 0.1;
+        }
+        if (checkCollision(puck, playerPaddle)) {
+            reward.bottom += 0.1;
+        }
+
+        // Store experiences
+        if (previousState !== null) {
+            agent.remember(
+                previousState.top,
+                previousAction.top,
+                reward.top,
+                topState,
+                goalHit !== false  // done = true if any goal was scored
+            );
+
+            agent.remember(
+                previousState.bottom,
+                previousAction.bottom,
+                reward.bottom,
+                bottomState,
+                goalHit !== false
+            );
+        }
+
+        // Update previous states and actions
+        previousState = { top: topState, bottom: bottomState };
+        previousAction = { top: topAction, bottom: bottomAction };
+
+        // Training code (unchanged)
+        if (agent.frameCount % agent.updateFrequency === 0) {
+            agent.train();
+        }
+
+        if (agent.frameCount % agent.targetUpdateFrequency === 0) {
+            agent.updateTargetNetwork();
+        }
+
+        agent.frameCount++;
+
+        // Add rewards to episode total
+        episodeRewards.top += reward.top;
+        episodeRewards.bottom += reward.bottom;
+
+        // Log metrics every 1000 steps
+        if (agent.frameCount % 1000 === 0) {
+            logTrainingMetrics();
+        }
+
+        // Reset episode rewards when a goal is scored
+        if (goalHit) {
+            episodeRewards = { top: 0, bottom: 0 };
+        }
+    }
+}
+
+// Helper function to move a paddle based on agent's action
+function moveAgentPaddle(paddle, action, isTopPlayer) {
+    let dx = 0, dy = 0;
+    
+    switch(action) {
+        case ACTIONS.N: dy = -1; break;
+        case ACTIONS.NE: dy = -1; dx = 1; break;
+        case ACTIONS.E: dx = 1; break;
+        case ACTIONS.SE: dy = 1; dx = 1; break;
+        case ACTIONS.S: dy = 1; break;
+        case ACTIONS.SW: dy = 1; dx = -1; break;
+        case ACTIONS.W: dx = -1; break;
+        case ACTIONS.NW: dy = -1; dx = -1; break;
+    }
+
+    // If top player, flip the y direction
+    if (isTopPlayer) {
+        dy = -dy;
+    }
+
+    if (dx !== 0 || dy !== 0) {
+        const magnitude = Math.sqrt(dx * dx + dy * dy);
+        paddle.x += (dx / magnitude) * aiPaddle.speed;
+        paddle.y += (dy / magnitude) * aiPaddle.speed;
+    }
+
+    // Keep paddle in bounds
+    paddle.x = Math.max(paddle.radius, Math.min(canvas.width - paddle.radius, paddle.x));
+    const minY = isTopPlayer ? paddle.radius : canvas.height/2 + paddle.radius;
+    const maxY = isTopPlayer ? canvas.height/2 - paddle.radius : canvas.height - paddle.radius;
+    paddle.y = Math.max(minY, Math.min(maxY, paddle.y));
 }
 
 function resetPuck(scoredOnTop = null) {
@@ -284,15 +447,17 @@ function update() {
     const prevAIX = aiPaddle.x;
     const prevAIY = aiPaddle.y;
 
-    // Update player paddle position
-    playerPaddle.x = mouseX;
-    playerPaddle.y = mouseY;
+    // Update player paddle position only if not in training mode
+    if (!isTrainingMode) {
+        playerPaddle.x = mouseX;
+        playerPaddle.y = mouseY;
 
-    // Restrict player to bottom half
-    playerPaddle.x = Math.max(playerPaddle.radius, Math.min(canvas.width - playerPaddle.radius, playerPaddle.x));
-    playerPaddle.y = Math.max(canvas.height/2 + playerPaddle.radius, Math.min(canvas.height - playerPaddle.radius, playerPaddle.y));
+        // Restrict player to bottom half
+        playerPaddle.x = Math.max(playerPaddle.radius, Math.min(canvas.width - playerPaddle.radius, playerPaddle.x));
+        playerPaddle.y = Math.max(canvas.height/2 + playerPaddle.radius, Math.min(canvas.height - playerPaddle.radius, playerPaddle.y));
+    }
 
-    // Move AI
+    // Move AI (and both paddles in training mode)
     moveAI();
 
     // Update puck position
@@ -360,10 +525,43 @@ function draw() {
     }
 }
 
+// Move gameLoop function before init
 function gameLoop() {
     update();
     draw();
     requestAnimationFrame(gameLoop);
 }
 
-gameLoop();
+// Add this function before init()
+async function initializeAI() {
+    await tf.ready();
+    agent = new DQNAgent(6, 9);  // 6 state inputs, 9 actions
+    console.log("AI initialized and ready for training!");
+}
+
+// Keep existing init and gameLoop functions
+async function init() {
+    await initializeAI();
+    resetPuck();
+    state.playerScore = 0;
+    state.aiScore = 0;
+    gameLoop();
+}
+
+// Start the game
+init();
+
+// Add this function
+function toggleTrainingMode() {
+    isTrainingMode = !isTrainingMode;
+    
+    // Reset game state when switching modes
+    resetPuck();
+    state.playerScore = 0;
+    state.aiScore = 0;
+    episodeRewards = { top: 0, bottom: 0 };
+    previousState = null;
+    previousAction = null;
+    
+    console.log(`Switched to ${isTrainingMode ? 'Training' : 'Play'} mode`);
+}
