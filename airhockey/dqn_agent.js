@@ -53,33 +53,33 @@ class DQNAgent {
         this.targetNetwork.setWeights(weights);
     }
 
-    getState(puck, playerPaddle, aiPaddle, isTopPlayer = false) {
+    getState(puck, playerPaddle, aiPaddle, isTopPlayer = false, canvasWidth, canvasHeight) {
         // For top player: normalize everything as if playing from bottom
         // For bottom player: keep original perspective
         let state;
         if (isTopPlayer) {
             state = [
                 // Puck position relative to agent's paddle
-                (puck.x - aiPaddle.x) / canvas.width,
-                (canvas.height - puck.y - (canvas.height - aiPaddle.y)) / canvas.height,
+                (puck.x - aiPaddle.x) / canvasWidth,
+                (canvasHeight - puck.y - (canvasHeight - aiPaddle.y)) / canvasHeight,
                 // Puck velocity (flipped for top player)
                 puck.dx / maxSpeed,
                 -puck.dy / maxSpeed,
                 // Opponent paddle position relative to agent's paddle
-                (playerPaddle.x - aiPaddle.x) / canvas.width,
-                (canvas.height - playerPaddle.y - (canvas.height - aiPaddle.y)) / canvas.height
+                (playerPaddle.x - aiPaddle.x) / canvasWidth,
+                (canvasHeight - playerPaddle.y - (canvasHeight - aiPaddle.y)) / canvasHeight
             ];
         } else {
             state = [
                 // Puck position relative to agent's paddle
-                (puck.x - playerPaddle.x) / canvas.width,
-                (puck.y - playerPaddle.y) / canvas.height,
+                (puck.x - playerPaddle.x) / canvasWidth,
+                (puck.y - playerPaddle.y) / canvasHeight,
                 // Puck velocity
                 puck.dx / maxSpeed,
                 puck.dy / maxSpeed,
                 // Opponent paddle position relative to agent's paddle
-                (aiPaddle.x - playerPaddle.x) / canvas.width,
-                (aiPaddle.y - playerPaddle.y) / canvas.height
+                (aiPaddle.x - playerPaddle.x) / canvasWidth,
+                (aiPaddle.y - playerPaddle.y) / canvasHeight
             ];
         }
         return state;
