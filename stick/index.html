@@ -17,26 +17,29 @@
         <div id="stats">
             <p>Mode: <span id="currentMode">Training</span></p>
             <p>Episode: <span id="episodeCount">0</span></p>
-            <p>Total Reward: <span id="totalReward">0</span></p>
         </div>
         <canvas id="metricsChart" width="800" height="400"></canvas> <!-- Added metrics chart -->
 
         <div id="explanation"> <!-- Added explanation section -->
             <h2>Learning Algorithm</h2>
             <p>
-                The reinforcement learning agent utilizes a Deep Q-Network (DQN) to learn the optimal policy for balancing the stick. It employs an ε-greedy strategy for action selection, balancing exploration and exploitation. The agent uses experience replay to store past experiences and a target network to stabilize training, updating it periodically with the primary network's weights.
+                The reinforcement learning agent uses a Policy Gradient method to directly learn the optimal policy for balancing the stick. Unlike value-based methods (like DQN), policy gradients learn by directly adjusting the probabilities of taking actions in each state. The network outputs action probabilities and samples actions from this distribution during training, providing natural exploration without needing an explicit exploration parameter.
             </p>
             
             <h2>Metrics Explanation</h2>
             <p>
-                <strong>Episode Reward:</strong> Represents the cumulative reward obtained in a single episode. A higher reward indicates better performance in balancing the stick.
-                <br>
-                <strong>Epsilon:</strong> Denotes the exploration rate, determining the probability of the agent choosing a random action versus exploiting the learned policy. It decays over time to favor exploitation as learning progresses.
+                <strong>Episode Reward:</strong> Represents the cumulative reward obtained in a single episode. A higher reward indicates better performance in balancing the stick. The reward structure encourages keeping the pole upright (+1 for each step, scaled by pole angle) while heavily penalizing failures (-10).
             </p>
             
-            <h2>Expected Learning Duration</h2>
+            <h2>Learning Process</h2>
             <p>
-                The time required for the agent to learn effective balancing can vary based on hyperparameters such as learning rate, discount factor, and exploration decay rate. Typically, the agent should start showing consistent balancing behavior after several hundred episodes. Monitoring the real-time metrics will provide insights into the learning progress and convergence.
+                The agent learns by:
+                <br>1. Sampling actions based on their predicted probabilities
+                <br>2. Collecting entire episodes of experience
+                <br>3. Computing returns (discounted sum of rewards) for each action
+                <br>4. Adjusting action probabilities: increasing probabilities of actions that led to good returns, and decreasing probabilities of actions that led to poor returns
+                <br><br>
+                This process is similar to learning to ride a bike - try actions with certain probabilities, do successful ones more often, and unsuccessful ones less often, until converging to good actions.
             </p>
         </div>
     </div>

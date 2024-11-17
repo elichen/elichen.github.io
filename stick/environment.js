@@ -64,8 +64,15 @@ class StickBalancingEnv {
         }
 
         const done = this.stepsDown >= this.maxStepsDown;
-        // console.log(done, this.stepsDown)
-        const reward = done ? -1 : 1;
+        
+        // New reward structure
+        let reward;
+        if (done) {
+            reward = -10;  // Stronger penalty for failure
+        } else {
+            // Base reward for staying alive, plus bonus for being upright
+            reward = 1.0 - Math.abs(this.angle) / this.maxAngle;
+        }
 
         return [this.getState(), reward, done];
     }
