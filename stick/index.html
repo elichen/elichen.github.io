@@ -20,7 +20,7 @@
         </div>
         <canvas id="metricsChart" width="800" height="400"></canvas> <!-- Added metrics chart -->
 
-        <div id="explanation"> <!-- Added explanation section -->
+        <div id="explanation"> <!-- Updated explanation section -->
             <h2>Learning Algorithm</h2>
             <p>
                 The reinforcement learning agent uses a Policy Gradient method to directly learn the optimal policy for balancing the stick. Unlike value-based methods (like DQN), policy gradients learn by directly adjusting the probabilities of taking actions in each state. The network outputs action probabilities and samples actions from this distribution during training, providing natural exploration without needing an explicit exploration parameter.
@@ -40,6 +40,11 @@
                 <br>4. Adjusting action probabilities: increasing probabilities of actions that led to good returns, and decreasing probabilities of actions that led to poor returns
                 <br><br>
                 This process is similar to learning to ride a bike - try actions with certain probabilities, do successful ones more often, and unsuccessful ones less often, until converging to good actions.
+            </p>
+
+            <h2>Policy Gradient Intuition</h2>
+            <p>
+                Policy Gradient methods, like the one used here, focus on optimizing the policy directly. The key idea is to adjust the action probabilities in a way that actions leading to higher returns become more likely. This is achieved by calculating the gradient of the expected return with respect to the policy parameters and updating the policy in the direction that increases the expected return. The use of a discount factor ensures that the agent considers both immediate and future rewards, balancing short-term gains with long-term success.
             </p>
         </div>
     </div>
