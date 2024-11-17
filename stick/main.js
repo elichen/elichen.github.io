@@ -2,19 +2,18 @@
 
 let environment;
 let agent;
-let isTraining = true; // New variable to track the current mode
+let isTraining = true;
 let episodeCount = 0;
-let totalReward = 0;
 
 function initializeApp() {
     environment = new StickBalancingEnv();
-    agent = new RLAgent(environment);
+    agent = new PolicyGradientAgent(environment);
     
     setupEventListeners();
     resetEnvironment();
-    initializeMetricsChart(); // Initialize the metrics chart
-    updateModeDisplay(); // New function to update mode display
-    startTraining(); // Start in training mode by default
+    initializeMetricsChart();
+    updateModeDisplay();
+    startTraining();
 }
 
 function setupEventListeners() {
@@ -44,7 +43,6 @@ function resetEnvironment() {
     environment.reset();
     agent.reset();
     episodeCount = 0;
-    totalReward = 0;
     updateStats();
     drawEnvironment();
 }
@@ -56,6 +54,7 @@ async function trainLoop() {
         let done = false;
         let stepCount = 0;
 
+        // Run episode
         while (!done && stepCount < 500) {
             const action = await agent.selectAction(state);
             const [nextState, reward, stepDone] = environment.step(action);
@@ -66,24 +65,19 @@ async function trainLoop() {
             episodeReward += reward;
             stepCount++;
             done = stepDone;
-            
-            // Remove real-time drawing during training
-            // drawEnvironment();
         }
 
-        // Draw the final state of the environment after each episode
+        // Draw final state
         drawEnvironment();
 
         episodeCount++;
-        totalReward += episodeReward;
         updateStats();
-        updateMetricsChart(episodeCount, episodeReward, agent.epsilon);
+        updateMetricsChart(episodeCount, episodeReward);
 
         if (episodeCount % 10 === 0) {
-            console.log(`Episode ${episodeCount}, Total Reward: ${totalReward}, Steps: ${stepCount}, Epsilon: ${agent.epsilon.toFixed(4)}`);
+            console.log(`Episode ${episodeCount}, Episode Reward: ${episodeReward.toFixed(2)}, Steps: ${stepCount}`);
         }
 
-        // Add a small delay to allow for UI updates and prevent browser freezing
         await new Promise(resolve => setTimeout(resolve, 0));
     }
 }
@@ -109,12 +103,11 @@ async function runTestingLoop() {
         }
 
         episodeCount++;
-        totalReward += episodeReward;
         updateStats();
-        updateMetricsChart(episodeCount, episodeReward, 0);
+        updateMetricsChart(episodeCount, episodeReward);
 
         if (episodeCount % 10 === 0) {
-            console.log(`Test Episode ${episodeCount}, Total Reward: ${totalReward}, Steps: ${stepCount}`);
+            console.log(`Test Episode ${episodeCount}, Episode Reward: ${episodeReward.toFixed(2)}, Steps: ${stepCount}`);
         }
     }
 }
@@ -127,7 +120,6 @@ function updateModeDisplay() {
 
 function updateStats() {
     document.getElementById('episodeCount').textContent = episodeCount;
-    document.getElementById('totalReward').textContent = totalReward.toFixed(2);
 }
 
 // Initialize the application when the window loads

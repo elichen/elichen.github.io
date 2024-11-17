@@ -16,13 +16,6 @@ function initializeMetricsChart() {
                     borderColor: 'rgba(75, 192, 192, 1)',
                     yAxisID: 'y-reward',
                     fill: false,
-                },
-                {
-                    label: 'Epsilon',
-                    data: [],
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    yAxisID: 'y-epsilon',
-                    fill: false,
                 }
             ]
         },
@@ -35,7 +28,7 @@ function initializeMetricsChart() {
                         text: 'Episode' 
                     } 
                 },
-                'y-reward': { // Added Y-axis for Episode Reward
+                'y-reward': {
                     type: 'linear',
                     position: 'left',
                     title: { 
@@ -43,31 +36,16 @@ function initializeMetricsChart() {
                         text: 'Episode Reward' 
                     },
                     beginAtZero: true,
-                },
-                'y-epsilon': { // Added Y-axis for Epsilon
-                    type: 'linear',
-                    position: 'right',
-                    title: { 
-                        display: true, 
-                        text: 'Epsilon' 
-                    },
-                    grid: { 
-                        drawOnChartArea: false // Prevent grid lines from overlapping
-                    },
-                    beginAtZero: true,
-                    suggestedMin: 0,
-                    suggestedMax: 1,
                 }
             }
         }
     });
 }
 
-function updateMetricsChart(episode, reward, epsilon) {
+function updateMetricsChart(episode, reward) {
     if (metricsChart) {
         metricsChart.data.labels.push(episode);
         metricsChart.data.datasets[0].data.push(reward);
-        metricsChart.data.datasets[1].data.push(epsilon);
         metricsChart.update();
     }
 }
