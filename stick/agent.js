@@ -41,10 +41,20 @@ class PolicyGradientAgent {
 
     async selectAction(state, testing = false) {
         const stateTensor = tf.tensor2d([state]);
-        const actionProbs = await this.policyModel.predict(stateTensor).array();
+        let actionProbs = await this.policyModel.predict(stateTensor).array();
         
+        if (!testing) {
+            // Add exploration noise
+            const noise = 0.1; // Adjust this value to control the amount of noise
+            actionProbs[0] = actionProbs[0].map(prob => prob + noise * (Math.random() - 0.5));
+            
+            // Normalize to ensure they sum to 1
+            const sum = actionProbs[0].reduce((a, b) => a + b, 0);
+            actionProbs[0] = actionProbs[0].map(prob => prob / sum);
+        }
+
+        // During testing, just take the most probable action
         if (testing) {
-            // During testing, just take the most probable action
             return actionProbs[0].indexOf(Math.max(...actionProbs[0]));
         }
         
