@@ -46,6 +46,11 @@
             <p>
                 Policy Gradient methods, like the one used here, focus on optimizing the policy directly. The key idea is to adjust the action probabilities in a way that actions leading to higher returns become more likely. This is achieved by calculating the gradient of the expected return with respect to the policy parameters and updating the policy in the direction that increases the expected return. The use of a discount factor ensures that the agent considers both immediate and future rewards, balancing short-term gains with long-term success.
             </p>
+
+            <h2>Advantage Normalization</h2>
+            <p>
+                Advantage Normalization is used to stabilize the training process by reducing variance in the policy gradient updates. Instead of using raw returns, the agent calculates advantages by subtracting a baseline (the mean return) from each return. This helps the agent focus on actions that are better than average, leading to more reliable learning. By normalizing the advantages, the agent can more effectively learn which actions are truly advantageous, preventing the model from collapsing into suboptimal policies.
+            </p>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"> </script>
