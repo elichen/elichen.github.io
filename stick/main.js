@@ -4,6 +4,7 @@ let environment;
 let agent;
 let isTraining = true;
 let episodeCount = 0;
+let shouldDrawEveryFrame = false;
 
 function initializeApp() {
     environment = new StickBalancingEnv();
@@ -22,6 +23,7 @@ function setupEventListeners() {
 
 function toggleMode() {
     isTraining = !isTraining;
+    shouldDrawEveryFrame = !isTraining;
     updateModeDisplay();
     if (isTraining) {
         startTraining();
@@ -54,7 +56,6 @@ async function trainLoop() {
         let done = false;
         let stepCount = 0;
 
-        // Run episode
         while (!done && stepCount < 500) {
             const action = await agent.selectAction(state);
             const [nextState, reward, stepDone] = environment.step(action);
@@ -65,9 +66,12 @@ async function trainLoop() {
             episodeReward += reward;
             stepCount++;
             done = stepDone;
+            
+            if (shouldDrawEveryFrame) {
+                drawEnvironment();
+            }
         }
 
-        // Draw final state
         drawEnvironment();
 
         episodeCount++;
@@ -83,6 +87,7 @@ async function trainLoop() {
 }
 
 async function runTestingLoop() {
+    shouldDrawEveryFrame = true;
     while (!isTraining) {
         let state = environment.reset();
         let episodeReward = 0;
