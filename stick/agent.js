@@ -91,6 +91,10 @@ class PolicyGradientAgent {
         // Calculate discounted returns
         const returns = this.calculateReturns();
         
+        // Calculate advantages by subtracting the mean return
+        const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+        const advantages = returns.map(r => r - meanReturn);
+        
         // Prepare training data
         const states = this.episodeMemory.map(exp => exp.state);
         const actions = this.episodeMemory.map(exp => exp.action);
@@ -98,7 +102,7 @@ class PolicyGradientAgent {
         // Convert to tensors
         const statesTensor = tf.tensor2d(states);
         const actionsTensor = tf.tensor1d(actions, 'int32');
-        const returnsTensor = tf.tensor1d(returns);
+        const advantagesTensor = tf.tensor1d(advantages);
 
         // Define the training function
         const trainStep = () => {
@@ -114,8 +118,8 @@ class PolicyGradientAgent {
                 -1
             ));
             
-            // Calculate loss
-            return returnsTensor.mul(logProbs).mean().mul(-1);
+            // Calculate loss using advantages
+            return advantagesTensor.mul(logProbs).mean().mul(-1);
         };
 
         // Perform optimization step
@@ -125,7 +129,7 @@ class PolicyGradientAgent {
         // Clean up tensors
         statesTensor.dispose();
         actionsTensor.dispose();
-        returnsTensor.dispose();
+        advantagesTensor.dispose();
     }
 
     calculateReturns() {
