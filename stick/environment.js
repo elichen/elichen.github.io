@@ -8,7 +8,7 @@ class StickBalancingEnv {
         this.dt = 0.02;
         this.forceStrength = 10.0;
         this.maxPosition = 2.4;
-        this.maxAngle = 1
+        this.maxAngle = 1  // About 57.3 degrees
         
         // Angular friction
         this.angularFriction = 0.05;
@@ -17,19 +17,32 @@ class StickBalancingEnv {
         this.maxStepsDown = 20;
         this.stepsDown = 0; // Counter for steps the stick has been down
 
+        this.previousAngle = 0;  // Add this to track previous angle
         this.reset();
     }
 
     reset() {
+        // Randomize position and velocity with small values
         this.position = (Math.random() - 0.5) * 0.1;
         this.velocity = (Math.random() - 0.5) * 0.1;
-        this.angle = (Math.random() - 0.5) * 0.1;
+        
+        // Increase the range of starting angles
+        // Start with angles up to ±30 degrees (±0.52 radians)
+        const maxStartAngle = 0.52; // about 30 degrees
+        this.angle = Math.random() * maxStartAngle * (Math.random() < 0.5 ? -1 : 1);
+        
+        // Small random initial angular velocity
         this.angularVelocity = (Math.random() - 0.5) * 0.1;
+        
         this.stepsDown = 0; // Reset the counter
+        this.previousAngle = this.angle;  // Initialize previous angle
         return this.getState();
     }
 
     step(action) {
+        // Store previous angle before updating
+        this.previousAngle = this.angle;
+
         const force = (action - 1) * this.forceStrength;
         
         const cosTheta = Math.cos(this.angle);
@@ -65,13 +78,21 @@ class StickBalancingEnv {
 
         const done = this.stepsDown >= this.maxStepsDown;
         
-        // New reward structure
+        // New reward structure based on improvement
         let reward;
         if (done) {
             reward = -10;  // Stronger penalty for failure
         } else {
-            // Base reward for staying alive, plus bonus for being upright
-            reward = 1.0 - Math.abs(this.angle) / this.maxAngle;
+            // Combine improvement reward with upright position reward
+            const previousAbsAngle = Math.abs(this.previousAngle);
+            const currentAbsAngle = Math.abs(this.angle);
+            const improvement = previousAbsAngle - currentAbsAngle;
+            
+            // Base reward for being upright (1.0 when vertical, 0 when at maxAngle)
+            const uprightReward = 1.0 - (currentAbsAngle / this.maxAngle);
+            
+            // Combine both rewards
+            reward = uprightReward + improvement * 5.0;  // Scale improvement for stronger signal
         }
 
         return [this.getState(), reward, done];
