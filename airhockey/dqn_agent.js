@@ -1,7 +1,7 @@
 class DQNAgent {
     constructor(stateSize, actionSize) {
-        this.stateSize = stateSize;  // 6 (puck x,y,dx,dy + both paddles x,y)
-        this.actionSize = actionSize; // 9 (N,NE,E,SE,S,SW,W,NW,STAY)
+        this.stateSize = stateSize;  // 6 (puck x,y,dx,dy + opponent paddle x,y)
+        this.actionSize = actionSize; // 9 (STAY,F,FR,R,BR,B,BL,L,FL)
         
         this.epsilon = 1.0;
         this.epsilonMin = 0.01;
@@ -59,27 +59,31 @@ class DQNAgent {
         let state;
         if (isTopPlayer) {
             state = [
-                // Puck position relative to agent's paddle
-                (puck.x - aiPaddle.x) / canvasWidth,
-                (canvasHeight - puck.y - (canvasHeight - aiPaddle.y)) / canvasHeight,
+                // Puck X position relative to rink (normalized, flipped for top perspective)
+                (canvasWidth - puck.x) / canvasWidth,
+                // Puck Y position relative to rink (normalized and flipped for top player)
+                (canvasHeight - puck.y) / canvasHeight,
                 // Puck velocity (flipped for top player)
-                puck.dx / maxSpeed,
+                -puck.dx / maxSpeed,  // Flip X velocity too
                 -puck.dy / maxSpeed,
-                // Opponent paddle position relative to agent's paddle
-                (playerPaddle.x - aiPaddle.x) / canvasWidth,
-                (canvasHeight - playerPaddle.y - (canvasHeight - aiPaddle.y)) / canvasHeight
+                // Opponent paddle X position relative to rink (flipped for top perspective)
+                (canvasWidth - playerPaddle.x) / canvasWidth,
+                // Opponent paddle Y position relative to rink
+                (canvasHeight - playerPaddle.y) / canvasHeight
             ];
         } else {
             state = [
-                // Puck position relative to agent's paddle
-                (puck.x - playerPaddle.x) / canvasWidth,
-                (puck.y - playerPaddle.y) / canvasHeight,
+                // Puck X position relative to rink (normalized)
+                puck.x / canvasWidth,
+                // Puck Y position relative to rink (normalized)
+                puck.y / canvasHeight,
                 // Puck velocity
                 puck.dx / maxSpeed,
                 puck.dy / maxSpeed,
-                // Opponent paddle position relative to agent's paddle
-                (aiPaddle.x - playerPaddle.x) / canvasWidth,
-                (aiPaddle.y - playerPaddle.y) / canvasHeight
+                // Opponent paddle X position relative to rink
+                aiPaddle.x / canvasWidth,
+                // Opponent paddle Y position relative to rink
+                aiPaddle.y / canvasHeight
             ];
         }
         return state;
