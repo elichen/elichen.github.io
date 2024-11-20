@@ -4,7 +4,7 @@ class DQNAgent {
         this.actionSize = actionSize; // 5 (STAY,UP,RIGHT,DOWN,LEFT)
         
         this.epsilon = 1.0;
-        this.epsilonMin = 0.01;
+        this.epsilonMin = 0.1;
         this.epsilonDecay = 0.999;
         this.gamma = 0.95;
         this.learningRate = 0.001;
