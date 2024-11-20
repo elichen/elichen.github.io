@@ -19,6 +19,7 @@ class DQNAgent {
         this.updateFrequency = 4;
         this.targetUpdateFrequency = 100;
         this.frameCount = 0;
+        this.isTraining = false;
     }
 
     createNetwork() {
@@ -109,51 +110,55 @@ class DQNAgent {
     }
 
     async train() {
-        if (this.replayBuffer.length < this.batchSize) return;
+        if (this.isTraining || this.replayBuffer.length < this.batchSize) return;
 
-        // Sample random batch
-        const batch = this.sampleBatch();
-        
-        const states = batch.map(exp => exp[0]);
-        const actions = batch.map(exp => exp[1]);
-        const rewards = batch.map(exp => exp[2]);
-        const nextStates = batch.map(exp => exp[3]);
-        const dones = batch.map(exp => exp[4]);
+        try {
+            this.isTraining = true;
 
-        // Compute target Q values
-        const nextStatesTensor = tf.tensor2d(nextStates);
-        const nextQValues = this.targetNetwork.predict(nextStatesTensor);
-        const maxNextQ = nextQValues.max(1);
-        const targetQValues = maxNextQ.mul(tf.scalar(this.gamma)).add(tf.tensor1d(rewards));
+            // Sample random batch
+            const batch = this.sampleBatch();
+            
+            const states = batch.map(exp => exp[0]);
+            const actions = batch.map(exp => exp[1]);
+            const rewards = batch.map(exp => exp[2]);
+            const nextStates = batch.map(exp => exp[3]);
+            const dones = batch.map(exp => exp[4]);
 
-        // Train main network
-        const statesTensor = tf.tensor2d(states);
-        const currentQ = this.mainNetwork.predict(statesTensor);
-        const currentQArray = currentQ.arraySync();
-        const targetQArray = currentQArray.map((qValues, i) => {
-            // Create a copy of current Q values
-            const newQValues = [...qValues];
-            // Update only the Q value for the action that was taken
-            newQValues[actions[i]] = dones[i] ? rewards[i] : targetQValues.dataSync()[i];
-            return newQValues;
-        });
+            // Compute target Q values
+            const nextStatesTensor = tf.tensor2d(nextStates);
+            const nextQValues = this.targetNetwork.predict(nextStatesTensor);
+            const maxNextQ = nextQValues.max(1);
+            const targetQValues = maxNextQ.mul(tf.scalar(this.gamma)).add(tf.tensor1d(rewards));
 
-        await this.mainNetwork.fit(statesTensor, tf.tensor2d(targetQArray), {
-            epochs: 1,
-            verbose: 0
-        });
+            // Train main network
+            const statesTensor = tf.tensor2d(states);
+            const currentQ = this.mainNetwork.predict(statesTensor);
+            const currentQArray = currentQ.arraySync();
+            const targetQArray = currentQArray.map((qValues, i) => {
+                const newQValues = [...qValues];
+                newQValues[actions[i]] = dones[i] ? rewards[i] : targetQValues.dataSync()[i];
+                return newQValues;
+            });
 
-        // Cleanup tensors
-        nextStatesTensor.dispose();
-        nextQValues.dispose();
-        maxNextQ.dispose();
-        targetQValues.dispose();
-        statesTensor.dispose();
-        currentQ.dispose();
+            await this.mainNetwork.fit(statesTensor, tf.tensor2d(targetQArray), {
+                epochs: 1,
+                verbose: 0
+            });
 
-        // Decay epsilon
-        if (this.epsilon > this.epsilonMin) {
-            this.epsilon *= this.epsilonDecay;
+            // Cleanup tensors
+            nextStatesTensor.dispose();
+            nextQValues.dispose();
+            maxNextQ.dispose();
+            targetQValues.dispose();
+            statesTensor.dispose();
+            currentQ.dispose();
+
+            // Decay epsilon
+            if (this.epsilon > this.epsilonMin) {
+                this.epsilon *= this.epsilonDecay;
+            }
+        } finally {
+            this.isTraining = false;
         }
     }
 
