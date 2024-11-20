@@ -104,10 +104,13 @@ function moveAI() {
             Math.pow(env.puck.y - env.playerPaddle.y, 2)
         );
 
+        // Add small time penalty to encourage faster play
+        const timePenalty = -0.001;
+
         // Initialize rewards based on distance improvement
         let reward = {
-            top: prevTopDistance > newTopDistance ? 0.1 : 0,
-            bottom: prevBottomDistance > newBottomDistance ? 0.1 : 0
+            top: (prevTopDistance > newTopDistance ? 0.1 : 0) + timePenalty,
+            bottom: (prevBottomDistance > newBottomDistance ? 0.1 : 0) + timePenalty
         };
 
         // Add goal rewards
