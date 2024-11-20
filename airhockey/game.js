@@ -12,14 +12,10 @@ let mouseY = 0;
 // Constants
 const ACTIONS = {
     STAY: 0,
-    N: 1,
-    NE: 2,
-    E: 3,
-    SE: 4,
-    S: 5,
-    SW: 6,
-    W: 7,
-    NW: 8
+    UP: 1,
+    RIGHT: 2,
+    DOWN: 3,
+    LEFT: 4
 };
 
 function initializeGame() {
@@ -45,14 +41,10 @@ function moveAgentPaddle(paddle, action, isTopPlayer) {
     let dx = 0, dy = 0;
     
     switch(action) {
-        case ACTIONS.N: dy = -1; break;
-        case ACTIONS.NE: dy = -1; dx = 1; break;
-        case ACTIONS.E: dx = 1; break;
-        case ACTIONS.SE: dy = 1; dx = 1; break;
-        case ACTIONS.S: dy = 1; break;
-        case ACTIONS.SW: dy = 1; dx = -1; break;
-        case ACTIONS.W: dx = -1; break;
-        case ACTIONS.NW: dy = -1; dx = -1; break;
+        case ACTIONS.UP: dy = -1; break;
+        case ACTIONS.RIGHT: dx = 1; break;
+        case ACTIONS.DOWN: dy = 1; break;
+        case ACTIONS.LEFT: dx = -1; break;
     }
 
     // If top player, flip the y direction
@@ -61,9 +53,8 @@ function moveAgentPaddle(paddle, action, isTopPlayer) {
     }
 
     if (dx !== 0 || dy !== 0) {
-        const magnitude = Math.sqrt(dx * dx + dy * dy);
-        paddle.x += (dx / magnitude) * paddle.speed;
-        paddle.y += (dy / magnitude) * paddle.speed;
+        paddle.x += dx * paddle.speed;
+        paddle.y += dy * paddle.speed;
     }
 
     // Keep paddle in bounds
@@ -196,7 +187,7 @@ function gameLoop() {
 
 async function initializeAI() {
     await tf.ready();
-    agent = new DQNAgent(6, 9);  // 6 state inputs, 9 actions
+    agent = new DQNAgent(11, 5);  // 11 state inputs, 5 actions
     console.log("AI initialized and ready for training!");
 }
 
