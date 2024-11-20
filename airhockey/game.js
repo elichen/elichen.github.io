@@ -42,10 +42,6 @@ function logTrainingMetrics() {
 }
 
 function moveAgentPaddle(paddle, action, isTopPlayer) {
-    // Store previous position
-    paddle.prevX = paddle.x;
-    paddle.prevY = paddle.y;
-    
     let dx = 0, dy = 0;
     
     switch(action) {
@@ -64,23 +60,10 @@ function moveAgentPaddle(paddle, action, isTopPlayer) {
         dy = -dy;
     }
 
-    // Calculate new position with momentum
     if (dx !== 0 || dy !== 0) {
         const magnitude = Math.sqrt(dx * dx + dy * dy);
-        const newX = paddle.x + (dx / magnitude) * paddle.speed;
-        const newY = paddle.y + (dy / magnitude) * paddle.speed;
-        
-        // Update paddle velocity
-        paddle.dx = newX - paddle.x;
-        paddle.dy = newY - paddle.y;
-        
-        // Update position
-        paddle.x = newX;
-        paddle.y = newY;
-    } else {
-        // If staying still, maintain some of previous velocity but decay it
-        paddle.dx *= 0.8;
-        paddle.dy *= 0.8;
+        paddle.x += (dx / magnitude) * paddle.speed;
+        paddle.y += (dy / magnitude) * paddle.speed;
     }
 
     // Keep paddle in bounds
