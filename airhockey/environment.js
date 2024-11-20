@@ -31,7 +31,9 @@ class AirHockeyEnvironment {
             y: canvas.height - 50,
             radius: 20,
             color: '#3498db',
-            speed: 5
+            speed: 5,
+            dx: 0,
+            dy: 0
         };
 
         this.aiPaddle = {
@@ -39,7 +41,9 @@ class AirHockeyEnvironment {
             y: 50,
             radius: 20,
             color: '#2ecc71',
-            speed: 5
+            speed: 5,
+            dx: 0,
+            dy: 0
         };
 
         this.puck = {
@@ -175,13 +179,15 @@ class AirHockeyEnvironment {
             this.puck.x = paddle.x + Math.cos(angle) * minDistance;
             this.puck.y = paddle.y + Math.sin(angle) * minDistance;
             
-            // Calculate new velocity based on paddle movement
+            // Use paddle's stored velocity instead of position difference
             const paddleSpeed = {
-                x: paddle.x - prevX,
-                y: paddle.y - prevY
+                x: paddle.dx || 0,
+                y: paddle.dy || 0
             };
             
-            const dotProduct = (this.puck.dx * dx + this.puck.dy * dy) / distance;
+            // Prevent division by zero
+            const safeDistance = Math.max(distance, 0.0001);
+            const dotProduct = (this.puck.dx * dx + this.puck.dy * dy) / safeDistance;
             
             // Combine paddle momentum with puck direction
             this.puck.dx = (Math.cos(angle) * Math.abs(dotProduct) + paddleSpeed.x * 0.9);
@@ -190,14 +196,25 @@ class AirHockeyEnvironment {
             // Add minimum speed after collision
             const speed = Math.sqrt(this.puck.dx * this.puck.dx + this.puck.dy * this.puck.dy);
             if (speed < 3) {
-                this.puck.dx *= 3 / speed;
-                this.puck.dy *= 3 / speed;
+                // Prevent division by zero
+                const safeSpeed = Math.max(speed, 0.0001);
+                this.puck.dx *= 3 / safeSpeed;
+                this.puck.dy *= 3 / safeSpeed;
             }
             
-            // Enforce speed limit
-            if (speed > maxSpeed) {
-                this.puck.dx = (this.puck.dx / speed) * maxSpeed;
-                this.puck.dy = (this.puck.dy / speed) * maxSpeed;
+            // Enforce speed limit and check for NaN
+            const finalSpeed = Math.sqrt(this.puck.dx * this.puck.dx + this.puck.dy * this.puck.dy);
+            if (finalSpeed > maxSpeed || isNaN(finalSpeed)) {
+                // If we have NaN or speed is too high, set to maximum speed in current direction
+                const safeSpeed = Math.max(finalSpeed, 0.0001);
+                this.puck.dx = (this.puck.dx / safeSpeed) * maxSpeed;
+                this.puck.dy = (this.puck.dy / safeSpeed) * maxSpeed;
+            }
+
+            // Final sanity check - if we still have NaN, reset the puck
+            if (isNaN(this.puck.dx) || isNaN(this.puck.dy)) {
+                console.warn('NaN detected in puck velocity - resetting puck');
+                this.resetPuck();
             }
         }
     }
