@@ -38,24 +38,24 @@ function logTrainingMetrics() {
 }
 
 function moveAgentPaddle(paddle, action, isTopPlayer) {
-    let dx = 0, dy = 0;
+    const scaleFactor = 0.5;
     
-    switch(action) {
-        case ACTIONS.UP: dy = -1; break;
-        case ACTIONS.RIGHT: dx = 1; break;
-        case ACTIONS.DOWN: dy = 1; break;
-        case ACTIONS.LEFT: dx = -1; break;
-    }
+    // Convert continuous actions (-1 to 1) to paddle movement
+    let dx = action[0] * paddle.speed * scaleFactor;
+    let dy = action[1] * paddle.speed * scaleFactor;
 
-    // If top player, flip the y direction
+    // Flip y direction for top player BEFORE momentum calculation
     if (isTopPlayer) {
         dy = -dy;
     }
 
-    if (dx !== 0 || dy !== 0) {
-        paddle.x += dx * paddle.speed;
-        paddle.y += dy * paddle.speed;
-    }
+    // Add momentum to smooth out movement
+    paddle.dx = (paddle.dx || 0) * 0.8 + dx * 0.2;
+    paddle.dy = (paddle.dy || 0) * 0.8 + dy * 0.2;
+
+    // Apply momentum-based movement
+    paddle.x += paddle.dx;
+    paddle.y += paddle.dy;
 
     // Keep paddle in bounds
     paddle.x = Math.max(paddle.radius, Math.min(env.canvas.width - paddle.radius, paddle.x));
@@ -68,17 +68,15 @@ function moveAI() {
     if (!agent) return;
 
     if (!isTrainingMode) {
-        // Use the agent in inference mode (training = false for no exploration)
         const state = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, true, env.canvas.width, env.canvas.height);
-        const action = agent.act(state, false);  // false = no exploration
-        
-        // Move AI paddle according to the agent's decision
-        moveAgentPaddle(env.aiPaddle, action, true);
+        const result = agent.act(state);
+        moveAgentPaddle(env.aiPaddle, result.action, true);
     } else {
         const topState = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, true, env.canvas.width, env.canvas.height);
-        const topAction = agent.act(topState, true);
         const bottomState = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, false, env.canvas.width, env.canvas.height);
-        const bottomAction = agent.act(bottomState, true);
+        
+        const topResult = agent.act(topState);
+        const bottomResult = agent.act(bottomState);
 
         // Store current distances before moving
         const prevTopDistance = Math.sqrt(
@@ -91,8 +89,8 @@ function moveAI() {
         );
 
         // Move paddles
-        moveAgentPaddle(env.aiPaddle, topAction, true);
-        moveAgentPaddle(env.playerPaddle, bottomAction, false);
+        moveAgentPaddle(env.aiPaddle, topResult.action, true);
+        moveAgentPaddle(env.playerPaddle, bottomResult.action, false);
 
         // Calculate new distances after moving
         const newTopDistance = Math.sqrt(
@@ -109,8 +107,8 @@ function moveAI() {
 
         // Initialize rewards based on distance improvement
         let reward = {
-            top: (prevTopDistance > newTopDistance ? 0.1 : 0) + timePenalty,
-            bottom: (prevBottomDistance > newBottomDistance ? 0.1 : 0) + timePenalty
+            top: (prevTopDistance > newTopDistance ? 0.1 : -0.1) + timePenalty,
+            bottom: (prevBottomDistance > newBottomDistance ? 0.1 : -0.1) + timePenalty
         };
 
         // Add goal rewards
@@ -137,7 +135,8 @@ function moveAI() {
                 previousState.top,
                 previousAction.top,
                 reward.top,
-                topState,
+                previousValue.top,
+                previousLogProb.top,
                 goalHit !== false
             );
 
@@ -145,25 +144,32 @@ function moveAI() {
                 previousState.bottom,
                 previousAction.bottom,
                 reward.bottom,
-                bottomState,
+                previousValue.bottom,
+                previousLogProb.bottom,
                 goalHit !== false
             );
         }
 
         // Update previous states and actions
         previousState = { top: topState, bottom: bottomState };
-        previousAction = { top: topAction, bottom: bottomAction };
+        previousAction = { 
+            top: topResult.action, 
+            bottom: bottomResult.action 
+        };
+        previousValue = {
+            top: topResult.value,
+            bottom: bottomResult.value
+        };
+        previousLogProb = {
+            top: topResult.logProb,
+            bottom: bottomResult.logProb
+        };
 
         // Training code
-        if (agent.frameCount % agent.updateFrequency === 0) {
+        agent.frameCount++;
+        if (agent.frameCount % 128 === 0) {
             agent.train();
         }
-
-        if (agent.frameCount % agent.targetUpdateFrequency === 0) {
-            agent.updateTargetNetwork();
-        }
-
-        agent.frameCount++;
 
         // Add rewards to episode total
         episodeRewards.top += reward.top;
@@ -190,8 +196,8 @@ function gameLoop() {
 
 async function initializeAI() {
     await tf.ready();
-    agent = new DQNAgent(11, 5);  // 11 state inputs, 5 actions
-    console.log("AI initialized and ready for training!");
+    agent = new PPOAgent(11, 2);  // 11 state inputs, 2 continuous actions (x, y movement)
+    console.log("PPO AI initialized and ready for training!");
 }
 
 async function init() {
