@@ -1,11 +1,11 @@
 class DQNAgent {
     constructor(stateSize, actionSize) {
-        this.stateSize = stateSize;  // 6 (puck x,y,dx,dy + opponent paddle x,y)
-        this.actionSize = actionSize; // 9 (STAY,F,FR,R,BR,B,BL,L,FL)
+        this.stateSize = stateSize;  // 11 (puck x,y,dx,dy + opponent paddle x,y + distance + angle + behind + relative Y positions)
+        this.actionSize = actionSize; // 5 (STAY,UP,RIGHT,DOWN,LEFT)
         
         this.epsilon = 1.0;
         this.epsilonMin = 0.01;
-        this.epsilonDecay = 0.995;
+        this.epsilonDecay = 0.999;
         this.gamma = 0.95;
         this.learningRate = 0.001;
         
@@ -55,36 +55,61 @@ class DQNAgent {
     }
 
     getState(puck, playerPaddle, aiPaddle, isTopPlayer = false, canvasWidth, canvasHeight) {
-        // For top player: normalize everything as if playing from bottom
-        // For bottom player: keep original perspective
+        const paddleX = isTopPlayer ? aiPaddle.x : playerPaddle.x;
+        const paddleY = isTopPlayer ? aiPaddle.y : playerPaddle.y;
+        
+        // Calculate distance and angle to puck
+        let dx = puck.x - paddleX;
+        let dy = puck.y - paddleY;
+        if (isTopPlayer) {
+            dx = -dx;
+            dy = -dy;
+        }
+        const distance = Math.sqrt(dx * dx + dy * dy) / canvasHeight;
+        const angle = Math.atan2(dy, dx) / Math.PI;
+        
+        // Calculate if puck is behind paddle
+        const isPuckBehind = isTopPlayer ? 
+            (puck.y < paddleY) :
+            (puck.y > paddleY);
+
+        // Calculate relative Y positions
+        const puckToOwnGoal = isTopPlayer ?
+            puck.y / (canvasHeight/2) :  // Distance from top goal for top player
+            (canvasHeight - puck.y) / (canvasHeight/2);  // Distance from bottom goal for bottom player
+            
+        const paddleToOwnGoal = isTopPlayer ?
+            paddleY / (canvasHeight/2) :  // Distance from top goal for top player
+            (canvasHeight - paddleY) / (canvasHeight/2);  // Distance from bottom goal for bottom player
+
         let state;
         if (isTopPlayer) {
             state = [
-                // Puck X position relative to rink (normalized, flipped for top perspective)
                 (canvasWidth - puck.x) / canvasWidth,
-                // Puck Y position relative to rink (normalized and flipped for top player)
                 (canvasHeight - puck.y) / canvasHeight,
-                // Puck velocity (flipped for top player)
-                -puck.dx / maxSpeed,  // Flip X velocity too
+                -puck.dx / maxSpeed,
                 -puck.dy / maxSpeed,
-                // Opponent paddle X position relative to rink (flipped for top perspective)
                 (canvasWidth - playerPaddle.x) / canvasWidth,
-                // Opponent paddle Y position relative to rink
-                (canvasHeight - playerPaddle.y) / canvasHeight
+                (canvasHeight - playerPaddle.y) / canvasHeight,
+                distance,
+                angle,
+                isPuckBehind ? 1 : 0,
+                puckToOwnGoal,
+                paddleToOwnGoal
             ];
         } else {
             state = [
-                // Puck X position relative to rink (normalized)
                 puck.x / canvasWidth,
-                // Puck Y position relative to rink (normalized)
                 puck.y / canvasHeight,
-                // Puck velocity
                 puck.dx / maxSpeed,
                 puck.dy / maxSpeed,
-                // Opponent paddle X position relative to rink
                 aiPaddle.x / canvasWidth,
-                // Opponent paddle Y position relative to rink
-                aiPaddle.y / canvasHeight
+                aiPaddle.y / canvasHeight,
+                distance,
+                angle,
+                isPuckBehind ? 1 : 0,
+                puckToOwnGoal,
+                paddleToOwnGoal
             ];
         }
         return state;
