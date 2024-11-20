@@ -181,23 +181,30 @@ class AirHockeyEnvironment {
                 y: paddle.y - prevY
             };
             
-            const dotProduct = (this.puck.dx * dx + this.puck.dy * dy) / distance;
+            const dotProduct = (this.puck.dx * dx + this.puck.dy * dy) / (distance || 1);
             
             // Combine paddle momentum with puck direction
             this.puck.dx = (Math.cos(angle) * Math.abs(dotProduct) + paddleSpeed.x * 0.9);
             this.puck.dy = (Math.sin(angle) * Math.abs(dotProduct) + paddleSpeed.y * 0.9);
             
-            // Add minimum speed after collision
+            // Add minimum speed after collision - Modified to prevent division by zero
             const speed = Math.sqrt(this.puck.dx * this.puck.dx + this.puck.dy * this.puck.dy);
-            if (speed < 3) {
-                this.puck.dx *= 3 / speed;
-                this.puck.dy *= 3 / speed;
+            if (speed < 3 && speed > 0) {
+                const scaleFactor = 3 / speed;
+                this.puck.dx *= scaleFactor;
+                this.puck.dy *= scaleFactor;
+            } else if (speed === 0) {
+                // If speed is zero, give the puck a minimum velocity in the collision direction
+                this.puck.dx = Math.cos(angle) * 3;
+                this.puck.dy = Math.sin(angle) * 3;
             }
             
             // Enforce speed limit
-            if (speed > maxSpeed) {
-                this.puck.dx = (this.puck.dx / speed) * maxSpeed;
-                this.puck.dy = (this.puck.dy / speed) * maxSpeed;
+            const finalSpeed = Math.sqrt(this.puck.dx * this.puck.dx + this.puck.dy * this.puck.dy);
+            if (finalSpeed > maxSpeed) {
+                const scaleFactor = maxSpeed / finalSpeed;
+                this.puck.dx *= scaleFactor;
+                this.puck.dy *= scaleFactor;
             }
         }
     }
