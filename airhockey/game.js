@@ -18,6 +18,9 @@ const ACTIONS = {
     LEFT: 4
 };
 
+const MAX_EPISODE_FRAMES = 1000;  // About 16-17 seconds at 60fps
+let currentEpisodeFrames = 0;
+
 function initializeGame() {
     const canvas = document.getElementById('gameCanvas');
     env = new AirHockeyEnvironment(canvas);
@@ -64,9 +67,36 @@ function moveAgentPaddle(paddle, action, isTopPlayer) {
     paddle.y = Math.max(minY, Math.min(maxY, paddle.y));
 }
 
+// Add this function to handle full episode reset
+function resetEpisode() {
+    episodeRewards = { top: 0, bottom: 0 };
+    currentEpisodeFrames = 0;
+    
+    // Reset puck
+    env.resetPuck();
+    
+    // Reset paddles to starting positions
+    env.aiPaddle.x = env.canvas.width / 2;
+    env.aiPaddle.y = 50;  // Original y position for top paddle
+    env.playerPaddle.x = env.canvas.width / 2;
+    env.playerPaddle.y = env.canvas.height - 50;  // Original y position for bottom paddle
+    
+    // Reset paddle momentum
+    env.aiPaddle.dx = 0;
+    env.aiPaddle.dy = 0;
+    env.playerPaddle.dx = 0;
+    env.playerPaddle.dy = 0;
+}
+
 function moveAI() {
     if (!agent) return;
 
+    // Increment episode frame counter
+    currentEpisodeFrames++;
+
+    // Check if episode should end due to length
+    const shouldEndEpisode = currentEpisodeFrames >= MAX_EPISODE_FRAMES;
+    
     if (!isTrainingMode) {
         const state = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, true, env.canvas.width, env.canvas.height);
         const result = agent.act(state);
@@ -129,6 +159,12 @@ function moveAI() {
             reward.bottom += 0.1;
         }
 
+        // Add episode timeout penalty
+        if (shouldEndEpisode) {
+            reward.top -= 0.5;
+            reward.bottom -= 0.5;
+        }
+
         // Store experiences
         if (previousState !== null) {
             agent.remember(
@@ -137,7 +173,7 @@ function moveAI() {
                 reward.top,
                 previousValue.top,
                 previousLogProb.top,
-                goalHit !== false
+                goalHit !== false || shouldEndEpisode  // End episode on goal or timeout
             );
 
             agent.remember(
@@ -146,7 +182,7 @@ function moveAI() {
                 reward.bottom,
                 previousValue.bottom,
                 previousLogProb.bottom,
-                goalHit !== false
+                goalHit !== false || shouldEndEpisode  // End episode on goal or timeout
             );
         }
 
@@ -180,9 +216,9 @@ function moveAI() {
             logTrainingMetrics();
         }
 
-        // Reset episode rewards when a goal is scored
-        if (goalHit) {
-            episodeRewards = { top: 0, bottom: 0 };
+        // Reset episode when needed
+        if (goalHit || shouldEndEpisode) {
+            resetEpisode();
         }
     }
 }
@@ -213,10 +249,9 @@ function toggleTrainingMode() {
     isTrainingMode = !isTrainingMode;
     
     // Reset game state when switching modes
-    env.resetPuck();
+    resetEpisode();
     env.state.playerScore = 0;
     env.state.aiScore = 0;
-    episodeRewards = { top: 0, bottom: 0 };
     previousState = null;
     previousAction = null;
     
