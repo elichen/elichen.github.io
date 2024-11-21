@@ -31,7 +31,7 @@ class AirHockeyEnvironment {
             y: canvas.height - 50,
             radius: 20,
             color: '#3498db',
-            speed: 5
+            speed: 10
         };
 
         this.aiPaddle = {
@@ -39,7 +39,7 @@ class AirHockeyEnvironment {
             y: 50,
             radius: 20,
             color: '#2ecc71',
-            speed: 5
+            speed: 10
         };
 
         this.puck = {

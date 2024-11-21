@@ -18,8 +18,21 @@ const ACTIONS = {
     LEFT: 4
 };
 
-const MAX_EPISODE_FRAMES = 1000;  // About 16-17 seconds at 60fps
+const MAX_EPISODE_FRAMES = 5000;
 let currentEpisodeFrames = 0;
+
+const CURRICULUM = {
+    STAGE_1: 'HIT_PUCK',
+    STAGE_2: 'SCORE_GOAL',
+    STAGE_3: 'STRATEGY'
+};
+
+// Add curriculum tracking
+let currentStage = CURRICULUM.STAGE_1;
+let successfulHits = 0;
+let successfulGoals = 0;
+const HITS_TO_ADVANCE = 1000;  // Number of successful hits to move to stage 2
+const GOALS_TO_ADVANCE = 100;  // Number of goals to move to stage 3
 
 function initializeGame() {
     const canvas = document.getElementById('gameCanvas');
@@ -34,14 +47,16 @@ function initializeGame() {
 
 function logTrainingMetrics() {
     console.log(`Step ${agent.frameCount}`);
-    console.log(`Epsilon: ${agent.epsilon.toFixed(4)}`);
+    console.log(`Current Stage: ${currentStage}`);
+    console.log(`Successful Hits: ${successfulHits}`);
+    console.log(`Successful Goals: ${successfulGoals}`);
     console.log(`Episode Rewards - Top: ${episodeRewards.top.toFixed(2)}, Bottom: ${episodeRewards.bottom.toFixed(2)}`);
     console.log(`Game Score - Top: ${env.state.aiScore}, Bottom: ${env.state.playerScore}`);
     console.log('------------------------');
 }
 
 function moveAgentPaddle(paddle, action, isTopPlayer) {
-    const scaleFactor = 0.5;
+    const scaleFactor = 1.0;
     
     // Convert continuous actions (-1 to 1) to paddle movement
     let dx = action[0] * paddle.speed * scaleFactor;
@@ -52,9 +67,9 @@ function moveAgentPaddle(paddle, action, isTopPlayer) {
         dy = -dy;
     }
 
-    // Add momentum to smooth out movement
-    paddle.dx = (paddle.dx || 0) * 0.8 + dx * 0.2;
-    paddle.dy = (paddle.dy || 0) * 0.8 + dy * 0.2;
+    // Add momentum with higher responsiveness
+    paddle.dx = (paddle.dx || 0) * 0.6 + dx * 0.4;
+    paddle.dy = (paddle.dy || 0) * 0.6 + dy * 0.4;
 
     // Apply momentum-based movement
     paddle.x += paddle.dx;
@@ -86,6 +101,93 @@ function resetEpisode() {
     env.aiPaddle.dy = 0;
     env.playerPaddle.dx = 0;
     env.playerPaddle.dy = 0;
+}
+
+function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
+    const timePenalty = -0.001;
+    let reward = { top: timePenalty, bottom: timePenalty };
+
+    switch(currentStage) {
+        case CURRICULUM.STAGE_1:  // Focus on hitting the puck
+            // Strong rewards for getting closer to puck
+            reward.top += (prevDistances.top > newDistances.top ? 0.5 : -0.2);
+            reward.bottom += (prevDistances.bottom > newDistances.bottom ? 0.5 : -0.2);
+            
+            // Very strong reward for hitting puck
+            if (hitPuck.top) {
+                reward.top += 2.0;
+                successfulHits++;
+            }
+            if (hitPuck.bottom) {
+                reward.bottom += 2.0;
+                successfulHits++;
+            }
+
+            // Check for advancement
+            if (successfulHits >= HITS_TO_ADVANCE) {
+                currentStage = CURRICULUM.STAGE_2;
+                console.log("Advancing to SCORE_GOAL stage!");
+            }
+            break;
+
+        case CURRICULUM.STAGE_2:  // Focus on scoring
+            // Moderate rewards for puck control
+            reward.top += (prevDistances.top > newDistances.top ? 0.2 : -0.1);
+            reward.bottom += (prevDistances.bottom > newDistances.bottom ? 0.2 : -0.1);
+            
+            // Reward hitting toward opponent's goal
+            if (hitPuck.top) {
+                const towardGoal = env.puck.dy > 0;  // Top player wants positive dy
+                reward.top += towardGoal ? 1.0 : 0.2;
+            }
+            if (hitPuck.bottom) {
+                const towardGoal = env.puck.dy < 0;  // Bottom player wants negative dy
+                reward.bottom += towardGoal ? 1.0 : 0.2;
+            }
+
+            // Strong reward for scoring
+            if (goalHit === 'top') {
+                reward.bottom += 5.0;
+                successfulGoals++;
+            } else if (goalHit === 'bottom') {
+                reward.top += 5.0;
+                successfulGoals++;
+            }
+
+            // Check for advancement
+            if (successfulGoals >= GOALS_TO_ADVANCE) {
+                currentStage = CURRICULUM.STAGE_3;
+                console.log("Advancing to STRATEGY stage!");
+            }
+            break;
+
+        case CURRICULUM.STAGE_3:  // Focus on strategy
+            // Small rewards for puck control
+            reward.top += (prevDistances.top > newDistances.top ? 0.1 : -0.05);
+            reward.bottom += (prevDistances.bottom > newDistances.bottom ? 0.1 : -0.05);
+            
+            // Moderate rewards for good hits
+            if (hitPuck.top) {
+                const towardGoal = env.puck.dy > 0;
+                reward.top += towardGoal ? 0.5 : 0.1;
+            }
+            if (hitPuck.bottom) {
+                const towardGoal = env.puck.dy < 0;
+                reward.bottom += towardGoal ? 0.5 : 0.1;
+            }
+
+            // Strong rewards for scoring and defense
+            if (goalHit === 'top') {
+                reward.bottom += 2.0;  // Scoring
+                reward.top -= 1.0;     // Failed defense
+            } else if (goalHit === 'bottom') {
+                reward.top += 2.0;     // Scoring
+                reward.bottom -= 1.0;  // Failed defense
+            }
+            break;
+    }
+
+    return reward;
 }
 
 function moveAI() {
@@ -122,6 +224,9 @@ function moveAI() {
         moveAgentPaddle(env.aiPaddle, topResult.action, true);
         moveAgentPaddle(env.playerPaddle, bottomResult.action, false);
 
+        // Check for goals after movement
+        const goalHit = env.isInGoal();
+
         // Calculate new distances after moving
         const newTopDistance = Math.sqrt(
             Math.pow(env.puck.x - env.aiPaddle.x, 2) + 
@@ -132,32 +237,22 @@ function moveAI() {
             Math.pow(env.puck.y - env.playerPaddle.y, 2)
         );
 
-        // Add small time penalty to encourage faster play
-        const timePenalty = -0.001;
-
-        // Initialize rewards based on distance improvement
-        let reward = {
-            top: (prevTopDistance > newTopDistance ? 0.1 : -0.1) + timePenalty,
-            bottom: (prevBottomDistance > newBottomDistance ? 0.1 : -0.1) + timePenalty
+        const hitPuck = {
+            top: env.checkCollision(env.puck, env.aiPaddle),
+            bottom: env.checkCollision(env.puck, env.playerPaddle)
         };
 
-        // Add goal rewards
-        const goalHit = env.isInGoal();
-        if (goalHit === 'top') {
-            reward.bottom += 1.0;  // Positive reward for scoring
-            reward.top -= 1.0;     // Negative reward for being scored on
-        } else if (goalHit === 'bottom') {
-            reward.top += 1.0;     // Positive reward for scoring
-            reward.bottom -= 1.0;  // Negative reward for being scored on
-        }
+        const prevDistances = {
+            top: prevTopDistance,
+            bottom: prevBottomDistance
+        };
 
-        // Add hit rewards
-        if (env.checkCollision(env.puck, env.aiPaddle)) {
-            reward.top += 0.1;
-        }
-        if (env.checkCollision(env.puck, env.playerPaddle)) {
-            reward.bottom += 0.1;
-        }
+        const newDistances = {
+            top: newTopDistance,
+            bottom: newBottomDistance
+        };
+
+        const reward = calculateRewards(prevDistances, newDistances, goalHit, hitPuck);
 
         // Add episode timeout penalty
         if (shouldEndEpisode) {
