@@ -238,22 +238,26 @@ async function moveAI() {
         const result = agent.act(state);
         moveAgentPaddle(env.aiPaddle, result.action, true);
 
-        // Move the player paddle using mouse input
-        let dx = mouseX - env.playerPaddle.x;
-        let dy = mouseY - env.playerPaddle.y;
+        // Store previous position to calculate velocity
+        const prevX = env.playerPaddle.x;
+        const prevY = env.playerPaddle.y;
 
-        // Normalize the direction vector
-        const magnitude = Math.sqrt(dx * dx + dy * dy);
-        if (magnitude > 0) {
-            dx /= magnitude;
-            dy /= magnitude;
-        } else {
-            dx = 0;
-            dy = 0;
-        }
+        // Directly set player paddle position to mouse position, keeping it in bounds
+        env.playerPaddle.x = Math.max(
+            env.playerPaddle.radius, 
+            Math.min(env.canvas.width - env.playerPaddle.radius, mouseX)
+        );
+        env.playerPaddle.y = Math.max(
+            env.canvas.height/2 + env.playerPaddle.radius, 
+            Math.min(env.canvas.height - env.playerPaddle.radius, mouseY)
+        );
 
-        const action = [dx, dy];
-        moveAgentPaddle(env.playerPaddle, action, false);
+        // Calculate and set paddle velocity based on position change
+        env.playerPaddle.dx = (env.playerPaddle.x - prevX);
+        env.playerPaddle.dy = (env.playerPaddle.y - prevY);
+
+        // Update environment
+        env.update(mouseX, mouseY, isTrainingMode);
     } else {
         const topState = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, true, env.canvas.width, env.canvas.height);
         const bottomState = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, false, env.canvas.width, env.canvas.height);
