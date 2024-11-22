@@ -31,28 +31,38 @@ class PPOAgent {
         const input = tf.input({shape: [this.stateSize]});
         
         const hidden1 = tf.layers.dense({
-            units: 64,
+            units: 256,
             activation: 'relu'
         }).apply(input);
         
         const hidden2 = tf.layers.dense({
-            units: 64,
+            units: 256,
             activation: 'relu'
         }).apply(hidden1);
+        
+        const hidden3 = tf.layers.dense({
+            units: 256,
+            activation: 'relu'
+        }).apply(hidden2);
+        
+        const hidden4 = tf.layers.dense({
+            units: 256,
+            activation: 'relu'
+        }).apply(hidden3);
         
         // Mean output uses tanh for bounded actions
         const actionMean = tf.layers.dense({
             units: this.actionSize,
             activation: 'tanh',
             name: 'mean'
-        }).apply(hidden2);
+        }).apply(hidden4);
         
         // Standard deviation uses softplus for positive values
         const actionStd = tf.layers.dense({
             units: this.actionSize,
             activation: 'softplus',
             name: 'std'
-        }).apply(hidden2);
+        }).apply(hidden4);
         
         // Concatenate mean and std
         const output = tf.layers.concatenate().apply([actionMean, actionStd]);
@@ -71,13 +81,23 @@ class PPOAgent {
         const model = tf.sequential();
         
         model.add(tf.layers.dense({
-            units: 64,
+            units: 256,
             activation: 'relu',
             inputShape: [this.stateSize]
         }));
         
         model.add(tf.layers.dense({
-            units: 64,
+            units: 256,
+            activation: 'relu'
+        }));
+        
+        model.add(tf.layers.dense({
+            units: 256,
+            activation: 'relu'
+        }));
+        
+        model.add(tf.layers.dense({
+            units: 256,
             activation: 'relu'
         }));
         
@@ -164,11 +184,12 @@ class PPOAgent {
     }
 
     async train() {
-        if (this.states.length < this.batchSize) return;
-
         const returns = this.computeReturns();
         const advantages = this.computeAdvantages(returns);
-
+        
+        // Increase epochs for smaller batches to ensure sufficient learning
+        const adaptiveEpochs = Math.min(20, Math.max(10, Math.floor(1000 / this.states.length)));
+        
         // Convert to tensors with proper shapes
         const statesTensor = tf.tensor2d(this.states);
         const actionsTensor = tf.tensor2d(this.actions, [this.actions.length, this.actionSize]);
@@ -177,8 +198,8 @@ class PPOAgent {
         const returnsTensor = tf.tensor1d(returns);
 
         try {
-            // PPO training loop
-            for (let epoch = 0; epoch < this.epochs; epoch++) {
+            // PPO training loop with adaptive epochs
+            for (let epoch = 0; epoch < adaptiveEpochs; epoch++) {
                 await this.trainStep(
                     statesTensor,
                     actionsTensor,
@@ -206,6 +227,13 @@ class PPOAgent {
     }
 
     async trainStep(states, actions, oldLogProbs, advantages, returns) {
+        // Normalize advantages (this is key!)
+        const normalizedAdvantages = tf.tidy(() => {
+            const mean = tf.mean(advantages);
+            const std = tf.sqrt(tf.mean(tf.square(tf.sub(advantages, mean))).add(1e-8));
+            return tf.div(tf.sub(advantages, mean), std);
+        });
+
         // Update actor network
         const actorLoss = await this.actor.optimizer.minimize(() => {
             return tf.tidy(() => {
@@ -217,8 +245,10 @@ class PPOAgent {
                 const newLogProbs = this.calculateLogProb(actions, mean, stddev);
                 const ratio = tf.exp(newLogProbs.sub(oldLogProbs));
                 
-                const surr1 = ratio.mul(advantages);
-                const surr2 = tf.clipByValue(ratio, 1 - this.epsilon, 1 + this.epsilon).mul(advantages);
+                // Use normalized advantages here
+                const surr1 = ratio.mul(normalizedAdvantages);
+                const surr2 = tf.clipByValue(ratio, 1 - this.epsilon, 1 + this.epsilon)
+                               .mul(normalizedAdvantages);
                 
                 return tf.mean(tf.minimum(surr1, surr2)).neg();
             });
@@ -232,6 +262,9 @@ class PPOAgent {
                 return tf.losses.meanSquaredError(returnsReshaped, valuesPredicted);
             });
         });
+
+        // Clean up
+        normalizedAdvantages.dispose();
 
         return { actorLoss, criticLoss };
     }
@@ -250,7 +283,28 @@ class PPOAgent {
     }
 
     computeAdvantages(returns) {
-        return returns.map((ret, i) => ret - this.values[i]);
+        const advantages = new Array(this.rewards.length);
+        let lastGAE = 0;
+        
+        // Compute GAE backwards through time
+        for (let t = this.rewards.length - 1; t >= 0; t--) {
+            if (this.dones[t]) lastGAE = 0;
+            
+            // Get the current value and next value (0 if done)
+            const currentValue = this.values[t];
+            const nextValue = t + 1 < this.values.length && !this.dones[t] 
+                ? this.values[t + 1] 
+                : 0;
+            
+            // Compute delta = r + gamma * V(s') - V(s)
+            const delta = this.rewards[t] + this.gamma * nextValue - currentValue;
+            
+            // Compute GAE using lambda and gamma
+            lastGAE = delta + this.gamma * this.lambda * (this.dones[t] ? 0 : lastGAE);
+            advantages[t] = lastGAE;
+        }
+        
+        return advantages;
     }
 
     getState(puck, playerPaddle, aiPaddle, isTopPlayer = false, canvasWidth, canvasHeight) {

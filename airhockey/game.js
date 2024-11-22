@@ -107,6 +107,25 @@ function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
     const timePenalty = -0.001;
     let reward = { top: timePenalty, bottom: timePenalty };
 
+    // Add position-based defensive reward
+    const defensivePositionReward = (paddle, puck, isTop) => {
+        // Calculate ideal defensive position (between puck and goal)
+        const goalY = isTop ? 0 : env.canvas.height;
+        const idealX = puck.x;
+        const idealY = isTop ? 
+            Math.min(puck.y - 50, env.canvas.height/2 - paddle.radius) : 
+            Math.max(puck.y + 50, env.canvas.height/2 + paddle.radius);
+        
+        // Calculate distance to ideal position
+        const distToIdeal = Math.sqrt(
+            Math.pow(paddle.x - idealX, 2) + 
+            Math.pow(paddle.y - idealY, 2)
+        );
+        
+        // Normalize and return reward
+        return Math.max(0, 1 - (distToIdeal / (env.canvas.height/2)));
+    };
+
     switch(currentStage) {
         case CURRICULUM.STAGE_1:  // Focus on hitting the puck
             // Strong rewards for getting closer to puck
@@ -123,29 +142,28 @@ function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
                 successfulHits++;
             }
 
-            // Check for advancement
             if (successfulHits >= HITS_TO_ADVANCE) {
                 currentStage = CURRICULUM.STAGE_2;
                 console.log("Advancing to SCORE_GOAL stage!");
             }
             break;
 
-        case CURRICULUM.STAGE_2:  // Focus on scoring
-            // Moderate rewards for puck control
-            reward.top += (prevDistances.top > newDistances.top ? 0.2 : -0.1);
-            reward.bottom += (prevDistances.bottom > newDistances.bottom ? 0.2 : -0.1);
+        case CURRICULUM.STAGE_2:  // Gradual transition to scoring
+            // Maintain basic puck control but with reduced rewards
+            reward.top += (prevDistances.top > newDistances.top ? 0.1 : -0.05);
+            reward.bottom += (prevDistances.bottom > newDistances.bottom ? 0.1 : -0.05);
             
-            // Reward hitting toward opponent's goal
+            // Reduced but non-zero basic hit reward
             if (hitPuck.top) {
-                const towardGoal = env.puck.dy > 0;  // Top player wants positive dy
-                reward.top += towardGoal ? 1.0 : 0.2;
+                const towardGoal = env.puck.dy > 0;
+                reward.top += towardGoal ? 1.5 : 0.2; // Reduced non-goal hit reward instead of penalty
             }
             if (hitPuck.bottom) {
-                const towardGoal = env.puck.dy < 0;  // Bottom player wants negative dy
-                reward.bottom += towardGoal ? 1.0 : 0.2;
+                const towardGoal = env.puck.dy < 0;
+                reward.bottom += towardGoal ? 1.5 : 0.2; // Reduced non-goal hit reward instead of penalty
             }
 
-            // Strong reward for scoring
+            // Strong scoring rewards
             if (goalHit === 'top') {
                 reward.bottom += 5.0;
                 successfulGoals++;
@@ -154,35 +172,38 @@ function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
                 successfulGoals++;
             }
 
-            // Check for advancement
             if (successfulGoals >= GOALS_TO_ADVANCE) {
                 currentStage = CURRICULUM.STAGE_3;
                 console.log("Advancing to STRATEGY stage!");
             }
             break;
 
-        case CURRICULUM.STAGE_3:  // Focus on strategy
-            // Small rewards for puck control
-            reward.top += (prevDistances.top > newDistances.top ? 0.1 : -0.05);
-            reward.bottom += (prevDistances.bottom > newDistances.bottom ? 0.1 : -0.05);
+        case CURRICULUM.STAGE_3:  // Strategy stage remains mostly the same
+            // Defensive positioning reward
+            const topDefenseReward = defensivePositionReward(env.aiPaddle, env.puck, true);
+            const bottomDefenseReward = defensivePositionReward(env.playerPaddle, env.puck, false);
+            reward.top += topDefenseReward * 0.3;
+            reward.bottom += bottomDefenseReward * 0.3;
             
-            // Moderate rewards for good hits
+            // Offensive rewards
             if (hitPuck.top) {
                 const towardGoal = env.puck.dy > 0;
-                reward.top += towardGoal ? 0.5 : 0.1;
+                const puckSpeed = Math.sqrt(env.puck.dx * env.puck.dx + env.puck.dy * env.puck.dy);
+                reward.top += towardGoal ? (0.5 + puckSpeed/maxSpeed) : 0.1;
             }
             if (hitPuck.bottom) {
                 const towardGoal = env.puck.dy < 0;
-                reward.bottom += towardGoal ? 0.5 : 0.1;
+                const puckSpeed = Math.sqrt(env.puck.dx * env.puck.dx + env.puck.dy * env.puck.dy);
+                reward.bottom += towardGoal ? (0.5 + puckSpeed/maxSpeed) : 0.1;
             }
 
-            // Strong rewards for scoring and defense
+            // Goal rewards/penalties remain the same
             if (goalHit === 'top') {
-                reward.bottom += 2.0;  // Scoring
-                reward.top -= 1.0;     // Failed defense
+                reward.bottom += 2.0;
+                reward.top -= 1.0;
             } else if (goalHit === 'bottom') {
-                reward.top += 2.0;     // Scoring
-                reward.bottom -= 1.0;  // Failed defense
+                reward.top += 2.0;
+                reward.bottom -= 1.0;
             }
             break;
     }
@@ -190,7 +211,7 @@ function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
     return reward;
 }
 
-function moveAI() {
+async function moveAI() {
     if (!agent) return;
 
     // Increment episode frame counter
@@ -298,8 +319,15 @@ function moveAI() {
 
         // Training code
         agent.frameCount++;
-        if (agent.frameCount % 128 === 0) {
-            agent.train();
+        if (goalHit || shouldEndEpisode) {
+            // Train immediately when episode ends
+            await agent.train();
+            resetEpisode();
+            
+            // Log metrics after each episode
+            if (agent.frameCount % 1000 < 128) {
+                logTrainingMetrics();
+            }
         }
 
         // Add rewards to episode total
@@ -318,8 +346,8 @@ function moveAI() {
     }
 }
 
-function gameLoop() {
-    moveAI();
+async function gameLoop() {
+    await moveAI();
     const goalHit = env.update(mouseX, mouseY, isTrainingMode);
     env.draw();
     requestAnimationFrame(gameLoop);
