@@ -14,6 +14,10 @@ class PPOAgent {
         this.actor = this.createActorNetwork();
         this.critic = this.createCriticNetwork();
         
+        // **Add optimizers for actor and critic**
+        this.actorOptimizer = tf.train.adam(this.learningRate);
+        this.criticOptimizer = tf.train.adam(this.learningRate);
+        
         // Experience buffer
         this.states = [];
         this.actions = [];
@@ -69,10 +73,11 @@ class PPOAgent {
         
         const model = tf.model({inputs: input, outputs: output});
         
-        model.compile({
-            optimizer: tf.train.adam(this.learningRate),
-            loss: 'meanSquaredError'
-        });
+        // **Remove model.compile() call, since we will use custom optimizer**
+        // model.compile({
+        //     optimizer: tf.train.adam(this.learningRate),
+        //     loss: 'meanSquaredError'
+        // });
         
         return model;
     }
@@ -106,10 +111,11 @@ class PPOAgent {
             activation: 'linear'
         }));
         
-        model.compile({
-            optimizer: tf.train.adam(this.learningRate),
-            loss: 'meanSquaredError'
-        });
+        // **Remove model.compile() call**
+        // model.compile({
+        //     optimizer: tf.train.adam(this.learningRate),
+        //     loss: 'meanSquaredError'
+        // });
         
         return model;
     }
@@ -157,16 +163,16 @@ class PPOAgent {
 
     calculateLogProb(action, mean, stddev) {
         return tf.tidy(() => {
-            // Calculate log probability manually
-            // log(P(x)) = -0.5 * (log(2π) + log(σ²) + ((x-μ)²/σ²))
             const variance = tf.square(stddev);
-            const diff = action.sub(mean);
-            const squaredDiff = tf.square(diff);
-            const logProbs = squaredDiff.div(variance.mul(2))
-                .add(tf.log(stddev))
-                .add(LOG_2PI / 2)
-                .mul(-1);
-            
+
+            // Correct calculation of the log probability for a Gaussian distribution
+            const logVariance = tf.log(variance);
+            const logScale = tf.add(logVariance, LOG_2PI);
+            const squaredDifference = tf.square(action.sub(mean));
+
+            const logProbs = tf.mul(tf.add(logScale, squaredDifference.div(variance)), -0.5);
+
+            // Sum over action dimensions if action space is multidimensional
             return logProbs.sum(-1);
         });
     }
@@ -234,8 +240,10 @@ class PPOAgent {
             return tf.div(tf.sub(advantages, mean), std);
         });
 
+        const entropyCoef = 0.01; // Coefficient for entropy bonus
+
         // Update actor network
-        const actorLoss = await this.actor.optimizer.minimize(() => {
+        const actorLoss = await this.actorOptimizer.minimize(() => {
             return tf.tidy(() => {
                 const actionParams = this.actor.predict(states);
                 const mean = actionParams.slice([0, 0], [-1, this.actionSize]);
@@ -245,23 +253,30 @@ class PPOAgent {
                 const newLogProbs = this.calculateLogProb(actions, mean, stddev);
                 const ratio = tf.exp(newLogProbs.sub(oldLogProbs));
                 
-                // Use normalized advantages here
                 const surr1 = ratio.mul(normalizedAdvantages);
                 const surr2 = tf.clipByValue(ratio, 1 - this.epsilon, 1 + this.epsilon)
-                               .mul(normalizedAdvantages);
+                                   .mul(normalizedAdvantages);
                 
-                return tf.mean(tf.minimum(surr1, surr2)).neg();
-            });
-        });
+                const policyLoss = tf.mean(tf.minimum(surr1, surr2)).neg();
 
-        // Update critic network
-        const criticLoss = await this.critic.optimizer.minimize(() => {
+                // **Add entropy bonus to encourage exploration**
+                const entropy = stddev.log()
+                    .add(0.5 * Math.log(2 * Math.PI * Math.E))
+                    .sum(-1)
+                    .mean();
+                const totalLoss = policyLoss.sub(entropy.mul(entropyCoef));
+                
+                return totalLoss;
+            });
+        }, true);
+
+        const criticLoss = await this.criticOptimizer.minimize(() => {
             return tf.tidy(() => {
                 const valuesPredicted = this.critic.predict(states);
                 const returnsReshaped = returns.reshape([-1, 1]);
                 return tf.losses.meanSquaredError(returnsReshaped, valuesPredicted);
             });
-        });
+        }, true);
 
         // Clean up
         normalizedAdvantages.dispose();
@@ -286,21 +301,19 @@ class PPOAgent {
         const advantages = new Array(this.rewards.length);
         let lastGAE = 0;
         
-        // Compute GAE backwards through time
         for (let t = this.rewards.length - 1; t >= 0; t--) {
-            if (this.dones[t]) lastGAE = 0;
+            if (this.dones[t]) {
+                lastGAE = 0; // Reset GAE at the end of each episode
+            }
             
-            // Get the current value and next value (0 if done)
             const currentValue = this.values[t];
-            const nextValue = t + 1 < this.values.length && !this.dones[t] 
-                ? this.values[t + 1] 
+            const nextValue = t + 1 < this.values.length
+                ? this.values[t + 1]
                 : 0;
             
-            // Compute delta = r + gamma * V(s') - V(s)
-            const delta = this.rewards[t] + this.gamma * nextValue - currentValue;
+            const delta = this.rewards[t] + this.gamma * nextValue * (1 - this.dones[t]) - currentValue;
             
-            // Compute GAE using lambda and gamma
-            lastGAE = delta + this.gamma * this.lambda * (this.dones[t] ? 0 : lastGAE);
+            lastGAE = delta + this.gamma * this.lambda * (1 - this.dones[t]) * lastGAE;
             advantages[t] = lastGAE;
         }
         
@@ -311,38 +324,38 @@ class PPOAgent {
         const ownPaddle = isTopPlayer ? aiPaddle : playerPaddle;
         const oppPaddle = isTopPlayer ? playerPaddle : aiPaddle;
         
+        // **Flip the y-axis for the top player to standardize the coordinate system**
+        const ownY = isTopPlayer ? canvasHeight - ownPaddle.y : ownPaddle.y;
+        const oppY = isTopPlayer ? canvasHeight - oppPaddle.y : oppPaddle.y;
+        const puckY = isTopPlayer ? canvasHeight - puck.y : puck.y;
+        const puckDy = isTopPlayer ? -puck.dy : puck.dy;
+
         // Convert everything to relative coordinates from paddle's perspective
         let relativeX = (puck.x - ownPaddle.x) / canvasWidth;
-        let relativeY = (puck.y - ownPaddle.y) / canvasHeight;
-        
+        let relativeY = (puckY - ownY) / canvasHeight;
+
         // Velocities relative to paddle
         let relativeDx = puck.dx / maxSpeed;
-        let relativeDy = puck.dy / maxSpeed;
-        
+        let relativeDy = puckDy / maxSpeed;
+
         // Opponent position relative to own paddle
         let relativeOppX = (oppPaddle.x - ownPaddle.x) / canvasWidth;
-        let relativeOppY = (oppPaddle.y - ownPaddle.y) / canvasHeight;
+        let relativeOppY = (oppY - ownY) / canvasHeight;
         
-        // Distance is already relative
+        // Distance to the puck
         const distance = Math.sqrt(relativeX * relativeX + relativeY * relativeY);
         
         // Angle from paddle to puck (relative to vertical)
         const angle = Math.atan2(relativeX, relativeY) / Math.PI;
         
         // Is puck behind paddle relative to goal
-        const isPuckBehind = isTopPlayer ? 
-            (puck.y < ownPaddle.y) : 
-            (puck.y > ownPaddle.y);
+        const isPuckBehind = puckY > ownY;
         
         // Distance to own goal (normalized)
-        const distanceToGoal = isTopPlayer ?
-            ownPaddle.y / (canvasHeight/2) :
-            (canvasHeight - ownPaddle.y) / (canvasHeight/2);
+        const distanceToGoal = (canvasHeight - ownY) / (canvasHeight / 2);
         
         // Distance of puck to goal (normalized)
-        const puckToGoal = isTopPlayer ?
-            puck.y / (canvasHeight/2) :
-            (canvasHeight - puck.y) / (canvasHeight/2);
+        const puckToGoal = (canvasHeight - puckY) / (canvasHeight / 2);
         
         return [
             relativeX,
