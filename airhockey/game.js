@@ -28,11 +28,11 @@ const CURRICULUM = {
 };
 
 // Add curriculum tracking
-let currentStage = CURRICULUM.STAGE_2;
+let currentStage = CURRICULUM.STAGE_1;
 let successfulHits = 0;
 let successfulGoals = 0;
-const HITS_TO_ADVANCE = 500;  // Reduce number of successful hits to move to stage 2
-const GOALS_TO_ADVANCE = 50;  // Reduce number of goals to move to stage 3
+const HITS_TO_ADVANCE = 500;  // Number of successful hits to move to stage 2
+const GOALS_TO_ADVANCE = 50;  // Number of goals to move to stage 3
 
 let trainInterval = 1000; // Number of timesteps between training sessions
 
@@ -136,18 +136,20 @@ function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
 
     switch(currentStage) {
         case CURRICULUM.STAGE_1:  // Focus on hitting the puck
-            // Strong rewards for getting closer to puck
-            reward.top += (prevDistances.top > newDistances.top ? 0.5 : -0.2);
-            reward.bottom += (prevDistances.bottom > newDistances.bottom ? 0.5 : -0.2);
+            // Strong rewards for reducing distance to puck
+            reward.top += (prevDistances.top > newDistances.top ? 0.1 : -0.1);
+            reward.bottom += (prevDistances.bottom > newDistances.bottom ? 0.1 : -0.1);
             
-            // Very strong reward for hitting puck
+            // Strong reward for hitting puck
             if (hitPuck.top) {
-                reward.top += 2.0;
+                reward.top += 1.0;
                 successfulHits++;
+                console.log('AI Paddle hit the puck!');
             }
             if (hitPuck.bottom) {
-                reward.bottom += 2.0;
+                reward.bottom += 1.0;
                 successfulHits++;
+                console.log('Player Paddle hit the puck!');
             }
 
             if (successfulHits >= HITS_TO_ADVANCE) {

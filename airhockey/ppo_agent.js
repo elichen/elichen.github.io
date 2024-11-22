@@ -240,7 +240,7 @@ class PPOAgent {
             return tf.div(tf.sub(advantages, mean), std);
         });
 
-        const entropyCoef = 0.01; // Coefficient for entropy bonus
+        const entropyCoef = 0.02; // Increased from 0.01 to encourage more exploration
 
         // Update actor network
         const actorLoss = await this.actorOptimizer.minimize(() => {
