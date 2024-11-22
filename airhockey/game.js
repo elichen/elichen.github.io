@@ -144,12 +144,10 @@ function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
             if (hitPuck.top) {
                 reward.top += 1.0;
                 successfulHits++;
-                console.log('AI Paddle hit the puck!');
             }
             if (hitPuck.bottom) {
                 reward.bottom += 1.0;
                 successfulHits++;
-                console.log('Player Paddle hit the puck!');
             }
 
             if (successfulHits >= HITS_TO_ADVANCE) {
@@ -219,12 +217,19 @@ function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
     return reward;
 }
 
+function updateTrainingSteps() {
+    const stepsElement = document.getElementById('trainingSteps');
+    if (stepsElement) {
+        stepsElement.textContent = Math.floor(agent.frameCount).toLocaleString();
+    }
+}
+
 async function moveAI() {
     if (!agent) return;
 
     currentEpisodeFrames++;
 
-    const maxEpisodeLength = 5000; // Maximum length of an episode
+    const maxEpisodeLength = 5000;
     const isDone = currentEpisodeFrames >= maxEpisodeLength;
 
     if (!isTrainingMode) {
@@ -344,8 +349,7 @@ async function moveAI() {
         if (agent.frameCount % trainInterval === 0) {
             await agent.train();
             console.log(`Trained at frame ${agent.frameCount}`);
-
-            // Optionally, reset the environment
+            updateTrainingSteps();
             resetEnvironment();
         }
 
@@ -384,6 +388,13 @@ async function init() {
     env.resetPuck();
     env.state.playerScore = 0;
     env.state.aiScore = 0;
+    
+    // Set initial button text
+    const button = document.querySelector('.toggle-button');
+    if (button) {
+        button.textContent = isTrainingMode ? 'Switch to Play Mode' : 'Switch to Training Mode';
+    }
+    
     gameLoop();
 }
 
@@ -396,6 +407,12 @@ function toggleTrainingMode() {
     env.state.aiScore = 0;
     previousState = null;
     previousAction = null;
+    
+    // Update button text based on mode
+    const button = document.querySelector('.toggle-button');
+    if (button) {
+        button.textContent = isTrainingMode ? 'Switch to Play Mode' : 'Switch to Training Mode';
+    }
     
     console.log(`Switched to ${isTrainingMode ? 'Training' : 'Play'} mode`);
 }

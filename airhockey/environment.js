@@ -161,14 +161,11 @@ class AirHockeyEnvironment {
     }
 
     handlePaddleCollision(paddle, prevX, prevY) {
-        // Calculate distance between puck and paddle
         const dx = this.puck.x - paddle.x;
         const dy = this.puck.y - paddle.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         if (distance < paddle.radius + this.puck.radius) {
-            console.log(`Collision detected between puck and ${paddle === this.aiPaddle ? 'AI Paddle' : 'Player Paddle'}`);
-
             // Calculate collision angle
             const angle = Math.atan2(dy, dx);
             const minDistance = paddle.radius + this.puck.radius;
@@ -281,11 +278,9 @@ class AirHockeyEnvironment {
         const goalHit = this.isInGoal();
         if (goalHit === 'top') {
             this.state.playerScore++;
-            console.log('Bottom agent scored a goal!');
             this.resetPuck(true);
         } else if (goalHit === 'bottom') {
             this.state.aiScore++;
-            console.log('Top agent scored a goal!');
             this.resetPuck(false);
         } else if (this.isPuckStuck()) {
             this.unstickPuck();
