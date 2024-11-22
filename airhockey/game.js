@@ -34,6 +34,8 @@ let successfulGoals = 0;
 const HITS_TO_ADVANCE = 1000;  // Number of successful hits to move to stage 2
 const GOALS_TO_ADVANCE = 100;  // Number of goals to move to stage 3
 
+let trainInterval = 1000; // Number of timesteps between training sessions
+
 function initializeGame() {
     const canvas = document.getElementById('gameCanvas');
     env = new AirHockeyEnvironment(canvas);
@@ -82,25 +84,27 @@ function moveAgentPaddle(paddle, action, isTopPlayer) {
     paddle.y = Math.max(minY, Math.min(maxY, paddle.y));
 }
 
-// Add this function to handle full episode reset
-function resetEpisode() {
+function resetEnvironment() {
     episodeRewards = { top: 0, bottom: 0 };
     currentEpisodeFrames = 0;
-    
-    // Reset puck
+
+    // Reset environment without resetting the agent's internal state
     env.resetPuck();
-    
-    // Reset paddles to starting positions
+    env.state.playerScore = 0;
+    env.state.aiScore = 0;
     env.aiPaddle.x = env.canvas.width / 2;
-    env.aiPaddle.y = 50;  // Original y position for top paddle
+    env.aiPaddle.y = 50;
     env.playerPaddle.x = env.canvas.width / 2;
-    env.playerPaddle.y = env.canvas.height - 50;  // Original y position for bottom paddle
-    
-    // Reset paddle momentum
+    env.playerPaddle.y = env.canvas.height - 50;
     env.aiPaddle.dx = 0;
     env.aiPaddle.dy = 0;
     env.playerPaddle.dx = 0;
     env.playerPaddle.dy = 0;
+
+    previousState = null;
+    previousAction = null;
+    previousValue = null;
+    previousLogProb = null;
 }
 
 function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
@@ -214,12 +218,11 @@ function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
 async function moveAI() {
     if (!agent) return;
 
-    // Increment episode frame counter
     currentEpisodeFrames++;
 
-    // Check if episode should end due to length
-    const shouldEndEpisode = currentEpisodeFrames >= MAX_EPISODE_FRAMES;
-    
+    const maxEpisodeLength = 5000; // Maximum length of an episode
+    const isDone = currentEpisodeFrames >= maxEpisodeLength;
+
     if (!isTrainingMode) {
         const state = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, true, env.canvas.width, env.canvas.height);
         const result = agent.act(state);
@@ -275,12 +278,7 @@ async function moveAI() {
 
         const reward = calculateRewards(prevDistances, newDistances, goalHit, hitPuck);
 
-        // Add episode timeout penalty
-        if (shouldEndEpisode) {
-            reward.top -= 0.5;
-            reward.bottom -= 0.5;
-        }
-
+        // After updating the environment and collecting rewards
         // Store experiences
         if (previousState !== null) {
             agent.remember(
@@ -289,7 +287,7 @@ async function moveAI() {
                 reward.top,
                 previousValue.top,
                 previousLogProb.top,
-                goalHit !== false || shouldEndEpisode  // End episode on goal or timeout
+                isDone  // Mark as done if the maximum episode length is reached
             );
 
             agent.remember(
@@ -298,15 +296,15 @@ async function moveAI() {
                 reward.bottom,
                 previousValue.bottom,
                 previousLogProb.bottom,
-                goalHit !== false || shouldEndEpisode  // End episode on goal or timeout
+                isDone
             );
         }
 
         // Update previous states and actions
         previousState = { top: topState, bottom: bottomState };
-        previousAction = { 
-            top: topResult.action, 
-            bottom: bottomResult.action 
+        previousAction = {
+            top: topResult.action,
+            bottom: bottomResult.action
         };
         previousValue = {
             top: topResult.value,
@@ -317,32 +315,31 @@ async function moveAI() {
             bottom: bottomResult.logProb
         };
 
-        // Training code
+        // Increment frame count
         agent.frameCount++;
-        if (goalHit || shouldEndEpisode) {
-            // Train immediately when episode ends
+
+        // Train at fixed intervals
+        if (agent.frameCount % trainInterval === 0) {
             await agent.train();
-            resetEpisode();
-            
-            // Log metrics after each episode
-            if (agent.frameCount % 1000 < 128) {
-                logTrainingMetrics();
-            }
+            console.log(`Trained at frame ${agent.frameCount}`);
+
+            // Optionally, reset the environment
+            resetEnvironment();
         }
 
-        // Add rewards to episode total
-        episodeRewards.top += reward.top;
-        episodeRewards.bottom += reward.bottom;
+        // Reset the environment if done
+        if (isDone) {
+            resetEnvironment();
+        }
 
-        // Log metrics every 1000 steps
+        // Log metrics periodically
         if (agent.frameCount % 1000 === 0) {
             logTrainingMetrics();
         }
 
-        // Reset episode when needed
-        if (goalHit || shouldEndEpisode) {
-            resetEpisode();
-        }
+        // Accumulate rewards
+        episodeRewards.top += reward.top;
+        episodeRewards.bottom += reward.bottom;
     }
 }
 
@@ -372,7 +369,7 @@ function toggleTrainingMode() {
     isTrainingMode = !isTrainingMode;
     
     // Reset game state when switching modes
-    resetEpisode();
+    resetEnvironment();
     env.state.playerScore = 0;
     env.state.aiScore = 0;
     previousState = null;
