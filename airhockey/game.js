@@ -31,7 +31,7 @@ const CURRICULUM = {
 let currentStage = CURRICULUM.STAGE_1;
 let successfulHits = 0;
 let successfulGoals = 0;
-const HITS_TO_ADVANCE = 500;  // Number of successful hits to move to stage 2
+const HITS_TO_ADVANCE = 100;  // Number of successful hits to move to stage 2
 const GOALS_TO_ADVANCE = 50;  // Number of goals to move to stage 3
 
 let trainInterval = 1000; // Number of timesteps between training sessions
@@ -275,8 +275,8 @@ async function moveAI() {
         moveAgentPaddle(env.aiPaddle, topResult.action, true);
         moveAgentPaddle(env.playerPaddle, bottomResult.action, false);
 
-        // Check for goals after movement
-        const goalHit = env.isInGoal();
+        // Update the environment and get goalHit
+        const goalHit = env.update(mouseX, mouseY, isTrainingMode);
 
         // Calculate new distances after moving
         const newTopDistance = Math.sqrt(
@@ -303,6 +303,7 @@ async function moveAI() {
             bottom: newBottomDistance
         };
 
+        // Now calculate rewards using the updated puck position and goalHit
         const reward = calculateRewards(prevDistances, newDistances, goalHit, hitPuck);
 
         // After updating the environment and collecting rewards
@@ -371,7 +372,6 @@ async function moveAI() {
 
 async function gameLoop() {
     await moveAI();
-    const goalHit = env.update(mouseX, mouseY, isTrainingMode);
     env.draw();
     requestAnimationFrame(gameLoop);
 }
