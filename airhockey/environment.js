@@ -4,8 +4,8 @@ const GOAL_POSTS = 20;
 const TABLE_COLOR = '#2c3e50';
 const TABLE_BORDER = '#34495e';
 const CENTER_CIRCLE_RADIUS = 100;
-const friction = 0.99;
-const maxSpeed = 20;
+const friction = 0.98;
+const maxSpeed = 25;
 
 class AirHockeyEnvironment {
     constructor(canvas) {
@@ -161,48 +161,42 @@ class AirHockeyEnvironment {
     }
 
     handlePaddleCollision(paddle, prevX, prevY) {
-        // Continuous collision detection
+        // Calculate distance between puck and paddle
         const dx = this.puck.x - paddle.x;
         const dy = this.puck.y - paddle.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         if (distance < paddle.radius + this.puck.radius) {
-            // Calculate collision point
+            // Calculate collision angle
             const angle = Math.atan2(dy, dx);
             const minDistance = paddle.radius + this.puck.radius;
-            
+
             // Move puck outside paddle
             this.puck.x = paddle.x + Math.cos(angle) * minDistance;
             this.puck.y = paddle.y + Math.sin(angle) * minDistance;
-            
-            // Calculate new velocity based on paddle movement
-            const paddleSpeed = {
-                x: paddle.x - prevX,
-                y: paddle.y - prevY
-            };
-            
-            const dotProduct = (this.puck.dx * dx + this.puck.dy * dy) / (distance || 1);
-            
-            // Combine paddle momentum with puck direction
-            this.puck.dx = (Math.cos(angle) * Math.abs(dotProduct) + paddleSpeed.x * 0.9);
-            this.puck.dy = (Math.sin(angle) * Math.abs(dotProduct) + paddleSpeed.y * 0.9);
-            
-            // Add minimum speed after collision - Modified to prevent division by zero
-            const speed = Math.sqrt(this.puck.dx * this.puck.dx + this.puck.dy * this.puck.dy);
-            if (speed < 3 && speed > 0) {
-                const scaleFactor = 3 / speed;
+
+            // Calculate paddle velocity
+            const paddleVx = paddle.dx || 0;
+            const paddleVy = paddle.dy || 0;
+
+            // Calculate new puck velocity based on paddle velocity
+            const impactFactor = 1.8;  // Adjust this value as needed
+
+            this.puck.dx = paddleVx * impactFactor;
+            this.puck.dy = paddleVy * impactFactor;
+
+            // Ensure the puck has a minimum speed after collision
+            const puckSpeed = Math.sqrt(this.puck.dx * this.puck.dx + this.puck.dy * this.puck.dy);
+            const minPuckSpeed = 5.0; // Adjust as needed
+            if (puckSpeed < minPuckSpeed) {
+                const scaleFactor = minPuckSpeed / (puckSpeed || 1);
                 this.puck.dx *= scaleFactor;
                 this.puck.dy *= scaleFactor;
-            } else if (speed === 0) {
-                // If speed is zero, give the puck a minimum velocity in the collision direction
-                this.puck.dx = Math.cos(angle) * 3;
-                this.puck.dy = Math.sin(angle) * 3;
             }
-            
-            // Enforce speed limit
-            const finalSpeed = Math.sqrt(this.puck.dx * this.puck.dx + this.puck.dy * this.puck.dy);
-            if (finalSpeed > maxSpeed) {
-                const scaleFactor = maxSpeed / finalSpeed;
+
+            // Ensure puck's speed does not exceed maxSpeed
+            if (puckSpeed > maxSpeed) {
+                const scaleFactor = maxSpeed / puckSpeed;
                 this.puck.dx *= scaleFactor;
                 this.puck.dy *= scaleFactor;
             }
@@ -267,18 +261,6 @@ class AirHockeyEnvironment {
         const prevPlayerY = this.playerPaddle.y;
         const prevAIX = this.aiPaddle.x;
         const prevAIY = this.aiPaddle.y;
-
-        // Update player paddle position only if not in training mode
-        if (!isTrainingMode) {
-            this.playerPaddle.x = mouseX;
-            this.playerPaddle.y = mouseY;
-
-            // Restrict player to bottom half
-            this.playerPaddle.x = Math.max(this.playerPaddle.radius, 
-                Math.min(this.canvas.width - this.playerPaddle.radius, this.playerPaddle.x));
-            this.playerPaddle.y = Math.max(this.canvas.height/2 + this.playerPaddle.radius, 
-                Math.min(this.canvas.height - this.playerPaddle.radius, this.playerPaddle.y));
-        }
 
         // Update puck position
         this.puck.x += this.puck.dx;

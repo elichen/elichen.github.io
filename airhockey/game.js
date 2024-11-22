@@ -28,11 +28,11 @@ const CURRICULUM = {
 };
 
 // Add curriculum tracking
-let currentStage = CURRICULUM.STAGE_1;
+let currentStage = CURRICULUM.STAGE_2;
 let successfulHits = 0;
 let successfulGoals = 0;
-const HITS_TO_ADVANCE = 1000;  // Number of successful hits to move to stage 2
-const GOALS_TO_ADVANCE = 100;  // Number of goals to move to stage 3
+const HITS_TO_ADVANCE = 500;  // Reduce number of successful hits to move to stage 2
+const GOALS_TO_ADVANCE = 50;  // Reduce number of goals to move to stage 3
 
 let trainInterval = 1000; // Number of timesteps between training sessions
 
@@ -111,6 +111,10 @@ function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
     const timePenalty = -0.001;
     let reward = { top: timePenalty, bottom: timePenalty };
 
+    // Define stronger rewards for scoring goals
+    const goalReward = 10.0;
+    const goalPenalty = -10.0;
+
     // Add position-based defensive reward
     const defensivePositionReward = (paddle, puck, isTop) => {
         // Calculate ideal defensive position (between puck and goal)
@@ -152,27 +156,25 @@ function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
             }
             break;
 
-        case CURRICULUM.STAGE_2:  // Gradual transition to scoring
-            // Maintain basic puck control but with reduced rewards
-            reward.top += (prevDistances.top > newDistances.top ? 0.1 : -0.05);
-            reward.bottom += (prevDistances.bottom > newDistances.bottom ? 0.1 : -0.05);
-            
-            // Reduced but non-zero basic hit reward
+        case CURRICULUM.STAGE_2:  // Focus on scoring goals
+            // Basic rewards for hitting the puck
             if (hitPuck.top) {
                 const towardGoal = env.puck.dy > 0;
-                reward.top += towardGoal ? 1.5 : 0.2; // Reduced non-goal hit reward instead of penalty
+                reward.top += towardGoal ? 2.0 : 0.5;
             }
             if (hitPuck.bottom) {
                 const towardGoal = env.puck.dy < 0;
-                reward.bottom += towardGoal ? 1.5 : 0.2; // Reduced non-goal hit reward instead of penalty
+                reward.bottom += towardGoal ? 2.0 : 0.5;
             }
 
-            // Strong scoring rewards
+            // Provide stronger rewards for scoring
             if (goalHit === 'top') {
-                reward.bottom += 5.0;
+                reward.bottom += goalReward;
+                reward.top += goalPenalty;
                 successfulGoals++;
             } else if (goalHit === 'bottom') {
-                reward.top += 5.0;
+                reward.top += goalReward;
+                reward.bottom += goalPenalty;
                 successfulGoals++;
             }
 
@@ -182,32 +184,32 @@ function calculateRewards(prevDistances, newDistances, goalHit, hitPuck) {
             }
             break;
 
-        case CURRICULUM.STAGE_3:  // Strategy stage remains mostly the same
+        case CURRICULUM.STAGE_3:  // Advanced strategies
             // Defensive positioning reward
             const topDefenseReward = defensivePositionReward(env.aiPaddle, env.puck, true);
             const bottomDefenseReward = defensivePositionReward(env.playerPaddle, env.puck, false);
             reward.top += topDefenseReward * 0.3;
             reward.bottom += bottomDefenseReward * 0.3;
-            
+
             // Offensive rewards
             if (hitPuck.top) {
                 const towardGoal = env.puck.dy > 0;
                 const puckSpeed = Math.sqrt(env.puck.dx * env.puck.dx + env.puck.dy * env.puck.dy);
-                reward.top += towardGoal ? (0.5 + puckSpeed/maxSpeed) : 0.1;
+                reward.top += towardGoal ? (1.0 + puckSpeed / maxSpeed) : 0.2;
             }
             if (hitPuck.bottom) {
                 const towardGoal = env.puck.dy < 0;
                 const puckSpeed = Math.sqrt(env.puck.dx * env.puck.dx + env.puck.dy * env.puck.dy);
-                reward.bottom += towardGoal ? (0.5 + puckSpeed/maxSpeed) : 0.1;
+                reward.bottom += towardGoal ? (1.0 + puckSpeed / maxSpeed) : 0.2;
             }
 
-            // Goal rewards/penalties remain the same
+            // Strong rewards and penalties for goals
             if (goalHit === 'top') {
-                reward.bottom += 2.0;
-                reward.top -= 1.0;
+                reward.bottom += goalReward;
+                reward.top += goalPenalty;
             } else if (goalHit === 'bottom') {
-                reward.top += 2.0;
-                reward.bottom -= 1.0;
+                reward.top += goalReward;
+                reward.bottom += goalPenalty;
             }
             break;
     }
@@ -224,9 +226,27 @@ async function moveAI() {
     const isDone = currentEpisodeFrames >= maxEpisodeLength;
 
     if (!isTrainingMode) {
+        // Move the AI paddle
         const state = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, true, env.canvas.width, env.canvas.height);
         const result = agent.act(state);
         moveAgentPaddle(env.aiPaddle, result.action, true);
+
+        // Move the player paddle using mouse input
+        let dx = mouseX - env.playerPaddle.x;
+        let dy = mouseY - env.playerPaddle.y;
+
+        // Normalize the direction vector
+        const magnitude = Math.sqrt(dx * dx + dy * dy);
+        if (magnitude > 0) {
+            dx /= magnitude;
+            dy /= magnitude;
+        } else {
+            dx = 0;
+            dy = 0;
+        }
+
+        const action = [dx, dy];
+        moveAgentPaddle(env.playerPaddle, action, false);
     } else {
         const topState = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, true, env.canvas.width, env.canvas.height);
         const bottomState = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, false, env.canvas.width, env.canvas.height);
@@ -352,7 +372,7 @@ async function gameLoop() {
 
 async function initializeAI() {
     await tf.ready();
-    agent = new PPOAgent(11, 2);  // 11 state inputs, 2 continuous actions (x, y movement)
+    agent = new PPOAgent(14, 2);  // 14 state inputs, 2 continuous actions (x, y movement)
     console.log("PPO AI initialized and ready for training!");
 }
 

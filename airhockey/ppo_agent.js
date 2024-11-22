@@ -8,7 +8,7 @@ class PPOAgent {
         this.gamma = 0.99;
         this.lambda = 0.95;
         this.epsilon = 0.2; // PPO clipping parameter
-        this.learningRate = 0.0003;
+        this.learningRate = 0.0005;
         
         // Create actor (policy) and critic (value) networks
         this.actor = this.createActorNetwork();
@@ -324,39 +324,51 @@ class PPOAgent {
         const ownPaddle = isTopPlayer ? aiPaddle : playerPaddle;
         const oppPaddle = isTopPlayer ? playerPaddle : aiPaddle;
         
-        // **Flip the y-axis for the top player to standardize the coordinate system**
+        // Flip the y-axis for the top player to standardize the coordinate system
         const ownY = isTopPlayer ? canvasHeight - ownPaddle.y : ownPaddle.y;
         const oppY = isTopPlayer ? canvasHeight - oppPaddle.y : oppPaddle.y;
         const puckY = isTopPlayer ? canvasHeight - puck.y : puck.y;
         const puckDy = isTopPlayer ? -puck.dy : puck.dy;
 
-        // Convert everything to relative coordinates from paddle's perspective
-        let relativeX = (puck.x - ownPaddle.x) / canvasWidth;
-        let relativeY = (puckY - ownY) / canvasHeight;
+        // Normalize positions and velocities
+        const normX = canvasWidth; // Normalize x positions by canvas width
+        const normY = canvasHeight; // Normalize y positions by canvas height
+        const normSpeed = maxSpeed; // Normalize velocities by max speed
 
-        // Velocities relative to paddle
-        let relativeDx = puck.dx / maxSpeed;
-        let relativeDy = puckDy / maxSpeed;
+        // Relative positions (normalized between -1 and 1)
+        let relativeX = ((puck.x - ownPaddle.x) / normX) * 2;
+        let relativeY = ((puckY - ownY) / normY) * 2;
 
-        // Opponent position relative to own paddle
-        let relativeOppX = (oppPaddle.x - ownPaddle.x) / canvasWidth;
-        let relativeOppY = (oppY - ownY) / canvasHeight;
+        // Relative velocities (normalized between -1 and 1)
+        let relativeDx = (puck.dx / normSpeed) * 2;
+        let relativeDy = (puckDy / normSpeed) * 2;
+
+        // Opponent position relative to own paddle (normalized between -1 and 1)
+        let relativeOppX = ((oppPaddle.x - ownPaddle.x) / normX) * 2;
+        let relativeOppY = ((oppY - ownY) / normY) * 2;
         
-        // Distance to the puck
-        const distance = Math.sqrt(relativeX * relativeX + relativeY * relativeY);
-        
-        // Angle from paddle to puck (relative to vertical)
-        const angle = Math.atan2(relativeX, relativeY) / Math.PI;
-        
+        // Distance to the puck (normalized between 0 and 1)
+        const distance = Math.sqrt(relativeX * relativeX + relativeY * relativeY) / Math.sqrt(2);
+
+        // Angle from paddle to puck (normalized between -1 and 1)
+        const angle = Math.atan2(relativeY, relativeX) / Math.PI; // Normalized angle
+
         // Is puck behind paddle relative to goal
-        const isPuckBehind = puckY > ownY;
+        const isPuckBehind = puckY > ownY ? 1 : 0;
         
-        // Distance to own goal (normalized)
-        const distanceToGoal = (canvasHeight - ownY) / (canvasHeight / 2);
+        // Distance to own goal (normalized between -1 and 1)
+        const distanceToGoal = ((canvasHeight - ownY) / (canvasHeight / 2)) - 1;
         
-        // Distance of puck to goal (normalized)
-        const puckToGoal = (canvasHeight - puckY) / (canvasHeight / 2);
+        // Distance of puck to goal (normalized between -1 and 1)
+        const puckToGoal = ((canvasHeight - puckY) / (canvasHeight / 2)) - 1;
         
+        // Normalize paddle speeds (own paddle)
+        const ownDx = ((ownPaddle.dx || 0) / normSpeed) * 2;
+        const ownDy = ((ownPaddle.dy || 0) / normSpeed) * 2;
+
+        // Normalize puck speed
+        const puckSpeed = Math.sqrt(puck.dx * puck.dx + puck.dy * puck.dy) / normSpeed;
+
         return [
             relativeX,
             relativeY,
@@ -366,9 +378,12 @@ class PPOAgent {
             relativeOppY,
             distance,
             angle,
-            isPuckBehind ? 1 : 0,
+            isPuckBehind,
             distanceToGoal,
-            puckToGoal
+            puckToGoal,
+            ownDx,
+            ownDy,
+            puckSpeed
         ];
     }
 } 
