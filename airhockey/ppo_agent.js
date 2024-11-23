@@ -133,14 +133,24 @@ class PPOAgent {
         });
     }
 
-    act(state) {
+    act(state, isTraining = true) {
         return tf.tidy(() => {
             const stateTensor = tf.tensor2d([state], [1, this.stateSize]);
             const actionParams = this.actor.predict(stateTensor);
             
             // Split into mean and stddev
             const mean = actionParams.slice([0, 0], [-1, this.actionSize]);
-            // Use softplus to ensure positive standard deviation
+            
+            if (!isTraining) {
+                // During evaluation, use mean action directly without sampling
+                return {
+                    action: mean.dataSync(),
+                    value: this.critic.predict(stateTensor).dataSync()[0],
+                    logProb: 0  // Not needed during evaluation
+                };
+            }
+            
+            // During training, sample actions using noise
             const stddev = tf.softplus(actionParams.slice([0, this.actionSize], [-1, this.actionSize]))
                 .add(1e-5); // Add small constant for numerical stability
             

@@ -235,7 +235,7 @@ async function moveAI() {
     if (!isTrainingMode) {
         // Move the AI paddle
         const state = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, true, env.canvas.width, env.canvas.height);
-        const result = agent.act(state);
+        const result = agent.act(state, false);
         moveAgentPaddle(env.aiPaddle, result.action, true);
 
         // Store previous position to calculate velocity
