@@ -6,7 +6,7 @@ class DQNAgent {
     this.gamma = gamma;
     this.batchSize = batchSize;
     this.maxMemorySize = maxMemorySize;
-    this.memory = [];
+    this.memory = new Map();
     this.fixedEpsilonSteps = fixedEpsilonSteps;
     this.decayEpsilonRate = (epsilonStart-epsilonEnd) / decayEpsilonSteps;
     this.currentStep = 0;
@@ -16,18 +16,15 @@ class DQNAgent {
 
   act(state, isTraining = true, validMoves) {
     if (isTraining && Math.random() < this.epsilon) {
-      // Choose a random valid move during exploration
       return validMoves[Math.floor(Math.random() * validMoves.length)];
     } else {
       return tf.tidy(() => {
         const qValues = this.model.predict(state);
         
-        // Create a mask for valid moves
         const mask = new Array(9).fill(-Infinity);
         validMoves.forEach(move => mask[move] = 0);
         const maskTensor = tf.tensor1d(mask);
         
-        // Add the mask to qValues to make invalid moves have very low values
         const maskedQValues = qValues.add(maskTensor);
         
         return tf.argMax(maskedQValues, 1).dataSync()[0];
@@ -36,18 +33,25 @@ class DQNAgent {
   }
 
   remember(state, action, reward, nextState, done) {
-    if (this.memory.length >= this.maxMemorySize) {
-      this.memory.shift();
+    const key = this.getStateActionKey(state, action);
+    
+    this.memory.set(key, [state, action, reward, nextState, done]);
+    
+    if (this.memory.size > this.maxMemorySize) {
+      const firstKey = this.memory.keys().next().value;
+      this.memory.delete(firstKey);
     }
-    this.memory.push([state, action, reward, nextState, done]);
+  }
+
+  getStateActionKey(state, action) {
+    return `${state.join(',')}-${action}`;
   }
 
   async replay() {
-    if (this.memory.length < this.batchSize) return null;
+    if (this.memory.size < this.batchSize) return null;
 
-    console.log(`Replay history size: ${this.memory.length}`);
+    console.log(`Replay memory size: ${this.memory.size}`);
 
-    // If already training, add to queue and return
     if (this.isTraining) {
       return new Promise((resolve) => {
         this.trainingQueue.push(resolve);
@@ -105,7 +109,6 @@ class DQNAgent {
         y = tf.keep(currentQs.mul(tf.scalar(1).sub(mask)).add(Q_targets_expanded.mul(mask)));
       });
 
-      // Train the model
       const loss = await this.model.train(x, y);
       
       x.dispose();
@@ -118,7 +121,6 @@ class DQNAgent {
     } finally {
       this.isTraining = false;
       
-      // Process next item in queue if any
       if (this.trainingQueue.length > 0) {
         const nextResolve = this.trainingQueue.shift();
         nextResolve(this.replay());
@@ -127,26 +129,21 @@ class DQNAgent {
   }
 
   getRandomBatch(batchSize) {
-    const indices = [];
-    while (indices.length < batchSize) {
-      const index = Math.floor(Math.random() * this.memory.length);
-      if (!indices.includes(index)) {
-        indices.push(index);
-      }
-    }
-    return indices.map(index => this.memory[index]);
+    const experiences = Array.from(this.memory.values());
+    const shuffled = experiences.sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, batchSize);
   }
 
   getMemorySize() {
-    return this.memory.length;
+    return this.memory.size;
   }
 
   decayEpsilon() {
     this.currentStep++;
     if (this.currentStep <= this.fixedEpsilonSteps) {
-      // Do nothing, keep epsilon fixed
+      // Keep epsilon fixed for first 250 steps
     } else if (this.epsilon > 0) {
-      // Linear decay
+      // Linear decay over next 250 steps
       this.epsilon = Math.max(this.epsilonEnd, this.epsilon - this.decayEpsilonRate);
     }
   }
