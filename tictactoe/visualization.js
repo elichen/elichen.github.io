@@ -3,7 +3,6 @@ class Visualization {
     this.chart = null;
     this.windowSize = windowSize;
     this.smoothingFactor = smoothingFactor;
-    this.smoothedLoss = null;
     this.totalGames = 0;
     this.totalWins = 0;
   }
@@ -23,13 +22,6 @@ class Visualization {
             yAxisID: 'y-epsilon'
           },
           {
-            label: 'Smoothed Loss',
-            data: [],
-            borderColor: 'rgb(75, 192, 192)',
-            tension: 0.1,
-            yAxisID: 'y-loss'
-          },
-          {
             label: 'Win % (Last 10 Games)',
             data: [],
             borderColor: 'rgb(54, 162, 235)',
@@ -40,11 +32,11 @@ class Visualization {
       },
       options: {
         responsive: true,
-        animation: false,  // Disable all animations
+        animation: false,
         transitions: {
           active: {
             animation: {
-              duration: 0  // Disable transitions when hovering
+              duration: 0
             }
           }
         },
@@ -59,21 +51,6 @@ class Visualization {
             },
             min: 0,
             max: 1
-          },
-          'y-loss': {
-            type: 'linear',
-            display: true,
-            position: 'right',
-            title: {
-              display: false,
-            },
-            min: 0,
-            ticks: {
-              display: false  // This will hide the number labels
-            },
-            grid: {
-              drawOnChartArea: false
-            }
           },
           'y-win-percentage': {
             type: 'linear',
@@ -102,7 +79,7 @@ class Visualization {
           legend: {
             labels: {
               font: {
-                size: 14  // Increase font size for better readability
+                size: 14
               }
             }
           }
@@ -112,13 +89,6 @@ class Visualization {
   }
 
   updateChart(episode, epsilon, loss, gameResult) {
-    // Smooth the loss
-    if (this.smoothedLoss === null) {
-      this.smoothedLoss = loss;
-    } else {
-      this.smoothedLoss = this.smoothingFactor * loss + (1 - this.smoothingFactor) * this.smoothedLoss;
-    }
-
     // Update total games and wins
     this.totalGames++;
     if (gameResult === 1) {
@@ -130,14 +100,12 @@ class Visualization {
 
     // Update datasets
     this.chart.data.datasets[0].data.push({x: episode, y: epsilon});
-    this.chart.data.datasets[1].data.push({x: episode, y: this.smoothedLoss});
-    this.chart.data.datasets[2].data.push({x: episode, y: winPercentage});
+    this.chart.data.datasets[1].data.push({x: episode, y: winPercentage});
 
     // Remove old data points if we exceed the window size
     if (this.chart.data.datasets[0].data.length > this.windowSize) {
       this.chart.data.datasets[0].data.shift();
       this.chart.data.datasets[1].data.shift();
-      this.chart.data.datasets[2].data.shift();
     }
 
     // Update x-axis min and max
@@ -155,7 +123,6 @@ class Visualization {
     });
     this.chart.options.scales.x.min = 0;
     this.chart.options.scales.x.max = this.windowSize;
-    this.smoothedLoss = null;
     this.totalGames = 0;
     this.totalWins = 0;
     this.chart.update();
