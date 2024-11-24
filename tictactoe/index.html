@@ -15,17 +15,6 @@
         <div id="winPercentage" class="stats"></div>
         <canvas id="chart"></canvas>
         <button id="modeButton" class="btn">Switch to Test Mode</button>
-        
-        <div id="testModeOptions" class="options">
-            <label for="humanOpponentCheckbox">Play against human: </label>
-            <input type="checkbox" id="humanOpponentCheckbox">
-        </div>
-
-        <div class="options">
-            <label for="difficultySlider">Opponent Difficulty: </label>
-            <input type="range" id="difficultySlider" min="0" max="10" value="0" step="1" oninput="updateDifficulty(this.value)">
-            <span id="difficultyValue">0</span>
-        </div>
     </div>
 
     <script src="model.js"></script>

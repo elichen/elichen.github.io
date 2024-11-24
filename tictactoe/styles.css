@@ -135,41 +135,6 @@ input[type="checkbox"]:checked::before {
     line-height: 18px;
 }
 
-input[type="range"] {
-    -webkit-appearance: none;
-    width: 200px;
-    height: 6px;
-    background: #d2d2d7;
-    border-radius: 3px;
-    outline: none;
-    margin: 0 10px;
-    vertical-align: middle;
-}
-
-input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 20px;
-    height: 20px;
-    background: #007aff;
-    border-radius: 50%;
-    cursor: pointer;
-}
-
-input[type="range"]::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
-    background: #007aff;
-    border-radius: 50%;
-    cursor: pointer;
-}
-
-#difficultyValue {
-    font-size: 16px;
-    color: #1d1d1f;
-    font-weight: 500;
-}
-
 #chart {
     margin-top: 30px;
     max-width: 100%;
@@ -192,10 +157,5 @@ input[type="range"]::-moz-range-thumb {
     .options {
         flex-direction: column;
         align-items: stretch;
-    }
-
-    input[type="range"] {
-        width: 100%;
-        margin: 10px 0;
     }
 }
