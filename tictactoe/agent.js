@@ -50,8 +50,6 @@ class DQNAgent {
   async replay() {
     if (this.memory.size < this.batchSize) return null;
 
-    console.log(`Replay memory size: ${this.memory.size}`);
-
     if (this.isTraining) {
       return new Promise((resolve) => {
         this.trainingQueue.push(resolve);
