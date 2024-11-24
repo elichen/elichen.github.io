@@ -6,15 +6,12 @@ let isTraining = true;
 let episodeCount = 0;
 let testGamesPlayed = 0;
 let testGamesWon = 0;
-let opponentDifficulty = 0; // Default difficulty
-let isHumanOpponent = false;
-let gameLoopTimeout = null; // Add this line to keep track of the game loop
+let gameLoopTimeout = null;
 
 function toggleMode() {
   isTraining = !isTraining;
   document.getElementById('modeButton').textContent = isTraining ? 'Switch to Test Mode' : 'Switch to Train Mode';
   if (!isTraining) {
-    // Reset test statistics when entering test mode
     testGamesPlayed = 0;
     testGamesWon = 0;
     updateWinPercentage();
@@ -27,11 +24,6 @@ function updateWinPercentage() {
   document.getElementById('winPercentage').textContent = `Win Percentage: ${winPercentage}%`;
 }
 
-function getOpponentMove(game) {
-  const randomThreshold = opponentDifficulty / 10;
-  return Math.random() < randomThreshold ? game.findOptimalMove() : game.findRandomMove();
-}
-
 function getRandomStartingPlayer() {
   return Math.random() < 0.5 ? 1 : 2;
 }
@@ -39,121 +31,73 @@ function getRandomStartingPlayer() {
 async function runEpisode() {
   const agentStarts = getRandomStartingPlayer() === 1;
   game.reset(isTraining, agentStarts);
-  let totalReward = 0;
-  let moveCount = 0;
-  let loss = null;
-  let gameResult = 0; // 0 for draw, 1 for win, -1 for loss
+  let gameResult = 0;
 
-  // Render the initial game state for human opponent mode
-  if (!isTraining && isHumanOpponent) {
+  if (!isTraining) {
     game.render(isTraining);
   }
 
   while (!game.gameOver) {
-    const state = game.getState();
+    const currentPlayerState = game.getState();
     const validMoves = game.getValidMoves();
-    let action, nextState;
-    let reward = 0;
+    let action;
 
-    if (game.currentPlayer === 1) {
-      // Agent's turn (always X)
-      tf.tidy(() => {
-        action = agent.act(state, isTraining, validMoves);
-      });
-
-      game.makeMove(action);
-      moveCount++;
-      
-      // Check if the game is over after agent's move
-      if (game.gameOver) {
-        if (game.isDraw()) {
-          reward = 0.5;  // Draw
-          console.log(`Game ended in a tie after ${moveCount} moves.`);
-        } else {
-          reward = 1;  // Win
-          console.log(`Agent won in ${moveCount} moves!`);
-          if (!isTraining) {
-            testGamesWon++;
-          }
-        }
-      }
+    if (!isTraining && game.currentPlayer === 2) {
+      action = await waitForHumanMove();
     } else {
-      // Opponent's turn (always O)
-      if (isHumanOpponent && !isTraining) {
-        // Wait for human move
-        action = await waitForHumanMove();
-      } else {
-        action = getOpponentMove(game);
-      }
-      game.makeMove(action);
-      moveCount++;
-      
-      // Evaluate the result after opponent's move
-      if (game.gameOver) {
-        if (game.isDraw()) {
-          reward = 0.5;  // Draw
-          console.log(`Game ended in a tie after ${moveCount} moves.`);
-        } else {
-          reward = -1;  // Loss
-          console.log(`Agent lost after ${moveCount} moves.`);
-        }
-      }
+      tf.tidy(() => {
+        action = agent.act(currentPlayerState, isTraining, validMoves);
+      });
     }
 
-    nextState = game.getState();
+    // Store pre-move state and action
+    const preState = game.getState();
+    game.makeMove(action);
+    
+    // Get reward and next state from current player's perspective
+    const reward = game.getReward(game.currentPlayer === 1 ? 2 : 1); // Get reward for player who just moved
+    const nextState = game.getState(game.currentPlayer === 1 ? 2 : 1); // Get next state from that player's perspective
 
-    // Store the experience after each move
-    if (game.currentPlayer === 2) {  // Store after agent's move (when it's opponent's turn)
-      agent.remember(state, action, reward, nextState, game.gameOver);
+    // Store experience for the player who just moved
+    if (isTraining) {
+      agent.remember(preState, action, reward, nextState, game.gameOver);
     }
-
-    totalReward += reward;
 
     if (!isTraining) {
       game.render(isTraining);
-      if (!isHumanOpponent) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
     }
   }
 
-  game.render(isTraining); // Render the final game state
+  game.render(isTraining);
 
   episodeCount++;
   if (isTraining) {
     agent.decayEpsilon();
-    loss = await agent.replay();
+    const loss = await agent.replay();
     
     // Determine game result for visualization
-    if (totalReward > 0) {
-      gameResult = 1; // Win
-    } else if (totalReward < 0) {
-      gameResult = -1; // Loss
+    if (game.checkWin(1)) {
+      gameResult = 1;
+    } else if (game.checkWin(-1)) {
+      gameResult = -1;
     }
   } else {
     testGamesPlayed++;
+    if (game.checkWin(1)) testGamesWon++;
     updateWinPercentage();
   }
   
-  // Update the chart with the game result
-  visualization.updateChart(episodeCount, agent.epsilon, loss, gameResult);
+  visualization.updateChart(episodeCount, agent.epsilon, null, gameResult);
 
-  // Update this part at the end of runEpisode
   if (isTraining || !isTraining) {
-    if (!isTraining && isHumanOpponent) {
+    if (!isTraining) {
       await showNewGameMessage();
     }
-    // Clear any existing timeout before setting a new one
     if (gameLoopTimeout) {
       clearTimeout(gameLoopTimeout);
     }
     gameLoopTimeout = setTimeout(runEpisode, isTraining ? 0 : 1000);
   }
-}
-
-function updateDifficulty(value) {
-  opponentDifficulty = value;
-  document.getElementById('difficultyValue').textContent = value;
 }
 
 function waitForHumanMove() {
@@ -171,7 +115,6 @@ function waitForHumanMove() {
 }
 
 function resetGame() {
-  // Clear any existing game loop before resetting
   if (gameLoopTimeout) {
     clearTimeout(gameLoopTimeout);
     gameLoopTimeout = null;
@@ -180,7 +123,6 @@ function resetGame() {
   if (!isTraining) {
     runEpisode();
   } else {
-    // If switching to training mode, start a new episode
     gameLoopTimeout = setTimeout(runEpisode, 0);
   }
 }
@@ -189,21 +131,12 @@ async function init() {
   visualization.createChart();
   document.getElementById('modeButton').addEventListener('click', toggleMode);
   
-  // Create the win percentage element and insert it into the container
   const winPercentageElement = document.createElement('div');
   winPercentageElement.id = 'winPercentage';
   winPercentageElement.className = 'stats';
   const container = document.querySelector('.container');
   container.insertBefore(winPercentageElement, document.getElementById('chart'));
   
-  document.getElementById('humanOpponentCheckbox').addEventListener('change', (event) => {
-    isHumanOpponent = event.target.checked;
-    if (!isTraining) {
-      resetGame();
-    }
-  });
-  
-  // Start the initial episode
   gameLoopTimeout = setTimeout(runEpisode, 0);
 }
 
@@ -219,7 +152,7 @@ function showNewGameMessage() {
     
     setTimeout(() => {
       messageElement.remove();
-      game.render(false); // Render the new game state immediately after removing the message
+      game.render(false);
       resolve();
     }, 1000);
   });

@@ -27,6 +27,25 @@ class TicTacToeGame {
     return false;
   }
 
+  getState(forPlayer = this.currentPlayer) {
+    if (forPlayer === 1) {
+      return [...this.board];
+    } else {
+      return this.board.map(x => -x);
+    }
+  }
+
+  getReward(forPlayer = this.currentPlayer) {
+    if (!this.gameOver) return 0;
+    
+    if (this.isDraw()) return 0.5;
+    
+    const winner = this.checkWin(1) ? 1 : (this.checkWin(-1) ? 2 : 0);
+    if (winner === 0) return 0.5;
+    
+    return winner === forPlayer ? 1 : -1;
+  }
+
   checkGameOver() {
     if (this.checkWin(1) || this.checkWin(-1)) {
       this.gameOver = true;
@@ -38,17 +57,12 @@ class TicTacToeGame {
     }
   }
 
-  getState() {
-    return this.board;
-  }
-
   clearDisplay() {
     this.container.innerHTML = '';
   }
 
   render(isTraining = false) {
     if (isTraining && !this.gameOver) {
-      // Don't render intermediate states during training
       return;
     }
 
@@ -81,9 +95,9 @@ class TicTacToeGame {
 
   getGameOverMessage() {
     if (this.checkWin(1)) {
-      return "Agent (X) wins!";
+      return "X wins!";
     } else if (this.checkWin(-1)) {
-      return "Opponent (O) wins!";
+      return "O wins!";
     } else if (!this.board.includes(0)) {
       return "It's a draw!";
     } else {
@@ -102,82 +116,6 @@ class TicTacToeGame {
     return this.gameOver && !this.board.includes(0);
   }
 
-  findOptimalMove() {
-    const currentPlayer = this.currentPlayer === 1 ? 1 : -1;
-    const opponent = -currentPlayer;
-
-    // If center is empty, take it
-    if (this.board[4] === 0) return 4;
-
-    // Check for winning move
-    for (let i = 0; i < 9; i++) {
-      if (this.board[i] === 0) {
-        this.board[i] = currentPlayer;
-        if (this.checkWin(currentPlayer)) {
-          this.board[i] = 0;
-          return i;
-        }
-        this.board[i] = 0;
-      }
-    }
-
-    // Check for blocking opponent's winning move
-    for (let i = 0; i < 9; i++) {
-      if (this.board[i] === 0) {
-        this.board[i] = opponent;
-        if (this.checkWin(opponent)) {
-          this.board[i] = 0;
-          return i;
-        }
-        this.board[i] = 0;
-      }
-    }
-
-    // Create a fork or block opponent's fork
-    const forkMove = this.findForkMove(currentPlayer) || this.findForkMove(opponent);
-    if (forkMove !== -1) return forkMove;
-
-    // Take corners if available
-    const corners = [0, 2, 6, 8];
-    const availableCorners = corners.filter(i => this.board[i] === 0);
-    if (availableCorners.length > 0) {
-      return availableCorners[Math.floor(Math.random() * availableCorners.length)];
-    }
-
-    // Take any available side
-    const sides = [1, 3, 5, 7];
-    const availableSides = sides.filter(i => this.board[i] === 0);
-    if (availableSides.length > 0) {
-      return availableSides[Math.floor(Math.random() * availableSides.length)];
-    }
-
-    // No moves available (shouldn't happen in a normal game)
-    return -1;
-  }
-
-  findForkMove(player) {
-    for (let i = 0; i < 9; i++) {
-      if (this.board[i] === 0) {
-        this.board[i] = player;
-        let winningMoves = 0;
-        for (let j = 0; j < 9; j++) {
-          if (this.board[j] === 0) {
-            this.board[j] = player;
-            if (this.checkWin(player)) {
-              winningMoves++;
-            }
-            this.board[j] = 0;
-          }
-        }
-        this.board[i] = 0;
-        if (winningMoves >= 2) {
-          return i;
-        }
-      }
-    }
-    return -1;
-  }
-
   checkWin(player) {
     const winPatterns = [
       [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
@@ -192,12 +130,5 @@ class TicTacToeGame {
       }
     }
     return false;
-  }
-
-  // Add a new method to find a random valid move
-  findRandomMove() {
-    const validMoves = this.getValidMoves();
-    if (validMoves.length === 0) return -1;
-    return validMoves[Math.floor(Math.random() * validMoves.length)];
   }
 }
