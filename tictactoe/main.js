@@ -32,6 +32,7 @@ async function runEpisode() {
   const agentStarts = getRandomStartingPlayer() === 1;
   game.reset(isTraining, agentStarts);
   let gameResult = 0;
+  let episodeLoss = null;
 
   if (!isTraining) {
     game.render(isTraining);
@@ -55,12 +56,15 @@ async function runEpisode() {
     game.makeMove(action);
     
     // Get reward and next state from current player's perspective
-    const reward = game.getReward(game.currentPlayer === 1 ? 2 : 1); // Get reward for player who just moved
-    const nextState = game.getState(game.currentPlayer === 1 ? 2 : 1); // Get next state from that player's perspective
+    const reward = game.getReward(game.currentPlayer === 1 ? 2 : 1);
+    const nextState = game.getState(game.currentPlayer === 1 ? 2 : 1);
 
-    // Store experience for the player who just moved
+    // Store experience and potentially train
     if (isTraining) {
-      agent.remember(preState, action, reward, nextState, game.gameOver);
+      const loss = await agent.remember(preState, action, reward, nextState, game.gameOver);
+      if (loss !== null) {
+        episodeLoss = loss;  // Store the most recent loss
+      }
     }
 
     if (!isTraining) {
@@ -73,7 +77,6 @@ async function runEpisode() {
   episodeCount++;
   if (isTraining) {
     agent.decayEpsilon();
-    const loss = await agent.replay();
     
     // Determine game result for visualization
     if (game.checkWin(1)) {
@@ -87,7 +90,7 @@ async function runEpisode() {
     updateWinPercentage();
   }
   
-  visualization.updateChart(episodeCount, agent.epsilon, null, gameResult);
+  visualization.updateChart(episodeCount, agent.epsilon, episodeLoss, gameResult);
 
   if (isTraining || !isTraining) {
     if (!isTraining) {

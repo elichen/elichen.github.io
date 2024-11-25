@@ -1,5 +1,5 @@
 class DQNAgent {
-  constructor(epsilonStart = 0.7, epsilonEnd = 0.1, gamma = 0.995, batchSize = 500, maxMemorySize = 100000, fixedEpsilonSteps = 250, decayEpsilonSteps = 250) {
+  constructor(epsilonStart = 0.7, epsilonEnd = 0.1, gamma = 0.995, batchSize = 32, maxMemorySize = 100000, fixedEpsilonSteps = 250, decayEpsilonSteps = 250) {
     this.model = new TicTacToeModel();
     this.epsilon = epsilonStart;
     this.epsilonEnd = epsilonEnd;
@@ -12,6 +12,8 @@ class DQNAgent {
     this.currentStep = 0;
     this.isTraining = false;
     this.trainingQueue = [];
+    this.frameCount = 0;
+    this.trainFrequency = 4;
   }
 
   act(state, isTraining = true, validMoves) {
@@ -32,15 +34,20 @@ class DQNAgent {
     }
   }
 
-  remember(state, action, reward, nextState, done) {
+  async remember(state, action, reward, nextState, done) {
     const key = this.getStateActionKey(state, action);
-    
     this.memory.set(key, [state, action, reward, nextState, done]);
     
     if (this.memory.size > this.maxMemorySize) {
       const firstKey = this.memory.keys().next().value;
       this.memory.delete(firstKey);
     }
+
+    this.frameCount++;
+    if (this.frameCount % this.trainFrequency === 0 && this.memory.size >= this.batchSize) {
+      return await this.replay();
+    }
+    return null;
   }
 
   getStateActionKey(state, action) {
