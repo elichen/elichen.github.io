@@ -1,12 +1,55 @@
 const game = new TicTacToeGame();
 const agent = new DQNAgent();
-const visualization = new Visualization(1000);
+const visualization = new Visualization();
 
 let isTraining = true;
 let episodeCount = 0;
 let testGamesPlayed = 0;
 let testGamesWon = 0;
 let gameLoopTimeout = null;
+
+class EvaluationManager {
+    constructor(evaluationFrequency = 100) {
+        this.evaluationFrequency = evaluationFrequency;
+        this.evaluationResults = [];
+    }
+
+    async evaluateAgainstOptimal(agent, game, numGames = 10) {
+        let totalReward = 0;
+        
+        for (let i = 0; i < numGames; i++) {
+            game.reset(true);
+            let gameReward = 0;
+            
+            while (!game.gameOver) {
+                // Agent's turn
+                const state = game.getState();
+                const validMoves = game.getValidMoves();
+                const action = agent.act(state, false, validMoves); // false for no exploration
+                game.makeMove(action);
+                
+                if (game.gameOver) {
+                    gameReward = game.getReward(1);
+                    break;
+                }
+                
+                // Optimal player's turn
+                const optimalMove = game.getBestMove();
+                game.makeMove(optimalMove);
+                
+                if (game.gameOver) {
+                    gameReward = game.getReward(1);
+                }
+            }
+            
+            totalReward += gameReward;
+        }
+        
+        return totalReward / numGames;
+    }
+}
+
+const evaluationManager = new EvaluationManager(100);
 
 function toggleMode() {
   isTraining = !isTraining;
@@ -33,6 +76,7 @@ async function runEpisode() {
   game.reset(isTraining, agentStarts);
   let gameResult = 0;
   let episodeLoss = null;
+  let finalReward = 0;
 
   if (!isTraining) {
     game.render(isTraining);
@@ -57,18 +101,24 @@ async function runEpisode() {
     
     // Get reward and next state from current player's perspective
     const reward = game.getReward(game.currentPlayer === 1 ? 2 : 1);
+    finalReward = reward;
     const nextState = game.getState(game.currentPlayer === 1 ? 2 : 1);
 
     // Store experience and potentially train
     if (isTraining) {
       const loss = await agent.remember(preState, action, reward, nextState, game.gameOver);
       if (loss !== null) {
-        episodeLoss = loss;  // Store the most recent loss
+        episodeLoss = loss;
       }
     }
 
     if (!isTraining) {
       game.render(isTraining);
+    }
+
+    if (isTraining && episodeCount % evaluationManager.evaluationFrequency === 0) {
+        const evaluationReward = await evaluationManager.evaluateAgainstOptimal(agent, game);
+        visualization.updateStats(evaluationReward);
     }
   }
 
@@ -90,7 +140,7 @@ async function runEpisode() {
     updateWinPercentage();
   }
   
-  visualization.updateChart(episodeCount, agent.epsilon, episodeLoss, gameResult);
+  visualization.updateStats(finalReward);
 
   if (isTraining || !isTraining) {
     if (!isTraining) {
@@ -131,7 +181,7 @@ function resetGame() {
 }
 
 async function init() {
-  visualization.createChart();
+  visualization.updateStats();
   document.getElementById('modeButton').addEventListener('click', toggleMode);
   
   const winPercentageElement = document.createElement('div');

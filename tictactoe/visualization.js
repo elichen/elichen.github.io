@@ -1,34 +1,36 @@
 class Visualization {
-  constructor(windowSize = 1000, smoothingFactor = 0.1) {
+  constructor() {
+    // Singleton pattern
+    if (Visualization.instance) {
+      return Visualization.instance;
+    }
+    
     this.chart = null;
-    this.windowSize = windowSize;
-    this.smoothingFactor = smoothingFactor;
-    this.totalGames = 0;
-    this.totalWins = 0;
+    this.rewardHistory = [];
+    this.windowSize = 100; // Size of rolling window
+    this.initChart(); // Initialize chart once during construction
+    
+    Visualization.instance = this;
   }
 
-  createChart() {
+  initChart() {
     const ctx = document.getElementById('chart').getContext('2d');
+    
+    // Destroy existing chart if it exists
+    if (Chart.getChart(ctx.canvas)) {
+      Chart.getChart(ctx.canvas).destroy();
+    }
+    
     this.chart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: [],
-        datasets: [
-          {
-            label: 'Epsilon Value',
-            data: [],
-            borderColor: 'rgb(255, 99, 132)',
-            tension: 0.1,
-            yAxisID: 'y-epsilon'
-          },
-          {
-            label: 'Win % (Last 10 Games)',
-            data: [],
-            borderColor: 'rgb(54, 162, 235)',
-            tension: 0.1,
-            yAxisID: 'y-win-percentage'
-          }
-        ]
+        datasets: [{
+          label: 'Agent Skill',
+          data: [],
+          borderColor: 'rgb(75, 192, 192)',
+          tension: 0.1
+        }]
       },
       options: {
         responsive: true,
@@ -41,46 +43,12 @@ class Visualization {
           }
         },
         scales: {
-          'y-epsilon': {
-            type: 'linear',
-            display: true,
-            position: 'left',
-            title: {
-              display: true,
-              text: 'Epsilon'
-            },
-            min: 0,
-            max: 1
-          },
-          'y-win-percentage': {
-            type: 'linear',
-            display: true,
-            position: 'right',
-            title: {
-              display: true,
-              text: 'Win %'
-            },
-            min: 0,
+          y: {
+            beginAtZero: true,
             max: 100,
-            grid: {
-              drawOnChartArea: false
-            }
-          },
-          x: {
-            type: 'linear',
-            position: 'bottom',
             title: {
               display: true,
-              text: 'Episode'
-            }
-          }
-        },
-        plugins: {
-          legend: {
-            labels: {
-              font: {
-                size: 14
-              }
+              text: 'Skill Level (%)'
             }
           }
         }
@@ -88,43 +56,40 @@ class Visualization {
     });
   }
 
-  updateChart(episode, epsilon, loss, gameResult) {
-    // Update total games and wins
-    this.totalGames++;
-    if (gameResult === 1) {
-      this.totalWins++;
-    }
-
-    // Calculate trailing win percentage
-    const winPercentage = (this.totalWins / this.totalGames) * 100;
-
-    // Update datasets
-    this.chart.data.datasets[0].data.push({x: episode, y: epsilon});
-    this.chart.data.datasets[1].data.push({x: episode, y: winPercentage});
-
-    // Remove old data points if we exceed the window size
-    if (this.chart.data.datasets[0].data.length > this.windowSize) {
-      this.chart.data.datasets[0].data.shift();
-      this.chart.data.datasets[1].data.shift();
-    }
-
-    // Update x-axis min and max
-    const minEpisode = this.chart.data.datasets[0].data[0].x;
-    const maxEpisode = episode;
-    this.chart.options.scales.x.min = minEpisode;
-    this.chart.options.scales.x.max = maxEpisode;
-
-    this.chart.update();
+  // Convert reward (-1 to 1) to percentage (0 to 100)
+  rewardToPercentage(reward) {
+    return ((reward + 1) / 2) * 100;
   }
 
-  resetChartData() {
-    this.chart.data.datasets.forEach((dataset) => {
-      dataset.data = [];
-    });
-    this.chart.options.scales.x.min = 0;
-    this.chart.options.scales.x.max = this.windowSize;
-    this.totalGames = 0;
-    this.totalWins = 0;
+  updateStats(reward) {
+    this.rewardHistory.push(reward);
+    
+    // Calculate rolling average over last 100 evaluations
+    const windowStart = Math.max(0, this.rewardHistory.length - this.windowSize);
+    const relevantRewards = this.rewardHistory.slice(windowStart);
+    const average = relevantRewards.reduce((a, b) => a + b, 0) / relevantRewards.length;
+    const percentage = this.rewardToPercentage(average);
+
+    // Update stats display
+    const statsElement = document.getElementById('winPercentage');
+    statsElement.textContent = `Agent Skill: ${percentage.toFixed(1)}%`;
+
+    this.updateChart();
+  }
+
+  updateChart() {
+    // Calculate rolling averages for all points
+    const rollingAverages = [];
+    for (let i = 0; i < this.rewardHistory.length; i++) {
+      const windowStart = Math.max(0, i - this.windowSize + 1);
+      const window = this.rewardHistory.slice(windowStart, i + 1);
+      const average = window.reduce((a, b) => a + b, 0) / window.length;
+      const percentage = this.rewardToPercentage(average);
+      rollingAverages.push(percentage);
+    }
+
+    this.chart.data.labels = Array.from(Array(rollingAverages.length).keys());
+    this.chart.data.datasets[0].data = rollingAverages;
     this.chart.update();
   }
 }

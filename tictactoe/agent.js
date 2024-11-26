@@ -14,6 +14,7 @@ class DQNAgent {
     this.trainingQueue = [];
     this.frameCount = 0;
     this.trainFrequency = 4;
+    this.visualization = new Visualization();
   }
 
   act(state, isTraining = true, validMoves) {
@@ -37,6 +38,8 @@ class DQNAgent {
   async remember(state, action, reward, nextState, done) {
     const key = this.getStateActionKey(state, action);
     this.memory.set(key, [state, action, reward, nextState, done]);
+    
+    this.visualization.updateStats(reward);
     
     if (this.memory.size > this.maxMemorySize) {
       const firstKey = this.memory.keys().next().value;
