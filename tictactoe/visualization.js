@@ -6,9 +6,9 @@ class Visualization {
     }
     
     this.chart = null;
-    this.rewardHistory = [];
-    this.windowSize = 100; // Size of rolling window
-    this.initChart(); // Initialize chart once during construction
+    this.evaluationHistory = [];
+    this.windowSize = 10;
+    this.initChart();
     
     Visualization.instance = this;
   }
@@ -56,18 +56,21 @@ class Visualization {
     });
   }
 
-  // Convert reward (-1 to 1) to percentage (0 to 100)
+  // Convert evaluation score (-1 to 1) to percentage (0 to 100)
   rewardToPercentage(reward) {
     return ((reward + 1) / 2) * 100;
   }
 
-  updateStats(reward) {
-    this.rewardHistory.push(reward);
+  updateStats(evaluationScore) {
+    // Only update if we received an evaluation score
+    if (evaluationScore === undefined) return;
     
-    // Calculate rolling average over last 100 evaluations
-    const windowStart = Math.max(0, this.rewardHistory.length - this.windowSize);
-    const relevantRewards = this.rewardHistory.slice(windowStart);
-    const average = relevantRewards.reduce((a, b) => a + b, 0) / relevantRewards.length;
+    this.evaluationHistory.push(evaluationScore);
+    
+    // Calculate rolling average over last windowSize evaluations
+    const windowStart = Math.max(0, this.evaluationHistory.length - this.windowSize);
+    const relevantScores = this.evaluationHistory.slice(windowStart);
+    const average = relevantScores.reduce((a, b) => a + b, 0) / relevantScores.length;
     const percentage = this.rewardToPercentage(average);
 
     // Update stats display
@@ -78,11 +81,11 @@ class Visualization {
   }
 
   updateChart() {
-    // Calculate rolling averages for all points
+    // Calculate rolling averages for all evaluation points
     const rollingAverages = [];
-    for (let i = 0; i < this.rewardHistory.length; i++) {
+    for (let i = 0; i < this.evaluationHistory.length; i++) {
       const windowStart = Math.max(0, i - this.windowSize + 1);
-      const window = this.rewardHistory.slice(windowStart, i + 1);
+      const window = this.evaluationHistory.slice(windowStart, i + 1);
       const average = window.reduce((a, b) => a + b, 0) / window.length;
       const percentage = this.rewardToPercentage(average);
       rollingAverages.push(percentage);

@@ -140,8 +140,6 @@ async function runEpisode() {
     updateWinPercentage();
   }
   
-  visualization.updateStats(finalReward);
-
   if (isTraining || !isTraining) {
     if (!isTraining) {
       await showNewGameMessage();
