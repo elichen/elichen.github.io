@@ -131,4 +131,52 @@ class TicTacToeGame {
     }
     return false;
   }
+
+  minimax(board, player, depth = 0) {
+    const availableMoves = this.getValidMoves();
+    
+    // Base cases
+    if (this.checkWin(1)) return 10 - depth;
+    if (this.checkWin(-1)) return depth - 10;
+    if (availableMoves.length === 0) return 0;
+    
+    if (player === 1) {
+      let bestScore = -Infinity;
+      for (let move of availableMoves) {
+        board[move] = player;
+        let score = this.minimax(board, -1, depth + 1);
+        board[move] = 0;
+        bestScore = Math.max(score, bestScore);
+      }
+      return bestScore;
+    } else {
+      let bestScore = Infinity;
+      for (let move of availableMoves) {
+        board[move] = player;
+        let score = this.minimax(board, 1, depth + 1);
+        board[move] = 0;
+        bestScore = Math.min(score, bestScore);
+      }
+      return bestScore;
+    }
+  }
+
+  getBestMove() {
+    const availableMoves = this.getValidMoves();
+    let bestScore = -Infinity;
+    let bestMove = availableMoves[0];
+    
+    for (let move of availableMoves) {
+      this.board[move] = 1;
+      let score = this.minimax(this.board, -1);
+      this.board[move] = 0;
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = move;
+      }
+    }
+    
+    return bestMove;
+  }
 }
