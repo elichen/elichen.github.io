@@ -1,13 +1,12 @@
 class Visualization {
   constructor() {
-    // Singleton pattern
     if (Visualization.instance) {
       return Visualization.instance;
     }
-    
+
     this.chart = null;
     this.evaluationHistory = [];
-    this.windowSize = 10;
+    this.windowSize = 50; // Larger window to smooth out noise
     this.initChart();
     
     Visualization.instance = this;
@@ -15,20 +14,19 @@ class Visualization {
 
   initChart() {
     const ctx = document.getElementById('chart').getContext('2d');
-    
-    // Destroy existing chart if it exists
+
     if (Chart.getChart(ctx.canvas)) {
       Chart.getChart(ctx.canvas).destroy();
     }
-    
+
     this.chart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: [],
         datasets: [{
-          label: 'Agent Skill',
+          label: 'Agent Losing Rate (%)',
           data: [],
-          borderColor: 'rgb(75, 192, 192)',
+          borderColor: 'rgb(255, 99, 132)',
           tension: 0.1
         }]
       },
@@ -48,7 +46,7 @@ class Visualization {
             max: 100,
             title: {
               display: true,
-              text: 'Skill Level (%)'
+              text: 'Losing Rate (%)'
             }
           }
         }
@@ -56,38 +54,30 @@ class Visualization {
     });
   }
 
-  // Convert evaluation score (-1 to 1) to percentage (0 to 100)
-  rewardToPercentage(reward) {
-    return ((reward + 1) / 2) * 100;
-  }
+  updateStats(losingRate) {
+    if (losingRate === undefined) return;
 
-  updateStats(evaluationScore) {
-    // Only update if we received an evaluation score
-    if (evaluationScore === undefined) return;
-    
-    this.evaluationHistory.push(evaluationScore);
-    
-    // Calculate rolling average over last windowSize evaluations
+    this.evaluationHistory.push(losingRate);
+
     const windowStart = Math.max(0, this.evaluationHistory.length - this.windowSize);
-    const relevantScores = this.evaluationHistory.slice(windowStart);
-    const average = relevantScores.reduce((a, b) => a + b, 0) / relevantScores.length;
-    const percentage = this.rewardToPercentage(average);
+    const relevantData = this.evaluationHistory.slice(windowStart);
+    const average = relevantData.reduce((a, b) => a + b, 0) / relevantData.length;
+    const percentage = average * 100;
 
-    // Update stats display
     const statsElement = document.getElementById('winPercentage');
-    statsElement.textContent = `Agent Skill: ${percentage.toFixed(1)}%`;
+    // We can rename the stat display to show losing rate
+    statsElement.textContent = `Losing Rate (rolling avg): ${percentage.toFixed(1)}%`;
 
     this.updateChart();
   }
 
   updateChart() {
-    // Calculate rolling averages for all evaluation points
     const rollingAverages = [];
     for (let i = 0; i < this.evaluationHistory.length; i++) {
       const windowStart = Math.max(0, i - this.windowSize + 1);
       const window = this.evaluationHistory.slice(windowStart, i + 1);
       const average = window.reduce((a, b) => a + b, 0) / window.length;
-      const percentage = this.rewardToPercentage(average);
+      const percentage = average * 100;
       rollingAverages.push(percentage);
     }
 

@@ -1,20 +1,30 @@
 class DQNAgent {
-  constructor(epsilonStart = 0.7, epsilonEnd = 0.1, gamma = 0.995, batchSize = 32, maxMemorySize = 100000, fixedEpsilonSteps = 250, decayEpsilonSteps = 250) {
+  constructor(
+    epsilonStart = 0.7,
+    epsilonEnd = 0.1,
+    gamma = 0.995,
+    batchSize = 32,
+    maxMemorySize = 100000,
+    fixedEpsilonSteps = 250,
+    decayEpsilonSteps = 250
+  ) {
     this.model = new TicTacToeModel();
     this.epsilon = epsilonStart;
     this.epsilonEnd = epsilonEnd;
     this.gamma = gamma;
     this.batchSize = batchSize;
     this.maxMemorySize = maxMemorySize;
-    this.memory = new Map();
+    this.memory = []; // Using an array instead of a Map
+    this.memoryIndex = 0; // Pointer for circular buffer
+
     this.fixedEpsilonSteps = fixedEpsilonSteps;
-    this.decayEpsilonRate = (epsilonStart-epsilonEnd) / decayEpsilonSteps;
+    this.decayEpsilonRate = (epsilonStart - epsilonEnd) / decayEpsilonSteps;
     this.currentStep = 0;
-    this.isTraining = false;
-    this.trainingQueue = [];
+    this.isTraining = false; // We will simply check conditions and train immediately.
     this.frameCount = 0;
     this.trainFrequency = 4;
     this.visualization = new Visualization();
+    this.memorySize = 0; // Track how many elements are actually in memory
   }
 
   act(state, isTraining = true, validMoves) {
@@ -23,59 +33,54 @@ class DQNAgent {
     } else {
       return tf.tidy(() => {
         const qValues = this.model.predict(state);
-        
+
         const mask = new Array(9).fill(-Infinity);
         validMoves.forEach(move => mask[move] = 0);
         const maskTensor = tf.tensor1d(mask);
-        
+
         const maskedQValues = qValues.add(maskTensor);
-        
         return tf.argMax(maskedQValues, 1).dataSync()[0];
       });
     }
   }
 
   async remember(state, action, reward, nextState, done) {
-    const key = this.getStateActionKey(state, action);
-    this.memory.set(key, [state, action, reward, nextState, done]);
-    
-    this.visualization.updateStats(reward);
-    
-    if (this.memory.size > this.maxMemorySize) {
-      const firstKey = this.memory.keys().next().value;
-      this.memory.delete(firstKey);
+    // Store experience in replay buffer
+    const experience = [state, action, reward, nextState, done];
+
+    if (this.memorySize < this.maxMemorySize) {
+      this.memory.push(experience);
+      this.memorySize++;
+    } else {
+      // Overwrite oldest experience
+      this.memory[this.memoryIndex] = experience;
     }
 
+    this.memoryIndex = (this.memoryIndex + 1) % this.maxMemorySize;
+
+    this.visualization.updateStats(reward);
+
     this.frameCount++;
-    if (this.frameCount % this.trainFrequency === 0 && this.memory.size >= this.batchSize) {
+    if (this.frameCount % this.trainFrequency === 0 && this.memorySize >= this.batchSize) {
       return await this.replay();
     }
     return null;
   }
 
-  getStateActionKey(state, action) {
-    return `${state.join(',')}-${action}`;
-  }
-
   async replay() {
-    if (this.memory.size < this.batchSize) return null;
+    if (this.memorySize < this.batchSize) return null;
 
-    if (this.isTraining) {
-      return new Promise((resolve) => {
-        this.trainingQueue.push(resolve);
-      });
-    }
-
+    // No need for a training queue now, as we won't be calling replay concurrently.
     this.isTraining = true;
 
     try {
       const batch = this.getRandomBatch(this.batchSize);
 
-      const states = batch.map(experience => experience[0]);
-      const actions = batch.map(experience => experience[1]);
-      const rewards = batch.map(experience => experience[2]);
-      const nextStates = batch.map(experience => experience[3]);
-      const dones = batch.map(experience => experience[4]);
+      const states = batch.map(ex => ex[0]);
+      const actions = batch.map(ex => ex[1]);
+      const rewards = batch.map(ex => ex[2]);
+      const nextStates = batch.map(ex => ex[3]);
+      const dones = batch.map(ex => ex[4]);
 
       const oneHotStates = states.map(state => this.model.convertToOneHot(state));
       const oneHotNextStates = nextStates.map(state => this.model.convertToOneHot(state));
@@ -113,12 +118,13 @@ class DQNAgent {
 
         const mask = tf.oneHot(actionsTensor, 9).toFloat();
         const Q_targets_expanded = Q_targets.expandDims(1);
-        
-        y = tf.keep(currentQs.mul(tf.scalar(1).sub(mask)).add(Q_targets_expanded.mul(mask)));
+
+        y = tf.keep(
+          currentQs.mul(tf.scalar(1).sub(mask)).add(Q_targets_expanded.mul(mask))
+        );
       });
 
       const loss = await this.model.train(x, y);
-      
       x.dispose();
       y.dispose();
 
@@ -128,30 +134,27 @@ class DQNAgent {
       return null;
     } finally {
       this.isTraining = false;
-      
-      if (this.trainingQueue.length > 0) {
-        const nextResolve = this.trainingQueue.shift();
-        nextResolve(this.replay());
-      }
     }
   }
 
   getRandomBatch(batchSize) {
-    const experiences = Array.from(this.memory.values());
-    const shuffled = experiences.sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, batchSize);
+    const batch = [];
+    for (let i = 0; i < batchSize; i++) {
+      const randomIndex = Math.floor(Math.random() * this.memorySize);
+      batch.push(this.memory[randomIndex]);
+    }
+    return batch;
   }
 
   getMemorySize() {
-    return this.memory.size;
+    return this.memorySize;
   }
 
   decayEpsilon() {
     this.currentStep++;
     if (this.currentStep <= this.fixedEpsilonSteps) {
-      // Keep epsilon fixed for first 250 steps
+      // Keep epsilon fixed initially
     } else if (this.epsilon > 0) {
-      // Linear decay over next 250 steps
       this.epsilon = Math.max(this.epsilonEnd, this.epsilon - this.decayEpsilonRate);
     }
   }
