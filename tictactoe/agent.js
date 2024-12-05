@@ -22,7 +22,7 @@ class DQNAgent {
     this.currentStep = 0;
     this.isTraining = false; // We will simply check conditions and train immediately.
     this.frameCount = 0;
-    this.trainFrequency = 4;
+    this.trainFrequency = 1;
     this.visualization = new Visualization();
     this.memorySize = 0; // Track how many elements are actually in memory
   }
