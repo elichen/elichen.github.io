@@ -9,44 +9,41 @@ let testGamesWon = 0;
 let gameLoopTimeout = null;
 
 class EvaluationManager {
-    constructor(evaluationFrequency = 100) {
-        this.evaluationFrequency = evaluationFrequency;
-        this.evaluationResults = [];
-    }
+  constructor(evaluationFrequency = 100, numGames = 50) {
+      this.evaluationFrequency = evaluationFrequency;
+      this.numGames = numGames;
+      this.evaluationResults = [];
+  }
 
-    async evaluateAgainstOptimal(agent, game, numGames = 10) {
-        let totalReward = 0;
-        
-        for (let i = 0; i < numGames; i++) {
-            game.reset(true);
-            let gameReward = 0;
-            
-            while (!game.gameOver) {
-                // Agent's turn
-                const state = game.getState();
-                const validMoves = game.getValidMoves();
-                const action = agent.act(state, false, validMoves); // false for no exploration
-                game.makeMove(action);
-                
-                if (game.gameOver) {
-                    gameReward = game.getReward(1);
-                    break;
-                }
-                
-                // Optimal player's turn
-                const optimalMove = game.getBestMove();
-                game.makeMove(optimalMove);
-                
-                if (game.gameOver) {
-                    gameReward = game.getReward(1);
-                }
-            }
-            
-            totalReward += gameReward;
-        }
-        
-        return totalReward / numGames;
-    }
+  async evaluateAgainstOptimal(agent, game) {
+      let losses = 0;
+      
+      for (let i = 0; i < this.numGames; i++) {
+          game.reset(true);
+          
+          while (!game.gameOver) {
+              // Agent (player 1) moves
+              const state = game.getState();
+              const validMoves = game.getValidMoves();
+              const action = agent.act(state, false, validMoves);
+              game.makeMove(action);
+              if (game.gameOver) break;
+              
+              // Optimal (player 2, -1) moves
+              const optimalMove = game.getBestMove();
+              game.makeMove(optimalMove);
+          }
+          
+          // Check if agent lost (O wins)
+          if (game.checkWin(-1)) {
+              losses++;
+          }
+      }
+      
+      // Losing rate = fraction of games lost
+      const losingRate = losses / this.numGames;
+      return losingRate; 
+  }
 }
 
 const evaluationManager = new EvaluationManager(100);
@@ -117,9 +114,9 @@ async function runEpisode() {
     }
 
     if (isTraining && episodeCount % evaluationManager.evaluationFrequency === 0) {
-        const evaluationReward = await evaluationManager.evaluateAgainstOptimal(agent, game);
-        visualization.updateStats(evaluationReward);
-    }
+      const losingRate = await evaluationManager.evaluateAgainstOptimal(agent, game);
+      visualization.updateStats(losingRate);
+  }
   }
 
   game.render(isTraining);
