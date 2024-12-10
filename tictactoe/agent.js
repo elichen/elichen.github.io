@@ -3,8 +3,8 @@ class DQNAgent {
     epsilonStart = 0.3,
     epsilonEnd = 0.1,
     gamma = 0.995,
-    batchSize = 32,
-    maxMemorySize = 100000,
+    batchSize = 64,
+    maxMemorySize = 1000,
     fixedEpsilonSteps = 100,
     decayEpsilonSteps = 1000
   ) {
