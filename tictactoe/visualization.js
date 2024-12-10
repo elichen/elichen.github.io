@@ -6,7 +6,7 @@ class Visualization {
 
     this.chart = null;
     this.evaluationHistory = [];
-    this.windowSize = 50; // Larger window to smooth out noise
+    this.windowSize = 10; // Larger window to smooth out noise
     this.initChart();
     
     Visualization.instance = this;
@@ -81,7 +81,9 @@ class Visualization {
       rollingAverages.push(percentage);
     }
 
-    this.chart.data.labels = Array.from(Array(rollingAverages.length).keys());
+    this.chart.data.labels = Array
+      .from(Array(rollingAverages.length).keys())
+      .map(i => i * 100);
     this.chart.data.datasets[0].data = rollingAverages;
     this.chart.update();
   }

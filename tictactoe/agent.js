@@ -22,7 +22,7 @@ class DQNAgent {
     this.currentStep = 0;
     this.isTraining = false; // We will simply check conditions and train immediately.
     this.frameCount = 0;
-    this.trainFrequency = 1;
+    this.trainFrequency = 4;
     this.visualization = new Visualization();
     this.memorySize = 0; // Track how many elements are actually in memory
   }
@@ -57,8 +57,6 @@ class DQNAgent {
     }
 
     this.memoryIndex = (this.memoryIndex + 1) % this.maxMemorySize;
-
-    this.visualization.updateStats(reward);
 
     this.frameCount++;
     if (this.frameCount % this.trainFrequency === 0 && this.memorySize >= this.batchSize) {

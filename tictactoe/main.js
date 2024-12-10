@@ -9,7 +9,7 @@ let testGamesWon = 0;
 let gameLoopTimeout = null;
 
 class EvaluationManager {
-  constructor(evaluationFrequency = 100, numGames = 50) {
+  constructor(evaluationFrequency = 100, numGames = 10) {
       this.evaluationFrequency = evaluationFrequency;
       this.numGames = numGames;
       this.evaluationResults = [];
@@ -70,40 +70,77 @@ function getRandomStartingPlayer() {
 
 async function runEpisode() {
   const agentStarts = getRandomStartingPlayer() === 1;
+  const agentPlayer = agentStarts ? 1 : 2;
+  const agentIsX = (agentPlayer === 1);
+
   game.reset(isTraining, agentStarts);
-  let gameResult = 0;
-  let episodeLoss = null;
-  let finalReward = 0;
 
   if (!isTraining) {
     game.render(isTraining);
   }
 
-  while (!game.gameOver) {
-    const currentPlayerState = game.getState();
-    const validMoves = game.getValidMoves();
-    let action;
+  let episodeLoss = null;
 
+  while (!game.gameOver) {
+    // Always consider the "X perspective" state
+    const stateFromX = game.getState(1);
+    const validMovesFromX = game.getValidMoves();
+
+    // If the agent is O, invert the perspective
+    let inputState = stateFromX;
+    let inputValidMoves = validMovesFromX;
+    if (!agentIsX) {
+      inputState = stateFromX.map(cell => -cell);
+      inputValidMoves = inputState.reduce((acc, cell, idx) => {
+        if (cell === 0) acc.push(idx);
+        return acc;
+      }, []);
+    }
+
+    let action;
     if (!isTraining && game.currentPlayer === 2) {
-      action = await waitForHumanMove();
+      // Human move if in test mode and current player is O
+      const cells = document.querySelectorAll('.cell');
+      action = await waitForHumanMove(cells);
     } else {
+      // Agent move: same perspective logic applies in test mode as in training mode
       tf.tidy(() => {
-        action = agent.act(currentPlayerState, isTraining, validMoves);
+        action = agent.act(inputState, isTraining, inputValidMoves);
       });
     }
 
-    // Store pre-move state and action
-    const preState = game.getState();
+    // Execute the move in the environment
     game.makeMove(action);
-    
-    // Get reward and next state from current player's perspective
-    const reward = game.getReward(game.currentPlayer === 1 ? 2 : 1);
-    finalReward = reward;
-    const nextState = game.getState(game.currentPlayer === 1 ? 2 : 1);
 
-    // Store experience and potentially train
+    // Compute reward from X’s perspective
+    const rewardFromX = game.getReward(1);
+    const done = game.gameOver;
+    const nextStateFromX = game.getState(1);
+
+    // Adjust reward and next state if agent is O
+    let finalReward, finalNextState;
+    if (agentIsX) {
+      finalReward = rewardFromX;
+      finalNextState = nextStateFromX;
+    } else {
+      finalNextState = nextStateFromX.map(cell => -cell);
+      // Invert reward:
+      // X win (1) => agent loses => -1
+      // X lose (-1) => agent wins => +1
+      // Draw (0.5) stays 0.5
+      if (rewardFromX === 1) {
+        finalReward = -1;
+      } else if (rewardFromX === -1) {
+        finalReward = 1;
+      } else {
+        finalReward = rewardFromX;
+      }
+    }
+
     if (isTraining) {
-      const loss = await agent.remember(preState, action, reward, nextState, game.gameOver);
+      // During training, store experience and train
+      const preStateForAgent = agentIsX ? stateFromX : stateFromX.map(cell => -cell);
+      const loss = await agent.remember(preStateForAgent, action, finalReward, finalNextState, done);
       if (loss !== null) {
         episodeLoss = loss;
       }
@@ -113,39 +150,26 @@ async function runEpisode() {
       game.render(isTraining);
     }
 
+    // Evaluate periodically in training mode
     if (isTraining && episodeCount % evaluationManager.evaluationFrequency === 0) {
       const losingRate = await evaluationManager.evaluateAgainstOptimal(agent, game);
       visualization.updateStats(losingRate);
+    }
   }
-  }
-
-  game.render(isTraining);
 
   episodeCount++;
   if (isTraining) {
     agent.decayEpsilon();
-    
-    // Determine game result for visualization
-    if (game.checkWin(1)) {
-      gameResult = 1;
-    } else if (game.checkWin(-1)) {
-      gameResult = -1;
-    }
-  } else {
-    testGamesPlayed++;
-    if (game.checkWin(1)) testGamesWon++;
-    updateWinPercentage();
   }
-  
-  if (isTraining || !isTraining) {
-    if (!isTraining) {
-      await showNewGameMessage();
-    }
-    if (gameLoopTimeout) {
-      clearTimeout(gameLoopTimeout);
-    }
-    gameLoopTimeout = setTimeout(runEpisode, isTraining ? 0 : 1000);
+
+  if (!isTraining) {
+    await showNewGameMessage();
   }
+
+  if (gameLoopTimeout) {
+    clearTimeout(gameLoopTimeout);
+  }
+  gameLoopTimeout = setTimeout(runEpisode, isTraining ? 0 : 1000);
 }
 
 function waitForHumanMove() {
