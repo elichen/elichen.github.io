@@ -13,6 +13,7 @@ class EvaluationManager {
       this.evaluationFrequency = evaluationFrequency;
       this.numGames = numGames;
       this.evaluationResults = [];
+      this.difficulty = 0;  // Start at easiest
   }
 
   async evaluateAgainstOptimal(agent, game) {
@@ -22,27 +23,42 @@ class EvaluationManager {
           game.reset(true);
           
           while (!game.gameOver) {
-              // Agent (player 1) moves
               const state = game.getState();
               const validMoves = game.getValidMoves();
               const action = agent.act(state, false, validMoves);
               game.makeMove(action);
               if (game.gameOver) break;
               
-              // Optimal (player 2, -1) moves
-              const optimalMove = game.getBestMove(-1);
+              // Opponent move with probability of random action
+              let optimalMove;
+              if (Math.random() < this.difficulty) {
+                  optimalMove = game.getBestMove(-1);
+              } else {
+                  const validMoves = game.getValidMoves();
+                  optimalMove = validMoves[Math.floor(Math.random() * validMoves.length)];
+              }
               game.makeMove(optimalMove);
           }
           
-          // Check if agent lost (O wins)
           if (game.checkWin(-1)) {
               losses++;
           }
       }
       
-      // Losing rate = fraction of games lost
+      // Increase difficulty if agent is doing well
       const losingRate = losses / this.numGames;
-      return losingRate; 
+      if (losingRate < 0.3 && this.difficulty < 1.0) {
+          this.difficulty += 0.1;
+          console.log("Increasing difficulty to:", this.difficulty);
+      }
+      
+      // Update difficulty display
+      const difficultyElement = document.getElementById('difficulty');
+      if (difficultyElement) {
+          difficultyElement.textContent = `Opponent Difficulty: ${(this.difficulty * 100).toFixed(0)}%`;
+      }
+      
+      return losingRate;
   }
 }
 
@@ -203,11 +219,20 @@ async function init() {
   visualization.updateStats();
   document.getElementById('modeButton').addEventListener('click', toggleMode);
   
+  const statsContainer = document.querySelector('.container');
+  
+  // Create win percentage element
   const winPercentageElement = document.createElement('div');
   winPercentageElement.id = 'winPercentage';
   winPercentageElement.className = 'stats';
-  const container = document.querySelector('.container');
-  container.insertBefore(winPercentageElement, document.getElementById('chart'));
+  statsContainer.insertBefore(winPercentageElement, document.getElementById('chart'));
+  
+  // Create difficulty display element
+  const difficultyElement = document.createElement('div');
+  difficultyElement.id = 'difficulty';
+  difficultyElement.className = 'stats';
+  difficultyElement.textContent = 'Opponent Difficulty: 0%';
+  statsContainer.insertBefore(difficultyElement, document.getElementById('chart'));
   
   gameLoopTimeout = setTimeout(runEpisode, 0);
 }
