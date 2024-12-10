@@ -2,19 +2,17 @@ class TicTacToeModel {
   constructor() {
     this.mainModel = this.createModel();
     this.targetModel = this.createModel();
-    this.updateTargetModel(); // Initialize target model with main model weights
-    this.episodeCount = 0;
+    this.updateTargetModel();
+    this.updateFrequency = 100;
+    this.trainingSteps = 0;
   }
 
   createModel() {
     const model = tf.sequential();
-    // Change input shape from 9 to 27
-    model.add(tf.layers.dense({ units: 256, activation: 'relu', inputShape: [27] }));
-    model.add(tf.layers.dense({ units: 256, activation: 'relu' }));
-    model.add(tf.layers.dense({ units: 256, activation: 'relu' }));
-    model.add(tf.layers.dense({ units: 256, activation: 'relu' }));
+    model.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [27] }));
+    model.add(tf.layers.dense({ units: 32, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 9, activation: 'linear' }));
-    model.compile({ optimizer: tf.train.adam(0.001), loss: 'meanSquaredError' });
+    model.compile({ optimizer: tf.train.adam(0.0001), loss: 'meanSquaredError' });
     return model;
   }
 
@@ -36,8 +34,8 @@ class TicTacToeModel {
 	  const result = await this.mainModel.fit(stateTensor, targetTensor, fitConfig);
 	  const loss = result.history.loss[0];
 
-	  this.episodeCount++;
-	  if (this.episodeCount % 10 === 0) {
+	  this.trainingSteps++;
+	  if (this.trainingSteps % this.updateFrequency === 0) {
 	    this.updateTargetModel();
 	  }
 
