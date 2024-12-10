@@ -161,20 +161,20 @@ class TicTacToeGame {
     }
   }
 
-  getBestMove() {
+  getBestMove(player = 1) {
     const availableMoves = this.getValidMoves();
-    let bestScore = -Infinity;
+    let bestScore = player === 1 ? -Infinity : Infinity;
     let bestMove = availableMoves[0];
     
     for (let move of availableMoves) {
-      this.board[move] = 1;
-      let score = this.minimax(this.board, -1);
-      this.board[move] = 0;
-      
-      if (score > bestScore) {
-        bestScore = score;
-        bestMove = move;
-      }
+        this.board[move] = player;
+        let score = this.minimax(this.board, -player);
+        this.board[move] = 0;
+        
+        if (player === 1 ? score > bestScore : score < bestScore) {
+            bestScore = score;
+            bestMove = move;
+        }
     }
     
     return bestMove;
