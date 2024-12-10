@@ -30,7 +30,7 @@ class EvaluationManager {
               if (game.gameOver) break;
               
               // Optimal (player 2, -1) moves
-              const optimalMove = game.getBestMove();
+              const optimalMove = game.getBestMove(-1);
               game.makeMove(optimalMove);
           }
           
