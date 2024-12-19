@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Streaming Learning - CartPole</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <style>
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .controls {
+            margin: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+        canvas {
+            border: 1px solid #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CartPole - Streaming Learning</h1>
+        <div class="controls">
+            <button id="toggleTraining">Start Training</button>
+            <button id="toggleTesting">Test Model</button>
+            <div>
+                <label>Learning Rate: </label>
+                <input type="number" id="learningRate" value="1.0" step="0.1">
+            </div>
+            <div>
+                <label>Gamma: </label>
+                <input type="number" id="gamma" value="0.99" step="0.01">
+            </div>
+            <div>
+                <label>Lambda: </label>
+                <input type="number" id="lambda" value="0.8" step="0.1">
+            </div>
+        </div>
+        <canvas id="cartpoleCanvas" width="600" height="400"></canvas>
+        <div id="stats"></div>
+    </div>
+
+    <script src="cartpole.js"></script>
+    <script src="network.js"></script>
+    <script src="optimizer.js"></script>
+    <script src="agent.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
