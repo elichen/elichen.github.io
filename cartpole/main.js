@@ -36,43 +36,29 @@ class TrainingManager {
         const animate = async () => {
             if (!this.isTraining) return;
 
-            // Sample action and step environment
             const { action, isNonGreedy } = await this.agent.sampleAction(state);
             const { state: nextState, reward, done } = this.env.step(action);
             
-            // Update agent
-            const delta = await this.agent.update(
-                state,
-                action,
-                reward,
-                nextState,
-                done,
-                isNonGreedy
-            );
+            await this.agent.update(state, action, reward, nextState, done, isNonGreedy);
 
             episodeReward += reward;
             state = nextState;
 
-            // Render environment
             this.env.render();
 
-            // Handle episode end
             if (done) {
                 this.episodeRewards.push(episodeReward);
                 episodeCount++;
                 
-                // Update stats
                 const lastHundred = this.episodeRewards.slice(-100);
                 const avgReward = lastHundred.reduce((a, b) => a + b, 0) / lastHundred.length;
                 
                 this.stats.innerHTML = `
                     Episode: ${episodeCount}<br>
                     Last Reward: ${episodeReward.toFixed(1)}<br>
-                    Avg Reward (100): ${avgReward.toFixed(1)}<br>
-                    Epsilon: ${this.agent.epsilon.toFixed(3)}
+                    Avg Reward (100): ${avgReward.toFixed(1)}
                 `;
 
-                // Reset for next episode
                 state = this.env.reset();
                 episodeReward = 0;
             }

@@ -1,50 +1,88 @@
 class ObGD {
     constructor(params, learningRate = 1.0, gamma = 0.99, lambda = 0.8, kappa = 2.0) {
-        this.params = params;
+        // Convert params to Variables if they aren't already
+        this.params = params.map(param => {
+            if (param instanceof tf.Variable) {
+                return param;
+            }
+            const value = param.val || param.value || param;
+            return tf.variable(value);
+        });
+
         this.lr = learningRate;
         this.gamma = gamma;
         this.lambda = lambda;
         this.kappa = kappa;
         
-        // Initialize eligibility traces for each parameter
-        this.eligibilityTraces = params.map(param => tf.zeros(param.shape));
+        // Initialize eligibility traces as Variables
+        this.eligibilityTraces = this.params.map(param => 
+            tf.variable(tf.zeros(param.shape))
+        );
     }
 
     async step(delta, grads, reset = false) {
+        const gradArray = Array.isArray(grads) ? grads : Object.values(grads);
+
         return tf.tidy(() => {
-            let zSum = tf.scalar(0);
-            
+            let zSum = 0;
+
             // Update eligibility traces and compute zSum
-            this.eligibilityTraces = this.eligibilityTraces.map((trace, i) => {
-                const newTrace = tf.add(
-                    tf.mul(trace, this.gamma * this.lambda),
-                    grads[i]
+            for (let i = 0; i < this.eligibilityTraces.length; i++) {
+                const trace = this.eligibilityTraces[i];
+                const grad = gradArray[i];
+                const param = this.params[i];
+
+                if (!grad || !trace || !param) continue;
+
+                // Create gradient tensor
+                const gradTensor = tf.tensor(
+                    grad instanceof tf.Tensor ? grad.dataSync() : grad,
+                    param.shape
                 );
-                zSum = tf.add(zSum, tf.sum(tf.abs(newTrace)));
-                return newTrace;
-            });
+
+                // Update trace
+                const decayFactor = tf.scalar(this.gamma * this.lambda);
+                const newTrace = trace.mul(decayFactor).add(gradTensor);
+                trace.assign(newTrace);
+
+                // Update zSum
+                zSum += tf.sum(tf.abs(trace)).dataSync()[0];
+            }
 
             // Compute step size
             const deltaBar = Math.max(Math.abs(delta), 1.0);
-            const dotProduct = deltaBar * zSum.dataSync()[0] * this.lr * this.kappa;
+            const dotProduct = deltaBar * zSum * this.lr * this.kappa;
             const stepSize = dotProduct > 1 ? this.lr / dotProduct : this.lr;
+            const updateFactor = -stepSize * delta;
 
             // Update parameters
-            this.params.forEach((param, i) => {
-                const update = tf.mul(tf.mul(this.eligibilityTraces[i], delta), -stepSize);
-                param.assign(tf.add(param, update));
-            });
+            for (let i = 0; i < this.params.length; i++) {
+                const param = this.params[i];
+                const trace = this.eligibilityTraces[i];
+
+                if (!param || !trace) continue;
+
+                const update = trace.mul(tf.scalar(updateFactor));
+                
+                if (tf.util.arraysEqual(param.shape, update.shape)) {
+                    param.assign(param.add(update));
+                }
+            }
 
             // Reset eligibility traces if needed
             if (reset) {
-                this.eligibilityTraces = this.eligibilityTraces.map(trace => 
-                    tf.zeros(trace.shape)
-                );
+                this.eligibilityTraces.forEach(trace => {
+                    trace.assign(tf.zeros(trace.shape));
+                });
             }
         });
     }
 
     dispose() {
-        this.eligibilityTraces.forEach(trace => trace.dispose());
+        this.eligibilityTraces.forEach(trace => {
+            if (trace instanceof tf.Variable) {
+                trace.dispose();
+            }
+        });
     }
 } 

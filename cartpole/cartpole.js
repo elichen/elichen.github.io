@@ -10,6 +10,10 @@ class CartPole {
         this.forceMag = 10.0;
         this.dt = 0.02;
 
+        // Angle at which to fail the episode (radians)
+        this.thetaThresholdRadians = Math.PI / 2;
+        this.xThreshold = 2.4;
+
         // Display settings
         this.canvas = document.getElementById('cartpoleCanvas');
         this.ctx = this.canvas.getContext('2d');
@@ -45,8 +49,8 @@ class CartPole {
         this.thetaDot += this.dt * thetaAcc;
 
         // Check if episode is done
-        const done = this.x < -2.4 || this.x > 2.4 || 
-                    this.theta < -0.209 || this.theta > 0.209;
+        const done = this.x < -this.xThreshold || this.x > this.xThreshold || 
+                    this.theta < -this.thetaThresholdRadians || this.theta > this.thetaThresholdRadians;
         
         const reward = done ? 0.0 : 1.0;
 
