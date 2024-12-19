@@ -12,7 +12,8 @@ class StreamingNetwork {
             units: hiddenSize,
             inputShape: [inputSize],
             activation: 'linear',
-            name: 'fc1'
+            name: 'fc1',
+            trainable: true
         }));
         model.add(tf.layers.layerNormalization());
         model.add(tf.layers.leakyReLU());
@@ -21,7 +22,8 @@ class StreamingNetwork {
         model.add(tf.layers.dense({
             units: hiddenSize,
             activation: 'linear',
-            name: 'hidden'
+            name: 'hidden',
+            trainable: true
         }));
         model.add(tf.layers.layerNormalization());
         model.add(tf.layers.leakyReLU());
@@ -30,8 +32,15 @@ class StreamingNetwork {
         model.add(tf.layers.dense({
             units: numActions,
             activation: 'linear',
-            name: 'output'
+            name: 'output',
+            trainable: true
         }));
+
+        // Compile the model to initialize variables
+        model.compile({
+            optimizer: tf.train.sgd(0.1),  // Dummy optimizer, we'll use our custom one
+            loss: 'meanSquaredError'
+        });
 
         return model;
     }

@@ -55,35 +55,51 @@ class StreamQ {
     }
 
     async update(state, action, reward, nextState, done, isNonGreedy) {
-        return tf.tidy(async () => {
-            const stateTensor = tf.tensor2d([state], [1, state.length]);
-            const nextStateTensor = tf.tensor2d([nextState], [1, nextState.length]);
-            
-            // Get current Q-values
-            const qValues = this.network.model.predict(stateTensor);
-            const qValueAtAction = qValues.gather([action]).asScalar();
+        const stateTensor = tf.tensor2d([state], [1, state.length]);
+        const nextStateTensor = tf.tensor2d([nextState], [1, nextState.length]);
+        
+        try {
+            // Use tf.variableGrads to compute both value and gradients
+            const {value: qValueAtAction, grads} = tf.variableGrads(() => {
+                const qValues = this.network.model.predict(stateTensor);
+                const actionMask = tf.oneHot([action], this.numActions);
+                return tf.sum(tf.mul(qValues, actionMask));
+            });
 
-            // Get max Q-value for next state
+            // Compute target Q-value
             const nextQValues = this.network.model.predict(nextStateTensor);
             const maxNextQ = nextQValues.max();
-            
-            // Calculate TD target and error
             const doneMask = done ? 0 : 1;
-            const tdTarget = reward + this.gamma * maxNextQ.mul(doneMask);
-            const delta = tdTarget.sub(qValueAtAction);
-
-            // Get gradients
-            const grads = tf.variableGrads(() => qValueAtAction.neg());
+            const tdTarget = tf.scalar(reward).add(maxNextQ.mul(tf.scalar(this.gamma * doneMask)));
             
-            // Update parameters
+            // Compute TD error
+            const delta = tdTarget.sub(qValueAtAction);
+            const deltaValue = await delta.data();
+
+            // Update parameters using the computed gradients
             await this.optimizer.step(
-                delta.arraySync(),
-                Object.values(grads.grads),
+                deltaValue[0],
+                Object.values(grads),
                 done || isNonGreedy
             );
 
-            return delta.arraySync();
-        });
+            // Clean up tensors
+            stateTensor.dispose();
+            nextStateTensor.dispose();
+            delta.dispose();
+            tdTarget.dispose();
+            maxNextQ.dispose();
+            nextQValues.dispose();
+            qValueAtAction.dispose();
+            Object.values(grads).forEach(g => g && g.dispose());
+            
+            return deltaValue[0];
+        } catch (error) {
+            console.error('Error in update:', error);
+            stateTensor.dispose();
+            nextStateTensor.dispose();
+            throw error;
+        }
     }
 
     async saveAgent() {
