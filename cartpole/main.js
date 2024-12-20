@@ -1,6 +1,10 @@
 class TrainingManager {
     constructor(config = {}) {
-        this.env = new CartPole();
+        let env = new CartPole();
+        env = new NormalizeObservation(env);
+        env = new ScaleReward(env, 0.1);
+        this.env = env;
+        
         this.agent = new StreamQ(config);
         this.episodeRewards = [];
         this.isTraining = false;
@@ -95,6 +99,15 @@ class TrainingManager {
         };
         
         testEpisode();
+    }
+
+    dispose() {
+        if (this.env.dispose) {
+            this.env.dispose();
+        }
+        if (this.agent.dispose) {
+            this.agent.dispose();
+        }
     }
 }
 
