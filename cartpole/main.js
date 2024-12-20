@@ -56,7 +56,8 @@ class TrainingManager {
                 this.stats.innerHTML = `
                     Episode: ${episodeCount}<br>
                     Last Reward: ${episodeReward.toFixed(1)}<br>
-                    Avg Reward (100): ${avgReward.toFixed(1)}
+                    Avg Reward (100): ${avgReward.toFixed(1)}<br>
+                    Epsilon: ${this.agent.epsilon.toFixed(3)}
                 `;
 
                 state = this.env.reset();
