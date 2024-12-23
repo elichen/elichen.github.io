@@ -7,28 +7,29 @@ class TrainingManager {
         
         this.agent = new StreamQ(config);
         this.episodeRewards = [];
-        this.isTraining = false;
+        this.isTraining = true;
         this.stats = document.getElementById('stats');
         
         this.setupControls();
+        this.train();
     }
 
     setupControls() {
-        const trainButton = document.getElementById('toggleTraining');
-        const testButton = document.getElementById('toggleTesting');
-
-        trainButton.onclick = () => this.toggleTraining();
-        testButton.onclick = () => this.testModel();
+        const modeButton = document.getElementById('toggleTraining');
+        modeButton.textContent = 'Switch to Test Mode';
+        modeButton.onclick = () => this.toggleMode();
     }
 
-    async toggleTraining() {
+    async toggleMode() {
+        this.isTraining = !this.isTraining;
+        const modeButton = document.getElementById('toggleTraining');
+        
         if (this.isTraining) {
-            this.isTraining = false;
-            document.getElementById('toggleTraining').textContent = 'Start Training';
+            modeButton.textContent = 'Switch to Test Mode';
+            this.train();
         } else {
-            this.isTraining = true;
-            document.getElementById('toggleTraining').textContent = 'Stop Training';
-            await this.train();
+            modeButton.textContent = 'Switch to Training Mode';
+            this.test();
         }
     }
 
@@ -58,6 +59,7 @@ class TrainingManager {
                 const avgReward = lastHundred.reduce((a, b) => a + b, 0) / lastHundred.length;
                 
                 this.stats.innerHTML = `
+                    Mode: Training<br>
                     Episode: ${episodeCount}<br>
                     Last Reward: ${episodeReward.toFixed(1)}<br>
                     Avg Reward (100): ${avgReward.toFixed(1)}<br>
@@ -74,16 +76,20 @@ class TrainingManager {
         animate();
     }
 
-    async testModel() {
-        this.isTraining = false;
-        document.getElementById('toggleTraining').textContent = 'Start Training';
-        
+    async test() {
         let state = this.env.reset();
         let totalReward = 0;
         
         const testEpisode = async () => {
+            if (this.isTraining) return;
+
+            const savedEpsilon = this.agent.epsilon;
+            this.agent.epsilon = 0;
+            
             const { action } = await this.agent.sampleAction(state);
             const { state: nextState, reward, done } = this.env.step(action);
+            
+            this.agent.epsilon = savedEpsilon;
             
             totalReward += reward;
             state = nextState;
@@ -91,8 +97,12 @@ class TrainingManager {
             this.env.render();
             
             if (done) {
-                this.stats.innerHTML = `Test Episode Reward: ${totalReward.toFixed(1)}`;
-                return;
+                this.stats.innerHTML = `
+                    Mode: Testing<br>
+                    Test Episode Reward: ${totalReward.toFixed(1)}
+                `;
+                state = this.env.reset();
+                totalReward = 0;
             }
             
             requestAnimationFrame(testEpisode);
