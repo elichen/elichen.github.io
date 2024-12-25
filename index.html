@@ -3,184 +3,205 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Built with AI Gallery</title>
-    <link rel="stylesheet" href="main-styles.css"> <!-- Link to external CSS -->
+    <title>Eli Chen - AI & RL Experiments</title>
+    <link rel="stylesheet" href="main-styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header style="width: 100%; text-align: center; padding: 20px 0; position: absolute; top: 0; left: 0; z-index: 1000; background: linear-gradient(45deg, #ff00ff, #00ffff); box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
-        <h1 style="margin: 0; font-size: 2.5em; color: #ffffff; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); font-family: 'Arial', sans-serif; letter-spacing: 2px; text-transform: uppercase;">Built with AI Gallery</h1>
-    </header>
-    <div class="floating-shapes">
-        <span class="shape" style="left: 10%; top: 10%; --translate-x: 1000px; --translate-y: 700px; --rotation: 720deg; --delay: 0s;">🤖</span>
-        <span class="shape" style="left: 20%; top: 20%; --translate-x: -800px; --translate-y: 500px; --rotation: -360deg; --delay: 2s;">🧠</span>
-        <span class="shape" style="left: 30%; top: 30%; --translate-x: 600px; --translate-y: -400px; --rotation: 360deg; --delay: 4s;">💻</span>
-        <span class="shape" style="left: 40%; top: 40%; --translate-x: -700px; --translate-y: -500px; --rotation: -720deg; --delay: 6s;">🔬</span>
-        <span class="shape" style="left: 50%; top: 50%; --translate-x: 800px; --translate-y: 1000px; --rotation: 360deg; --delay: 8s;">📡</span>
-        <span class="shape" style="left: 60%; top: 60%; --translate-x: -1000px; --translate-y: 700px; --rotation: -720deg; --delay: 10s;">📊</span>
-    </div>
-    <div class="outer-wrapper" style="padding-top: 100px;">
-        <div class="container">
-            <div class="game-box">
-                <h2>AI Wordle</h2>
-                <p>Guess AI-related terms and learn about key concepts in this engaging word puzzle game.</p>
-                <a href="wordle/index.html" class="play-button">Play</a>
+    <div class="container">
+        <nav class="nav-links">
+            <a href="#about">About</a>
+            <a href="#ai-apps">AI Apps</a>
+            <a href="#rl-experiments">AI Experiments</a>
+            <a href="https://github.com/elichen" target="_blank">GitHub</a>
+            <a href="https://www.linkedin.com/in/elichen" target="_blank">LinkedIn</a>
+        </nav>
+
+        <section id="about" class="about-section">
+            <h2 class="section-header">About</h2>
+            <p>I'm Eli Chen, an engineer, founder, and CTO. This is my playground for browser-based AI experiments. Everything runs client-side in your browser.</p>
+        </section>
+
+        <section id="ai-apps">
+            <h2 class="section-header">AI Generated Applications</h2>
+            <div class="projects-grid">
+                <div class="game-box">
+                    <h2>AI Wordle</h2>
+                    <p>Guess AI-related terms and learn about key concepts in this engaging word puzzle game.</p>
+                    <a href="wordle/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Python Blocks</h2>
+                    <p>Drag, drop, and decode in this Python programming puzzle, where you'll piece together code blocks to solve challenges.</p>
+                    <a href="python-blocks/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Flappy Loss</h2>
+                    <p>Guide the AI bird through obstacles along the loss curve to achieve the highest score!</p>
+                    <a href="flappy/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Saddle Point</h2>
+                    <p>An interactive 3D visualization demonstrating saddle points and local minima in optimization landscapes.</p>
+                    <a href="marble/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Sliding Tiles</h2>
+                    <p>A sliding puzzle where players rearrange scrambled image tiles to recreate the original picture</p>
+                    <a href="sliding/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Color Cascade</h2>
+                    <p>Flood the grid with color in this addictive puzzle game where strategy meets simplicity.</p>
+                    <a href="color/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>DVD Gravity</h2>
+                    <p>Guide a colorful DVD logo through a cosmic dance of bounces and gravity wells, scoring points as it kisses the corners of your screen.</p>
+                    <a href="dvd/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Cosmic Sim</h2>
+                    <p>Explore a dynamic cosmic simulation where particle densities shape a vibrant, evolving universe.</p>
+                    <a href="particle/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Neon</h2>
+                    <p>Visualize and interact with different neural network architectures as you watch activations propagate through their intricate layers.</p>
+                    <a href="neon/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Intervals</h2>
+                    <p>Explore musical intervals in this interactive game that tests your ear and music theory knowledge.</p>
+                    <a href="intervals/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>AI News</h2>
+                    <p>A news reader that aggregates and displays the latest news articles from selected RSS feeds.</p>
+                    <a href="rss/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Automata</h2>
+                    <p>An interactive cellular automaton simulation where you can create and observe evolving patterns on a dynamic grid.</p>
+                    <a href="automata/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Map</h2>
+                    <p>Interactive world map visualizing global population data with color-coded countries and hover-over information.</p>
+                    <a href="map/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Whiteboard</h2>
+                    <p>A modern, interactive whiteboard with drawing tools, camera integration, and cloud saving capabilities.</p>
+                    <a href="whiteboard/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Jokes</h2>
+                    <p>A simple web app that displays a new joke every time you visit.</p>
+                    <a href="jokes/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Fractals</h2>
+                    <p>Explore mesmerizing fractal patterns with this interactive app, featuring the Mandelbrot set, Julia set, and Sierpinski triangle.</p>
+                    <a href="fractal/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Slither</h2>
+                    <p>Slither through a vibrant world, grow your snake, and outmaneuver opponents in this multiplayer game.</p>
+                    <a href="slither/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Slots</h2>
+                    <p>Spin the reels in this colorful Emoji Slot Machine and aim for the cherry jackpot!</p>
+                    <a href="slots/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Shaders</h2>
+                    <p>Explore a collection of mesmerizing WebGL shaders, from rippling waves to psychedelic vortexes.</p>
+                    <a href="shader/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Teapot</h2>
+                    <p>Utah Teapot WebGL Demo: Explore the iconic 3D model that revolutionized computer graphics.</p>
+                    <a href="vertex/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Ray Trace</h2>
+                    <p>A 3D Donut Ray Tracer.</p>
+                    <a href="raytrace/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Red Black Tree</h2>
+                    <p>Explore self-balancing binary search trees with real-time insertion and deletion operations.</p>
+                    <a href="rbtree/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Stick Balancing</h2>
+                    <p>Watch as an AI agent learns to balance a stick using reinforcement learning.</p>
+                    <a href="stick/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>RL Snake</h2>
+                    <p>An AI-powered Snake game that uses reinforcement learning to train an agent to play, featuring real-time visualization of the learning process.</p>
+                    <a href="snake/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>Nonogram</h2>
+                    <p>Solve colorful 10x10 nonogram puzzles to reveal hidden emoji pictures in this fun and challenging logic game.</p>
+                    <a href="nonogram/index.html" class="play-button">Play</a>
+                </div>
+                <div class="game-box">
+                    <h2>MD5 Cracker</h2>
+                    <p>Demonstrate the power of parallel computing by cracking MD5 hashes with and without GPU.</p>
+                    <a href="password/index.html" class="play-button">Play</a>
+                </div>
+        </section>
+
+        <section id="ai-experiments">
+            <h2 class="section-header">AI Experiments</h2>
+            <div class="projects-grid">
+                <div class="game-box">
+                    <h2>MinGPT</h2>
+                    <p>A mini language model trained on Shakespeare, powered by TensorFlow.js in your browser.</p>
+                    <a href="gpt/index.html" class="play-button">View Demo →</a>
+                </div>
+                <div class="game-box">
+                    <h2>Stick Balancing</h2>
+                    <p>Watch as an AI agent learns to balance a stick using reinforcement learning.</p>
+                    <a href="stick/index.html" class="play-button">View Demo →</a>
+                </div>
+                <div class="game-box">
+                    <h2>RL Snake</h2>
+                    <p>An AI-powered Snake game using reinforcement learning with real-time visualization.</p>
+                    <a href="snake/index.html" class="play-button">View Demo →</a>
+                </div>
+                <div class="game-box">
+                    <h2>Tic-Tac-Toe</h2>
+                    <p>An interactive Tic-Tac-Toe game powered by Deep Q-Learning.</p>
+                    <a href="tictactoe/index.html" class="play-button">View Demo →</a>
+                </div>
+                <div class="game-box">
+                    <h2>Breakout</h2>
+                    <p>A Breakout game powered by a Deep Q-Network (DQN) agent.</p>
+                    <a href="breakout/index.html" class="play-button">View Demo →</a>
+                </div>
+                <div class="game-box">
+                    <h2>Robot Arm</h2>
+                    <p>Train a robotic arm using deep reinforcement learning.</p>
+                    <a href="robotarm/index.html" class="play-button">View Demo →</a>
+                </div>
+                <div class="game-box">
+                    <h2>Pong</h2>
+                    <p>A self-learning Pong AI that trains through neural networks.</p>
+                    <a href="pong/index.html" class="play-button">View Demo →</a>
+                </div>
+                <div class="game-box">
+                    <h2>Air Hockey</h2>
+                    <p>An AI air hockey opponent that learns through self-play using RL.</p>
+                    <a href="airhockey/index.html" class="play-button">View Demo →</a>
+                </div>
             </div>
-            <div class="game-box">
-                <h2>Python Blocks</h2>
-                <p>Drag, drop, and decode in this Python programming puzzle, where you'll piece together code blocks to solve challenges.</p>
-                <a href="python-blocks/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Flappy Loss</h2>
-                <p>Guide the AI bird through obstacles along the loss curve to achieve the highest score!</p>
-                <a href="flappy/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Saddle Point</h2>
-                <p>An interactive 3D visualization demonstrating saddle points and local minima in optimization landscapes.</p>
-                <a href="marble/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Sliding Tiles</h2>
-                <p>A sliding puzzle where players rearrange scrambled image tiles to recreate the original picture</p>
-                <a href="sliding/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Color Cascade</h2>
-                <p>Flood the grid with color in this addictive puzzle game where strategy meets simplicity.</p>
-                <a href="color/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>DVD Gravity</h2>
-                <p>Guide a colorful DVD logo through a cosmic dance of bounces and gravity wells, scoring points as it kisses the corners of your screen.</p>
-                <a href="dvd/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Cosmic Sim</h2>
-                <p>Explore a dynamic cosmic simulation where particle densities shape a vibrant, evolving universe.</p>
-                <a href="particle/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Neon</h2>
-                <p>Visualize and interact with different neural network architectures as you watch activations propagate through their intricate layers.</p>
-                <a href="neon/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Intervals</h2>
-                <p>Explore musical intervals in this interactive game that tests your ear and music theory knowledge.</p>
-                <a href="intervals/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>AI News</h2>
-                <p>A news reader that aggregates and displays the latest news articles from selected RSS feeds.</p>
-                <a href="rss/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Automata</h2>
-                <p>An interactive cellular automaton simulation where you can create and observe evolving patterns on a dynamic grid.</p>
-                <a href="automata/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Map</h2>
-                <p>Interactive world map visualizing global population data with color-coded countries and hover-over information.</p>
-                <a href="map/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Whiteboard</h2>
-                <p>A modern, interactive whiteboard with drawing tools, camera integration, and cloud saving capabilities.</p>
-                <a href="whiteboard/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Jokes</h2>
-                <p>A simple web app that displays a new joke every time you visit.</p>
-                <a href="jokes/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Fractals</h2>
-                <p>Explore mesmerizing fractal patterns with this interactive app, featuring the Mandelbrot set, Julia set, and Sierpinski triangle.</p>
-                <a href="fractal/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Slither</h2>
-                <p>Slither through a vibrant world, grow your snake, and outmaneuver opponents in this multiplayer game.</p>
-                <a href="slither/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Slots</h2>
-                <p>Spin the reels in this colorful Emoji Slot Machine and aim for the cherry jackpot!</p>
-                <a href="slots/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Shaders</h2>
-                <p>Explore a collection of mesmerizing WebGL shaders, from rippling waves to psychedelic vortexes.</p>
-                <a href="shader/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Teapot</h2>
-                <p>Utah Teapot WebGL Demo: Explore the iconic 3D model that revolutionized computer graphics.</p>
-                <a href="vertex/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>MinGPT</h2>
-                <p>A mini language model trained on Shakespeare, powered by TensorFlow.js in your browser.</p>
-                <a href="gpt/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Ray Trace</h2>
-                <p>A 3D Donut Ray Tracer.</p>
-                <a href="raytrace/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Red Black Tree</h2>
-                <p>Explore self-balancing binary search trees with real-time insertion and deletion operations.</p>
-                <a href="rbtree/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Stick Balancing</h2>
-                <p>Watch as an AI agent learns to balance a stick using reinforcement learning.</p>
-                <a href="stick/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>RL Snake</h2>
-                <p>An AI-powered Snake game that uses reinforcement learning to train an agent to play, featuring real-time visualization of the learning process.</p>
-                <a href="snake/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Nonogram</h2>
-                <p>Solve colorful 10x10 nonogram puzzles to reveal hidden emoji pictures in this fun and challenging logic game.</p>
-                <a href="nonogram/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>MD5 Cracker</h2>
-                <p>Demonstrate the power of parallel computing by cracking MD5 hashes with and without GPU.</p>
-                <a href="password/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Tic-Tac-Toe</h2>
-                <p>An interactive Tic-Tac-Toe game powered by Deep Q-Learning, allowing users to train an AI agent and play against it at various difficulty levels.</p>
-                <a href="tictactoe/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Breakout</h2>
-                <p>An Breakout game powered by a Deep Q-Network (DQN) agent, demonstrating reinforcement learning in action with real-time visualization of training progress.</p>
-                <a href="breakout/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Robot Arm</h2>
-                <p>Train a robotic arm using deep reinforcement learning, where you can demonstrate correct movements and watch the AI learn from your examples.</p>
-                <a href="robotarm/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Pong</h2>
-                <p>A self-learning Pong AI that trains through neural networks and lets you challenge it in real-time using WebGPU acceleration.</p>
-                <a href="pong/index.html" class="play-button">Play</a>
-            </div>
-            <div class="game-box">
-                <h2>Air Hockey</h2>
-                <p>An AI air hockey opponent that learns through self-play, using reinforcement learning to master hitting, scoring, and strategic gameplay.</p>
-                <a href="airhockey/index.html" class="play-button">Play</a>
-            </div>
-</div>
+        </section>
     </div>
 </body>
 </html>
