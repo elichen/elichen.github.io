@@ -1,112 +1,128 @@
-/* General body styling */
+/* Reset and base styles */
 body {
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    background-color: #f0f5f9;
-    color: #2c3e50;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
+    font-family: "Source Code Pro", monospace;
+    background-color: #ffffff;
+    color: #333333;
+    line-height: 1.6;
     margin: 0;
     padding: 20px;
     box-sizing: border-box;
 }
 
-/* Wrapper to center the container */
-.outer-wrapper {
-    display: flex;
-    justify-content: center;
-    width: 100%;
+/* ASCII art header styling */
+.ascii-header {
+    white-space: pre;
+    font-family: monospace;
+    text-align: left;
+    font-size: 12px;
+    line-height: 1.2;
+    margin: 20px 0;
+    color: #009900;
 }
 
-/* Container styling */
+/* Section headers */
+.section-header {
+    border-bottom: 2px dashed #009900;
+    margin: 40px 0 20px 0;
+    padding-bottom: 10px;
+    font-size: 1.5em;
+    color: #009900;
+}
+
+/* Container modifications */
 .container {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 20px;
-    max-width: 1000px;
+    max-width: 1200px;
     margin: 0 auto;
+    padding: 20px;
 }
 
-/* Styling for individual game boxes */
+/* About section */
+.about-section {
+    background: #f8f8f8;
+    border: 1px solid #009900;
+    padding: 20px;
+    margin: 20px 0;
+    font-size: 1.1em;
+    line-height: 1.6;
+}
+
+/* Project grid */
+.projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+/* Game box modifications */
 .game-box {
     background-color: #ffffff;
-    border-radius: 15px;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-    padding: 2rem;
-    width: 250px;  /* Set width */
-    height: 250px; /* Set height to make it square */
-    text-align: center;
+    border: 1px solid #009900;
+    padding: 15px;
+    height: auto;
+    min-height: 200px;
+    transition: all 0.3s ease;
+    
+    /* Add these properties for flexbox layout */
     display: flex;
     flex-direction: column;
-    justify-content: space-between; /* Space between title, description, and button */
+    justify-content: space-between;
 }
 
-/* Set the title color to blue */
-.game-box h2 {
-    font-size: 1.8rem;
-    margin-bottom: 1rem;
-    color: #3498db; /* Blue color for titles */
-}
-
-.game-box p {
-    margin-bottom: 1rem;
-    flex-grow: 1; /* Allows the text to take up available space */
-    overflow: hidden; /* Prevent overflow if the content is too large */
-}
-
-/* Play button styling */
-.play-button {
-    display: inline-block;
-    background-color: #2ecc71;
-    color: white;
-    text-decoration: none;
-    padding: 10px 20px;
-    border-radius: 25px;
-    font-size: 1rem;
-    transition: background-color 0.3s ease, transform 0.3s ease;
-    align-self: center; /* Center the button horizontally */
-    margin-top: auto; /* Push the button to the bottom */
-}
-
-.play-button:hover {
-    background-color: #27ae60;
+.game-box:hover {
+    background-color: #f0fff0;
     transform: translateY(-2px);
 }
 
-/* Floating shapes animation */
+.game-box h2 {
+    color: #009900;
+    font-size: 1.2em;
+    margin: 0 0 10px 0;
+}
+
+.game-box p {
+    /* Add this to prevent paragraph from shrinking */
+    flex: 1;
+    margin: 0 0 15px 0;
+}
+
+/* Button styling */
+.play-button {
+    background-color: #ffffff;
+    color: #009900;
+    border: 1px solid #009900;
+    padding: 5px 15px;
+    text-decoration: none;
+    font-family: "Source Code Pro", monospace;
+    transition: all 0.3s ease;
+    margin: 0;
+    align-self: flex-start;
+}
+
+.play-button:hover {
+    background-color: #009900;
+    color: #ffffff;
+    transform: none;
+}
+
+/* Remove floating shapes */
 .floating-shapes {
-    position: fixed;
-    top: -50px; /* Move the entire container slightly up to avoid clipping */
-    left: 0;
-    width: 100%;
-    height: calc(100% + 100px); /* Increase the height to allow for more space at the top */
-    overflow: hidden;
-    z-index: -1;
+    display: none;
 }
 
-.shape {
-    position: absolute;
-    font-size: 80px;
-    opacity: 0; /* Start fully transparent */
-    animation: meteor 10s linear infinite;
-    --translate-x: 0px;
-    --translate-y: 0px;
-    --rotation: 0deg;
-    animation-delay: var(--delay, 0s);
+/* Navigation */
+.nav-links {
+    margin: 20px 0;
+    padding: 10px 0;
+    border-bottom: 1px solid #009900;
 }
 
-@keyframes meteor {
-    0% {
-        transform: translate(0, 0) rotate(0deg);
-        opacity: 0; /* Start transparent */
-    }
-    10% {
-        opacity: 0.8; /* Fade in quickly */
-    }
-    100% {
-        transform: translate(var(--translate-x), var(--translate-y)) rotate(var(--rotation));
-        opacity: 0; /* Fade out at the end */
-    }
+.nav-links a {
+    color: #009900;
+    text-decoration: none;
+    margin-right: 20px;
+}
+
+.nav-links a:hover {
+    text-decoration: underline;
 }
