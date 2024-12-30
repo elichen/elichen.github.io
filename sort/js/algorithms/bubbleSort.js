@@ -7,15 +7,12 @@ async function bubbleSort(array, updateDisplay, delay) {
             if (array[j] > array[j + 1]) {
                 [array[j], array[j + 1]] = [array[j + 1], array[j]];
                 swapped = true;
+                await new Promise(resolve => setTimeout(resolve, delay));
+                updateDisplay([j, j + 1]);
             }
         }
-        // Only update display after each pass
-        if (swapped) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-            updateDisplay();
-        }
-        // Early exit if no swaps needed
         if (!swapped) break;
     }
+    updateDisplay([]);
     return array;
 } 

@@ -2,26 +2,20 @@ async function quickSort(array, updateDisplay, delay) {
     async function partition(low, high) {
         const pivot = array[high];
         let i = low - 1;
-        let changed = false;
         
         for (let j = low; j < high; j++) {
+            updateDisplay([high, j]);  // Highlight pivot and current element
+            await new Promise(resolve => setTimeout(resolve, delay));
             if (array[j] < pivot) {
                 i++;
-                if (i !== j) {
-                    [array[i], array[j]] = [array[j], array[i]];
-                    changed = true;
-                }
+                [array[i], array[j]] = [array[j], array[i]];
+                updateDisplay([i, j, high]);  // Highlight swap and pivot
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
-        if (i + 1 !== high) {
-            [array[i + 1], array[high]] = [array[high], array[i + 1]];
-            changed = true;
-        }
-        
-        if (changed) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-            updateDisplay();
-        }
+        [array[i + 1], array[high]] = [array[high], array[i + 1]];
+        updateDisplay([i + 1, high]);  // Highlight final pivot swap
+        await new Promise(resolve => setTimeout(resolve, delay));
         return i + 1;
     }
     
@@ -34,5 +28,6 @@ async function quickSort(array, updateDisplay, delay) {
     }
     
     await quickSortHelper(0, array.length - 1);
+    updateDisplay([]); // Clear highlights at the end
     return array;
 } 
