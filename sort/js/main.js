@@ -95,15 +95,18 @@ class SortingVisualizer {
         }
     }
 
-    updateDisplay() {
+    updateDisplay(activeIndices = []) {
         const container = document.getElementById('arrayContainer');
         container.innerHTML = '';
         
         const barWidth = Math.floor((container.clientWidth - (this.arraySize * 2)) / this.arraySize);
         
-        this.array.forEach(value => {
+        this.array.forEach((value, index) => {
             const bar = document.createElement('div');
             bar.className = 'array-bar';
+            if (activeIndices.includes(index)) {
+                bar.classList.add('active');
+            }
             bar.style.height = `${(value / this.maxValue) * 100}%`;
             bar.style.width = `${barWidth}px`;
             container.appendChild(bar);
