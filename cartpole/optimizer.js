@@ -39,37 +39,35 @@ class ObGD {
                     grad instanceof tf.Tensor ? grad.dataSync() : grad,
                     param.shape
                 );
+                
+                // Match PyTorch's e.mul_(gamma * lambda).add_(p.grad, alpha=1.0)
+                trace.assign(
+                    trace.mul(tf.scalar(this.gamma * this.lambda))
+                         .add(gradTensor)
+                );
 
-                // Update trace
-                const decayFactor = tf.scalar(this.gamma * this.lambda);
-                const newTrace = trace.mul(decayFactor).add(gradTensor);
-                trace.assign(newTrace);
-
-                // Update zSum
                 zSum += tf.sum(tf.abs(trace)).dataSync()[0];
             }
 
-            // Compute step size
             const deltaBar = Math.max(Math.abs(delta), 1.0);
             const dotProduct = deltaBar * zSum * this.lr * this.kappa;
             const stepSize = dotProduct > 1 ? this.lr / dotProduct : this.lr;
-            const updateFactor = -stepSize * delta;
 
-            // Update parameters
+            // Match PyTorch's p.data.add_(delta * e, alpha=-step_size)
             for (let i = 0; i < this.params.length; i++) {
                 const param = this.params[i];
                 const trace = this.eligibilityTraces[i];
 
                 if (!param || !trace) continue;
 
-                const update = trace.mul(tf.scalar(updateFactor));
-                
-                if (tf.util.arraysEqual(param.shape, update.shape)) {
-                    param.assign(param.add(update));
-                }
+                // First compute delta * e
+                const deltaTrace = trace.mul(tf.scalar(delta));
+                // Then apply with alpha=-step_size
+                param.assign(
+                    param.add(deltaTrace.mul(tf.scalar(-stepSize)))
+                );
             }
 
-            // Reset eligibility traces if needed
             if (reset) {
                 this.eligibilityTraces.forEach(trace => {
                     trace.assign(tf.zeros(trace.shape));
