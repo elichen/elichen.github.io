@@ -15,8 +15,15 @@ class StreamingNetwork {
             name: 'fc1',
             trainable: true
         }));
-        model.add(tf.layers.layerNormalization());
-        model.add(tf.layers.leakyReLU());
+        model.add(tf.layers.layerNormalization({
+            axis: -1,  // Normalize over the last axis (features)
+            epsilon: 1e-5,  // Match PyTorch's default
+            center: true,  // Use beta
+            scale: true,   // Use gamma
+            beta_initializer: 'zeros',
+            gamma_initializer: 'ones'
+        }));
+        model.add(tf.layers.leakyReLU({alpha: 0.01}));  // Match PyTorch's default
 
         // Hidden layer with layer normalization
         model.add(tf.layers.dense({
@@ -25,8 +32,15 @@ class StreamingNetwork {
             name: 'hidden',
             trainable: true
         }));
-        model.add(tf.layers.layerNormalization());
-        model.add(tf.layers.leakyReLU());
+        model.add(tf.layers.layerNormalization({
+            axis: -1,
+            epsilon: 1e-5,
+            center: true,
+            scale: true,
+            beta_initializer: 'zeros',
+            gamma_initializer: 'ones'
+        }));
+        model.add(tf.layers.leakyReLU({alpha: 0.01}));
 
         // Output layer
         model.add(tf.layers.dense({
