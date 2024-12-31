@@ -63,24 +63,24 @@ class StreamQ {
         const nextStateTensor = tf.tensor2d([nextState], [1, nextState.length]);
         
         try {
-            // Use tf.variableGrads to compute both value and gradients
-            const {value: qValueAtAction, grads} = tf.variableGrads(() => {
-                const qValues = this.network.model.predict(stateTensor);
-                const actionMask = tf.oneHot([action], this.numActions);
-                return tf.sum(tf.mul(qValues, actionMask));
-            });
-
-            // Compute target Q-value
+            // Compute target Q-value outside of gradient tape
             const nextQValues = this.network.model.predict(nextStateTensor);
             const maxNextQ = nextQValues.max();
             const doneMask = done ? 0 : 1;
             const tdTarget = tf.scalar(reward).add(maxNextQ.mul(tf.scalar(this.gamma * doneMask)));
             
+            // Compute gradients with respect to -q_sa
+            const {value: qValueAtAction, grads} = tf.variableGrads(() => {
+                const qValues = this.network.model.predict(stateTensor);
+                const actionMask = tf.oneHot([action], this.numActions);
+                const qsa = tf.sum(tf.mul(qValues, actionMask));
+                return tf.neg(qsa);  // -q_sa like in Python
+            });
+
             // Compute TD error
-            const delta = tdTarget.sub(qValueAtAction);
+            const delta = tdTarget.sub(qValueAtAction);  // Remove unnecessary negation
             const deltaValue = await delta.data();
 
-            // Update parameters using the computed gradients
             await this.optimizer.step(
                 deltaValue[0],
                 Object.values(grads),
@@ -90,11 +90,10 @@ class StreamQ {
             // Clean up tensors
             stateTensor.dispose();
             nextStateTensor.dispose();
-            delta.dispose();
-            tdTarget.dispose();
-            maxNextQ.dispose();
             nextQValues.dispose();
-            qValueAtAction.dispose();
+            maxNextQ.dispose();
+            tdTarget.dispose();
+            delta.dispose();
             Object.values(grads).forEach(g => g && g.dispose());
             
             return deltaValue[0];
