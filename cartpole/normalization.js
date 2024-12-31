@@ -2,20 +2,31 @@ class SampleMeanStd {
     constructor(shape) {
         this.mean = tf.variable(tf.zeros(shape));
         this.var = tf.variable(tf.ones(shape));
+        this.p = tf.variable(tf.zeros(shape));  // Add p variable for tracking
         this.count = 0;
     }
 
     update(x) {
         return tf.tidy(() => {
+            if (this.count === 0) {
+                this.mean.assign(x);
+                this.p.assign(tf.zerosLike(x));
+                this.count = 1;
+                return;
+            }
+
             this.count += 1;
             const delta = tf.sub(x, this.mean);
             const newMean = this.mean.add(delta.div(tf.scalar(this.count)));
-            const m_a = this.var.mul(tf.scalar(this.count - 1));
-            const m_b = delta.mul(tf.sub(x, newMean));
-            const newVar = tf.add(m_a, m_b).div(tf.scalar(this.count));
+            
+            // Update p and var like in Python version
+            const deltaPrime = tf.sub(x, newMean);
+            const newP = this.p.add(tf.mul(delta, deltaPrime));
+            const newVar = this.count < 2 ? tf.onesLike(x) : newP.div(tf.scalar(this.count - 1));
             
             this.mean.assign(newMean);
             this.var.assign(newVar);
+            this.p.assign(newP);
         });
     }
 
@@ -29,6 +40,7 @@ class SampleMeanStd {
     dispose() {
         this.mean.dispose();
         this.var.dispose();
+        this.p.dispose();
     }
 }
 
