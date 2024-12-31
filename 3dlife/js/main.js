@@ -4,6 +4,7 @@ class Conway3D {
         this.lastTime = 0;
         this.frameCount = 0;
         this.lastFpsUpdate = 0;
+        this.density = 0.09;  // Initial density
         
         this.init();
         this.setupEventListeners();
@@ -15,7 +16,7 @@ class Conway3D {
         this.gameLogic = new GameLogic(this.grid);
         this.cameraController = new CameraController(this.renderer.camera, this.renderer.renderer.domElement);
         
-        this.grid.randomize(0.05);  // Changed from 0.4 to 0.05 (5% initial fill)
+        this.grid.randomize(this.density);
         this.animate();
     }
 
@@ -26,7 +27,15 @@ class Conway3D {
 
         document.getElementById('reset').addEventListener('click', () => {
             this.grid.reset();
-            this.grid.randomize(0.05);  // Now matches initial load
+            this.grid.randomize(this.density);
+        });
+
+        const densitySlider = document.getElementById('density');
+        const densityValue = document.getElementById('densityValue');
+        
+        densitySlider.addEventListener('input', (e) => {
+            this.density = parseFloat(e.target.value);
+            densityValue.textContent = this.density.toFixed(2);
         });
     }
 

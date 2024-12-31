@@ -2,7 +2,7 @@ class Renderer {
     constructor() {
         // Configuration constants
         this.CELL_SIZE = 6;  // Base size for all geometry calculations
-        this.WORLD_SIZE = 40;  // Grid dimensions (10x10x10, 20x20x20, etc)
+        this.WORLD_SIZE = 30;  // Grid dimensions (10x10x10, 20x20x20, etc)
         
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 2000);
