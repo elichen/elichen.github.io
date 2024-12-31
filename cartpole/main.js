@@ -1,10 +1,12 @@
 class TrainingManager {
     constructor(config = {}) {
         let env = new CartPole();
+        env = new ScaleReward(env, config.gamma || 0.99);
         env = new NormalizeObservation(env);
-        env = new ScaleReward(env, 0.1);
+        env = new AddTimeInfo(env);
         this.env = env;
         
+        config.env = env;
         this.agent = new StreamQ(config);
         this.episodeRewards = [];
         this.isTraining = true;
