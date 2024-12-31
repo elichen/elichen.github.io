@@ -67,7 +67,7 @@ class StreamingNetwork {
             const weights = layer.getWeights();
             const w = weights[0];
             const shape = w.shape;
-            const fanIn = shape[0];
+            const fanIn = shape[1];
             
             // Create new weights with uniform distribution
             const newWeights = tf.tidy(() => {
