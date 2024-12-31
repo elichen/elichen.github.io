@@ -11,7 +11,7 @@ class CartPole {
         this.dt = 0.02;
 
         // Angle at which to fail the episode (radians)
-        this.thetaThresholdRadians = Math.PI / 2;
+        this.thetaThresholdRadians = 12 * Math.PI / 180;  // ±12 degrees
         this.xThreshold = 2.4;
 
         // Display settings
