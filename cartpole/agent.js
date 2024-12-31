@@ -9,9 +9,13 @@ class StreamQ {
         this.timeStep = 0;
         this.epsilon = this.epsilonStart;
 
+        // Get input size from environment by doing a reset
+        const initialState = config.env.reset();
+        const inputSize = initialState.length;
+
         // Initialize network and optimizer
         this.network = new StreamingNetwork(
-            config.inputSize || 4,
+            inputSize,
             config.hiddenSize || 32,
             this.numActions
         );

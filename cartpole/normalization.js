@@ -75,25 +75,79 @@ class NormalizeObservation {
 }
 
 class ScaleReward {
-    constructor(env, scale = 1.0) {
+    constructor(env, gamma = 0.99, epsilon = 1e-8) {
         this.env = env;
-        this.scale = scale;
+        this.gamma = gamma;
+        this.epsilon = epsilon;
+        this.rewardStats = new SampleMeanStd([1]);  // Shape for scalar reward
+        this.rewardTrace = 0;  // Single env case
     }
 
     reset() {
+        this.rewardTrace = 0;
         return this.env.reset();
     }
 
     step(action) {
         const { state, reward, done } = this.env.step(action);
+        
+        // Update reward trace
+        this.rewardTrace = this.rewardTrace * this.gamma * (1 - (done ? 1 : 0)) + reward;
+        
+        // Update stats and normalize reward
+        this.rewardStats.update(tf.tensor1d([this.rewardTrace]));
+        const normalizedReward = reward / tf.sqrt(this.rewardStats.var.add(tf.scalar(this.epsilon))).dataSync()[0];
+
         return {
             state,
-            reward: reward * this.scale,
+            reward: normalizedReward,
             done
         };
     }
 
     render() {
         this.env.render();
+    }
+
+    dispose() {
+        this.rewardStats.dispose();
+    }
+
+    getState() {
+        return this.env.getState();
+    }
+}
+
+class AddTimeInfo {
+    constructor(env) {
+        this.env = env;
+        this.epiTime = -0.5;
+        this.timeLimit = 10000;  // Same as Python's max_episode_steps
+    }
+
+    reset() {
+        this.epiTime = -0.5;
+        const state = this.env.reset();
+        return [...state, this.epiTime];
+    }
+
+    step(action) {
+        const { state, reward, done } = this.env.step(action);
+        this.epiTime += 1.0 / this.timeLimit;
+        
+        return {
+            state: [...state, this.epiTime],
+            reward,
+            done
+        };
+    }
+
+    render() {
+        this.env.render();
+    }
+
+    getState() {
+        const baseState = this.env.getState();
+        return [...baseState, this.epiTime];
     }
 } 
