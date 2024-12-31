@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Conway's Game of Life</title>
+    <link rel="stylesheet" href="styles/main.css">
+    
+    <!-- Inline shaders -->
+    <script type="x-shader/x-vertex" id="vertexShader">
+        uniform float maxAge;
+        attribute float age;
+        
+        varying float vAge;
+        varying vec3 vPosition;
+        
+        void main() {
+            vAge = age / maxAge;
+            vPosition = position;
+            
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+    
+    <script type="x-shader/x-fragment" id="fragmentShader">
+        varying float vAge;
+        varying vec3 vPosition;
+        
+        void main() {
+            // Young cells are bright green, old cells are dark brown
+            vec3 youngColor = vec3(0.3, 1.0, 0.3);
+            vec3 oldColor = vec3(0.4, 0.3, 0.1);
+            
+            // Interpolate between colors based on age
+            vec3 cellColor = mix(youngColor, oldColor, vAge);
+            
+            // Add glow effect
+            float edgeFactor = 1.0 - length(abs(vPosition)) * 0.15;
+            edgeFactor = pow(edgeFactor, 0.5);
+            
+            // Make cells more visible by increasing brightness
+            cellColor *= 1.5;
+            
+            // Make cells more transparent (0.15 alpha)
+            gl_FragColor = vec4(cellColor * edgeFactor, 0.15);
+        }
+    </script>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div class="controls">
+        <button id="startStop">Start/Stop</button>
+        <button id="reset">Reset</button>
+        <div class="info">
+            <span>Cells Alive: <span id="cellCount">0</span></span>
+            <span>FPS: <span id="fps">0</span></span>
+        </div>
+    </div>
+    
+    <!-- Load Three.js and controls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- Load our scripts -->
+    <script src="js/Grid.js"></script>
+    <script src="js/GameLogic.js"></script>
+    <script src="js/CameraController.js"></script>
+    <script src="js/Renderer.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html> 
