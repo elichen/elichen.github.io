@@ -106,9 +106,12 @@ class ScaleReward {
         // Update reward trace
         this.rewardTrace = this.rewardTrace * this.gamma * (1 - (done ? 1 : 0)) + reward;
         
-        // Update stats and normalize reward
+        // Update stats with reward trace and normalize reward
         this.rewardStats.update(tf.tensor1d([this.rewardTrace]));
-        const normalizedReward = reward / tf.sqrt(this.rewardStats.var.add(tf.scalar(this.epsilon))).dataSync()[0];
+        const normalizedReward = tf.tidy(() => {
+            const std = tf.sqrt(this.rewardStats.var.add(tf.scalar(this.epsilon)));
+            return reward / std.dataSync()[0];  // Use raw reward but scale by trace's std
+        });
 
         return {
             state,
