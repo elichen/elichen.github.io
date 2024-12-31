@@ -22,7 +22,9 @@ class SampleMeanStd {
             // Update p and var like in Python version
             const deltaPrime = tf.sub(x, newMean);
             const newP = this.p.add(tf.mul(delta, deltaPrime));
-            const newVar = this.count < 2 ? tf.onesLike(x) : newP.div(tf.scalar(this.count - 1));
+            const newVar = this.count < 2 ? 
+                tf.onesLike(x) : 
+                newP.div(tf.scalar(this.count - 1)).maximum(tf.scalar(1e-2));  // Add minimum clip like Python
             
             this.mean.assign(newMean);
             this.var.assign(newVar);
