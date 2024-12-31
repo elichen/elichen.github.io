@@ -23,11 +23,11 @@ class CartPole {
     }
 
     reset() {
-        // Initial state with small random perturbations
-        this.x = 0;
-        this.xDot = 0;
-        this.theta = (Math.random() - 0.5) * 0.05;
-        this.thetaDot = (Math.random() - 0.5) * 0.05;
+        // All observations uniformly random in (-0.05, 0.05) like Gym
+        this.x = (Math.random() - 0.5) * 0.1;
+        this.xDot = (Math.random() - 0.5) * 0.1;
+        this.theta = (Math.random() - 0.5) * 0.1;
+        this.thetaDot = (Math.random() - 0.5) * 0.1;
         return this.getState();
     }
 
