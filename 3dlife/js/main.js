@@ -1,10 +1,9 @@
 class Conway3D {
     constructor() {
-        this.isRunning = false;
         this.lastTime = 0;
         this.frameCount = 0;
         this.lastFpsUpdate = 0;
-        this.density = 0.20;  // Initial density updated to 0.20
+        this.density = 0.20;
         
         this.init();
         this.setupEventListeners();
@@ -21,10 +20,6 @@ class Conway3D {
     }
 
     setupEventListeners() {
-        document.getElementById('startStop').addEventListener('click', () => {
-            this.isRunning = !this.isRunning;
-        });
-
         document.getElementById('reset').addEventListener('click', () => {
             this.grid.reset();
             this.grid.randomize(this.density);
@@ -54,7 +49,8 @@ class Conway3D {
         
         this.updateFPS(now);
 
-        if (this.isRunning && now - this.lastTime > 100) {
+        // Always update if enough time has passed
+        if (now - this.lastTime > 100) {
             this.gameLogic.update();
             this.lastTime = now;
         }
