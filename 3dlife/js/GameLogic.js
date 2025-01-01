@@ -32,16 +32,25 @@ class GameLogic {
                     const idx = this.grid.getIndex(x, y, z);
 
                     if (currentAge > 0) { // Cell is alive
-                        // Die if less than 5 neighbors or exactly 8 neighbors
-                        if (neighbors < 5 || neighbors === 8) {
-                            this.grid.nextState[idx] = 0;
-                        } else {
+                        // Survival rule: 5-8 neighbors (coral-like growth)
+                        if (neighbors >= 5 && neighbors <= 8) {
+                            // Age normally
                             this.grid.nextState[idx] = Math.min(currentAge + 1, 255);
+                        } else {
+                            // Die if outside survival range
+                            this.grid.nextState[idx] = Math.max(0, currentAge - 5);
                         }
                     } else { // Cell is dead
-                        // Born if exactly 5 neighbors
-                        if (neighbors === 5) {
-                            this.grid.nextState[idx] = 1;
+                        // Birth rules: 6-7 or 9 or 12 neighbors (branching points)
+                        if ((neighbors >= 6 && neighbors <= 7) || 
+                            neighbors === 9 || 
+                            neighbors === 12) {
+                            // Birth with 30% chance to prevent overcrowding
+                            if (Math.random() < 0.3) {
+                                this.grid.nextState[idx] = 1;
+                            } else {
+                                this.grid.nextState[idx] = 0;
+                            }
                         } else {
                             this.grid.nextState[idx] = 0;
                         }
