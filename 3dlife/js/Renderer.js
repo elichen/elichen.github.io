@@ -21,11 +21,9 @@ class Renderer {
             this.CELL_SIZE * 0.8
         );
         
-        // Create a reusable buffer for age attribute
-        this.ageAttribute = new THREE.BufferAttribute(
-            new Float32Array(this.cellGeometry.attributes.position.count),
-            1
-        );
+        // Each vertex needs its own age value
+        const vertexCount = this.cellGeometry.attributes.position.count;
+        this.ageAttribute = new THREE.BufferAttribute(new Float32Array(vertexCount), 1);
         this.cellGeometry.setAttribute('age', this.ageAttribute);
         
         this.material = new THREE.ShaderMaterial({
@@ -105,7 +103,6 @@ class Renderer {
 
     render(grid) {
         const center = new THREE.Vector3(grid.width/2, grid.height/2, grid.depth/2);
-        const newActiveCells = new Set();
         
         // Hide all existing meshes (will be reused or remain hidden)
         for (let mesh of this.meshPool) {
@@ -127,21 +124,25 @@ class Renderer {
                             mesh = this.meshPool[meshIndex];
                             mesh.visible = true;
                         } else {
-                            mesh = new THREE.Mesh(this.cellGeometry, this.material);
+                            // Create new mesh with its own geometry instance
+                            const geometry = this.cellGeometry.clone();
+                            mesh = new THREE.Mesh(geometry, this.material);
                             this.scene.add(mesh);
                             this.meshPool.push(mesh);
                         }
                         
-                        // Update position and age
+                        // Update position
                         mesh.position.set(
                             (x - center.x) * this.CELL_SIZE,
                             (y - center.y) * this.CELL_SIZE,
                             (z - center.z) * this.CELL_SIZE
                         );
                         
-                        // Update age attribute for this mesh
+                        // Update age for all vertices
                         const ageArray = mesh.geometry.attributes.age.array;
-                        ageArray.fill(age);
+                        for (let i = 0; i < ageArray.length; i++) {
+                            ageArray[i] = age;
+                        }
                         mesh.geometry.attributes.age.needsUpdate = true;
                         
                         meshIndex++;
