@@ -35,7 +35,7 @@ class GameLogic {
                         // Survival rule: 5-8 neighbors (coral-like growth)
                         if (neighbors >= 5 && neighbors <= 8) {
                             // Age normally
-                            this.grid.nextState[idx] = Math.min(currentAge + 1, 255);
+                            this.grid.nextState[idx] = currentAge + 1;
                         } else {
                             // Die if outside survival range
                             this.grid.nextState[idx] = Math.max(0, currentAge - 5);

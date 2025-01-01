@@ -14,22 +14,24 @@ class Renderer {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setClearColor(0x000000);
         
+        // Create geometry with age attribute
+        this.cellGeometry = new THREE.BoxGeometry(
+            this.CELL_SIZE * 0.7, 
+            this.CELL_SIZE * 0.7, 
+            this.CELL_SIZE * 0.7
+        );
+        const ageAttribute = new Float32Array(this.cellGeometry.attributes.position.count);
+        this.cellGeometry.setAttribute('age', new THREE.BufferAttribute(ageAttribute, 1));
+        
         this.material = new THREE.ShaderMaterial({
             uniforms: {
-                maxAge: { value: 255.0 }
+                maxAge: { value: 30.0 }
             },
             vertexShader: document.getElementById('vertexShader').textContent,
             fragmentShader: document.getElementById('fragmentShader').textContent,
             transparent: true,
             side: THREE.DoubleSide
         });
-
-        // Create a geometry for cells (slightly smaller than grid boxes)
-        this.cellGeometry = new THREE.BoxGeometry(
-            this.CELL_SIZE * 0.7, 
-            this.CELL_SIZE * 0.7, 
-            this.CELL_SIZE * 0.7
-        );
         
         // Store active cells
         this.activeCells = new Map();
@@ -95,6 +97,8 @@ class Renderer {
         for (let key of this.activeCells.keys()) {
             const mesh = this.activeCells.get(key);
             this.scene.remove(mesh);
+            mesh.geometry.dispose();
+            mesh.material.dispose();
         }
         this.activeCells.clear();
         
@@ -104,7 +108,13 @@ class Renderer {
                 for (let x = 0; x < grid.width; x++) {
                     const age = grid.getCellAge(x, y, z);
                     if (age > 0) {
-                        const mesh = new THREE.Mesh(this.cellGeometry, this.material);
+                        // Create new geometry for each cell to have unique age attributes
+                        const geometry = this.cellGeometry.clone();
+                        const ageArray = new Float32Array(geometry.attributes.position.count);
+                        ageArray.fill(age);
+                        geometry.setAttribute('age', new THREE.BufferAttribute(ageArray, 1));
+                        
+                        const mesh = new THREE.Mesh(geometry, this.material);
                         mesh.position.set(
                             (x - center.x) * this.CELL_SIZE,
                             (y - center.y) * this.CELL_SIZE,
