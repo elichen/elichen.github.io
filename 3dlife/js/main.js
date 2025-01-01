@@ -4,7 +4,7 @@ class Conway3D {
         this.lastTime = 0;
         this.frameCount = 0;
         this.lastFpsUpdate = 0;
-        this.density = 0.09;  // Initial density
+        this.density = 0.20;  // Initial density updated to 0.20
         
         this.init();
         this.setupEventListeners();

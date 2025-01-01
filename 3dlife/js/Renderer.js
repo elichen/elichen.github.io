@@ -55,7 +55,7 @@ class Renderer {
         const gridBoxMaterial = new THREE.LineBasicMaterial({ 
             color: 0x404040,
             transparent: true,
-            opacity: 0.5
+            opacity: 0.05
         });
         this.cellBoxes = new THREE.Group();
         
