@@ -15,7 +15,7 @@
         varying vec3 vPosition;
         
         void main() {
-            vAge = age / maxAge;
+            vAge = min(age, maxAge) / maxAge;  // Cap the age for color purposes
             vPosition = position;
             
             vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
@@ -29,11 +29,14 @@
         
         void main() {
             // Young cells are bright green, old cells are dark brown
-            vec3 youngColor = vec3(0.3, 1.0, 0.3);
-            vec3 oldColor = vec3(0.4, 0.3, 0.1);
+            vec3 youngColor = vec3(0.2, 1.0, 0.2);  // Bright green
+            vec3 oldColor = vec3(0.3, 0.15, 0.05);   // Dark brown
+            
+            // Non-linear age transition for more visible color change
+            float ageEffect = pow(vAge, 0.7);
             
             // Interpolate between colors based on age
-            vec3 cellColor = mix(youngColor, oldColor, vAge);
+            vec3 cellColor = mix(youngColor, oldColor, ageEffect);
             
             // Add glow effect
             float edgeFactor = 1.0 - length(abs(vPosition)) * 0.15;
@@ -42,8 +45,10 @@
             // Make cells more visible by increasing brightness
             cellColor *= 1.5;
             
-            // Make cells more transparent (0.15 alpha)
-            gl_FragColor = vec4(cellColor * edgeFactor, 0.15);
+            // Adjust transparency based on age (older cells more solid)
+            float alpha = mix(0.15, 0.3, ageEffect);
+            
+            gl_FragColor = vec4(cellColor * edgeFactor, alpha);
         }
     </script>
 </head>
