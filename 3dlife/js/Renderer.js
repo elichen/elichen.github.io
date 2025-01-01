@@ -1,7 +1,7 @@
 class Renderer {
     constructor() {
         // Configuration constants
-        this.CELL_SIZE = 6;  // Base size for all geometry calculations
+        this.CELL_SIZE = 8;  // Base size for all geometry calculations
         this.WORLD_SIZE = 30;  // Grid dimensions (10x10x10, 20x20x20, etc)
         
         this.scene = new THREE.Scene();
@@ -16,9 +16,9 @@ class Renderer {
         
         // Create geometry with age attribute
         this.cellGeometry = new THREE.BoxGeometry(
-            this.CELL_SIZE * 0.7, 
-            this.CELL_SIZE * 0.7, 
-            this.CELL_SIZE * 0.7
+            this.CELL_SIZE * 0.8, 
+            this.CELL_SIZE * 0.8, 
+            this.CELL_SIZE * 0.8
         );
         const ageAttribute = new Float32Array(this.cellGeometry.attributes.position.count);
         this.cellGeometry.setAttribute('age', new THREE.BufferAttribute(ageAttribute, 1));
@@ -48,33 +48,41 @@ class Renderer {
         this.scene.add(directionalLight);
         this.scene.add(directionalLight2);
 
-        // Add grid of cell boxes
+        // Add grid boxes only for exterior faces
         const gridBoxGeometry = new THREE.BoxGeometry(
-            this.CELL_SIZE * 0.8, 
-            this.CELL_SIZE * 0.8, 
-            this.CELL_SIZE * 0.8
+            this.CELL_SIZE * 0.9, 
+            this.CELL_SIZE * 0.9, 
+            this.CELL_SIZE * 0.9
         );
         const gridBoxMaterial = new THREE.LineBasicMaterial({ 
             color: 0x404040,
             transparent: true,
-            opacity: 0.05
+            opacity: 0.15
         });
         this.cellBoxes = new THREE.Group();
         
         const center = new THREE.Vector3(this.WORLD_SIZE/2, this.WORLD_SIZE/2, this.WORLD_SIZE/2);
+        
+        // Create grid boxes only for the six faces
         for (let z = 0; z < this.WORLD_SIZE; z++) {
             for (let y = 0; y < this.WORLD_SIZE; y++) {
                 for (let x = 0; x < this.WORLD_SIZE; x++) {
-                    const cellBox = new THREE.LineSegments(
-                        new THREE.WireframeGeometry(gridBoxGeometry),
-                        gridBoxMaterial
-                    );
-                    cellBox.position.set(
-                        (x - center.x) * this.CELL_SIZE,
-                        (y - center.y) * this.CELL_SIZE,
-                        (z - center.z) * this.CELL_SIZE
-                    );
-                    this.cellBoxes.add(cellBox);
+                    // Only create boxes if we're on any of the six faces
+                    if (x === 0 || x === this.WORLD_SIZE - 1 ||
+                        y === 0 || y === this.WORLD_SIZE - 1 ||
+                        z === 0 || z === this.WORLD_SIZE - 1) {
+                        
+                        const cellBox = new THREE.LineSegments(
+                            new THREE.WireframeGeometry(gridBoxGeometry),
+                            gridBoxMaterial
+                        );
+                        cellBox.position.set(
+                            (x - center.x) * this.CELL_SIZE,
+                            (y - center.y) * this.CELL_SIZE,
+                            (z - center.z) * this.CELL_SIZE
+                        );
+                        this.cellBoxes.add(cellBox);
+                    }
                 }
             }
         }
