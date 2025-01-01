@@ -9,7 +9,7 @@ class CameraController {
         this.controls.minDistance = 20;
         this.controls.maxDistance = 500;
         
-        camera.position.set(200, 150, 200);
+        camera.position.set(0, 150, 300);
         camera.lookAt(0, 0, 0);
         
         camera.fov = 75;
