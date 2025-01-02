@@ -30,6 +30,9 @@ class ObGD {
         return tf.tidy(() => {
             let zSum = 0;
 
+            // Cache the gamma * lambda scalar to avoid creating it multiple times
+            const gammaLambda = tf.scalar(this.paramGroup.gamma * this.paramGroup.lambda);
+
             // Update eligibility traces and compute zSum
             for (let i = 0; i < this.eligibilityTraces.length; i++) {
                 const trace = this.eligibilityTraces[i];
@@ -44,10 +47,9 @@ class ObGD {
                     param.shape
                 );
                 
-                // Match PyTorch's e.mul_(gamma * lambda).add_(p.grad, alpha=1.0)
+                // Update trace in place: e.mul_(gamma * lambda).add_(grad, alpha=1.0)
                 trace.assign(
-                    trace.mul(tf.scalar(this.paramGroup.gamma * this.paramGroup.lambda))
-                         .add(gradTensor)
+                    trace.mul(gammaLambda).add(gradTensor)
                 );
 
                 zSum += tf.sum(tf.abs(trace)).dataSync()[0];
@@ -57,18 +59,19 @@ class ObGD {
             const dotProduct = deltaBar * zSum * this.paramGroup.lr * this.paramGroup.kappa;
             const stepSize = dotProduct > 1 ? this.paramGroup.lr / dotProduct : this.paramGroup.lr;
 
-            // Match PyTorch's p.data.add_(delta * e, alpha=-step_size)
+            // Cache delta scalar to avoid creating it multiple times
+            const deltaScalar = tf.scalar(delta);
+            const stepSizeScalar = tf.scalar(-stepSize);
+
+            // Update parameters: p.data.add_(delta * e, alpha=-step_size)
             for (let i = 0; i < this.params.length; i++) {
                 const param = this.params[i];
                 const trace = this.eligibilityTraces[i];
 
                 if (!param || !trace) continue;
 
-                // First compute delta * e
-                const deltaTrace = trace.mul(tf.scalar(delta));
-                // Then apply with alpha=-step_size
                 param.assign(
-                    param.add(deltaTrace.mul(tf.scalar(-stepSize)))
+                    param.add(trace.mul(deltaScalar).mul(stepSizeScalar))
                 );
             }
 
