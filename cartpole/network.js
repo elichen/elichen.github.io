@@ -16,7 +16,7 @@ class StreamingNetwork {
             trainable: true
         }));
         model.add(tf.layers.layerNormalization({
-            axis: -1,  // Normalize over the last axis (features)
+            axis: [1],  // Normalize over the input features
             epsilon: 1e-5,  // Match PyTorch's default
             center: true,  // Use beta
             scale: true,   // Use gamma
@@ -33,7 +33,7 @@ class StreamingNetwork {
             trainable: true
         }));
         model.add(tf.layers.layerNormalization({
-            axis: -1,
+            axis: [1],  // Normalize over the hidden features
             epsilon: 1e-5,
             center: true,
             scale: true,
