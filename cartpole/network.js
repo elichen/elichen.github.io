@@ -67,21 +67,39 @@ class StreamingNetwork {
             const weights = layer.getWeights();
             const w = weights[0];
             const shape = w.shape;
-            const fanIn = shape[1];
+            const [fanOut, fanIn] = shape;
             
             // Create new weights with uniform distribution
             const newWeights = tf.tidy(() => {
                 const scale = Math.sqrt(1.0 / fanIn);
                 const weights = tf.randomUniform(shape, -scale, scale);
                 
-                // Create sparse mask
-                const mask = tf.tidy(() => {
-                    const random = tf.randomUniform(shape);
-                    return tf.greater(random, sparsity).asType('float32');
-                });
+                // Create sparse mask per output neuron
+                const numZeros = Math.ceil(sparsity * fanIn);
+                const mask = tf.buffer(shape);
+                
+                // Fill mask with ones initially
+                for (let i = 0; i < fanOut; i++) {
+                    for (let j = 0; j < fanIn; j++) {
+                        mask.set(1, i, j);
+                    }
+                }
+                
+                // Zero out random inputs for each output independently
+                for (let outIdx = 0; outIdx < fanOut; outIdx++) {
+                    const indices = Array.from({length: fanIn}, (_, i) => i);
+                    for (let i = indices.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [indices[i], indices[j]] = [indices[j], indices[i]];
+                    }
+                    const zeroIndices = indices.slice(0, numZeros);
+                    for (const idx of zeroIndices) {
+                        mask.set(0, outIdx, idx);
+                    }
+                }
                 
                 // Apply mask to weights
-                return tf.mul(weights, mask);
+                return tf.mul(weights, mask.toTensor());
             });
 
             // Set the new weights
