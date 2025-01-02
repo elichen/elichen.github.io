@@ -65,7 +65,7 @@ class StreamQ {
         try {
             // Compute target Q-value outside of gradient tape
             const nextQValues = this.network.model.predict(nextStateTensor);
-            const maxNextQ = nextQValues.max();
+            const maxNextQ = nextQValues.max(1);  // Max over actions dimension
             const doneMask = done ? 0 : 1;
             const tdTarget = tf.scalar(reward).add(maxNextQ.mul(tf.scalar(this.gamma * doneMask)));
             
