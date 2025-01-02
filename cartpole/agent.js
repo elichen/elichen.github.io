@@ -43,16 +43,20 @@ class StreamQ {
         const qArray = await qValues.array();
         qValues.dispose();
 
+        const greedyAction = qArray[0].indexOf(Math.max(...qArray[0]));
+
         if (Math.random() < this.epsilon) {
-            const greedyAction = qArray[0].indexOf(Math.max(...qArray[0]));
+            // When exploring, randomly select an action
             const randomAction = Math.floor(Math.random() * this.numActions);
+            // If random action matches greedy action, it's not considered non-greedy
             return {
                 action: randomAction,
                 isNonGreedy: randomAction !== greedyAction
             };
         } else {
+            // When exploiting, use the greedy action
             return {
-                action: qArray[0].indexOf(Math.max(...qArray[0])),
+                action: greedyAction,
                 isNonGreedy: false
             };
         }
