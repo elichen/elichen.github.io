@@ -9,10 +9,14 @@ class ObGD {
             return tf.variable(value);
         });
 
-        this.lr = learningRate;
-        this.gamma = gamma;
-        this.lambda = lambda;
-        this.kappa = kappa;
+        // Store parameters in a group like PyTorch
+        this.paramGroup = {
+            lr: learningRate,
+            gamma: gamma,
+            lambda: lambda,
+            kappa: kappa,
+            params: this.params
+        };
         
         // Initialize eligibility traces as Variables
         this.eligibilityTraces = this.params.map(param => 
@@ -42,7 +46,7 @@ class ObGD {
                 
                 // Match PyTorch's e.mul_(gamma * lambda).add_(p.grad, alpha=1.0)
                 trace.assign(
-                    trace.mul(tf.scalar(this.gamma * this.lambda))
+                    trace.mul(tf.scalar(this.paramGroup.gamma * this.paramGroup.lambda))
                          .add(gradTensor)
                 );
 
@@ -50,8 +54,8 @@ class ObGD {
             }
 
             const deltaBar = Math.max(Math.abs(delta), 1.0);
-            const dotProduct = deltaBar * zSum * this.lr * this.kappa;
-            const stepSize = dotProduct > 1 ? this.lr / dotProduct : this.lr;
+            const dotProduct = deltaBar * zSum * this.paramGroup.lr * this.paramGroup.kappa;
+            const stepSize = dotProduct > 1 ? this.paramGroup.lr / dotProduct : this.paramGroup.lr;
 
             // Match PyTorch's p.data.add_(delta * e, alpha=-step_size)
             for (let i = 0; i < this.params.length; i++) {
