@@ -15,17 +15,21 @@ class SampleMeanStd {
                 return;
             }
 
-            this.count += 1;
+            const newCount = this.count + 1;
             const delta = tf.sub(x, this.mean);
-            const newMean = this.mean.add(delta.div(tf.scalar(this.count)));
+            const newMean = tf.add(this.mean, tf.div(delta, tf.scalar(newCount)));
             
             // Update p and var like in Python version
             const deltaPrime = tf.sub(x, newMean);
-            const newP = this.p.add(tf.mul(delta, deltaPrime));
-            const newVar = this.count < 2 ? 
+            const newP = tf.add(this.p, tf.mul(delta, deltaPrime));
+            const newVar = newCount < 2 ? 
                 tf.onesLike(x) : 
-                newP.div(tf.scalar(this.count - 1)).maximum(tf.scalar(1e-2));  // Add minimum clip like Python
+                tf.maximum(
+                    tf.div(newP, tf.scalar(newCount - 1)),
+                    tf.scalar(1e-2)  // Minimum variance for numerical stability
+                );
             
+            this.count = newCount;
             this.mean.assign(newMean);
             this.var.assign(newVar);
             this.p.assign(newP);
@@ -34,7 +38,7 @@ class SampleMeanStd {
 
     normalize(x) {
         return tf.tidy(() => {
-            const std = tf.sqrt(this.var.add(tf.scalar(1e-8)));
+            const std = tf.sqrt(tf.add(this.var, tf.scalar(1e-8)));
             return tf.div(tf.sub(x, this.mean), std);
         });
     }
@@ -68,7 +72,7 @@ class NormalizeObservation {
             this.normalizer.update(stateTensor);
             const normalizedState = this.normalizer.normalize(stateTensor);
             return {
-                state: normalizedState.dataSync(),
+                state: Array.from(normalizedState.dataSync()),  // Convert to regular array
                 reward,
                 done
             };
@@ -103,23 +107,23 @@ class ScaleReward {
     }
 
     step(action) {
-        const { state, reward, done } = this.env.step(action);
-        
-        // Update reward trace
-        this.rewardTrace = this.rewardTrace * this.gamma * (1 - (done ? 1 : 0)) + reward;
-        
-        // Update stats with reward trace and normalize reward
-        this.rewardStats.update(tf.tensor1d([this.rewardTrace]));
-        const normalizedReward = tf.tidy(() => {
+        return tf.tidy(() => {
+            const { state, reward, done } = this.env.step(action);
+            
+            // Update reward trace
+            this.rewardTrace = this.rewardTrace * this.gamma * (1 - (done ? 1 : 0)) + reward;
+            
+            // Update stats with reward trace and normalize reward
+            this.rewardStats.update(tf.tensor1d([this.rewardTrace]));
             const std = tf.sqrt(this.rewardStats.var.add(tf.scalar(this.epsilon)));
-            return reward / std.dataSync()[0];  // Use raw reward but scale by trace's std
-        });
+            const normalizedReward = tf.div(tf.scalar(reward), std).dataSync()[0];
 
-        return {
-            state,
-            reward: normalizedReward,
-            done
-        };
+            return {
+                state,
+                reward: normalizedReward,
+                done
+            };
+        });
     }
 
     render() {
