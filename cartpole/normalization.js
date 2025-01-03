@@ -74,8 +74,8 @@ class NormalizeObservation {
             return {
                 state: Array.from(normalizedState.dataSync()),
                 reward: result.reward,
-                rawReward: result.rawReward,  // Preserve rawReward
-                done: result.done
+                done: result.done,
+                info: result.info
             };
         });
     }
@@ -108,13 +108,12 @@ class ScaleReward {
     }
 
     normalize(reward) {
-        // Match Python's normalize method exactly
         return reward / Math.sqrt(this.rewardStats.var.dataSync()[0] + this.epsilon);
     }
 
     step(action) {
         return tf.tidy(() => {
-            const { state, reward, done } = this.env.step(action);
+            const { state, reward, done, info } = this.env.step(action);
             
             // First update reward trace with original reward
             this.rewardTrace = this.rewardTrace * this.gamma * (1 - (done ? 1 : 0)) + reward;
@@ -127,9 +126,9 @@ class ScaleReward {
 
             return {
                 state,
-                reward: normalizedReward,
-                rawReward: reward,  // Add raw reward for logging
-                done
+                reward: normalizedReward,  // Use normalized reward for learning
+                done,
+                info  // Pass through episode statistics
             };
         });
     }
@@ -167,8 +166,8 @@ class AddTimeInfo {
         return {
             state: [...result.state, this.epiTime],
             reward: result.reward,
-            rawReward: result.rawReward,  // Preserve rawReward
-            done: result.done
+            done: result.done,
+            info: result.info
         };
     }
 

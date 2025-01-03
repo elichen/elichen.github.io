@@ -38,7 +38,6 @@ class TrainingManager {
 
     async train() {
         let episodeReward = 0;
-        let rawEpisodeReward = 0;
         let state = this.env.reset();
         let episodeCount = 0;
 
@@ -49,9 +48,6 @@ class TrainingManager {
             const { action, isNonGreedy } = await this.agent.sampleAction(state);
             const result = this.env.step(action);
             
-            const rawReward = result.rawReward || result.reward;
-            rawEpisodeReward += rawReward;
-            
             episodeReward += result.reward;
             await this.agent.update(state, action, result.reward, result.state, result.done, isNonGreedy);
 
@@ -60,10 +56,11 @@ class TrainingManager {
             this.env.render();
 
             if (result.done) {
-                this.episodeRewards.push(rawEpisodeReward);
+                const rawReturn = result.info.episode.r;
+                this.episodeRewards.push(rawReturn);
                 episodeCount++;
                 
-                console.log(`Episodic Return: ${rawEpisodeReward.toFixed(1)}, Time Step ${this.totalSteps}, Episode Number ${episodeCount}, Epsilon ${this.agent.epsilon.toFixed(3)}`);
+                console.log(`Episodic Return: ${rawReturn.toFixed(1)}, Time Step ${this.totalSteps}, Episode Number ${episodeCount}, Epsilon ${this.agent.epsilon.toFixed(3)}`);
                 
                 const lastHundred = this.episodeRewards.slice(-100);
                 const avgReward = lastHundred.reduce((a, b) => a + b, 0) / lastHundred.length;
@@ -71,14 +68,13 @@ class TrainingManager {
                 this.stats.innerHTML = `
                     Mode: Training<br>
                     Episode: ${episodeCount}<br>
-                    Last Reward: ${rawEpisodeReward.toFixed(1)}<br>
+                    Last Reward: ${rawReturn.toFixed(1)}<br>
                     Avg Reward (100): ${avgReward.toFixed(1)}<br>
                     Epsilon: ${this.agent.epsilon.toFixed(3)}
                 `;
 
                 state = this.env.reset();
                 episodeReward = 0;
-                rawEpisodeReward = 0;
             }
 
             requestAnimationFrame(animate);
