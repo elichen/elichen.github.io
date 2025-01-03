@@ -38,6 +38,7 @@ class TrainingManager {
 
     async train() {
         let episodeReward = 0;
+        let rawEpisodeReward = 0;
         let state = this.env.reset();
         let episodeCount = 0;
 
@@ -46,20 +47,23 @@ class TrainingManager {
 
             this.totalSteps++;
             const { action, isNonGreedy } = await this.agent.sampleAction(state);
-            const { state: nextState, reward, done } = this.env.step(action);
+            const result = this.env.step(action);
             
-            await this.agent.update(state, action, reward, nextState, done, isNonGreedy);
+            const rawReward = result.rawReward || result.reward;
+            rawEpisodeReward += rawReward;
+            
+            episodeReward += result.reward;
+            await this.agent.update(state, action, result.reward, result.state, result.done, isNonGreedy);
 
-            episodeReward += reward;
-            state = nextState;
+            state = result.state;
 
             this.env.render();
 
-            if (done) {
-                this.episodeRewards.push(episodeReward);
+            if (result.done) {
+                this.episodeRewards.push(rawEpisodeReward);
                 episodeCount++;
                 
-                console.log(`Episodic Return: ${episodeReward.toFixed(1)}, Time Step ${this.totalSteps}, Episode Number ${episodeCount}, Epsilon ${this.agent.epsilon.toFixed(3)}`);
+                console.log(`Episodic Return: ${rawEpisodeReward.toFixed(1)}, Time Step ${this.totalSteps}, Episode Number ${episodeCount}, Epsilon ${this.agent.epsilon.toFixed(3)}`);
                 
                 const lastHundred = this.episodeRewards.slice(-100);
                 const avgReward = lastHundred.reduce((a, b) => a + b, 0) / lastHundred.length;
@@ -67,13 +71,14 @@ class TrainingManager {
                 this.stats.innerHTML = `
                     Mode: Training<br>
                     Episode: ${episodeCount}<br>
-                    Last Reward: ${episodeReward.toFixed(1)}<br>
+                    Last Reward: ${rawEpisodeReward.toFixed(1)}<br>
                     Avg Reward (100): ${avgReward.toFixed(1)}<br>
                     Epsilon: ${this.agent.epsilon.toFixed(3)}
                 `;
 
                 state = this.env.reset();
                 episodeReward = 0;
+                rawEpisodeReward = 0;
             }
 
             requestAnimationFrame(animate);

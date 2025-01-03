@@ -57,6 +57,7 @@ class CartPole {
         return {
             state: this.getState(),
             reward: reward,
+            rawReward: reward,
             done: done
         };
     }

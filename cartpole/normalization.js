@@ -66,15 +66,16 @@ class NormalizeObservation {
     }
 
     step(action) {
-        const { state, reward, done } = this.env.step(action);
+        const result = this.env.step(action);
         return tf.tidy(() => {
-            const stateTensor = tf.tensor1d(state);
+            const stateTensor = tf.tensor1d(result.state);
             this.normalizer.update(stateTensor);
             const normalizedState = this.normalizer.normalize(stateTensor);
             return {
-                state: Array.from(normalizedState.dataSync()),  // Convert to regular array
-                reward,
-                done
+                state: Array.from(normalizedState.dataSync()),
+                reward: result.reward,
+                rawReward: result.rawReward,  // Preserve rawReward
+                done: result.done
             };
         });
     }
@@ -106,19 +107,28 @@ class ScaleReward {
         return this.env.reset();
     }
 
+    normalize(reward) {
+        // Match Python's normalize method exactly
+        return reward / Math.sqrt(this.rewardStats.var.dataSync()[0] + this.epsilon);
+    }
+
     step(action) {
         return tf.tidy(() => {
             const { state, reward, done } = this.env.step(action);
             
-            // Update reward trace
+            // First update reward trace with original reward
             this.rewardTrace = this.rewardTrace * this.gamma * (1 - (done ? 1 : 0)) + reward;
             
-            // Update stats with reward trace but don't normalize the reward
+            // Then update stats with reward trace (not the reward)
             this.rewardStats.update(tf.tensor1d([this.rewardTrace]));
+
+            // Finally normalize the reward using the trace's statistics
+            const normalizedReward = this.normalize(reward);
 
             return {
                 state,
-                reward: reward,  // Return the original reward without normalization
+                reward: normalizedReward,
+                rawReward: reward,  // Add raw reward for logging
                 done
             };
         });
@@ -151,13 +161,14 @@ class AddTimeInfo {
     }
 
     step(action) {
-        const { state, reward, done } = this.env.step(action);
+        const result = this.env.step(action);
         this.epiTime += 1.0 / this.timeLimit;
         
         return {
-            state: [...state, this.epiTime],
-            reward,
-            done
+            state: [...result.state, this.epiTime],
+            reward: result.reward,
+            rawReward: result.rawReward,  // Preserve rawReward
+            done: result.done
         };
     }
 
