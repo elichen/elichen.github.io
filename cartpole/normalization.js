@@ -2,7 +2,7 @@ class SampleMeanStd {
     constructor(shape) {
         this.mean = tf.variable(tf.zeros(shape));
         this.var = tf.variable(tf.ones(shape));
-        this.p = tf.variable(tf.zeros(shape));  // Add p variable for tracking
+        this.p = tf.variable(tf.zeros(shape));
         this.count = 0;
     }
 
@@ -26,7 +26,7 @@ class SampleMeanStd {
                 tf.onesLike(x) : 
                 tf.maximum(
                     tf.div(newP, tf.scalar(newCount - 1)),
-                    tf.scalar(1e-2)  // Minimum variance for numerical stability
+                    tf.scalar(1e-8)  // Match Python's epsilon
                 );
             
             this.count = newCount;
