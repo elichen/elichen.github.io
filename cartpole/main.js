@@ -11,6 +11,7 @@ class TrainingManager {
         this.episodeRewards = [];
         this.isTraining = true;
         this.stats = document.getElementById('stats');
+        this.totalSteps = 0;
         
         this.setupControls();
         this.train();
@@ -43,6 +44,7 @@ class TrainingManager {
         const animate = async () => {
             if (!this.isTraining) return;
 
+            this.totalSteps++;
             const { action, isNonGreedy } = await this.agent.sampleAction(state);
             const { state: nextState, reward, done } = this.env.step(action);
             
@@ -56,6 +58,8 @@ class TrainingManager {
             if (done) {
                 this.episodeRewards.push(episodeReward);
                 episodeCount++;
+                
+                console.log(`Episodic Return: ${episodeReward.toFixed(1)}, Time Step ${this.totalSteps}, Episode Number ${episodeCount}, Epsilon ${this.agent.epsilon.toFixed(3)}`);
                 
                 const lastHundred = this.episodeRewards.slice(-100);
                 const avgReward = lastHundred.reduce((a, b) => a + b, 0) / lastHundred.length;
