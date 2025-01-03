@@ -19,6 +19,10 @@ class CartPole {
         this.ctx = this.canvas.getContext('2d');
         this.scale = 200; // pixels per meter
 
+        // Episode statistics
+        this.episodeReturn = 0;
+        this.episodeLength = 0;
+
         this.reset();
     }
 
@@ -28,6 +32,11 @@ class CartPole {
         this.xDot = (Math.random() - 0.5) * 0.1;
         this.theta = (Math.random() - 0.5) * 0.1;
         this.thetaDot = (Math.random() - 0.5) * 0.1;
+
+        // Reset episode statistics
+        this.episodeReturn = 0;
+        this.episodeLength = 0;
+
         return this.getState();
     }
 
@@ -54,11 +63,23 @@ class CartPole {
         
         const reward = done ? 0.0 : 1.0;
 
+        // Update episode statistics
+        this.episodeReturn += reward;
+        this.episodeLength += 1;
+
+        // Include episode info like Python's RecordEpisodeStatistics
+        const info = done ? {
+            episode: {
+                r: this.episodeReturn,
+                l: this.episodeLength
+            }
+        } : {};
+
         return {
             state: this.getState(),
             reward: reward,
-            rawReward: reward,
-            done: done
+            done: done,
+            info: info
         };
     }
 
