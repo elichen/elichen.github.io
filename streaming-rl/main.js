@@ -129,14 +129,13 @@ class TrainingManager {
 }
 
 // Initialize when document is loaded
-window.onload = () => {
-    tf.setBackend('webgl').then(() => {
-        const config = {
-            learningRate: parseFloat(document.getElementById('learningRate').value),
-            gamma: parseFloat(document.getElementById('gamma').value),
-            lambda: parseFloat(document.getElementById('lambda').value)
-        };
-        
-        const manager = new TrainingManager(config);
-    });
+window.onload = async () => {
+    await tf.setBackend('cpu');
+    const config = {
+        learningRate: parseFloat(document.getElementById('learningRate').value),
+        gamma: parseFloat(document.getElementById('gamma').value),
+        lambda: parseFloat(document.getElementById('lambda').value)
+    };
+    
+    const manager = new TrainingManager(config);
 }; 
