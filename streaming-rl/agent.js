@@ -67,26 +67,32 @@ class StreamQ {
         const nextStateTensor = tf.tensor2d([nextState], [1, nextState.length]);
         
         try {
-            // Compute target Q-value outside of gradient tape
+            // 1. Compute TD target: r + γ * max_a' Q(s', a')
             const nextQValues = this.network.model.predict(nextStateTensor);
-            const maxNextQ = nextQValues.max(1);  // Max over actions dimension
+            const maxNextQ = nextQValues.max(1);
             const doneMask = done ? 0 : 1;
             const tdTarget = tf.scalar(reward).add(maxNextQ.mul(tf.scalar(this.gamma * doneMask)));
             
-            // Compute gradients with respect to -q_sa
-            const {value: qValueAtAction, grads} = tf.variableGrads(() => {
+            // 2. Compute Q(s,a) and its gradients
+            // Note: variableGrads returns {value: -Q(s,a), grads: ∇(-Q(s,a))}
+            // This matches PyTorch's behavior where loss.backward() computes gradients of the loss
+            const {value: negQsa, grads} = tf.variableGrads(() => {
                 const qValues = this.network.model.predict(stateTensor);
                 const actionMask = tf.oneHot([action], this.numActions);
                 const qsa = tf.sum(tf.mul(qValues, actionMask));
-                return tf.neg(qsa);  // -q_sa like in Python
+                return tf.neg(qsa);  // Returns -Q(s,a) to match PyTorch gradient computation
             });
 
-            // Compute TD error
-            const delta = tdTarget.sub(qValueAtAction);  // Remove unnecessary negation
-            const deltaValue = await delta.data();
+            // 3. Compute TD error: δ = target - (-Q(s,a))
+            // Since negQsa is already -Q(s,a), we use subtraction
+            const tdError = tdTarget.sub(negQsa);  
+            const tdErrorValue = await tdError.data();
 
+            // 4. Update parameters using TD error and eligibility traces
+            // The optimizer applies: θ = θ - α * δ * e
+            // where e is the eligibility trace updated with ∇(-Q(s,a))
             await this.optimizer.step(
-                deltaValue[0],
+                tdErrorValue[0],
                 Object.values(grads),
                 done || isNonGreedy
             );
@@ -97,10 +103,10 @@ class StreamQ {
             nextQValues.dispose();
             maxNextQ.dispose();
             tdTarget.dispose();
-            delta.dispose();
+            tdError.dispose();
             Object.values(grads).forEach(g => g && g.dispose());
             
-            return deltaValue[0];
+            return tdErrorValue[0];
         } catch (error) {
             console.error('Error in update:', error);
             stateTensor.dispose();
