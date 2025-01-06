@@ -67,30 +67,30 @@ class StreamQ {
         const nextStateTensor = tf.tensor2d([nextState], [1, nextState.length]);
         
         try {
-            // 1. Compute TD target: r + γ * max_a' Q(s', a')
+            // 1. Compute TD target for δ ← R + γ max_a q̂(S', a, w) - q̂(S, A, w)
             const nextQValues = this.network.model.predict(nextStateTensor);
             const maxNextQ = nextQValues.max(1);
             const doneMask = done ? 0 : 1;
             const tdTarget = tf.scalar(reward).add(maxNextQ.mul(tf.scalar(this.gamma * doneMask)));
             
-            // 2. Compute Q(s,a) and its gradients
-            // Note: variableGrads returns {value: -Q(s,a), grads: ∇(-Q(s,a))}
-            // This matches PyTorch's behavior where loss.backward() computes gradients of the loss
+            // 2. Compute gradients for eligibility trace update
+            // Implementation note: While the paper shows zw ← γλzw + ∇wq̂(S,w),
+            // we use ∇(-Q(s,a)) and let the optimizer's subtraction cancel the negative
+            // to achieve the same mathematical update as the paper's algorithm
             const {value: negQsa, grads} = tf.variableGrads(() => {
                 const qValues = this.network.model.predict(stateTensor);
                 const actionMask = tf.oneHot([action], this.numActions);
                 const qsa = tf.sum(tf.mul(qValues, actionMask));
-                return tf.neg(qsa);  // Returns -Q(s,a) to match PyTorch gradient computation
+                return tf.neg(qsa);  // Implementation detail for correct gradient flow
             });
 
-            // 3. Compute TD error: δ = target - (-Q(s,a))
-            // Since negQsa is already -Q(s,a), we use subtraction
+            // 3. Compute TD error δ ← R + γ max_a q̂(S', a, w) - q̂(S, A, w)
             const tdError = tdTarget.sub(negQsa);  
             const tdErrorValue = await tdError.data();
 
-            // 4. Update parameters using TD error and eligibility traces
-            // The optimizer applies: θ = θ - α * δ * e
-            // where e is the eligibility trace updated with ∇(-Q(s,a))
+            // 4. Update parameters following paper's algorithm:
+            // zw ← γλzw + ∇wq̂(S,w)    [achieved via negative gradients + optimizer subtraction]
+            // w ← ObGD(zw, w, δ, α_q̂, κ_q̂)
             await this.optimizer.step(
                 tdErrorValue[0],
                 Object.values(grads),
