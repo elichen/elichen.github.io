@@ -74,25 +74,19 @@ class StreamQ {
             const tdTarget = tf.scalar(reward).add(maxNextQ.mul(tf.scalar(this.gamma * doneMask)));
             
             // 2. Compute gradients for eligibility trace update
-            // Implementation note: While the paper shows zw ← γλzw + ∇wq̂(S,w),
-            // we use ∇(-Q(s,a)) and let the optimizer's subtraction cancel the negative
-            // to achieve the same mathematical update as the paper's algorithm
-            const {value: negQsa, grads} = tf.variableGrads(() => {
+            // Paper: zt = γλzt−1 + ∇ˆvw(St,wt)
+            const {value: qsa, grads} = tf.variableGrads(() => {
                 const qValues = this.network.model.predict(stateTensor);
                 const actionMask = tf.oneHot([action], this.numActions);
-                const qsa = tf.sum(tf.mul(qValues, actionMask));
-                return tf.neg(qsa);  // Implementation detail for correct gradient flow
+                return tf.sum(tf.mul(qValues, actionMask));  // q̂(St,wt)
             });
 
-            // Log gradient flow
-            this.network.logGradientFlow(grads);
-
             // 3. Compute TD error δ ← R + γ max_a q̂(S', a, w) - q̂(S, A, w)
-            const tdError = tdTarget.sub(negQsa);  
+            const tdError = tdTarget.sub(qsa);  
             const tdErrorValue = await tdError.data();
 
             // 4. Update parameters following paper's algorithm:
-            // zw ← γλzw + ∇wq̂(S,w)    [achieved via negative gradients + optimizer subtraction]
+            // zw ← γλzw + ∇wq̂(St,wt)
             // w ← ObGD(zw, w, δ, α_q̂, κ_q̂)
             await this.optimizer.step(
                 tdErrorValue[0],
@@ -100,21 +94,21 @@ class StreamQ {
                 done || isNonGreedy
             );
 
-            // Clean up tensors
-            stateTensor.dispose();
-            nextStateTensor.dispose();
-            nextQValues.dispose();
-            maxNextQ.dispose();
-            tdTarget.dispose();
-            tdError.dispose();
-            Object.values(grads).forEach(g => g && g.dispose());
-            
-            return tdErrorValue[0];
+            // Cleanup tensors
+            tf.dispose([
+                stateTensor,
+                nextStateTensor,
+                nextQValues,
+                maxNextQ,
+                tdTarget,
+                qsa,
+                tdError,
+                ...Object.values(grads)
+            ]);
         } catch (error) {
             console.error('Error in update:', error);
-            stateTensor.dispose();
-            nextStateTensor.dispose();
-            throw error;
+            // Ensure tensors are cleaned up even if there's an error
+            tf.dispose([stateTensor, nextStateTensor]);
         }
     }
 

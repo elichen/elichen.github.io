@@ -1,9 +1,7 @@
 class StreamingNetwork {
     constructor(inputSize = 4, hiddenSize = 32, numActions = 2) {
         this.model = this.buildModel(inputSize, hiddenSize, numActions);
-        this.sparseInit();  // No sparsity parameter needed
-        this.lastLogTime = 0;  // For throttling logs
-        this.logInterval = 1000;  // Log every 1 second
+        this.sparseInit();
     }
 
     buildModel(inputSize, hiddenSize, numActions) {
@@ -68,45 +66,46 @@ class StreamingNetwork {
         for (const layer of layers) {
             const weights = layer.getWeights();
             const w = weights[0];
-            const shape = w.shape;
-            const [fanOut, fanIn] = shape;
+            const expectedShape = w.shape;
             
             // Create new weights with LeCun initialization
             const newWeights = tf.tidy(() => {
-                // LeCun initialization: U[-1/√fan_in, 1/√fan_in]
-                const weights = tf.randomUniform(shape, -1.0/Math.sqrt(fanIn), 1.0/Math.sqrt(fanIn));
+                // In TensorFlow.js dense layers, shape is [inputSize, outputSize]
+                const [inputSize, outputSize] = expectedShape;
                 
-                // Create sparse mask per input neuron (not per output)
-                const sparsity = 0.8;  // 80% sparsity - highest that maintains gradient flow
-                const numZerosPerInput = Math.ceil(sparsity * fanOut);
-                const mask = tf.buffer(shape);
+                // Algorithm 1: Wi,j ~ U[-1/√fan_in, 1/√fan_in], ∀i,j
+                const weights = tf.randomUniform(expectedShape, -1.0/Math.sqrt(inputSize), 1.0/Math.sqrt(inputSize));
                 
-                // Fill mask with ones initially
-                for (let i = 0; i < fanOut; i++) {
-                    for (let j = 0; j < fanIn; j++) {
-                        mask.set(1, i, j);
-                    }
+                // Algorithm 1: n ← s × fan_in
+                const sparsity = 0.9;  // Paper specifies s = 0.9
+                const numZeros = Math.ceil(sparsity * inputSize);
+                
+                // Algorithm 1: Permutation set P of size fan_in
+                const permutation = Array.from({length: inputSize}, (_, i) => i);
+                for (let i = permutation.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [permutation[i], permutation[j]] = [permutation[j], permutation[i]];
                 }
                 
-                // Zero out random outputs for each input independently
-                for (let inIdx = 0; inIdx < fanIn; inIdx++) {
-                    const indices = Array.from({length: fanOut}, (_, i) => i);
-                    for (let i = indices.length - 1; i > 0; i--) {
-                        const j = Math.floor(Math.random() * (i + 1));
-                        [indices[i], indices[j]] = [indices[j], indices[i]];
-                    }
-                    const zeroIndices = indices.slice(0, numZerosPerInput);
-                    for (const idx of zeroIndices) {
-                        mask.set(0, idx, inIdx);
+                // Algorithm 1: Index set I of size n (subset of P)
+                const zeroIndices = new Set(permutation.slice(0, numZeros));
+                
+                // Algorithm 1: Wi,j ← 0, ∀i∈I, ∀j
+                const maskData = new Float32Array(inputSize * outputSize);
+                for (let j = 0; j < outputSize; j++) {
+                    for (let i = 0; i < inputSize; i++) {
+                        maskData[i * outputSize + j] = zeroIndices.has(i) ? 0 : 1;
                     }
                 }
                 
                 // Apply mask to weights
-                return tf.mul(weights, mask.toTensor());
+                const mask = tf.tensor2d(maskData, expectedShape);
+                return tf.mul(weights, mask);
             });
 
-            // Set the new weights
-            await layer.setWeights([newWeights, weights[1]]);
+            // Set the new weights and zero biases (Algorithm 1: bi ← 0, ∀i)
+            const zeroBias = tf.zeros([expectedShape[1]]);  // bias size should match output dimension
+            await layer.setWeights([newWeights, zeroBias]);
             newWeights.dispose();
         }
     }
@@ -132,48 +131,6 @@ class StreamingNetwork {
             console.log('Model loaded successfully');
         } catch (error) {
             console.error('Error loading model:', error);
-        }
-    }
-
-    logGradientFlow(grads) {
-        const now = Date.now();
-        if (now - this.lastLogTime < this.logInterval) return;
-        this.lastLogTime = now;
-
-        // Compute gradient stats for each layer
-        const stats = {};
-        for (const [name, grad] of Object.entries(grads)) {
-            if (!grad) continue;
-            
-            const data = grad.dataSync();
-            const nonZeros = data.filter(x => x !== 0);
-            const mean = nonZeros.length > 0 ? 
-                nonZeros.reduce((a, b) => a + b, 0) / nonZeros.length : 0;
-            const max = Math.max(...data);
-            const min = Math.min(...data);
-            const zeroCount = data.length - nonZeros.length;
-            const zeroPercent = (zeroCount/data.length*100);
-            
-            stats[name] = {
-                mean,
-                max,
-                min,
-                zeroPercent
-            };
-        }
-
-        // Update text div with copyable stats
-        const statsDiv = document.getElementById('gradientStats');
-        if (statsDiv) {
-            let text = 'Gradient Stats:\n';
-            for (const [name, stat] of Object.entries(stats)) {
-                text += `${name}:\n`;
-                text += `  Mean: ${stat.mean.toFixed(6)}\n`;
-                text += `  Max: ${stat.max.toFixed(6)}\n`;
-                text += `  Min: ${stat.min.toFixed(6)}\n`;
-                text += `  Zero: ${stat.zeroPercent.toFixed(2)}%\n`;
-            }
-            statsDiv.textContent = text;
         }
     }
 } 

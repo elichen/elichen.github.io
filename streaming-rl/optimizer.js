@@ -1,92 +1,67 @@
 class ObGD {
     constructor(params, learningRate = 1.0, gamma = 0.99, lambda = 0.8, kappa = 2.0) {
-        // Convert params to Variables if they aren't already
-        this.params = params.map(param => {
-            if (param instanceof tf.Variable) {
-                return param;
-            }
-            const value = param.val || param.value || param;
-            return tf.variable(value);
-        });
-
-        // Store parameters in a group like PyTorch
-        this.paramGroup = {
-            lr: learningRate,
-            gamma: gamma,
-            lambda: lambda,
-            kappa: kappa,
-            params: this.params
-        };
+        this.lr = learningRate;
+        this.gamma = gamma;
+        this.lambda = lambda;
+        this.kappa = kappa;
+        this.traces = new Map();
+        this.params = params;
         
-        // Initialize eligibility traces as Variables
-        this.eligibilityTraces = this.params.map(param => 
-            tf.variable(tf.zeros(param.shape))
-        );
-    }
-
-    async step(delta, grads, reset = false) {
-        const gradArray = Array.isArray(grads) ? grads : Object.values(grads);
-
-        return tf.tidy(() => {
-            let zSum = 0;
-
-            // Cache the gamma * lambda scalar to avoid creating it multiple times
-            const gammaLambda = tf.scalar(this.paramGroup.gamma * this.paramGroup.lambda);
-
-            // Update eligibility traces and compute zSum
-            for (let i = 0; i < this.eligibilityTraces.length; i++) {
-                const trace = this.eligibilityTraces[i];
-                const grad = gradArray[i];
-                const param = this.params[i];
-
-                if (!grad || !trace || !param) continue;
-
-                // Create gradient tensor
-                const gradTensor = tf.tensor(
-                    grad instanceof tf.Tensor ? grad.dataSync() : grad,
-                    param.shape
-                );
-                
-                // Update trace in place: e.mul_(gamma * lambda).add_(grad, alpha=1.0)
-                trace.assign(
-                    trace.mul(gammaLambda).add(gradTensor)
-                );
-
-                zSum += tf.sum(tf.abs(trace)).dataSync()[0];
+        // Initialize eligibility traces for each parameter
+        params.forEach((param, index) => {
+            if (!param.name) {
+                console.error(`Parameter ${index} has no name`);
+                return;
             }
-
-            const deltaBar = Math.max(Math.abs(delta), 1.0);
-            const dotProduct = deltaBar * zSum * this.paramGroup.lr * this.paramGroup.kappa;
-            const stepSize = dotProduct > 1 ? this.paramGroup.lr / dotProduct : this.paramGroup.lr;
-
-            // Cache delta scalar to avoid creating it multiple times
-            const deltaScalar = tf.scalar(delta);
-            const stepSizeScalar = tf.scalar(-stepSize);
-
-            // Update parameters: p.data.add_(delta * e, alpha=-step_size)
-            for (let i = 0; i < this.params.length; i++) {
-                const param = this.params[i];
-                const trace = this.eligibilityTraces[i];
-
-                if (!param || !trace) continue;
-
-                param.assign(
-                    param.add(trace.mul(deltaScalar).mul(stepSizeScalar))
-                );
-            }
-
-            if (reset) {
-                this.eligibilityTraces.forEach(trace => {
-                    trace.assign(tf.zeros(trace.shape));
-                });
-            }
+            const trace = tf.variable(tf.zeros(param.shape));
+            this.traces.set(param.name, trace);
         });
     }
 
-    dispose() {
-        this.eligibilityTraces.forEach(trace => {
-            if (trace instanceof tf.Variable) {
-                trace.dispose();
+    async step(delta, grads, reset) {
+        // First pass: update traces and compute z_sum
+        let z_sum = 0.0;
+        const gammaLambda = this.gamma * this.lambda;
+        
+        grads.forEach((grad, index) => {
+            if (!grad) return;
+            const param = this.params[index];
+            if (!param || !param.name) return;
+            
+            const e = this.traces.get(param.name);
+            if (!e) return;
+            
+            // Update trace: e = γλe + grad
+            const newTrace = e.mul(gammaLambda).add(grad);
+            e.assign(newTrace);
+            
+            // Add to z_sum
+            const traceSum = e.abs().sum().dataSync()[0];
+            z_sum += traceSum;
+        });
+
+        // Compute step size
+        const deltaBar = Math.max(Math.abs(delta), 1.0);
+        const dotProduct = deltaBar * z_sum * this.lr * this.kappa;
+        const stepSize = dotProduct > 1 ? this.lr / dotProduct : this.lr;
+
+        // Second pass: update parameters
+        grads.forEach((grad, index) => {
+            if (!grad) return;
+            const param = this.params[index];
+            if (!param || !param.name) return;
+            
+            const e = this.traces.get(param.name);
+            if (!e) return;
+            
+            // Update parameter: w = w - αδe
+            const update = e.mul(-stepSize * delta);
+            const currentValue = tf.variable(param.read());
+            const newValue = currentValue.add(update);
+            param.write(newValue);
+            
+            if (reset) {
+                e.assign(tf.zeros(e.shape));
             }
         });
     }

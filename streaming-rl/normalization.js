@@ -107,28 +107,27 @@ class ScaleReward {
         return this.env.reset();
     }
 
-    normalize(reward) {
-        return reward / Math.sqrt(this.rewardStats.var.dataSync()[0] + this.epsilon);
-    }
-
     step(action) {
         return tf.tidy(() => {
             const { state, reward, done, info } = this.env.step(action);
             
             // First update reward trace with original reward
-            this.rewardTrace = this.rewardTrace * this.gamma * (1 - (done ? 1 : 0)) + reward;
+            const oldTrace = this.rewardTrace;
+            this.rewardTrace = oldTrace * this.gamma * (1 - (done ? 1 : 0)) + reward;
             
             // Then update stats with reward trace (not the reward)
             this.rewardStats.update(tf.tensor1d([this.rewardTrace]));
 
             // Finally normalize the reward using the trace's statistics
-            const normalizedReward = this.normalize(reward);
+            // Important: We normalize the original reward, not the trace
+            const var_sqrt = Math.sqrt(this.rewardStats.var.dataSync()[0] + this.epsilon);
+            const normalizedReward = reward / var_sqrt;
 
             return {
                 state,
-                reward: normalizedReward,  // Use normalized reward for learning
+                reward: normalizedReward,
                 done,
-                info  // Pass through episode statistics
+                info
             };
         });
     }
