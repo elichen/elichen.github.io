@@ -1,7 +1,7 @@
 class StreamingNetwork {
     constructor(inputSize = 4, hiddenSize = 32, numActions = 2) {
         this.model = this.buildModel(inputSize, hiddenSize, numActions);
-        this.sparseInit(0.9); // 90% sparsity as in the original code
+        this.sparseInit();  // No sparsity parameter needed
     }
 
     buildModel(inputSize, hiddenSize, numActions) {
@@ -59,7 +59,7 @@ class StreamingNetwork {
         return model;
     }
 
-    async sparseInit(sparsity) {
+    async sparseInit() {
         // Implement sparse initialization for each dense layer
         const layers = this.model.layers.filter(layer => layer.getClassName() === 'Dense');
         
@@ -69,13 +69,14 @@ class StreamingNetwork {
             const shape = w.shape;
             const [fanOut, fanIn] = shape;
             
-            // Create new weights with uniform distribution
+            // Create new weights with LeCun initialization
             const newWeights = tf.tidy(() => {
-                const scale = Math.sqrt(1.0 / fanIn);
-                const weights = tf.randomUniform(shape, -scale, scale);
+                // LeCun initialization: U[-1/√fan_in, 1/√fan_in]
+                const weights = tf.randomUniform(shape, -1.0/Math.sqrt(fanIn), 1.0/Math.sqrt(fanIn));
                 
-                // Create sparse mask per output neuron
-                const numZeros = Math.ceil(sparsity * fanIn);
+                // Create sparse mask per input neuron (not per output)
+                const sparsity = 0.8;  // 80% sparsity - highest that maintains gradient flow
+                const numZerosPerInput = Math.ceil(sparsity * fanOut);
                 const mask = tf.buffer(shape);
                 
                 // Fill mask with ones initially
@@ -85,16 +86,16 @@ class StreamingNetwork {
                     }
                 }
                 
-                // Zero out random inputs for each output independently
-                for (let outIdx = 0; outIdx < fanOut; outIdx++) {
-                    const indices = Array.from({length: fanIn}, (_, i) => i);
+                // Zero out random outputs for each input independently
+                for (let inIdx = 0; inIdx < fanIn; inIdx++) {
+                    const indices = Array.from({length: fanOut}, (_, i) => i);
                     for (let i = indices.length - 1; i > 0; i--) {
                         const j = Math.floor(Math.random() * (i + 1));
                         [indices[i], indices[j]] = [indices[j], indices[i]];
                     }
-                    const zeroIndices = indices.slice(0, numZeros);
+                    const zeroIndices = indices.slice(0, numZerosPerInput);
                     for (const idx of zeroIndices) {
-                        mask.set(0, outIdx, idx);
+                        mask.set(0, idx, inIdx);
                     }
                 }
                 
@@ -104,6 +105,7 @@ class StreamingNetwork {
 
             // Set the new weights
             await layer.setWeights([newWeights, weights[1]]);
+            newWeights.dispose();
         }
     }
 
