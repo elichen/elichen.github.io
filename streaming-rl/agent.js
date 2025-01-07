@@ -84,6 +84,9 @@ class StreamQ {
                 return tf.neg(qsa);  // Implementation detail for correct gradient flow
             });
 
+            // Log gradient flow
+            this.network.logGradientFlow(grads);
+
             // 3. Compute TD error δ ← R + γ max_a q̂(S', a, w) - q̂(S, A, w)
             const tdError = tdTarget.sub(negQsa);  
             const tdErrorValue = await tdError.data();

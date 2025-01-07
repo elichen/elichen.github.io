@@ -2,6 +2,8 @@ class StreamingNetwork {
     constructor(inputSize = 4, hiddenSize = 32, numActions = 2) {
         this.model = this.buildModel(inputSize, hiddenSize, numActions);
         this.sparseInit();  // No sparsity parameter needed
+        this.lastLogTime = 0;  // For throttling logs
+        this.logInterval = 1000;  // Log every 1 second
     }
 
     buildModel(inputSize, hiddenSize, numActions) {
@@ -130,6 +132,48 @@ class StreamingNetwork {
             console.log('Model loaded successfully');
         } catch (error) {
             console.error('Error loading model:', error);
+        }
+    }
+
+    logGradientFlow(grads) {
+        const now = Date.now();
+        if (now - this.lastLogTime < this.logInterval) return;
+        this.lastLogTime = now;
+
+        // Compute gradient stats for each layer
+        const stats = {};
+        for (const [name, grad] of Object.entries(grads)) {
+            if (!grad) continue;
+            
+            const data = grad.dataSync();
+            const nonZeros = data.filter(x => x !== 0);
+            const mean = nonZeros.length > 0 ? 
+                nonZeros.reduce((a, b) => a + b, 0) / nonZeros.length : 0;
+            const max = Math.max(...data);
+            const min = Math.min(...data);
+            const zeroCount = data.length - nonZeros.length;
+            const zeroPercent = (zeroCount/data.length*100);
+            
+            stats[name] = {
+                mean,
+                max,
+                min,
+                zeroPercent
+            };
+        }
+
+        // Update text div with copyable stats
+        const statsDiv = document.getElementById('gradientStats');
+        if (statsDiv) {
+            let text = 'Gradient Stats:\n';
+            for (const [name, stat] of Object.entries(stats)) {
+                text += `${name}:\n`;
+                text += `  Mean: ${stat.mean.toFixed(6)}\n`;
+                text += `  Max: ${stat.max.toFixed(6)}\n`;
+                text += `  Min: ${stat.min.toFixed(6)}\n`;
+                text += `  Zero: ${stat.zeroPercent.toFixed(2)}%\n`;
+            }
+            statsDiv.textContent = text;
         }
     }
 } 
