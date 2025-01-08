@@ -9,10 +9,7 @@ class ObGD {
         
         // Initialize eligibility traces for each parameter
         params.forEach((param, index) => {
-            if (!param.name) {
-                console.error(`Parameter ${index} has no name`);
-                return;
-            }
+            if (!param.name) return;
             const trace = tf.variable(tf.zeros(param.shape));
             this.traces.set(param.name, trace);
         });
