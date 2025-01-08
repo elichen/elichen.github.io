@@ -73,6 +73,11 @@ class TrainingManager {
                     Epsilon: ${this.agent.epsilon.toFixed(3)}
                 `;
 
+                const gradientStats = document.getElementById('gradientStats');
+                if (gradientStats) {
+                    gradientStats.textContent = this.agent.optimizer.getLastStats();
+                }
+
                 state = this.env.reset();
                 episodeReward = 0;
             }
