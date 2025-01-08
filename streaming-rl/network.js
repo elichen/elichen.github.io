@@ -1,3 +1,53 @@
+class LayerNorm extends tf.layers.Layer {
+    constructor(config) {
+        super({
+            name: config?.name || null,
+            trainable: false,
+            dtype: config?.dtype || 'float32'
+        });
+        this.epsilon = 1e-5;
+        this.supportsMasking = true;
+    }
+
+    className = 'LayerNorm';
+
+    call(inputs) {
+        return tf.tidy(() => {
+            // Handle array of tensors case
+            let x = Array.isArray(inputs) ? inputs[0] : inputs;
+            
+            // Ensure input is a tensor
+            x = tf.cast(x, 'float32');
+            
+            // Get feature dimension and ensure rank 2
+            const inputShape = x.shape;
+            const featureDim = inputShape[inputShape.length - 1];
+            if (x.rank === 1) {
+                x = x.reshape([1, featureDim]);
+            }
+            
+            // Compute statistics along feature axis and normalize
+            const moments = tf.moments(x, -1, true);
+            return x.sub(moments.mean).div(tf.sqrt(moments.variance.add(this.epsilon)));
+        });
+    }
+
+    computeOutputShape(inputShape) {
+        return Array.isArray(inputShape) && inputShape.length === 1 ? inputShape[0] : inputShape;
+    }
+
+    getConfig() {
+        const config = super.getConfig();
+        Object.assign(config, {
+            epsilon: this.epsilon
+        });
+        return config;
+    }
+
+    static className = 'LayerNorm';
+}
+tf.serialization.registerClass(LayerNorm);
+
 class StreamingNetwork {
     constructor(inputSize = 4, hiddenSize = 32, numActions = 2) {
         this.model = this.buildModel(inputSize, hiddenSize, numActions);
@@ -15,15 +65,8 @@ class StreamingNetwork {
             name: 'fc1',
             trainable: true
         }));
-        model.add(tf.layers.layerNormalization({
-            axis: [1],  // Normalize over the input features
-            epsilon: 1e-5,  // Match PyTorch's default
-            center: true,  // Use beta
-            scale: true,   // Use gamma
-            beta_initializer: 'zeros',
-            gamma_initializer: 'ones'
-        }));
-        model.add(tf.layers.leakyReLU({alpha: 0.01}));  // Match PyTorch's default
+        model.add(new LayerNorm({name: 'norm1'}));
+        model.add(tf.layers.leakyReLU({alpha: 0.01}));
 
         // Hidden layer with layer normalization
         model.add(tf.layers.dense({
@@ -32,14 +75,7 @@ class StreamingNetwork {
             name: 'hidden',
             trainable: true
         }));
-        model.add(tf.layers.layerNormalization({
-            axis: [1],  // Normalize over the hidden features
-            epsilon: 1e-5,
-            center: true,
-            scale: true,
-            beta_initializer: 'zeros',
-            gamma_initializer: 'ones'
-        }));
+        model.add(new LayerNorm({name: 'norm2'}));
         model.add(tf.layers.leakyReLU({alpha: 0.01}));
 
         // Output layer
@@ -50,64 +86,12 @@ class StreamingNetwork {
             trainable: true
         }));
 
-        // Compile the model to initialize variables
         model.compile({
-            optimizer: tf.train.sgd(0.1),  // Dummy optimizer, we'll use our custom one
+            optimizer: tf.train.sgd(0.1),
             loss: 'meanSquaredError'
         });
 
         return model;
-    }
-
-    async sparseInit() {
-        // Implement sparse initialization for each dense layer
-        const layers = this.model.layers.filter(layer => layer.getClassName() === 'Dense');
-        
-        for (const layer of layers) {
-            const weights = layer.getWeights();
-            const w = weights[0];
-            const expectedShape = w.shape;
-            
-            // Create new weights with LeCun initialization
-            const newWeights = tf.tidy(() => {
-                // In TensorFlow.js dense layers, shape is [inputSize, outputSize]
-                const [inputSize, outputSize] = expectedShape;
-                
-                // Algorithm 1: Wi,j ~ U[-1/√fan_in, 1/√fan_in], ∀i,j
-                const weights = tf.randomUniform(expectedShape, -1.0/Math.sqrt(inputSize), 1.0/Math.sqrt(inputSize));
-                
-                // Algorithm 1: n ← s × fan_in
-                const sparsity = 0.9;  // Paper specifies s = 0.9
-                const numZeros = Math.ceil(sparsity * inputSize);
-                
-                // Algorithm 1: Permutation set P of size fan_in
-                const permutation = Array.from({length: inputSize}, (_, i) => i);
-                for (let i = permutation.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [permutation[i], permutation[j]] = [permutation[j], permutation[i]];
-                }
-                
-                // Algorithm 1: Index set I of size n (subset of P)
-                const zeroIndices = new Set(permutation.slice(0, numZeros));
-                
-                // Algorithm 1: Wi,j ← 0, ∀i∈I, ∀j
-                const maskData = new Float32Array(inputSize * outputSize);
-                for (let j = 0; j < outputSize; j++) {
-                    for (let i = 0; i < inputSize; i++) {
-                        maskData[i * outputSize + j] = zeroIndices.has(i) ? 0 : 1;
-                    }
-                }
-                
-                // Apply mask to weights
-                const mask = tf.tensor2d(maskData, expectedShape);
-                return tf.mul(weights, mask);
-            });
-
-            // Set the new weights and zero biases (Algorithm 1: bi ← 0, ∀i)
-            const zeroBias = tf.zeros([expectedShape[1]]);  // bias size should match output dimension
-            await layer.setWeights([newWeights, zeroBias]);
-            newWeights.dispose();
-        }
     }
 
     predict(state) {
@@ -128,9 +112,48 @@ class StreamingNetwork {
     async loadModel() {
         try {
             this.model = await tf.loadLayersModel('localstorage://streaming-cartpole');
-            console.log('Model loaded successfully');
         } catch (error) {
             console.error('Error loading model:', error);
+        }
+    }
+
+    async sparseInit() {
+        const layers = this.model.layers.filter(layer => layer.getClassName() === 'Dense');
+        
+        for (const layer of layers) {
+            const weights = layer.getWeights();
+            const w = weights[0];
+            const expectedShape = w.shape;
+            
+            const newWeights = tf.tidy(() => {
+                const [inputSize, outputSize] = expectedShape;
+                const weights = tf.randomUniform(expectedShape, -1.0/Math.sqrt(inputSize), 1.0/Math.sqrt(inputSize));
+                
+                const sparsity = 0.9;
+                const numZeros = Math.ceil(sparsity * inputSize);
+                
+                const permutation = Array.from({length: inputSize}, (_, i) => i);
+                for (let i = permutation.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [permutation[i], permutation[j]] = [permutation[j], permutation[i]];
+                }
+                
+                const zeroIndices = new Set(permutation.slice(0, numZeros));
+                
+                const maskData = new Float32Array(inputSize * outputSize);
+                for (let j = 0; j < outputSize; j++) {
+                    for (let i = 0; i < inputSize; i++) {
+                        maskData[i * outputSize + j] = zeroIndices.has(i) ? 0 : 1;
+                    }
+                }
+                
+                const mask = tf.tensor2d(maskData, expectedShape);
+                return tf.mul(weights, mask);
+            });
+
+            const zeroBias = tf.zeros([expectedShape[1]]);
+            await layer.setWeights([newWeights, zeroBias]);
+            newWeights.dispose();
         }
     }
 } 
