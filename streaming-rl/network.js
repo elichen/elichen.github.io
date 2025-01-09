@@ -2,44 +2,55 @@ class LayerNorm extends tf.layers.Layer {
     constructor(config) {
         super({
             name: config?.name || null,
-            trainable: false,
+            trainable: true,
             dtype: config?.dtype || 'float32'
         });
+        this.normalizedShape = config.normalizedShape;
         this.epsilon = 1e-5;
         this.supportsMasking = true;
     }
 
-    className = 'LayerNorm';
+    build(inputShape) {
+        // Create learnable parameters matching normalized shape
+        this.gamma = this.addWeight(
+            'gamma',
+            this.normalizedShape,
+            'float32',
+            tf.initializers.ones(),
+            undefined,
+            true
+        );
+        this.beta = this.addWeight(
+            'beta',
+            this.normalizedShape,
+            'float32',
+            tf.initializers.zeros(),
+            undefined,
+            true
+        );
+    }
 
     call(inputs) {
         return tf.tidy(() => {
-            // Handle array of tensors case
             let x = Array.isArray(inputs) ? inputs[0] : inputs;
-            
-            // Ensure input is a tensor
             x = tf.cast(x, 'float32');
             
-            // Get feature dimension and ensure rank 2
-            const inputShape = x.shape;
-            const featureDim = inputShape[inputShape.length - 1];
-            if (x.rank === 1) {
-                x = x.reshape([1, featureDim]);
-            }
-            
-            // Compute statistics along feature axis and normalize
+            // Compute moments over normalized_shape dimensions
             const moments = tf.moments(x, -1, true);
-            return x.sub(moments.mean).div(tf.sqrt(moments.variance.add(this.epsilon)));
+            const normalized = x.sub(moments.mean).div(tf.sqrt(moments.variance.add(this.epsilon)));
+            return normalized.mul(this.gamma.read()).add(this.beta.read());
         });
     }
 
     computeOutputShape(inputShape) {
-        return Array.isArray(inputShape) && inputShape.length === 1 ? inputShape[0] : inputShape;
+        return inputShape;
     }
 
     getConfig() {
         const config = super.getConfig();
         Object.assign(config, {
-            epsilon: this.epsilon
+            epsilon: this.epsilon,
+            normalizedShape: this.normalizedShape
         });
         return config;
     }
@@ -65,7 +76,7 @@ class StreamingNetwork {
             name: 'fc1',
             trainable: true
         }));
-        model.add(new LayerNorm({name: 'norm1'}));
+        model.add(new LayerNorm({name: 'norm1', normalizedShape: [hiddenSize]}));
         model.add(tf.layers.leakyReLU({alpha: 0.01}));
 
         // Hidden layer with layer normalization
@@ -75,7 +86,7 @@ class StreamingNetwork {
             name: 'hidden',
             trainable: true
         }));
-        model.add(new LayerNorm({name: 'norm2'}));
+        model.add(new LayerNorm({name: 'norm2', normalizedShape: [hiddenSize]}));
         model.add(tf.layers.leakyReLU({alpha: 0.01}));
 
         // Output layer
