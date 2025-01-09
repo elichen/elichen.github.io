@@ -1,3 +1,24 @@
+class CircularBuffer {
+    constructor(maxSize) {
+        this.maxSize = maxSize;
+        this.buffer = new Array(maxSize);
+        this.currentIndex = 0;
+        this.size = 0;
+    }
+
+    push(value) {
+        this.buffer[this.currentIndex] = value;
+        this.currentIndex = (this.currentIndex + 1) % this.maxSize;
+        this.size = Math.min(this.size + 1, this.maxSize);
+    }
+
+    average() {
+        if (this.size === 0) return 0;
+        const sum = this.buffer.slice(0, this.size).reduce((a, b) => a + b, 0);
+        return sum / this.size;
+    }
+}
+
 class TrainingManager {
     constructor(config = {}) {
         let env = new CartPole();
@@ -8,7 +29,7 @@ class TrainingManager {
         
         config.env = env;
         this.agent = new StreamQ(config);
-        this.episodeRewards = [];
+        this.episodeRewards = new CircularBuffer(10);
         this.isTraining = true;
         this.stats = document.getElementById('stats');
         this.totalSteps = 0;
@@ -62,14 +83,13 @@ class TrainingManager {
                 
                 console.log(`Episodic Return: ${rawReturn.toFixed(1)}, Time Step ${this.totalSteps}, Episode Number ${episodeCount}, Epsilon ${this.agent.epsilon.toFixed(3)}`);
                 
-                const lastHundred = this.episodeRewards.slice(-100);
-                const avgReward = lastHundred.reduce((a, b) => a + b, 0) / lastHundred.length;
+                const avgReward = this.episodeRewards.average();
                 
                 this.stats.innerHTML = `
                     Mode: Training<br>
                     Episode: ${episodeCount}<br>
                     Last Reward: ${rawReturn.toFixed(1)}<br>
-                    Avg Reward (100): ${avgReward.toFixed(1)}<br>
+                    Avg Reward (${this.episodeRewards.size}): ${avgReward.toFixed(1)}<br>
                     Epsilon: ${this.agent.epsilon.toFixed(3)}
                 `;
 
