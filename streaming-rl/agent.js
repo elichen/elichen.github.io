@@ -67,27 +67,25 @@ class StreamQ {
         const nextStateTensor = tf.tensor2d([nextState], [1, nextState.length]);
         
         try {
-            // 1. Compute TD target for δ ← R + γ max_a q̂(S', a, w) - q̂(S, A, w)
+            // 1. Compute TD target
             const nextQValues = this.network.model.predict(nextStateTensor);
             const maxNextQ = nextQValues.max(1);
             const doneMask = done ? 0 : 1;
             const tdTarget = tf.scalar(reward).add(maxNextQ.mul(tf.scalar(this.gamma * doneMask)));
             
-            // 2. Compute gradients for eligibility trace update
-            // Paper: zt = γλzt−1 + ∇ˆvw(St,wt)
+            // 2. Compute current Q-value and gradients
             const {value: qsa, grads} = tf.variableGrads(() => {
                 const qValues = this.network.model.predict(stateTensor);
                 const actionMask = tf.oneHot([action], this.numActions);
-                return tf.sum(tf.mul(qValues, actionMask));  // q̂(St,wt)
+                const selectedQ = tf.sum(tf.mul(qValues, actionMask));
+                return selectedQ.neg();
             });
 
-            // 3. Compute TD error δ ← R + γ max_a q̂(S', a, w) - q̂(S, A, w)
-            const tdError = tdTarget.sub(qsa);  
+            // 3. Compute TD error
+            const tdError = tdTarget.add(qsa);
             const tdErrorValue = await tdError.data();
 
-            // 4. Update parameters following paper's algorithm:
-            // zw ← γλzw + ∇wq̂(St,wt)
-            // w ← ObGD(zw, w, δ, α_q̂, κ_q̂)
+            // 4. Update parameters
             await this.optimizer.step(
                 tdErrorValue[0],
                 Object.values(grads),
@@ -107,8 +105,7 @@ class StreamQ {
             ]);
         } catch (error) {
             console.error('Error in update:', error);
-            // Ensure tensors are cleaned up even if there's an error
-            tf.dispose([stateTensor, nextStateTensor]);
+            throw error;
         }
     }
 
