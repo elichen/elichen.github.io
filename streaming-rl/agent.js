@@ -81,8 +81,9 @@ class StreamQ {
                 return selectedQ.neg();
             });
 
-            // 3. Compute TD error
-            const tdError = tdTarget.add(qsa);
+            // 3. Compute TD error: δ = R + γ max_a q̂(S', a) - q̂(S, A)
+            const selectedQ = qsa.neg();
+            const tdError = tdTarget.sub(selectedQ);
             const tdErrorValue = await tdError.data();
 
             // 4. Update parameters
