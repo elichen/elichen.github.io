@@ -13,6 +13,7 @@ class CartPole {
         // Angle at which to fail the episode (radians)
         this.thetaThresholdRadians = 12 * Math.PI / 180;  // ±12 degrees
         this.xThreshold = 2.4;
+        this.maxEpisodeSteps = 10000;  // Match Python's max_episode_steps
 
         // Display settings
         this.canvas = document.getElementById('cartpoleCanvas');
@@ -58,17 +59,18 @@ class CartPole {
         this.thetaDot += this.dt * thetaAcc;
 
         // Check if episode is done
-        const done = this.x < -this.xThreshold || this.x > this.xThreshold || 
+        const truncated = this.episodeLength + 1 >= this.maxEpisodeSteps;
+        const terminated = this.x < -this.xThreshold || this.x > this.xThreshold || 
                     this.theta < -this.thetaThresholdRadians || this.theta > this.thetaThresholdRadians;
         
-        const reward = done ? 0.0 : 1.0;
+        const reward = (terminated || truncated) ? 0.0 : 1.0;
 
         // Update episode statistics
         this.episodeReturn += reward;
         this.episodeLength += 1;
 
         // Include episode info like Python's RecordEpisodeStatistics
-        const info = done ? {
+        const info = (terminated || truncated) ? {
             episode: {
                 r: this.episodeReturn,
                 l: this.episodeLength
@@ -78,7 +80,7 @@ class CartPole {
         return {
             state: this.getState(),
             reward: reward,
-            done: done,
+            done: terminated || truncated,
             info: info
         };
     }
