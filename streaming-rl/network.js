@@ -2,7 +2,7 @@ class LayerNorm extends tf.layers.Layer {
     constructor(config) {
         super({
             name: config?.name || null,
-            trainable: true,
+            trainable: false,
             dtype: config?.dtype || 'float32'
         });
         this.normalizedShape = config.normalizedShape;
@@ -11,23 +11,7 @@ class LayerNorm extends tf.layers.Layer {
     }
 
     build(inputShape) {
-        // Create learnable parameters matching normalized shape
-        this.gamma = this.addWeight(
-            'gamma',
-            this.normalizedShape,
-            'float32',
-            tf.initializers.ones(),
-            undefined,
-            true
-        );
-        this.beta = this.addWeight(
-            'beta',
-            this.normalizedShape,
-            'float32',
-            tf.initializers.zeros(),
-            undefined,
-            true
-        );
+        // No learnable parameters
     }
 
     call(inputs) {
@@ -37,8 +21,7 @@ class LayerNorm extends tf.layers.Layer {
             
             // Compute moments over normalized_shape dimensions
             const moments = tf.moments(x, -1, true);
-            const normalized = x.sub(moments.mean).div(tf.sqrt(moments.variance.add(this.epsilon)));
-            return normalized.mul(this.gamma.read()).add(this.beta.read());
+            return x.sub(moments.mean).div(tf.sqrt(moments.variance.add(this.epsilon)));
         });
     }
 
