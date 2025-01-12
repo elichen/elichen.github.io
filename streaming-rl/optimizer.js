@@ -23,6 +23,8 @@ class ObGD {
         
         // Collect gradient stats
         const gradStats = [];
+        const tensorsToDispose = [];
+        
         grads.forEach((grad, index) => {
             if (!grad) return;
             const param = this.params[index];
@@ -33,6 +35,7 @@ class ObGD {
             
             // Update trace: e = γλe + grad
             const newTrace = e.mul(gammaLambda).add(grad);
+            tensorsToDispose.push(newTrace);
             e.assign(newTrace);
             
             // Add to z_sum
@@ -86,14 +89,20 @@ class ObGD {
             
             // Update parameter: w = w - αδe
             const update = e.mul(-stepSize * delta);
+            tensorsToDispose.push(update);
             const currentValue = tf.variable(param.read());
+            tensorsToDispose.push(currentValue);
             const newValue = currentValue.add(update);
+            tensorsToDispose.push(newValue);
             param.write(newValue);
             
             if (reset) {
                 e.assign(tf.zeros(e.shape));
             }
         });
+
+        // Cleanup tensors
+        tensorsToDispose.forEach(tensor => tensor.dispose());
     }
 
     getLastStats() {
@@ -115,5 +124,13 @@ Dot Product: ${this.lastStats.obgd.dotProduct.toFixed(6)}
 Step Size: ${this.lastStats.obgd.stepSize.toFixed(6)}`;
 
         return `Gradient Flow Stats:\n${gradientText}\n\n${obgdText}`;
+    }
+
+    dispose() {
+        // Clean up all traces
+        for (const trace of this.traces.values()) {
+            trace.dispose();
+        }
+        this.traces.clear();
     }
 } 
