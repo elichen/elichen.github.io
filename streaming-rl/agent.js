@@ -5,7 +5,7 @@ class StreamQ {
         this.epsilonStart = config.epsilonStart || 1.0;
         this.epsilonTarget = config.epsilonTarget || 0.01;
         this.explorationFraction = config.explorationFraction || 0.05;
-        this.totalSteps = config.totalSteps || 100000;
+        this.totalSteps = config.totalSteps || 500000;
         this.timeStep = 0;
         this.epsilon = this.epsilonStart;
 
