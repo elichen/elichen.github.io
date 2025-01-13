@@ -2,12 +2,22 @@ class StreamQ {
     constructor(config = {}) {
         this.numActions = config.numActions || 2;
         this.gamma = config.gamma || 0.99;
-        this.epsilonStart = config.epsilonStart || 1.0;
-        this.epsilonTarget = config.epsilonTarget || 0.01;
-        this.explorationFraction = config.explorationFraction || 0.05;
-        this.totalSteps = config.totalSteps || 500000;
+        this.epsilonStart = config.epsilonStart;
+        this.epsilonTarget = config.epsilonTarget;
+        this.decaySteps = config.totalSteps;
         this.timeStep = 0;
         this.epsilon = this.epsilonStart;
+
+        // Validate required user-facing configs
+        if (!this.epsilonStart) {
+            throw new Error('epsilonStart must be provided in config');
+        }
+        if (!this.epsilonTarget) {
+            throw new Error('epsilonTarget must be provided in config');
+        }
+        if (!this.decaySteps) {
+            throw new Error('totalSteps (decay steps) must be provided in config');
+        }
 
         // Get input size from environment by doing a reset
         const initialState = config.env.reset();
@@ -30,8 +40,7 @@ class StreamQ {
     }
 
     linearSchedule(t) {
-        const duration = this.explorationFraction * this.totalSteps;
-        const slope = (this.epsilonTarget - this.epsilonStart) / duration;
+        const slope = (this.epsilonTarget - this.epsilonStart) / this.decaySteps;
         return Math.max(slope * t + this.epsilonStart, this.epsilonTarget);
     }
 

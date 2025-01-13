@@ -21,7 +21,17 @@ class CircularBuffer {
 
 class TrainingManager {
     constructor(config = {}) {
-        let env = new CartPole();
+        this.isSwingUpMode = false;  // Start in balance mode
+        this.animationFrameId = null;
+        this.initializeEnvironment(config);
+        this.setupControls();
+        this.train();
+    }
+
+    initializeEnvironment(config) {
+        let env = new CartPole({
+            swingUp: this.isSwingUpMode
+        });
         env = new ScaleReward(env, config.gamma || 0.99);
         env = new NormalizeObservation(env);
         env = new AddTimeInfo(env);
@@ -33,15 +43,60 @@ class TrainingManager {
         this.isTraining = true;
         this.stats = document.getElementById('stats');
         this.totalSteps = 0;
-        
-        this.setupControls();
-        this.train();
     }
 
     setupControls() {
         const modeButton = document.getElementById('toggleTraining');
         modeButton.textContent = 'Switch to Test Mode';
         modeButton.onclick = () => this.toggleMode();
+
+        const resetButton = document.getElementById('resetAgent');
+        resetButton.onclick = () => this.resetAgent();
+
+        const taskButton = document.getElementById('toggleMode');
+        taskButton.onclick = () => {
+            this.isSwingUpMode = !this.isSwingUpMode;
+            taskButton.textContent = this.isSwingUpMode ? 'Swing Up Mode' : 'Balance Mode';
+        };
+    }
+
+    resetAgent() {
+        // Cancel any existing animation frame
+        if (this.animationFrameId !== null) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+
+        // Stop current training/testing
+        this.isTraining = false;
+        
+        // Clean up existing agent and environment
+        if (this.agent.dispose) {
+            this.agent.dispose();
+        }
+        if (this.env.dispose) {
+            this.env.dispose();
+        }
+
+        // Get current configuration from UI
+        const config = {
+            learningRate: 1.0,
+            gamma: 0.99,
+            lambda: 0.8,
+            epsilonStart: parseFloat(document.getElementById('epsilonStart').value),
+            epsilonTarget: parseFloat(document.getElementById('epsilonTarget').value),
+            totalSteps: parseFloat(document.getElementById('decaySteps').value),
+            explorationFraction: 1.0
+        };
+
+        // Reinitialize environment and agent
+        this.initializeEnvironment(config);
+        
+        // Restart training
+        this.isTraining = true;
+        const modeButton = document.getElementById('toggleTraining');
+        modeButton.textContent = 'Switch to Test Mode';
+        this.train();
     }
 
     async toggleMode() {
@@ -58,12 +113,21 @@ class TrainingManager {
     }
 
     async train() {
+        // Cancel any existing animation frame
+        if (this.animationFrameId !== null) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+
         let episodeReward = 0;
         let state = this.env.reset();
         let episodeCount = 0;
 
         const animate = async () => {
-            if (!this.isTraining) return;
+            if (!this.isTraining) {
+                this.animationFrameId = null;
+                return;
+            }
 
             this.totalSteps++;
             const { action, isNonGreedy } = await this.agent.sampleAction(state);
@@ -78,18 +142,21 @@ class TrainingManager {
 
             if (result.done) {
                 const rawReturn = result.info.episode.r;
+                const steps = result.info.episode.steps;
+                const mode = result.info.episode.mode;
                 this.episodeRewards.push(rawReturn);
                 episodeCount++;
                 
-                console.log(`Episodic Return: ${rawReturn.toFixed(1)}, Time Step ${this.totalSteps}, Episode Number ${episodeCount}, Epsilon ${this.agent.epsilon.toFixed(3)}`);
+                console.log(`Mode: ${mode}, Episodic Return: ${rawReturn.toFixed(1)}, Steps: ${steps}, Episode ${episodeCount}, Epsilon ${this.agent.epsilon.toFixed(3)}`);
                 
                 const avgReward = this.episodeRewards.average();
                 
                 this.stats.innerHTML = `
-                    Mode: Training<br>
+                    Mode: ${mode} Training<br>
                     Episode: ${episodeCount}<br>
-                    Last Reward: ${rawReturn.toFixed(1)}<br>
-                    Avg Reward (${this.episodeRewards.size}): ${avgReward.toFixed(1)}<br>
+                    Last Return: ${rawReturn.toFixed(1)}<br>
+                    Steps: ${steps}<br>
+                    Avg Return (${this.episodeRewards.size}): ${avgReward.toFixed(1)}<br>
                     Epsilon: ${this.agent.epsilon.toFixed(3)}
                 `;
 
@@ -102,18 +169,27 @@ class TrainingManager {
                 episodeReward = 0;
             }
 
-            requestAnimationFrame(animate);
+            this.animationFrameId = requestAnimationFrame(animate);
         };
 
-        animate();
+        this.animationFrameId = requestAnimationFrame(animate);
     }
 
     async test() {
+        // Cancel any existing animation frame
+        if (this.animationFrameId !== null) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+
         let state = this.env.reset();
         let totalReward = 0;
         
         const testEpisode = async () => {
-            if (this.isTraining) return;
+            if (this.isTraining) {
+                this.animationFrameId = null;
+                return;
+            }
 
             const savedEpsilon = this.agent.epsilon;
             this.agent.epsilon = 0;
@@ -137,10 +213,10 @@ class TrainingManager {
                 totalReward = 0;
             }
             
-            requestAnimationFrame(testEpisode);
+            this.animationFrameId = requestAnimationFrame(testEpisode);
         };
         
-        testEpisode();
+        this.animationFrameId = requestAnimationFrame(testEpisode);
     }
 
     dispose() {
@@ -157,9 +233,16 @@ class TrainingManager {
 window.onload = async () => {
     await tf.setBackend('cpu');
     const config = {
-        learningRate: parseFloat(document.getElementById('learningRate').value),
-        gamma: parseFloat(document.getElementById('gamma').value),
-        lambda: parseFloat(document.getElementById('lambda').value)
+        // Hardcoded values
+        learningRate: 1.0,
+        gamma: 0.99,
+        lambda: 0.8,
+        
+        // Exploration settings from UI
+        epsilonStart: parseFloat(document.getElementById('epsilonStart').value),
+        epsilonTarget: parseFloat(document.getElementById('epsilonTarget').value),
+        totalSteps: parseFloat(document.getElementById('decaySteps').value),
+        explorationFraction: 1.0  // Use all decay steps for exploration
     };
     
     const manager = new TrainingManager(config);
