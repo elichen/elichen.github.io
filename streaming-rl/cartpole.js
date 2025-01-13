@@ -1,5 +1,5 @@
 class CartPole {
-    constructor() {
+    constructor(config = {}) {
         // Physics constants
         this.gravity = 9.8;
         this.cartMass = 1.0;
@@ -10,104 +10,157 @@ class CartPole {
         this.forceMag = 10.0;
         this.dt = 0.02;
 
-        // Angle at which to fail the episode (radians)
-        this.thetaThresholdRadians = 12 * Math.PI / 180;  // ±12 degrees
-        this.xThreshold = 2.4;
-        this.maxEpisodeSteps = 10000;  // Match Python's max_episode_steps
+        // Swing-up mode configuration
+        this.swingUp = config.swingUp || false;
 
-        // Display settings
+        // Episode management
+        this.steps = 0;
+        this.maxSteps = 1000;
+        this.episodeReturn = 0;
+
+        // Rendering
         this.canvas = document.getElementById('cartpoleCanvas');
         this.ctx = this.canvas.getContext('2d');
-        this.scale = 200; // pixels per meter
-
-        // Episode statistics
-        this.episodeReturn = 0;
-        this.episodeLength = 0;
-
+        this.cartWidth = 50;
+        this.cartHeight = 30;
+        this.poleWidth = 6;
+        this.axleHeight = 8;
+        this.scale = 200;  // pixels per meter
+        
+        // Physical boundaries (in meters)
+        this.xLimit = (this.canvas.width/2 - this.cartWidth) / this.scale;
+        
         this.reset();
     }
 
     reset() {
-        // All observations uniformly random in (-0.05, 0.05) like Gym
-        this.x = (Math.random() - 0.5) * 0.1;
-        this.xDot = (Math.random() - 0.5) * 0.1;
-        this.theta = (Math.random() - 0.5) * 0.1;
-        this.thetaDot = (Math.random() - 0.5) * 0.1;
-
-        // Reset episode statistics
+        if (this.swingUp) {
+            // Start pole hanging down in swing-up mode
+            this.state = [
+                0.0,                    // Cart Position
+                0.0,                    // Cart Velocity
+                Math.PI,                // Pole Angle (hanging down)
+                0.0                     // Pole Angular Velocity
+            ];
+        } else {
+            // Start pole upright with small random perturbation in balance mode
+            this.state = [
+                0.0,                    // Cart Position
+                0.0,                    // Cart Velocity
+                0.1 * (Math.random() - 0.5),  // Small random angle
+                0.0                     // Pole Angular Velocity
+            ];
+        }
+        this.steps = 0;
         this.episodeReturn = 0;
-        this.episodeLength = 0;
-
         return this.getState();
     }
 
     step(action) {
-        const force = action === 1 ? this.forceMag : -this.forceMag;
+        this.steps += 1;
         
-        const cosTheta = Math.cos(this.theta);
-        const sinTheta = Math.sin(this.theta);
+        // Extract state
+        let [x, xDot, theta, thetaDot] = this.state;
 
-        const temp = (force + this.poleMassLength * this.thetaDot ** 2 * sinTheta) / this.totalMass;
-        const thetaAcc = (this.gravity * sinTheta - cosTheta * temp) / 
-                        (this.length * (4.0/3.0 - this.poleMass * cosTheta ** 2 / this.totalMass));
+        // Get force direction
+        let force = action === 1 ? this.forceMag : -this.forceMag;
+
+        // Calculate physics
+        const cosTheta = Math.cos(theta);
+        const sinTheta = Math.sin(theta);
+
+        // Check if we're at a boundary and trying to move further into it
+        if ((x <= -this.xLimit && force < 0) || (x >= this.xLimit && force > 0)) {
+            force = 0;  // Can't push into wall
+        }
+
+        const temp = (force + this.poleMassLength * thetaDot ** 2 * sinTheta) / this.totalMass;
+        const thetaAcc = (this.gravity * sinTheta - cosTheta * temp) / (this.length * (4/3 - this.poleMass * cosTheta ** 2 / this.totalMass));
         const xAcc = temp - this.poleMassLength * thetaAcc * cosTheta / this.totalMass;
 
-        // Update state using Euler integration
-        this.x += this.dt * this.xDot;
-        this.xDot += this.dt * xAcc;
-        this.theta += this.dt * this.thetaDot;
-        this.thetaDot += this.dt * thetaAcc;
+        // Update state with Euler integration
+        x = x + this.dt * xDot;
+        xDot = xDot + this.dt * xAcc;
+        theta = theta + this.dt * thetaDot;
+        thetaDot = thetaDot + this.dt * thetaAcc;
 
-        // Check if episode is done
-        const truncated = this.episodeLength + 1 >= this.maxEpisodeSteps;
-        const terminated = this.x < -this.xThreshold || this.x > this.xThreshold || 
-                    this.theta < -this.thetaThresholdRadians || this.theta > this.thetaThresholdRadians;
-        
-        const reward = (terminated || truncated) ? 0.0 : 1.0;
+        // Apply boundary constraints to cart only
+        if (x < -this.xLimit) {
+            x = -this.xLimit;
+            xDot = 0;  // Stop cart at boundary
+        } else if (x > this.xLimit) {
+            x = this.xLimit;
+            xDot = 0;  // Stop cart at boundary
+        }
 
-        // Update episode statistics
+        this.state = [x, xDot, theta, thetaDot];
+
+        // Calculate reward and done flag
+        let done = false;
+        let reward;
+
+        if (this.swingUp) {
+            // Reward based on pole angle (1 when upright, -1 when hanging)
+            reward = Math.cos(theta);
+            // Only terminate on max steps
+            done = this.steps >= this.maxSteps;
+        } else {
+            // Original balance task termination conditions
+            done = theta < -0.21 || theta > 0.21 || this.steps >= this.maxSteps;  // Remove x bounds from termination
+            reward = done ? 0.0 : 1.0;
+        }
+
         this.episodeReturn += reward;
-        this.episodeLength += 1;
-
-        // Include episode info like Python's RecordEpisodeStatistics
-        const info = (terminated || truncated) ? {
-            episode: {
-                r: this.episodeReturn,
-                l: this.episodeLength
-            }
-        } : {};
 
         return {
             state: this.getState(),
             reward: reward,
-            done: terminated || truncated,
-            info: info
+            done: done,
+            info: { 
+                episode: { 
+                    r: this.episodeReturn,
+                    steps: this.steps,
+                    mode: this.swingUp ? 'swing-up' : 'balance'
+                } 
+            }
         };
     }
 
     getState() {
-        return [this.x, this.xDot, this.theta, this.thetaDot];
+        const [x, xDot, theta, thetaDot] = this.state;
+        
+        // Add normalized distances to boundaries (-1 at left boundary, 0 at center, 1 at right boundary)
+        const normalizedPosition = x / this.xLimit;
+        
+        return [
+            normalizedPosition,  // Position normalized to boundaries
+            xDot,               // Cart velocity
+            theta,              // Pole angle
+            thetaDot           // Pole angular velocity
+        ];
     }
 
     render() {
+        const [x, _, theta] = this.state;  // Extract position and angle from state
+        
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Convert to screen coordinates
-        const cartX = this.x * this.scale + this.canvas.width/2;
+        // Convert to screen coordinates (no clamping needed since physics handles boundaries)
+        const cartX = x * this.scale + this.canvas.width/2;
         const cartY = this.canvas.height/2;
         
         // Draw cart
         this.ctx.fillStyle = '#333';
-        this.ctx.fillRect(cartX - 20, cartY - 10, 40, 20);
+        this.ctx.fillRect(cartX - this.cartWidth/2, cartY - this.cartHeight/2, this.cartWidth, this.cartHeight);
         
         // Draw pole
         this.ctx.beginPath();
         this.ctx.moveTo(cartX, cartY);
-        const poleEndX = cartX + Math.sin(this.theta) * this.length * this.scale;
-        const poleEndY = cartY - Math.cos(this.theta) * this.length * this.scale;
+        const poleEndX = cartX + Math.sin(theta) * this.length * this.scale;
+        const poleEndY = cartY - Math.cos(theta) * this.length * this.scale;
         this.ctx.lineTo(poleEndX, poleEndY);
         this.ctx.strokeStyle = '#333';
-        this.ctx.lineWidth = 6;
+        this.ctx.lineWidth = this.poleWidth;
         this.ctx.stroke();
     }
 } 
