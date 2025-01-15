@@ -2,7 +2,7 @@ class Car {
     constructor() {
         this.x = 400    // Start in middle of top straight
         this.y = 150    // Just below top wall
-        this.angle = -Math.PI/2
+        this.angle = -Math.PI
         this.speed = 0
         this.width = 20
         this.height = 40
