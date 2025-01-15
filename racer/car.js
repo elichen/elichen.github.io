@@ -66,23 +66,23 @@ class Car {
         // Cockpit
         ctx.fillStyle = 'black'
         ctx.beginPath()
-        ctx.ellipse(-5, 0, 10, 2.5, Math.PI/2, 0, Math.PI * 2)
+        ctx.ellipse(-5, 0, 5, 5, Math.PI/2, 0, Math.PI * 2)
         ctx.fill()
 
-        // Front wing - made longer
+        // Rear wing
         ctx.fillStyle = '#333'
-        ctx.fillRect(-32, -15, 4, 30)
+        ctx.fillRect(-36, -15, 8, 30)
 
-        // Rear wing - made longer
+        // Front wing
         ctx.fillStyle = '#333'
-        ctx.fillRect(25, -12, 3, 24)
+        ctx.fillRect(25, -12, 5, 24)
         
         // Wheels - rear wheels moved back
         ctx.fillStyle = 'black'
-        ctx.fillRect(15, -18, 12, 6)     // Left front
-        ctx.fillRect(15, 12, 12, 6)      // Right front
-        ctx.fillRect(-15, -18, 12, 6)    // Left rear (moved back)
-        ctx.fillRect(-15, 12, 12, 6)     // Right rear (moved back)
+        ctx.fillRect(10, -18, 12, 6)     // Left front
+        ctx.fillRect(10, 12, 12, 6)      // Right front
+        ctx.fillRect(-25, -18, 12, 6)    // Left rear (moved back)
+        ctx.fillRect(-25, 12, 12, 6)     // Right rear (moved back)
 
         ctx.restore()
     }
