@@ -102,6 +102,12 @@ class CartPole {
         if (this.swingUp) {
             // Reward based on pole angle (1 when upright, -1 when hanging)
             reward = Math.cos(theta);
+            
+            // Add small penalty for using boundaries
+            if (Math.abs(x) >= this.xLimit) {
+                reward -= 0.2;  // Penalty for touching boundaries
+            }
+            
             // Only terminate on max steps
             done = this.steps >= this.maxSteps;
         } else {
