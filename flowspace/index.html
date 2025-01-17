@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlowSpace - Interactive Fluid Simulation</title>
+    <title>FlowSpace - Audio Reactive Fluid Simulation</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <canvas id="flowCanvas"></canvas>
+    <button id="startAudio">Start Audio</button>
     
     <!-- Shader Scripts -->
     <script type="x-shader/x-vertex" id="vertexShader">
@@ -28,6 +29,10 @@
         uniform vec2 uMouse;
         uniform vec2 uResolution;
         uniform float uTime;
+        uniform float uBass;     // Low frequency intensity
+        uniform float uMid;      // Mid frequency intensity
+        uniform float uHigh;     // High frequency intensity
+        uniform float uEnergy;   // Overall audio energy
 
         varying vec2 uv;
 
@@ -48,18 +53,32 @@
         }
 
         vec2 getBackgroundFlow(vec2 pos) {
-            float scale = 3.0;
-            float timeScale = 0.2;
+            float scale = 3.0 + uBass * 2.0;  // Bass affects flow scale
+            float timeScale = 0.2 + uMid * 0.3;  // Mid frequencies affect flow speed
             vec2 flow = vec2(
                 noise(pos * scale + vec2(uTime * timeScale, 0.0)),
                 noise(pos * scale + vec2(0.0, uTime * timeScale))
             );
-            return (flow - 0.5) * 2.0;
+            return (flow - 0.5) * 2.0 * (1.0 + uEnergy);  // Overall energy affects flow strength
         }
 
         vec3 getRainbowColor(float t) {
+            // Shift base colors based on audio frequencies
+            vec3 bassColor = vec3(0.8, 0.2, 0.3) * uBass;
+            vec3 midColor = vec3(0.2, 0.6, 0.8) * uMid;
+            vec3 highColor = vec3(0.9, 0.9, 1.0) * uHigh;
+            
             vec3 c = 0.5 + 0.5 * cos(6.28318 * (t + vec3(0.0, 0.33, 0.67)));
+            c = mix(c, bassColor + midColor + highColor, uEnergy * 0.5);
             return mix(vec3(0.2), c, 0.8);
+        }
+
+        // Sparkle effect for high frequencies
+        float sparkle(vec2 pos, float intensity) {
+            float t = uTime * 10.0;
+            float n1 = noise(pos * 50.0 + t);
+            float n2 = noise(pos * 30.0 - t * 0.5);
+            return pow(n1 * n2, 5.0) * intensity;
         }
 
         void main() {
@@ -70,24 +89,34 @@
             vec2 v = texture2D(uVelocity, coord).xy;
             float p = texture2D(uPressure, coord).x;
             
-            // Background flow
-            vec2 bgFlow = getBackgroundFlow(coord) * 0.3;
+            // Background flow affected by audio
+            vec2 bgFlow = getBackgroundFlow(coord) * (0.3 + uBass * 0.4);
             
             // Mouse influence with max flow strength
             vec2 mouseVel = (uMouse - coord);
             float mouseDist = length(mouseVel);
             mouseVel = mouseVel * smoothstep(0.5, 0.0, mouseDist);
             
-            // Combine flows with minimum viscosity
+            // Combine flows with audio reactivity
             v = v + mouseVel + bgFlow;
+            v *= (1.0 + uEnergy * 0.5);  // Amplify overall flow with audio energy
             
             // Calculate curl for visualization
             float curl = length(v);
             
-            // Add time-based variation to curl
-            curl = curl + noise(coord * 5.0 + uTime * 0.1) * 0.2;
+            // Add time-based and audio-reactive variation
+            curl = curl + noise(coord * (5.0 + uMid * 5.0) + uTime * 0.1) * 0.2;
             
+            // Get base color
             vec3 color = getRainbowColor(curl);
+            
+            // Add sparkles based on high frequencies
+            float sparkleEffect = sparkle(coord, uHigh);
+            color += vec3(sparkleEffect);
+            
+            // Pulse the overall brightness with the beat
+            color *= 1.0 + uBass * 0.2;
+            
             gl_FragColor = vec4(color, 1.0);
         }
     </script>

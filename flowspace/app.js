@@ -25,8 +25,126 @@ class FlowSpace {
         this.setupBuffers();
         this.setupTextures();
         this.setupMouseEvents();
+        this.setupAudioButton();
+        
+        // Initialize audio values with defaults
+        this.audioValues = {
+            bass: 0.5,
+            mid: 0.3,
+            high: 0.2,
+            energy: 0.4
+        };
         
         this.render();
+    }
+
+    setupAudioButton() {
+        this.startButton = document.getElementById('startAudio');
+        this.startButton.addEventListener('click', async () => {
+            if (!this.audioReady) {
+                await this.setupAudio();
+                if (this.audioReady) {
+                    this.startButton.classList.add('hidden');
+                }
+            }
+        });
+    }
+
+    async setupAudio() {
+        try {
+            // Initialize audio context
+            this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Create analyzer node
+            this.analyzer = this.audioCtx.createAnalyser();
+            this.analyzer.fftSize = 1024;
+            
+            // Get audio input
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const source = this.audioCtx.createMediaStreamSource(stream);
+            source.connect(this.analyzer);
+
+            // Create additional analyzers for different frequency ranges
+            this.bassAnalyzer = this.audioCtx.createBiquadFilter();
+            this.midAnalyzer = this.audioCtx.createBiquadFilter();
+            this.highAnalyzer = this.audioCtx.createBiquadFilter();
+
+            // Configure filters
+            this.bassAnalyzer.type = 'lowpass';
+            this.bassAnalyzer.frequency.value = 150;
+
+            this.midAnalyzer.type = 'bandpass';
+            this.midAnalyzer.frequency.value = 1000;
+            this.midAnalyzer.Q.value = 1;
+
+            this.highAnalyzer.type = 'highpass';
+            this.highAnalyzer.frequency.value = 4000;
+
+            // Connect filters
+            source.connect(this.bassAnalyzer);
+            source.connect(this.midAnalyzer);
+            source.connect(this.highAnalyzer);
+
+            // Create analyzers for each frequency range
+            this.bassAnalyzerNode = this.audioCtx.createAnalyser();
+            this.midAnalyzerNode = this.audioCtx.createAnalyser();
+            this.highAnalyzerNode = this.audioCtx.createAnalyser();
+
+            this.bassAnalyzer.connect(this.bassAnalyzerNode);
+            this.midAnalyzer.connect(this.midAnalyzerNode);
+            this.highAnalyzer.connect(this.highAnalyzerNode);
+
+            // Initialize data arrays
+            this.dataArray = new Uint8Array(this.analyzer.frequencyBinCount);
+            this.bassArray = new Uint8Array(this.bassAnalyzerNode.frequencyBinCount);
+            this.midArray = new Uint8Array(this.midAnalyzerNode.frequencyBinCount);
+            this.highArray = new Uint8Array(this.highAnalyzerNode.frequencyBinCount);
+
+            // Audio is ready
+            this.audioReady = true;
+
+        } catch (err) {
+            console.error('Error accessing microphone:', err);
+            this.audioReady = false;
+            this.startButton.textContent = 'Microphone access denied';
+            this.startButton.style.background = 'rgba(255, 50, 50, 0.2)';
+        }
+    }
+
+    updateAudioValues() {
+        if (!this.audioReady) return;
+
+        try {
+            // Get frequency data
+            this.analyzer.getByteFrequencyData(this.dataArray);
+            this.bassAnalyzerNode.getByteFrequencyData(this.bassArray);
+            this.midAnalyzerNode.getByteFrequencyData(this.midArray);
+            this.highAnalyzerNode.getByteFrequencyData(this.highArray);
+
+            // Calculate average values for each frequency range
+            const getAverage = (array) => {
+                const sum = array.reduce((a, b) => a + b, 0);
+                return sum / array.length / 255; // Normalize to 0-1
+            };
+
+            const newValues = {
+                bass: getAverage(this.bassArray),
+                mid: getAverage(this.midArray),
+                high: getAverage(this.highArray),
+                energy: getAverage(this.dataArray)
+            };
+
+            // Apply smoothing
+            const smooth = 0.8;
+            this.audioValues = {
+                bass: newValues.bass * smooth + (this.audioValues.bass || 0) * (1 - smooth),
+                mid: newValues.mid * smooth + (this.audioValues.mid || 0) * (1 - smooth),
+                high: newValues.high * smooth + (this.audioValues.high || 0) * (1 - smooth),
+                energy: newValues.energy * smooth + (this.audioValues.energy || 0) * (1 - smooth)
+            };
+        } catch (err) {
+            console.error('Error updating audio values:', err);
+        }
     }
     
     setupCanvas() {
@@ -54,6 +172,12 @@ class FlowSpace {
         this.mouseLocation = this.gl.getUniformLocation(this.program, 'uMouse');
         this.resolutionLocation = this.gl.getUniformLocation(this.program, 'uResolution');
         this.timeLocation = this.gl.getUniformLocation(this.program, 'uTime');
+        
+        // Audio uniform locations
+        this.bassLocation = this.gl.getUniformLocation(this.program, 'uBass');
+        this.midLocation = this.gl.getUniformLocation(this.program, 'uMid');
+        this.highLocation = this.gl.getUniformLocation(this.program, 'uHigh');
+        this.energyLocation = this.gl.getUniformLocation(this.program, 'uEnergy');
     }
     
     createShader(type, source) {
@@ -144,10 +268,21 @@ class FlowSpace {
     }
     
     render() {
+        // Update audio analysis
+        this.updateAudioValues();
+
         const time = (Date.now() - this.startTime) * 0.001; // Convert to seconds
+        
+        // Update uniforms
         this.gl.uniform1f(this.timeLocation, time);
         this.gl.uniform2f(this.mouseLocation, this.mousePosition.x, this.mousePosition.y);
         this.gl.uniform2f(this.resolutionLocation, this.canvas.width, this.canvas.height);
+        
+        // Update audio uniforms
+        this.gl.uniform1f(this.bassLocation, this.audioValues.bass);
+        this.gl.uniform1f(this.midLocation, this.audioValues.mid);
+        this.gl.uniform1f(this.highLocation, this.audioValues.high);
+        this.gl.uniform1f(this.energyLocation, this.audioValues.energy);
         
         this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
         requestAnimationFrame(() => this.render());
