@@ -1,8 +1,9 @@
 class Car {
     constructor() {
-        this.x = window.innerWidth / 2     // Center X
-        this.y = window.innerHeight / 2 - 150  // Above center Y
-        this.angle = -Math.PI
+        const startPos = track.getStartPosition()
+        this.x = startPos.x
+        this.y = startPos.y
+        this.angle = startPos.angle
         this.speed = 0
         this.width = 20
         this.height = 40
