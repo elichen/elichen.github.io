@@ -1,14 +1,20 @@
 class Car {
     constructor() {
-        this.x = 400    // Start in middle of top straight
-        this.y = 150    // Just below top wall
+        this.x = window.innerWidth / 2     // Center X
+        this.y = window.innerHeight / 2 - 150  // Above center Y
         this.angle = -Math.PI
         this.speed = 0
         this.width = 20
         this.height = 40
+        this.lastX = this.x
+        this.lastY = this.y
     }
 
     update() {
+        // Store last position
+        this.lastX = this.x
+        this.lastY = this.y
+
         if (keys.ArrowUp) this.speed += 0.2
         if (keys.ArrowDown) this.speed -= 0.2
         if (keys.ArrowLeft) this.angle -= 0.1
