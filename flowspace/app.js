@@ -24,7 +24,6 @@ class FlowSpace {
         this.loadShaders();
         this.setupBuffers();
         this.setupTextures();
-        this.setupControls();
         this.setupMouseEvents();
         
         this.render();
@@ -54,9 +53,6 @@ class FlowSpace {
         this.positionLocation = this.gl.getAttribLocation(this.program, 'position');
         this.mouseLocation = this.gl.getUniformLocation(this.program, 'uMouse');
         this.resolutionLocation = this.gl.getUniformLocation(this.program, 'uResolution');
-        this.viscosityLocation = this.gl.getUniformLocation(this.program, 'uViscosity');
-        this.flowStrengthLocation = this.gl.getUniformLocation(this.program, 'uFlowStrength');
-        this.colorModeLocation = this.gl.getUniformLocation(this.program, 'uColorMode');
         this.timeLocation = this.gl.getUniformLocation(this.program, 'uTime');
     }
     
@@ -137,16 +133,6 @@ class FlowSpace {
         return texture;
     }
     
-    setupControls() {
-        this.viscosityControl = document.getElementById('viscosity');
-        this.flowStrengthControl = document.getElementById('flowStrength');
-        this.colorModeControl = document.getElementById('colorMode');
-        
-        this.viscosityControl.addEventListener('input', () => this.updateUniforms());
-        this.flowStrengthControl.addEventListener('input', () => this.updateUniforms());
-        this.colorModeControl.addEventListener('change', () => this.updateUniforms());
-    }
-    
     setupMouseEvents() {
         this.mousePosition = { x: 0, y: 0 };
         
@@ -155,19 +141,6 @@ class FlowSpace {
             this.mousePosition.x = (e.clientX - rect.left) / rect.width;
             this.mousePosition.y = 1.0 - (e.clientY - rect.top) / rect.height;
         });
-    }
-    
-    updateUniforms() {
-        this.gl.uniform1f(this.viscosityLocation, this.viscosityControl.value);
-        this.gl.uniform1f(this.flowStrengthLocation, this.flowStrengthControl.value * 0.01);
-        
-        let colorMode = 0;
-        switch (this.colorModeControl.value) {
-            case 'rainbow': colorMode = 0; break;
-            case 'ocean': colorMode = 1; break;
-            case 'fire': colorMode = 2; break;
-        }
-        this.gl.uniform1i(this.colorModeLocation, colorMode);
     }
     
     render() {
