@@ -11,14 +11,14 @@ class Car {
         this.lastY = this.y
 
         // Physics constants
-        this.maxSpeed = 8
+        this.maxSpeed = 10
         this.maxReverseSpeed = -3
-        this.acceleration = 0.15
+        this.acceleration = 0.3
         this.brakeForce = 0.3
         this.reverseAcceleration = 0.1
         this.dragCoefficient = 0.98
         this.turnSpeed = 0.02  // Base turn speed
-        this.turnSpeedDecrease = 0.7  // Turn less at high speeds
+        this.turnSpeedDecrease = 0.8  // Turn less at high speeds
     }
 
     update() {
