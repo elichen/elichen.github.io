@@ -8,6 +8,16 @@ class Car {
         this.height = 40
         this.lastX = this.x
         this.lastY = this.y
+
+        // Physics constants
+        this.maxSpeed = 8
+        this.maxReverseSpeed = -3
+        this.acceleration = 0.15
+        this.brakeForce = 0.3
+        this.reverseAcceleration = 0.1
+        this.dragCoefficient = 0.98
+        this.turnSpeed = 0.02  // Base turn speed
+        this.turnSpeedDecrease = 0.7  // Turn less at high speeds
     }
 
     update() {
@@ -15,12 +25,37 @@ class Car {
         this.lastX = this.x
         this.lastY = this.y
 
-        if (keys.ArrowUp) this.speed += 0.2
-        if (keys.ArrowDown) this.speed -= 0.2
-        if (keys.ArrowLeft) this.angle -= 0.1
-        if (keys.ArrowRight) this.angle += 0.1
+        // Apply drag (air resistance)
+        this.speed *= this.dragCoefficient
 
-        this.speed *= 0.95
+        // Accelerate
+        if (keys.ArrowUp) {
+            if (this.speed >= 0) {
+                // Forward acceleration
+                this.speed = Math.min(this.maxSpeed, this.speed + this.acceleration)
+            } else {
+                // Braking when going in reverse
+                this.speed = Math.min(0, this.speed + this.brakeForce)
+            }
+        }
+
+        // Brake/Reverse
+        if (keys.ArrowDown) {
+            if (this.speed <= 0) {
+                // Reverse acceleration
+                this.speed = Math.max(this.maxReverseSpeed, this.speed - this.reverseAcceleration)
+            } else {
+                // Braking when going forward
+                this.speed = Math.max(0, this.speed - this.brakeForce)
+            }
+        }
+
+        // Turning - reduced at higher speeds
+        const speedFactor = 1 - (Math.abs(this.speed) / this.maxSpeed) * this.turnSpeedDecrease
+        const effectiveTurnSpeed = this.turnSpeed * (1 + Math.abs(this.speed)) * speedFactor
+
+        if (keys.ArrowLeft) this.angle -= effectiveTurnSpeed
+        if (keys.ArrowRight) this.angle += effectiveTurnSpeed
 
         // Calculate new position
         const newX = this.x + Math.cos(this.angle) * this.speed
@@ -44,7 +79,8 @@ class Car {
             this.x = newX
             this.y = newY
         } else {
-            this.speed = 0  // Stop the car on collision
+            // Collision response - reduce speed significantly
+            this.speed *= 0.5
         }
     }
 
