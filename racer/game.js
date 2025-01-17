@@ -14,8 +14,8 @@ resizeCanvas()
 window.addEventListener('resize', resizeCanvas)
 
 const keys = {}
-const car = new Car()
 const track = new Track()
+const car = new Car()
 const lapTimer = new LapTimer()
 
 window.addEventListener('keydown', e => keys[e.key] = true)

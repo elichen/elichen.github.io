@@ -1,27 +1,43 @@
 class Track {
     constructor() {
         // Track dimensions for centering
-        this.trackWidth = 600   // Width from 100 to 700
-        this.trackHeight = 400  // Height from 100 to 500
+        this.trackWidth = 1000   // Increased from 600
+        this.trackHeight = 600   // Increased from 400
         
         // Calculate center offset based on window size
         this.updateOffset()
 
-        // Convert track points to be relative to center
+        // Convert track points to be relative to center - made wider and longer
         this.outerPoints = [
-            [-300, -200], [100, -200], [200, -100], [200, 100],
-            [100, 200], [-300, 200], [-400, 100], [-400, -100]
+            [-400, -250],  // Top left
+            [400, -250],   // Top right
+            [500, -150],   // Top right corner
+            [500, 150],    // Bottom right corner
+            [400, 250],    // Bottom right
+            [-400, 250],   // Bottom left
+            [-500, 150],   // Bottom left corner
+            [-500, -150]   // Top left corner
         ]
         
         this.innerPoints = [
-            [-250, -100], [50, -100], [100, -50], [100, 50],
-            [50, 100], [-250, 100], [-300, 50], [-300, -50]
+            [-300, -100],  // Top left
+            [300, -100],   // Top right
+            [350, -50],    // Top right corner
+            [350, 50],     // Bottom right corner
+            [300, 100],    // Bottom right
+            [-300, 100],   // Bottom left
+            [-350, 50],    // Bottom left corner
+            [-350, -50]    // Top left corner
         ]
 
         // Add finish line coordinates (relative to center)
         this.finishLine = {
-            x1: 0, y1: -200,    // Top of track
-            x2: 0, y2: -100     // To inner edge
+            x1: 0, y1: -250,    // Top of track
+            x2: 0, y2: -100,    // Extended to new inner edge
+            // Update starting angle to face right (0 radians = facing right)
+            startX: 0,
+            startY: -175,       // Halfway between y1 and y2
+            startAngle: Math.PI  // Pointing left (perpendicular to finish line)
         }
     }
 
@@ -111,5 +127,13 @@ class Track {
 
         return relOldX >= this.finishLine.x1 && relNewX < this.finishLine.x1 &&
                relNewY >= this.finishLine.y1 && relNewY <= this.finishLine.y2
+    }
+
+    getStartPosition() {
+        return {
+            x: this.offsetX + this.finishLine.startX,
+            y: this.offsetY + this.finishLine.startY,
+            angle: this.finishLine.startAngle
+        }
     }
 } 
