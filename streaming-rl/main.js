@@ -22,9 +22,11 @@ class CircularBuffer {
 class TrainingManager {
     constructor(config = {}) {
         this.isSwingUpMode = false;  // Start in balance mode
+        this.isManualMode = false;   // Add manual mode flag
         this.animationFrameId = null;
         this.initializeEnvironment(config);
         this.setupControls();
+        this.setupKeyboardControls();
         this.train();
     }
 
@@ -45,88 +47,98 @@ class TrainingManager {
         this.totalSteps = 0;
     }
 
+    setupKeyboardControls() {
+        document.addEventListener('keydown', (event) => {
+            if (!this.isManualMode) return;
+            
+            switch(event.key) {
+                case 'ArrowLeft':
+                    this.manualAction = 0;  // Push left
+                    break;
+                case 'ArrowRight':
+                    this.manualAction = 1;  // Push right
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', (event) => {
+            if (!this.isManualMode) return;
+            
+            if (event.key === 'ArrowLeft' && this.manualAction === 0) {
+                this.manualAction = null;
+            } else if (event.key === 'ArrowRight' && this.manualAction === 1) {
+                this.manualAction = null;
+            }
+        });
+    }
+
     setupControls() {
+        // Training/Manual mode toggle
         const modeButton = document.getElementById('toggleTraining');
-        modeButton.textContent = 'Switch to Test Mode';
-        modeButton.onclick = () => this.toggleMode();
+        modeButton.textContent = 'Switch to Manual Mode';
+        modeButton.onclick = () => {
+            // Cancel any existing animation frame first
+            if (this.animationFrameId !== null) {
+                cancelAnimationFrame(this.animationFrameId);
+                this.animationFrameId = null;
+            }
 
-        const resetButton = document.getElementById('resetAgent');
-        resetButton.onclick = () => this.resetAgent();
+            this.isManualMode = !this.isManualMode;
+            this.isTraining = !this.isManualMode;  // Make sure these are always opposite
+            
+            if (this.isManualMode) {
+                modeButton.textContent = 'Switch to Training Mode';
+                this.manual();
+            } else {
+                modeButton.textContent = 'Switch to Manual Mode';
+                this.initializeEnvironment({
+                    epsilonStart: parseFloat(document.getElementById('epsilonStart').value),
+                    epsilonTarget: parseFloat(document.getElementById('epsilonTarget').value),
+                    totalSteps: parseFloat(document.getElementById('decaySteps').value)
+                });
+                this.train();
+            }
+        };
 
+        // Task mode toggle (balance/swing-up)
         const taskButton = document.getElementById('toggleMode');
         taskButton.onclick = () => {
             this.isSwingUpMode = !this.isSwingUpMode;
             taskButton.textContent = this.isSwingUpMode ? 'Swing Up Mode' : 'Balance Mode';
-        };
-    }
-
-    resetAgent() {
-        // Cancel any existing animation frame
-        if (this.animationFrameId !== null) {
-            cancelAnimationFrame(this.animationFrameId);
-            this.animationFrameId = null;
-        }
-
-        // Stop current training/testing
-        this.isTraining = false;
-        
-        // Clean up existing agent and environment
-        if (this.agent.dispose) {
-            this.agent.dispose();
-        }
-        if (this.env.dispose) {
-            this.env.dispose();
-        }
-
-        // Get current configuration from UI
-        const config = {
-            learningRate: 1.0,
-            gamma: 0.99,
-            lambda: 0.8,
-            epsilonStart: parseFloat(document.getElementById('epsilonStart').value),
-            epsilonTarget: parseFloat(document.getElementById('epsilonTarget').value),
-            totalSteps: parseFloat(document.getElementById('decaySteps').value),
-            explorationFraction: 1.0
+            // Reset agent when switching modes
+            this.initializeEnvironment({
+                epsilonStart: parseFloat(document.getElementById('epsilonStart').value),
+                epsilonTarget: parseFloat(document.getElementById('epsilonTarget').value),
+                totalSteps: parseFloat(document.getElementById('decaySteps').value)
+            });
+            if (!this.isManualMode) {
+                this.train();
+            }
         };
 
-        // Reinitialize environment and agent
-        this.initializeEnvironment(config);
-        
-        // Restart training
-        this.isTraining = true;
-        const modeButton = document.getElementById('toggleTraining');
-        modeButton.textContent = 'Switch to Test Mode';
-        this.train();
-    }
-
-    async toggleMode() {
-        this.isTraining = !this.isTraining;
-        const modeButton = document.getElementById('toggleTraining');
-        
-        if (this.isTraining) {
-            modeButton.textContent = 'Switch to Test Mode';
-            this.train();
-        } else {
-            modeButton.textContent = 'Switch to Training Mode';
-            this.test();
-        }
+        // Add change listeners to parameter inputs
+        ['epsilonStart', 'epsilonTarget', 'decaySteps'].forEach(id => {
+            document.getElementById(id).addEventListener('change', () => {
+                if (!this.isManualMode) {
+                    this.initializeEnvironment({
+                        epsilonStart: parseFloat(document.getElementById('epsilonStart').value),
+                        epsilonTarget: parseFloat(document.getElementById('epsilonTarget').value),
+                        totalSteps: parseFloat(document.getElementById('decaySteps').value)
+                    });
+                    this.train();
+                }
+            });
+        });
     }
 
     async train() {
-        // Cancel any existing animation frame
-        if (this.animationFrameId !== null) {
-            cancelAnimationFrame(this.animationFrameId);
-            this.animationFrameId = null;
-        }
-
         let episodeReward = 0;
         let state = this.env.reset();
         let episodeCount = 0;
 
         const animate = async () => {
             if (!this.isTraining) {
-                this.animationFrameId = null;
-                return;
+                return;  // Exit if we're not in training mode
             }
 
             this.totalSteps++;
@@ -171,7 +183,7 @@ class TrainingManager {
 
             this.animationFrameId = requestAnimationFrame(animate);
         };
-
+        
         this.animationFrameId = requestAnimationFrame(animate);
     }
 
@@ -217,6 +229,40 @@ class TrainingManager {
         };
         
         this.animationFrameId = requestAnimationFrame(testEpisode);
+    }
+
+    async manual() {
+        let state = this.env.reset();
+        let totalReward = 0;
+        this.manualAction = null;  // Initialize manual action
+        
+        const runManualEpisode = async () => {
+            if (!this.isManualMode) {
+                return;  // Exit if we're not in manual mode
+            }
+
+            // Only take action when a key is pressed
+            const action = this.manualAction !== null ? this.manualAction : 0;
+            const { state: nextState, reward, done } = this.env.step(action);
+            
+            totalReward += reward;
+            state = nextState;
+            
+            this.env.render();
+            
+            if (done) {
+                this.stats.innerHTML = `
+                    Mode: Manual Control<br>
+                    Episode Reward: ${totalReward.toFixed(1)}
+                `;
+                state = this.env.reset();
+                totalReward = 0;
+            }
+            
+            this.animationFrameId = requestAnimationFrame(runManualEpisode);
+        };
+        
+        this.animationFrameId = requestAnimationFrame(runManualEpisode);
     }
 
     dispose() {
