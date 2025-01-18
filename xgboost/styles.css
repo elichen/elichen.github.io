@@ -34,4 +34,59 @@ progress {
     min-height: 400px;
     border: 1px solid #ddd;
     padding: 10px;
+}
+
+.download-button {
+    display: block;
+    margin: 20px auto;
+    padding: 10px 20px;
+    background-color: #2196F3;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.download-button:hover {
+    background-color: #1976D2;
+}
+
+.metrics-container {
+    margin: 20px 0;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 5px;
+}
+
+.confusion-matrix {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
+    width: 300px;
+    margin: 20px auto;
+    background: #fff;
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.confusion-matrix div {
+    padding: 10px;
+    text-align: center;
+}
+
+.confusion-matrix .true-positive {
+    background: #c8e6c9;
+}
+
+.confusion-matrix .false-positive {
+    background: #ffcdd2;
+}
+
+.confusion-matrix .false-negative {
+    background: #ffcdd2;
+}
+
+.confusion-matrix .true-negative {
+    background: #c8e6c9;
 } 
