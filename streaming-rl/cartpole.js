@@ -1,34 +1,41 @@
 class CartPole {
     constructor(config = {}) {
-        // Physics constants
+        // Physics constants matching Gym exactly
         this.gravity = 9.8;
         this.cartMass = 1.0;
         this.poleMass = 0.1;
         this.totalMass = this.cartMass + this.poleMass;
-        this.length = 0.5;
+        this.length = 0.5;  // actually half the pole's length
         this.poleMassLength = this.poleMass * this.length;
         this.forceMag = 10.0;
-        this.dt = 0.02;
+        this.dt = 0.02;  // seconds between state updates (tau in Gym)
+        
+        // Boundaries matching Gym exactly
+        this.xLimit = 2.4;  // Gym's x_threshold
+        this.thetaLimit = 12 * 2 * Math.PI / 360;  // Gym's theta_threshold_radians (12 degrees)
 
         // Swing-up mode configuration
         this.swingUp = config.swingUp || false;
 
         // Episode management
         this.steps = 0;
-        this.maxSteps = 1000;
+        this.maxSteps = 500;
         this.episodeReturn = 0;
 
-        // Rendering
+        // Rendering setup
         this.canvas = document.getElementById('cartpoleCanvas');
         this.ctx = this.canvas.getContext('2d');
+        
+        // Rendering dimensions (in pixels)
         this.cartWidth = 50;
         this.cartHeight = 30;
         this.poleWidth = 6;
         this.axleHeight = 8;
-        this.scale = 200;  // pixels per meter
         
-        // Physical boundaries (in meters)
-        this.xLimit = (this.canvas.width/2 - this.cartWidth) / this.scale;
+        // Calculate scale to fit cart's full range of motion
+        // Leave 10% margin on each side and account for cart width
+        const totalWidth = this.canvas.width - this.cartWidth - 40;  // 40px total margin
+        this.scale = totalWidth / (2 * this.xLimit);  // pixels per meter
         
         this.reset();
     }
@@ -43,12 +50,12 @@ class CartPole {
                 0.0                     // Pole Angular Velocity
             ];
         } else {
-            // Start pole upright with small random perturbation in balance mode
+            // Match Gym's starting state: uniform random in (-0.05, 0.05) for all observations
             this.state = [
-                0.0,                    // Cart Position
-                0.0,                    // Cart Velocity
-                0.1 * (Math.random() - 0.5),  // Small random angle
-                0.0                     // Pole Angular Velocity
+                (Math.random() - 0.5) * 0.1,  // Cart Position
+                (Math.random() - 0.5) * 0.1,  // Cart Velocity
+                (Math.random() - 0.5) * 0.1,  // Pole Angle
+                (Math.random() - 0.5) * 0.1   // Pole Angular Velocity
             ];
         }
         this.steps = 0;
@@ -62,20 +69,20 @@ class CartPole {
         // Extract state
         let [x, xDot, theta, thetaDot] = this.state;
 
-        // Get force direction
-        let force = action === 1 ? this.forceMag : -this.forceMag;
+        // Get force direction (0: left, 1: right) matching Gym
+        let force = (action === 0 ? -1 : 1) * this.forceMag;
 
-        // Calculate physics
         const cosTheta = Math.cos(theta);
         const sinTheta = Math.sin(theta);
 
-        // Check if we're at a boundary and trying to move further into it
-        if ((x <= -this.xLimit && force < 0) || (x >= this.xLimit && force > 0)) {
-            force = 0;  // Can't push into wall
-        }
+        // Equations directly from Gym implementation
+        const temp = (
+            force + this.poleMassLength * thetaDot ** 2 * sinTheta
+        ) / this.totalMass;
 
-        const temp = (force + this.poleMassLength * thetaDot ** 2 * sinTheta) / this.totalMass;
-        const thetaAcc = (this.gravity * sinTheta - cosTheta * temp) / (this.length * (4/3 - this.poleMass * cosTheta ** 2 / this.totalMass));
+        const thetaAcc = (this.gravity * sinTheta - cosTheta * temp) / 
+            (this.length * (4.0/3.0 - this.poleMass * cosTheta ** 2 / this.totalMass));
+
         const xAcc = temp - this.poleMassLength * thetaAcc * cosTheta / this.totalMass;
 
         // Update state with Euler integration
@@ -83,18 +90,6 @@ class CartPole {
         xDot = xDot + this.dt * xAcc;
         theta = theta + this.dt * thetaDot;
         thetaDot = thetaDot + this.dt * thetaAcc;
-
-        // Check boundary violations
-        const hitBoundary = x < -this.xLimit || x > this.xLimit;
-
-        // Apply boundary constraints
-        if (x < -this.xLimit) {
-            x = -this.xLimit;
-            xDot = 0;
-        } else if (x > this.xLimit) {
-            x = this.xLimit;
-            xDot = 0;
-        }
 
         this.state = [x, xDot, theta, thetaDot];
 
@@ -106,23 +101,19 @@ class CartPole {
             // Reward based on pole angle (1 when upright, -1 when hanging)
             reward = Math.cos(theta);
             
-            // Add penalty and terminate if cart hits boundaries
-            if (hitBoundary) {
-                reward = -2.0;  // Larger penalty for boundary violation
-                done = true;
-            } else {
-                // Only terminate on max steps if we haven't hit boundaries
-                done = this.steps >= this.maxSteps;
+            // Terminate if cart hits boundaries
+            done = Math.abs(x) >= this.xLimit || this.steps >= this.maxSteps;
+            
+            if (Math.abs(x) >= this.xLimit) {
+                reward = -2.0;  // Penalty for boundary violation
             }
         } else {
-            // Original balance task termination conditions
-            done = theta < -0.21 || theta > 0.21 || hitBoundary || this.steps >= this.maxSteps;
+            // Original balance task termination conditions (matching Gym exactly)
+            done = Math.abs(x) >= this.xLimit || 
+                  Math.abs(theta) > this.thetaLimit || 
+                  this.steps >= this.maxSteps;
             
-            if (hitBoundary) {
-                reward = -1.0;  // Penalty for hitting boundary
-            } else {
-                reward = done ? 0.0 : 1.0;  // Normal reward structure
-            }
+            reward = done ? 0.0 : 1.0;  // Gym's reward structure
         }
 
         this.episodeReturn += reward;
@@ -160,7 +151,7 @@ class CartPole {
         
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Convert to screen coordinates (no clamping needed since physics handles boundaries)
+        // Convert to screen coordinates
         const cartX = x * this.scale + this.canvas.width/2;
         const cartY = this.canvas.height/2;
         
@@ -171,11 +162,21 @@ class CartPole {
         // Draw pole
         this.ctx.beginPath();
         this.ctx.moveTo(cartX, cartY);
-        const poleEndX = cartX + Math.sin(theta) * this.length * this.scale;
-        const poleEndY = cartY - Math.cos(theta) * this.length * this.scale;
+        const poleEndX = cartX + Math.sin(theta) * this.length * 2 * this.scale;  // length * 2 because length is half the pole length
+        const poleEndY = cartY - Math.cos(theta) * this.length * 2 * this.scale;
         this.ctx.lineTo(poleEndX, poleEndY);
         this.ctx.strokeStyle = '#333';
         this.ctx.lineWidth = this.poleWidth;
+        this.ctx.stroke();
+
+        // Optionally draw boundaries
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.canvas.width/2 - this.xLimit * this.scale, 0);
+        this.ctx.lineTo(this.canvas.width/2 - this.xLimit * this.scale, this.canvas.height);
+        this.ctx.moveTo(this.canvas.width/2 + this.xLimit * this.scale, 0);
+        this.ctx.lineTo(this.canvas.width/2 + this.xLimit * this.scale, this.canvas.height);
+        this.ctx.strokeStyle = '#ccc';
+        this.ctx.lineWidth = 1;
         this.ctx.stroke();
     }
 } 
