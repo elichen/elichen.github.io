@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XGBoost Training Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="dataLoader.js"></script>
+    <script src="visualizer.js"></script>
+    <script src="model.js"></script>
+    <script src="main.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <h1>XGBoost Training Dashboard</h1>
+        
+        <div id="status" class="status-box">
+            Waiting to start...
+        </div>
+
+        <div class="progress-container">
+            <h3>Data Loading Progress</h3>
+            <progress id="dataProgress" value="0" max="100"></progress>
+            
+            <h3>Training Progress</h3>
+            <progress id="trainingProgress" value="0" max="100"></progress>
+        </div>
+
+        <div class="visualization">
+            <div id="dataViz"></div>
+            <div id="performanceViz"></div>
+        </div>
+    </div>
+</body>
+</html> 
