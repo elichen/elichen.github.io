@@ -133,17 +133,8 @@ class CartPole {
     }
 
     getState() {
-        const [x, xDot, theta, thetaDot] = this.state;
-        
-        // Add normalized distances to boundaries (-1 at left boundary, 0 at center, 1 at right boundary)
-        const normalizedPosition = x / this.xLimit;
-        
-        return [
-            normalizedPosition,  // Position normalized to boundaries
-            xDot,               // Cart velocity
-            theta,              // Pole angle
-            thetaDot           // Pole angular velocity
-        ];
+        // Return raw state values just like Gym
+        return [...this.state];  // Return copy of state array
     }
 
     render() {
