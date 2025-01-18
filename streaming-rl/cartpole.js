@@ -84,13 +84,16 @@ class CartPole {
         theta = theta + this.dt * thetaDot;
         thetaDot = thetaDot + this.dt * thetaAcc;
 
-        // Apply boundary constraints to cart only
+        // Check boundary violations
+        const hitBoundary = x < -this.xLimit || x > this.xLimit;
+
+        // Apply boundary constraints
         if (x < -this.xLimit) {
             x = -this.xLimit;
-            xDot = 0;  // Stop cart at boundary
+            xDot = 0;
         } else if (x > this.xLimit) {
             x = this.xLimit;
-            xDot = 0;  // Stop cart at boundary
+            xDot = 0;
         }
 
         this.state = [x, xDot, theta, thetaDot];
@@ -103,17 +106,23 @@ class CartPole {
             // Reward based on pole angle (1 when upright, -1 when hanging)
             reward = Math.cos(theta);
             
-            // Add small penalty for using boundaries
-            if (Math.abs(x) >= this.xLimit) {
-                reward -= 0.2;  // Penalty for touching boundaries
+            // Add penalty and terminate if cart hits boundaries
+            if (hitBoundary) {
+                reward = -2.0;  // Larger penalty for boundary violation
+                done = true;
+            } else {
+                // Only terminate on max steps if we haven't hit boundaries
+                done = this.steps >= this.maxSteps;
             }
-            
-            // Only terminate on max steps
-            done = this.steps >= this.maxSteps;
         } else {
             // Original balance task termination conditions
-            done = theta < -0.21 || theta > 0.21 || this.steps >= this.maxSteps;  // Remove x bounds from termination
-            reward = done ? 0.0 : 1.0;
+            done = theta < -0.21 || theta > 0.21 || hitBoundary || this.steps >= this.maxSteps;
+            
+            if (hitBoundary) {
+                reward = -1.0;  // Penalty for hitting boundary
+            } else {
+                reward = done ? 0.0 : 1.0;  // Normal reward structure
+            }
         }
 
         this.episodeReturn += reward;
