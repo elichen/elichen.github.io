@@ -6,47 +6,35 @@ function visualizeData(data, features, target, containerId) {
         // Create summary statistics
         const summaryStats = calculateSummaryStats(data, features, target);
         
-        // Create visualization container with tabs
+        // Create navigation links
         container.innerHTML = `
-            <div class="viz-tabs">
-                <button class="tab-btn active" data-tab="summary">Summary</button>
-                <button class="tab-btn" data-tab="distributions">Distributions</button>
-                <button class="tab-btn" data-tab="correlations">Correlations</button>
+            <div class="nav-links">
+                <a href="#summary">Summary</a> |
+                <a href="#distributions">Distributions</a> |
+                <a href="#correlations">Correlations</a>
             </div>
-            <div class="viz-content">
-                <div id="summary-tab" class="tab-content active"></div>
-                <div id="distributions-tab" class="tab-content"></div>
-                <div id="correlations-tab" class="tab-content"></div>
+            <div id="summary" class="section">
+                <h2>Summary Statistics</h2>
+                <div id="summary-content"></div>
+            </div>
+            <div id="distributions" class="section">
+                <h2>Feature Distributions</h2>
+                <div id="distributions-content"></div>
+            </div>
+            <div id="correlations" class="section">
+                <h2>Feature Correlations</h2>
+                <div id="correlations-content"></div>
             </div>
         `;
 
-        // Create summary view
-        createSummaryView(summaryStats, 'summary-tab');
+        // Create views
+        createSummaryView(summaryStats, 'summary-content');
+        createDistributionPlots(data, features, target, 'distributions-content');
+        createCorrelationMatrix(data, features, target, 'correlations-content');
         
-        // Create distribution plots
-        createDistributionPlots(data, features, target, 'distributions-tab');
-        
-        // Create correlation matrix
-        createCorrelationMatrix(data, features, target, 'correlations-tab');
-        
-        // Add tab switching logic
-        const tabBtns = container.querySelectorAll('.tab-btn');
-        tabBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                tabBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                
-                const tabContents = container.querySelectorAll('.tab-content');
-                tabContents.forEach(content => content.classList.remove('active'));
-                document.getElementById(`${btn.dataset.tab}-tab`).classList.add('active');
-            });
-        });
     } catch (error) {
         console.error('Visualization error:', error);
-        const container = document.getElementById(containerId);
-        if (container) {
-            container.innerHTML = `<div class="error">Error creating visualization: ${error.message}</div>`;
-        }
+        container.innerHTML = `<div class="error">Error creating visualization: ${error.message}</div>`;
     }
 }
 
@@ -179,7 +167,14 @@ function createSummaryView(stats, containerId) {
 }
 
 function visualizeTestResults(testData, predictions, containerId) {
-    // Calculate gender-based survival rates
+    const container = document.getElementById(containerId);
+    container.innerHTML = `
+        <div id="gender-predictions" class="section">
+            <h2>Predicted Survival Rates by Gender</h2>
+            <div id="gender-plot"></div>
+        </div>
+    `;
+    
     const genderStats = calculateGenderStats(testData, predictions);
     
     const traces = [
@@ -188,6 +183,7 @@ function visualizeTestResults(testData, predictions, containerId) {
             y: [genderStats.male.survivalRate, genderStats.female.survivalRate],
             type: 'bar',
             name: 'Survival Rate',
+            marker: { color: ['#3498db', '#e91e63'] },
             text: [
                 `${(genderStats.male.survivalRate * 100).toFixed(1)}%<br>${genderStats.male.survived}/${genderStats.male.total}`,
                 `${(genderStats.female.survivalRate * 100).toFixed(1)}%<br>${genderStats.female.survived}/${genderStats.female.total}`
@@ -197,18 +193,19 @@ function visualizeTestResults(testData, predictions, containerId) {
     ];
     
     const layout = {
-        title: 'Predicted Survival Rates by Gender',
+        title: '',
         xaxis: { title: 'Gender' },
         yaxis: { 
             title: 'Survival Rate',
             range: [0, 1],
             tickformat: ',.0%'
         },
-        height: 400,
-        width: 600
+        height: 300,
+        width: 500,
+        margin: { t: 20, l: 50, r: 20, b: 40 }
     };
     
-    Plotly.newPlot(containerId, traces, layout);
+    Plotly.newPlot('gender-plot', traces, layout);
 }
 
 function calculateGenderStats(testData, predictions) {
@@ -279,20 +276,34 @@ function formatStats(stat) {
 
 function createDistributionPlots(data, features, target, containerId) {
     const container = document.getElementById(containerId);
+    container.innerHTML = ''; // Clear existing plots
     
-    // Create a plot for each feature
+    // Create a grid container for plots
+    const grid = document.createElement('div');
+    grid.className = 'plot-grid';
+    container.appendChild(grid);
+    
     features.forEach(feature => {
+        const plotContainer = document.createElement('div');
+        plotContainer.className = 'plot-container';
         const divId = `dist-${feature}`;
         const plotDiv = document.createElement('div');
         plotDiv.id = divId;
-        container.appendChild(plotDiv);
+        plotContainer.appendChild(plotDiv);
+        grid.appendChild(plotContainer);
         
-        const values = data.map(row => row[feature]);
+        const values = data.map(row => row[feature]).filter(v => v != null);
         
         if (typeof values[0] === 'number') {
             // Numeric feature: create histogram by survival
-            const survived = data.filter(row => row[target] === 1).map(row => row[feature]);
-            const died = data.filter(row => row[target] === 0).map(row => row[feature]);
+            const survived = data
+                .filter(row => row[target] === 1)
+                .map(row => row[feature])
+                .filter(v => v != null);
+            const died = data
+                .filter(row => row[target] === 0)
+                .map(row => row[feature])
+                .filter(v => v != null);
             
             const traces = [
                 {
@@ -300,14 +311,14 @@ function createDistributionPlots(data, features, target, containerId) {
                     type: 'histogram',
                     name: 'Survived',
                     opacity: 0.7,
-                    marker: { color: 'green' }
+                    marker: { color: '#2ecc71' }
                 },
                 {
                     x: died,
                     type: 'histogram',
                     name: 'Did Not Survive',
                     opacity: 0.7,
-                    marker: { color: 'red' }
+                    marker: { color: '#e74c3c' }
                 }
             ];
             
@@ -318,11 +329,10 @@ function createDistributionPlots(data, features, target, containerId) {
                 width: 400,
                 margin: { t: 30, l: 40, r: 10, b: 30 },
                 showlegend: true,
-                legend: { x: 1, y: 1 }
+                legend: { x: 0, y: 1 }
             };
             
             Plotly.newPlot(divId, traces, layout);
-            
         } else {
             // Categorical feature: create bar chart
             const valueCounts = {};
