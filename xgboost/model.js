@@ -144,36 +144,42 @@ class DecisionTree {
 }
 
 class XGBoostModel {
-    constructor(learningRate = 0.1, maxDepth = 3, nEstimators = 20) {
+    constructor(learningRate = 0.05, maxDepth = 6, nEstimators = 500) {
         this.learningRate = learningRate;
         this.maxDepth = maxDepth;
         this.nEstimators = nEstimators;
         this.trees = [];
         this.initialPrediction = 0;
+        this.patience = 20;  // Early stopping patience
+        this.bestLoss = Infinity;
+        this.treesWithoutImprovement = 0;
     }
 
     async train(X, y, progressCallback) {
         const features = await X.array();
         const targets = await y.array();
         
-        // Initialize with base prediction
-        const meanTarget = targets.reduce((a, b) => a + b, 0) / targets.length;
-        this.initialPrediction = Math.log(meanTarget / (1 - meanTarget));
-        console.log('Initial prediction (log odds):', this.initialPrediction);
-        console.log('Mean survival rate:', meanTarget);
+        // Split data for validation
+        const [trainFeatures, trainTargets, valFeatures, valTargets] = this.splitValidation(features, targets);
         
-        let predictions = Array(features.length).fill(this.initialPrediction);
+        // Initialize with base prediction
+        const meanTarget = trainTargets.reduce((a, b) => a + b, 0) / trainTargets.length;
+        this.initialPrediction = Math.log(meanTarget / (1 - meanTarget));
+        
+        let trainPredictions = Array(trainFeatures.length).fill(this.initialPrediction);
+        let valPredictions = Array(valFeatures.length).fill(this.initialPrediction);
         let bestAccuracy = 0;
+        let completedTrees = 0;
         
         for (let i = 0; i < this.nEstimators; i++) {
             // Calculate gradients (residuals)
-            const probabilities = predictions.map(p => 1 / (1 + Math.exp(-p)));
-            const gradients = targets.map((t, j) => t - probabilities[j]);
+            const probabilities = trainPredictions.map(p => 1 / (1 + Math.exp(-p)));
+            const gradients = trainTargets.map((t, j) => t - probabilities[j]);
             
             // Train tree on gradients with subsample
             const tree = new DecisionTree(this.maxDepth);
-            const sampleIndices = this.subsample(features.length, 0.8);
-            const sampledFeatures = sampleIndices.map(idx => features[idx]);
+            const sampleIndices = this.subsample(trainFeatures.length, 0.8);
+            const sampledFeatures = sampleIndices.map(idx => trainFeatures[idx]);
             const sampledGradients = sampleIndices.map(idx => gradients[idx]);
             
             await tree.train(
@@ -182,30 +188,60 @@ class XGBoostModel {
             );
             
             // Update predictions with line search
-            const treePredict = tree.predict(features);
-            const bestLR = this.lineSearch(predictions, treePredict, targets);
-            predictions = predictions.map((pred, j) => 
-                pred + bestLR * treePredict[j]);
+            const trainTreePredict = tree.predict(trainFeatures);
+            const valTreePredict = tree.predict(valFeatures);
             
-            this.trees.push(tree);
+            const bestLR = this.lineSearch(trainPredictions, trainTreePredict, trainTargets);
             
-            // Log progress
-            if (i % 5 === 0) {
-                const currentProbs = predictions.map(p => 1 / (1 + Math.exp(-p)));
-                const accuracy = this.calculateAccuracy(currentProbs, targets);
-                const distribution = this.getPredictionDistribution(currentProbs);
-                console.log(`Estimator ${i + 1}:`);
-                console.log(`- Accuracy: ${accuracy.toFixed(2)}%`);
-                console.log(`- Prediction distribution:`, distribution);
-                
-                if (accuracy > bestAccuracy) {
-                    bestAccuracy = accuracy;
-                    console.log(`New best accuracy: ${accuracy.toFixed(2)}%`);
+            trainPredictions = trainPredictions.map((pred, j) => 
+                pred + bestLR * trainTreePredict[j]);
+            valPredictions = valPredictions.map((pred, j) => 
+                pred + bestLR * valTreePredict[j]);
+            
+            // Calculate validation loss
+            const valProbs = valPredictions.map(p => 1 / (1 + Math.exp(-p)));
+            const valLoss = this.calculateLoss(valProbs, valTargets);
+            
+            // Early stopping check
+            if (valLoss < this.bestLoss) {
+                this.bestLoss = valLoss;
+                this.treesWithoutImprovement = 0;
+            } else {
+                this.treesWithoutImprovement++;
+                if (this.treesWithoutImprovement >= this.patience) {
+                    // Make sure progress shows 100% when early stopping
+                    progressCallback(100);
+                    break;
                 }
             }
             
-            progressCallback((i + 1) / this.nEstimators * 100);
+            this.trees.push(tree);
+            completedTrees++;
+            
+            // Update progress based on completed trees
+            progressCallback((completedTrees / this.nEstimators) * 100);
         }
+    }
+
+    splitValidation(features, targets, valSize = 0.2) {
+        const numVal = Math.floor(features.length * valSize);
+        const indices = Array.from({length: features.length}, (_, i) => i);
+        
+        // Shuffle indices
+        for (let i = indices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indices[i], indices[j]] = [indices[j], indices[i]];
+        }
+        
+        const trainIndices = indices.slice(numVal);
+        const valIndices = indices.slice(0, numVal);
+        
+        return [
+            trainIndices.map(i => features[i]),
+            trainIndices.map(i => targets[i]),
+            valIndices.map(i => features[i]),
+            valIndices.map(i => targets[i])
+        ];
     }
 
     calculateAccuracy(predictions, actual) {
@@ -219,23 +255,6 @@ class XGBoostModel {
             }
             total++;
         }
-        
-        // Also calculate confusion matrix
-        const tp = predictions.reduce((sum, pred, i) => 
-            sum + (pred >= 0.5 && actual[i] === 1 ? 1 : 0), 0);
-        const fp = predictions.reduce((sum, pred, i) => 
-            sum + (pred >= 0.5 && actual[i] === 0 ? 1 : 0), 0);
-        const fn = predictions.reduce((sum, pred, i) => 
-            sum + (pred < 0.5 && actual[i] === 1 ? 1 : 0), 0);
-        const tn = predictions.reduce((sum, pred, i) => 
-            sum + (pred < 0.5 && actual[i] === 0 ? 1 : 0), 0);
-        
-        console.log('Confusion Matrix:', {
-            'True Positives': tp,
-            'False Positives': fp,
-            'False Negatives': fn,
-            'True Negatives': tn
-        });
         
         return (correct / total) * 100;
     }

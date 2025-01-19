@@ -51,42 +51,68 @@ progress {
     background-color: #1976D2;
 }
 
-.metrics-container {
+.viz-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.tab-btn {
+    padding: 10px 20px;
+    border: none;
+    background: #f0f0f0;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+.tab-btn.active {
+    background: #2196F3;
+    color: white;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.summary-table {
+    width: 100%;
+    border-collapse: collapse;
     margin: 20px 0;
-    padding: 20px;
-    background: #f8f9fa;
-    border-radius: 5px;
 }
 
-.confusion-matrix {
+.summary-table th,
+.summary-table td {
+    padding: 10px;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+.summary-table th {
+    background: #f5f5f5;
+}
+
+.summary-table tr:hover {
+    background: #f9f9f9;
+}
+
+#distributions-tab {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 2px;
-    width: 300px;
-    margin: 20px auto;
-    background: #fff;
-    padding: 10px;
-    border-radius: 5px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+    padding: 20px;
 }
 
-.confusion-matrix div {
-    padding: 10px;
-    text-align: center;
+#correlations-tab {
+    padding: 20px;
+    display: flex;
+    justify-content: center;
 }
 
-.confusion-matrix .true-positive {
-    background: #c8e6c9;
-}
-
-.confusion-matrix .false-positive {
-    background: #ffcdd2;
-}
-
-.confusion-matrix .false-negative {
-    background: #ffcdd2;
-}
-
-.confusion-matrix .true-negative {
-    background: #c8e6c9;
+.tab-content {
+    max-height: 800px;
+    overflow-y: auto;
 } 

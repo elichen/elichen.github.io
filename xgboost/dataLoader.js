@@ -1,59 +1,60 @@
-async function loadData(filePath, progressCallback) {
-    const response = await fetch(filePath);
+async function loadData(filename, progressCallback) {
+    const response = await fetch(filename);
     const text = await response.text();
-    const rows = text.split('\n');
-    const headers = rows[0].split(',');
+    const lines = text.split('\n');
+    const headers = lines[0].split(',');
+    
+    // Detect feature types from first data row
+    const firstRow = lines[1].split(',');
+    const featureTypes = headers.map((_, i) => {
+        const value = firstRow[i]?.trim();
+        return !isNaN(value) ? 'numeric' : 'categorical';
+    });
+
     const data = [];
+    const features = [];
     
-    // Define features and their preprocessing rules
-    const features = {
-        'Pclass': {type: 'numeric', default: 3},
-        'Age': {type: 'numeric', default: 30},
-        'SibSp': {type: 'numeric', default: 0},
-        'Parch': {type: 'numeric', default: 0},
-        'Fare': {type: 'numeric', default: 32.2},
-        'Sex': {type: 'categorical', values: ['male', 'female']},
-        'Embarked': {type: 'categorical', values: ['S', 'C', 'Q']}
-    };
-    
-    for (let i = 1; i < rows.length; i++) {
-        if (rows[i].trim() === '') continue;
+    // Identify features (excluding target and ID columns)
+    headers.forEach((header, i) => {
+        const name = header.trim();
+        if (name !== 'Survived' && name !== 'PassengerId') {
+            features.push(name);
+        }
+    });
+
+    // Parse data rows
+    for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
         
-        const values = rows[i].split(',');
+        const values = lines[i].split(',');
         const row = {};
         
-        headers.forEach((header, index) => {
-            const headerTrim = header.trim();
-            const value = values[index]?.trim();
+        headers.forEach((header, j) => {
+            const name = header.trim();
+            let value = values[j]?.trim();
             
-            if (features[headerTrim]) {
-                if (features[headerTrim].type === 'numeric') {
-                    row[headerTrim] = value && !isNaN(value) ? 
-                        parseFloat(value) : features[headerTrim].default;
-                } else if (features[headerTrim].type === 'categorical') {
-                    // One-hot encode categorical variables
-                    features[headerTrim].values.forEach(val => {
-                        row[`${headerTrim}_${val}`] = value === val ? 1 : 0;
-                    });
-                }
-            } else if (headerTrim === 'Survived') {
-                row['target'] = parseInt(value);
+            // Convert numeric values
+            if (featureTypes[j] === 'numeric' && value) {
+                value = parseFloat(value);
             }
+            
+            row[name] = value || null;
         });
         
+        // Convert target variable
+        if ('Survived' in row) {
+            row.target = row.Survived;
+            delete row.Survived;
+        }
+        
         data.push(row);
-        progressCallback((i / rows.length) * 100);
+        
+        if (progressCallback) {
+            progressCallback((i / lines.length) * 100);
+        }
     }
     
-    // Get flattened feature list including one-hot encoded features
-    const flattenedFeatures = Object.entries(features).flatMap(([key, value]) => {
-        if (value.type === 'categorical') {
-            return value.values.map(val => `${key}_${val}`);
-        }
-        return key;
-    });
-    
-    return { data, headers, features: flattenedFeatures };
+    return { data, features };
 }
 
 function preprocessData(data, features, target) {
