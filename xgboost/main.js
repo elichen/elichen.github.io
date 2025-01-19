@@ -19,11 +19,12 @@ async function run() {
         
         // Preprocess data
         statusElement.textContent = 'Preprocessing data...';
-        const { X: XTrain, y: yTrain } = preprocessData(trainData.data, trainData.features, target);
+        const { X: XTrain, y: yTrain, features: processedFeatures, stats: trainStats } = 
+            await preprocessData(trainData.data, trainData.features, target);
         
         console.log('Training tensor shapes:', {
             X: XTrain.shape,
-            y: yTrain.shape
+            y: yTrain?.shape
         });
         
         // Train model
@@ -40,7 +41,7 @@ async function run() {
         statusElement.textContent = 'Loading test data...';
         const testData = await loadData('test.csv', 
             progress => dataProgressElement.value = progress);
-        const { X: XTest } = preprocessData(testData.data, trainData.features, target);
+        const { X: XTest } = await preprocessData(testData.data, processedFeatures, undefined, trainStats);
         
         // Make predictions
         statusElement.textContent = 'Making predictions...';
@@ -68,82 +69,114 @@ async function run() {
     }
 }
 
-function preprocessData(data, features, target) {
+async function preprocessData(data, features, target, trainStats = null) {
+    // Add debug logging
+    console.log('Preprocessing data:', {
+        dataLength: data.length,
+        features,
+        target,
+        trainStats: trainStats ? 'present' : 'absent',
+        sampleRow: data[0],
+        sampleTarget: target ? data[0][target] : 'no target'  // Debug target value
+    });
+
     // Deep copy the data
     const processedData = data.map(row => ({...row}));
     
-    // Calculate statistics for imputation
-    const stats = features.reduce((acc, feature) => {
+    // Debug target values
+    if (target) {
+        const targetValues = processedData.map(row => row[target]);
+        console.log('Target values sample:', targetValues.slice(0, 5));
+        console.log('Target statistics:', {
+            count: targetValues.length,
+            nonNull: targetValues.filter(v => v != null).length,
+            sample: targetValues.slice(0, 10)
+        });
+    }
+
+    // Calculate statistics for numeric features (only during training)
+    const numericFeatures = ['Pclass', 'Age', 'SibSp', 'Parch', 'Fare'];
+    const stats = trainStats || numericFeatures.reduce((acc, feature) => {
         const values = data.map(row => row[feature]).filter(v => v != null);
-        if (values.length && typeof values[0] === 'number') {
-            acc[feature] = {
-                mean: values.reduce((a, b) => a + b, 0) / values.length
-            };
+        if (values.length) {
+            const mean = values.reduce((a, b) => a + b, 0) / values.length;
+            const std = Math.sqrt(values.reduce((a, b) => 
+                a + Math.pow(b - mean, 2), 0) / values.length) || 1;
+            acc[feature] = { mean, std };
         }
         return acc;
     }, {});
+
+    console.log('Feature statistics:', stats);
     
     // Process each row
     processedData.forEach(row => {
+        // Handle numeric features first
+        numericFeatures.forEach(feature => {
+            if (row[feature] == null) {
+                row[feature] = stats[feature].mean;
+            }
+            row[feature] = (row[feature] - stats[feature].mean) / stats[feature].std;
+        });
+
         // Handle categorical variables
         if (row.Sex) {
             row.Sex_male = row.Sex.toLowerCase() === 'male' ? 1 : 0;
             row.Sex_female = row.Sex.toLowerCase() === 'female' ? 1 : 0;
         }
         
-        // Impute missing numeric values
-        features.forEach(feature => {
-            if (stats[feature] && row[feature] == null) {
-                row[feature] = stats[feature].mean;
-            }
-        });
+        if (row.Embarked) {
+            row.Embarked_S = row.Embarked === 'S' ? 1 : 0;
+            row.Embarked_C = row.Embarked === 'C' ? 1 : 0;
+            row.Embarked_Q = row.Embarked === 'Q' ? 1 : 0;
+        }
         
         // Feature engineering
-        row.FamilySize = (row.SibSp || 0) + (row.Parch || 0) + 1;
-        row.FarePerPerson = (row.Fare || stats.Fare.mean) / row.FamilySize;
-        row.IsChild = (row.Age || stats.Age.mean) < 12 ? 1 : 0;
-        row.IsElderly = (row.Age || stats.Age.mean) > 60 ? 1 : 0;
-        
-        // Extract title from name
-        const match = row.Name?.match(/([A-Za-z]+)\./);
-        const title = match ? match[1] : 'Other';
-        row.Title_Mr = title === 'Mr' ? 1 : 0;
-        row.Title_Mrs = title === 'Mrs' ? 1 : 0;
-        row.Title_Miss = title === 'Miss' ? 1 : 0;
-        row.Title_Master = title === 'Master' ? 1 : 0;
-        
-        // Encode cabin deck
-        const deck = row.Cabin ? row.Cabin[0] : 'Unknown';
-        ['A', 'B', 'C', 'D', 'E', 'F', 'G'].forEach(d => {
-            row[`Deck_${d}`] = deck === d ? 1 : 0;
-        });
+        row.FamilySize = row.SibSp + row.Parch + 1;
+        row.FarePerPerson = row.Fare / row.FamilySize;
+        row.IsChild = row.Age < -1 ? 1 : 0;  // Normalized age
+        row.IsElderly = row.Age > 1 ? 1 : 0;  // Normalized age
     });
+
+    // Log sample processed row
+    console.log('Sample processed row:', processedData[0]);
     
-    // Update feature list
-    const engineeredFeatures = [
+    // Define final feature list - keep order consistent
+    const finalFeatures = [
+        ...numericFeatures,
+        'Sex_male',
+        'Sex_female',
+        'Embarked_S',
+        'Embarked_C',
+        'Embarked_Q',
         'FamilySize',
         'FarePerPerson',
         'IsChild',
-        'IsElderly',
-        'Title_Mr',
-        'Title_Mrs',
-        'Title_Miss',
-        'Title_Master',
-        ...['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(d => `Deck_${d}`)
+        'IsElderly'
     ];
-    
-    const allFeatures = [...features, ...engineeredFeatures];
 
-    // Create tensors
+    // Create feature matrix
     const X = tf.tensor2d(processedData.map(row => 
-        allFeatures.map(feature => row[feature] || 0)
+        finalFeatures.map(feature => row[feature] ?? 0)
     ));
 
-    const y = target && processedData[0].hasOwnProperty(target) ? 
-        tf.tensor1d(processedData.map(row => row[target])) : 
-        undefined;
+    // Log sample feature vector
+    const sampleVector = await X.slice([0, 0], [1, finalFeatures.length]).array();
+    console.log('Sample feature vector:', sampleVector);
 
-    return { X, y, features: allFeatures };
+    // Create target vector if target exists
+    const y = target ? tf.tensor1d(processedData.map(row => row[target])) : undefined;
+
+    // Add debug logging
+    console.log('Preprocessing complete:', {
+        finalFeatures,
+        XShape: X.shape,
+        yShape: y?.shape,
+        sampleProcessedRow: processedData[0],
+        sampleFeatureVector: finalFeatures.map(f => processedData[0][f] ?? 0).slice(0, 5)
+    });
+
+    return { X, y, features: finalFeatures, stats };
 }
 
 window.onload = run; 

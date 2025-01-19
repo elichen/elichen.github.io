@@ -53,9 +53,29 @@ function visualizeData(data, features, target, containerId) {
 function calculateSummaryStats(data, features, target) {
     const stats = {};
     
-    features.forEach(feature => {
-        const values = data.map(row => row[feature]).filter(v => v !== null && !isNaN(v));
-        if (values.length === 0) return;
+    // Add all raw features we want to analyze
+    const rawFeatures = [
+        'Pclass',
+        'Sex',
+        'Age',
+        'SibSp',
+        'Parch',
+        'Fare',
+        'Embarked'
+    ];
+    
+    rawFeatures.forEach(feature => {
+        // Get raw values from the data
+        let values = data.map(row => row[feature]).filter(v => v != null);
+        
+        if (values.length === 0) {
+            stats[feature] = {
+                type: 'unknown',
+                count: 0,
+                missing: data.length
+            };
+            return;
+        }
         
         if (typeof values[0] === 'number') {
             stats[feature] = {
@@ -72,7 +92,11 @@ function calculateSummaryStats(data, features, target) {
             };
         } else {
             const valueCounts = {};
-            values.forEach(v => valueCounts[v] = (valueCounts[v] || 0) + 1);
+            values.forEach(v => {
+                const value = String(v).trim();
+                valueCounts[value] = (valueCounts[value] || 0) + 1;
+            });
+            
             stats[feature] = {
                 type: 'categorical',
                 count: values.length,
@@ -81,15 +105,44 @@ function calculateSummaryStats(data, features, target) {
                 top: Object.entries(valueCounts)
                     .sort((a, b) => b[1] - a[1])
                     .slice(0, 5)
+                    .map(([value, count]) => [
+                        value,
+                        count,
+                        ((count/values.length) * 100).toFixed(1) + '%'
+                    ])
             };
         }
     });
+
+    // Add target if it exists
+    if (target && data[0].hasOwnProperty(target)) {
+        const values = data.map(row => row[target]).filter(v => v != null);
+        stats[target] = {
+            type: 'numeric',
+            count: values.length,
+            missing: data.length - values.length,
+            mean: mean(values),
+            std: std(values),
+            min: Math.min(...values),
+            max: Math.max(...values)
+        };
+    }
     
     return stats;
 }
 
 function createSummaryView(stats, containerId) {
     const container = document.getElementById(containerId);
+    
+    // Sort features to group by type
+    const sortedFeatures = Object.entries(stats).sort((a, b) => {
+        // First sort by type (numeric first)
+        if (a[1].type !== b[1].type) {
+            return a[1].type === 'numeric' ? -1 : 1;
+        }
+        // Then by name
+        return a[0].localeCompare(b[0]);
+    });
     
     const table = document.createElement('table');
     table.className = 'summary-table';
@@ -109,7 +162,7 @@ function createSummaryView(stats, containerId) {
     
     // Create rows
     const tbody = document.createElement('tbody');
-    Object.entries(stats).forEach(([feature, stat]) => {
+    sortedFeatures.forEach(([feature, stat]) => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${feature}</td>
@@ -204,18 +257,22 @@ function percentile(arr, p) {
 
 function formatStats(stat) {
     if (stat.type === 'numeric') {
+        // Add null checks for each numeric value
         return `
-            mean: ${stat.mean.toFixed(2)}<br>
-            std: ${stat.std.toFixed(2)}<br>
-            min: ${stat.min.toFixed(2)}<br>
-            25%: ${stat['25%'].toFixed(2)}<br>
-            50%: ${stat['50%'].toFixed(2)}<br>
-            75%: ${stat['75%'].toFixed(2)}<br>
-            max: ${stat.max.toFixed(2)}
+            mean: ${stat.mean?.toFixed(2) ?? 'N/A'}<br>
+            std: ${stat.std?.toFixed(2) ?? 'N/A'}<br>
+            min: ${stat.min?.toFixed(2) ?? 'N/A'}<br>
+            25%: ${stat['25%']?.toFixed(2) ?? 'N/A'}<br>
+            50%: ${stat['50%']?.toFixed(2) ?? 'N/A'}<br>
+            75%: ${stat['75%']?.toFixed(2) ?? 'N/A'}<br>
+            max: ${stat.max?.toFixed(2) ?? 'N/A'}
         `;
     } else {
-        return stat.top.map(([value, count]) => 
-            `${value}: ${count} (${(count/stat.count*100).toFixed(1)}%)`
+        // For categorical stats
+        if (!stat.top) return 'No data';
+        return stat.top.map(([value, count, percentage]) => 
+            percentage ? `${value}: ${count} (${percentage})` :
+            `${value}: ${count} (${((count/stat.count)*100).toFixed(1)}%)`
         ).join('<br>');
     }
 }

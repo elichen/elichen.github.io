@@ -149,8 +149,8 @@ class XGBoostModel {
         this.maxDepth = maxDepth;
         this.nEstimators = nEstimators;
         this.trees = [];
-        this.initialPrediction = 0;
-        this.patience = 20;  // Early stopping patience
+        this.initialPrediction = 0;  // Initialize to 0 instead of undefined
+        this.patience = 20;
         this.bestLoss = Infinity;
         this.treesWithoutImprovement = 0;
     }
@@ -164,11 +164,15 @@ class XGBoostModel {
         
         // Initialize with base prediction
         const meanTarget = trainTargets.reduce((a, b) => a + b, 0) / trainTargets.length;
-        this.initialPrediction = Math.log(meanTarget / (1 - meanTarget));
+        // Protect against edge cases in log odds calculation
+        const p = Math.min(Math.max(meanTarget, 1e-15), 1 - 1e-15);
+        this.initialPrediction = Math.log(p / (1 - p));
         
+        console.log('Mean target:', meanTarget);
+        console.log('Initial prediction:', this.initialPrediction);
+
         let trainPredictions = Array(trainFeatures.length).fill(this.initialPrediction);
         let valPredictions = Array(valFeatures.length).fill(this.initialPrediction);
-        let bestAccuracy = 0;
         let completedTrees = 0;
         
         for (let i = 0; i < this.nEstimators; i++) {
@@ -283,14 +287,26 @@ class XGBoostModel {
         const features = await X.array();
         let predictions = Array(features.length).fill(this.initialPrediction);
         
+        console.log('Initial prediction:', this.initialPrediction);
+        console.log('Sample feature vector:', features[0]);
+        
         for (const tree of this.trees) {
             const treePredict = tree.predict(features);
             predictions = predictions.map((pred, i) => 
                 pred + this.learningRate * treePredict[i]);
         }
         
-        // Return a proper TensorFlow tensor
-        const probabilities = predictions.map(p => 1 / (1 + Math.exp(-p)));
+        // Log intermediate values
+        console.log('Raw predictions:', predictions.slice(0, 5));
+        
+        // Return probabilities with protection against extreme values
+        const probabilities = predictions.map(p => {
+            const logit = Math.min(Math.max(p, -100), 100); // Prevent overflow
+            const prob = 1 / (1 + Math.exp(-logit));
+            console.log('Converting prediction:', p, 'to probability:', prob);
+            return prob;
+        });
+        
         return tf.tensor1d(probabilities);
     }
 
