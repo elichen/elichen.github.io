@@ -2,7 +2,18 @@ async function loadData(filename, progressCallback) {
     const response = await fetch(filename);
     const text = await response.text();
     const lines = text.split('\n');
-    const headers = lines[0].split(',');
+    const headers = lines[0].split(',').map(h => h.trim());
+    
+    // Define important features we want to keep
+    const keepFeatures = [
+        'Pclass',
+        'Sex',
+        'Age',
+        'SibSp',
+        'Parch',
+        'Fare',
+        'Embarked'
+    ];
     
     // Detect feature types from first data row
     const firstRow = lines[1].split(',');
@@ -14,10 +25,34 @@ async function loadData(filename, progressCallback) {
     const data = [];
     const features = [];
     
-    // Identify features (excluding target and ID columns)
+    // Helper function to parse CSV line with quotes
+    function parseCSVLine(line) {
+        const values = [];
+        let currentValue = '';
+        let insideQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+                insideQuotes = !insideQuotes;
+            } else if (char === ',' && !insideQuotes) {
+                values.push(currentValue.trim());
+                currentValue = '';
+            } else {
+                currentValue += char;
+            }
+        }
+        values.push(currentValue.trim());
+        
+        // Remove quotes from values
+        return values.map(v => v.replace(/^"|"$/g, ''));
+    }
+    
+    // Identify features we want to keep
     headers.forEach((header, i) => {
         const name = header.trim();
-        if (name !== 'Survived' && name !== 'PassengerId') {
+        if (keepFeatures.includes(name)) {
             features.push(name);
         }
     });
@@ -26,25 +61,26 @@ async function loadData(filename, progressCallback) {
     for (let i = 1; i < lines.length; i++) {
         if (!lines[i].trim()) continue;
         
-        const values = lines[i].split(',');
+        const values = parseCSVLine(lines[i]);
         const row = {};
         
         headers.forEach((header, j) => {
             const name = header.trim();
-            let value = values[j]?.trim();
+            let value = values[j];
             
-            // Convert numeric values
-            if (featureTypes[j] === 'numeric' && value) {
-                value = parseFloat(value);
+            // Only process features we want to keep
+            if (keepFeatures.includes(name)) {
+                // Convert numeric values
+                if (name !== 'Sex' && name !== 'Embarked' && value) {
+                    value = parseFloat(value);
+                }
+                row[name] = value || null;
             }
-            
-            row[name] = value || null;
         });
         
-        // Convert target variable
-        if ('Survived' in row) {
-            row.target = row.Survived;
-            delete row.Survived;
+        // Convert target variable (Survived column)
+        if (values[1]) {  // Survived is always in column 1
+            row.target = parseInt(values[1]);
         }
         
         data.push(row);
@@ -53,39 +89,11 @@ async function loadData(filename, progressCallback) {
             progressCallback((i / lines.length) * 100);
         }
     }
+
+    // Debug log for target values
+    console.log('Data sample with target:', data.slice(0, 5));
     
     return { data, features };
-}
-
-function preprocessData(data, features, target) {
-    // Normalize numeric features
-    const numericStats = {};
-    features.forEach(feature => {
-        if (!feature.includes('_')) {  // Numeric features don't have underscore
-            const values = data.map(row => row[feature]);
-            const mean = values.reduce((a, b) => a + b, 0) / values.length;
-            const std = Math.sqrt(values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length);
-            numericStats[feature] = { mean, std };
-        }
-    });
-
-    const X = data.map(row => features.map(feature => {
-        if (!feature.includes('_')) {
-            // Normalize numeric features
-            return (row[feature] - numericStats[feature].mean) / 
-                   (numericStats[feature].std || 1);
-        }
-        // Binary features (one-hot encoded) don't need normalization
-        return row[feature];
-    }));
-    
-    const y = data.map(row => row[target]);
-    
-    return {
-        X: tf.tensor2d(X),
-        y: tf.tensor1d(y),
-        numericStats  // Return stats for use with test data
-    };
 }
 
 function calculateMetrics(actual, predicted) {
