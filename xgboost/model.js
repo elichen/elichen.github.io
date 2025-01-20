@@ -237,24 +237,16 @@ class XGBoostModel {
         const features = await X.array();
         let predictions = Array(features.length).fill(this.initialPrediction);
         
-        console.log('Initial prediction:', this.initialPrediction);
-        console.log('Sample feature vector:', features[0]);
-        
         for (const tree of this.trees) {
             const treePredict = tree.predict(features);
             predictions = predictions.map((pred, i) => 
                 pred + this.learningRate * treePredict[i]);
         }
         
-        // Log intermediate values
-        console.log('Raw predictions:', predictions.slice(0, 5));
-        
         // Return probabilities with protection against extreme values
         const probabilities = predictions.map(p => {
             const logit = Math.min(Math.max(p, -100), 100); // Prevent overflow
-            const prob = 1 / (1 + Math.exp(-logit));
-            console.log('Converting prediction:', p, 'to probability:', prob);
-            return prob;
+            return 1 / (1 + Math.exp(-logit));
         });
         
         return tf.tensor1d(probabilities);
