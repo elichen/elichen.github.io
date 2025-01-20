@@ -11,7 +11,8 @@ function visualizeData(data, features, target, containerId) {
             <div class="nav-links">
                 <a href="#summary">Summary</a> |
                 <a href="#distributions">Distributions</a> |
-                <a href="#correlations">Correlations</a>
+                <a href="#correlations">Correlations</a> |
+                <a href="#gender-predictions">Gender Predictions</a>
             </div>
             <div id="summary" class="section">
                 <h2>Summary Statistics</h2>
