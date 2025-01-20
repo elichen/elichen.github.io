@@ -164,8 +164,8 @@ class XGBoostModel {
         this.initialPrediction = Math.log(p / (1 - p));
         
         let predictions = Array(features.length).fill(this.initialPrediction);
-        let completedTrees = 0;
         
+        // Train each tree
         for (let i = 0; i < this.nEstimators; i++) {
             const probabilities = predictions.map(p => 1 / (1 + Math.exp(-p)));
             const gradients = targets.map((t, j) => t - probabilities[j]);
@@ -187,8 +187,14 @@ class XGBoostModel {
                 pred + bestLR * treePredict[j]);
             
             this.trees.push(tree);
-            completedTrees++;
-            progressCallback((completedTrees / this.nEstimators) * 100);
+            
+            // Update progress after each tree
+            progressCallback((i + 1) / this.nEstimators * 100);
+            
+            // Optional: Add a small delay to allow UI updates
+            if (i % 10 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
         }
     }
 
