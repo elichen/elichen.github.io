@@ -16,22 +16,17 @@
     <div class="container">
         <h1>XGBoost Training Dashboard</h1>
         
-        <div id="status" class="status-box">
-            Waiting to start...
-        </div>
+        <div id="status" class="status-box">Loading...</div>
 
         <div class="progress-container">
-            <h3>Data Loading Progress</h3>
+            <label>Data Progress:</label>
             <progress id="dataProgress" value="0" max="100"></progress>
-            
-            <h3>Training Progress</h3>
+            <label>Training Progress:</label>
             <progress id="trainingProgress" value="0" max="100"></progress>
         </div>
 
-        <div class="visualization">
-            <div id="dataViz"></div>
-            <div id="performanceViz"></div>
-        </div>
+        <div id="dataViz"></div>
+        <div id="performanceViz"></div>
     </div>
 </body>
 </html> 
