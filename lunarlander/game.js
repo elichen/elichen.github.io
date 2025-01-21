@@ -126,14 +126,18 @@ function drawFlag(x, y, height) {
     ctx.stroke();
 }
 
-function createParticle(x, y, angle, speed, color) {
+function createParticle(x, y, angle, speed) {
+    // Generate a flame color with a gradient effect
+    const red = 255; // Full red
+    const green = Math.floor(Math.random() * 100); // Random green for variation
+    const blue = 0; // No blue for a flame effect
     return {
         x,
         y,
         angle,
         speed,
         life: 1.0,
-        color
+        color: `rgba(${red}, ${green}, ${blue}, 1)` // Flame color gradient
     };
 }
 
@@ -176,8 +180,7 @@ function drawLander() {
                 lander.x,
                 lander.y + lander.height / 2,
                 lander.angle + Math.PI / 2 + (Math.random() - 0.5) * 0.5,
-                2 + Math.random() * 2,
-                'pink'
+                2 + Math.random() * 2
             ));
         }
     }
@@ -189,8 +192,7 @@ function drawLander() {
                 lander.x + lander.width / 2,
                 lander.y,
                 lander.angle + (Math.random() * Math.PI / 4),
-                1 + Math.random(),
-                'pink'
+                1 + Math.random()
             ));
         }
     }
@@ -202,8 +204,7 @@ function drawLander() {
                 lander.x - lander.width / 2,
                 lander.y,
                 lander.angle + Math.PI - (Math.random() * Math.PI / 4),
-                1 + Math.random(),
-                'pink'
+                1 + Math.random()
             ));
         }
     }
@@ -241,7 +242,7 @@ function drawParticles() {
             ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
             ctx.fill();
         } else {  // Thruster particles
-            ctx.fillStyle = `rgba(255,192,203,${p.life})`;
+            ctx.fillStyle = p.color; // Use the flame color directly
             ctx.beginPath();
             ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
             ctx.fill();
