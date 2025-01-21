@@ -9,11 +9,15 @@
 <body>
     <canvas id="gameCanvas"></canvas>
     <div id="stats">
-        <p>Velocity: <span id="velocity">0</span></p>
-        <p>Fuel: <span id="fuel">100</span></p>
-        <p>Angle: <span id="angle">0</span></p>
-        <p>Successful Landings: <span id="landings">0</span></p>
-        <p>Crashes: <span id="crashes">0</span></p>
+        <p>Velocity <span id="velocity">0</span> m/s</p>
+        <p>Fuel <span id="fuel">100</span> %</p>
+        <p>Angle <span id="angle">0</span>°</p>
+        <p>Landings <span id="landings">0</span></p>
+        <p>Crashes <span id="crashes">0</span></p>
+    </div>
+    <div id="controls">
+        <p><span class="key">↑</span> Thrust</p>
+        <p><span class="key">←</span><span class="key">→</span> Rotate</p>
     </div>
     <div id="landedMessage" class="game-message landed">LANDED!</div>
     <div id="crashedMessage" class="game-message crashed">CRASHED!</div>
