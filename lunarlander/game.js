@@ -38,7 +38,8 @@ const particles = [];
 
 // Add this to the top with other game state variables
 const gameState = {
-    isExploding: false
+    isExploding: false,
+    isLanding: false
 };
 
 function generateTerrain() {
@@ -242,6 +243,8 @@ function updateStats() {
 }
 
 function update() {
+    if (gameState.isLanding) return;
+
     lander.velocity.y += gravity;
     
     if (keys.ArrowUp && lander.fuel > 0) {
@@ -267,35 +270,50 @@ function update() {
 }
 
 function checkCollision() {
-    if (gameState.isExploding) return; // Skip collision check if already exploding
+    if (gameState.isExploding || gameState.isLanding) return;
     
-    const leftLegX = lander.x - (lander.legSpread/2);
-    const rightLegX = lander.x + (lander.legSpread/2);
-    const legsY = lander.y + lander.height/2 + lander.legLength;
-    
+    const leftLegX = lander.x - (lander.legSpread / 2);
+    const rightLegX = lander.x + (lander.legSpread / 2);
+    const legsY = lander.y + lander.height / 2 + lander.legLength;
+
     // Check if landed on pad
-    if (leftLegX >= terrain.landingPadCenter - terrain.landingPadWidth/2 &&
-        rightLegX <= terrain.landingPadCenter + terrain.landingPadWidth/2 &&
+    if (leftLegX >= terrain.landingPadCenter - terrain.landingPadWidth / 2 &&
+        rightLegX <= terrain.landingPadCenter + terrain.landingPadWidth / 2 &&
         legsY >= terrain.padHeight) {
-        
+
         // Check if landing was successful
-        const velocity = Math.sqrt(lander.velocity.x**2 + lander.velocity.y**2);
+        const velocity = Math.sqrt(lander.velocity.x ** 2 + lander.velocity.y ** 2);
         const angleOK = Math.abs(lander.angle) < 0.2;
         const speedOK = velocity < 0.5;
-        
+
         if (angleOK && speedOK) {
             console.log("Successful landing!");
+            gameState.isExploding = true;
+            gameState.isLanding = true;
             scores.landings++;
             document.getElementById('landings').textContent = scores.landings;
-            resetGame();
+
+            // Freeze the lander's position
+            lander.velocity = { x: 0, y: 0 };
+            lander.y = terrain.padHeight - (lander.height / 2 + lander.legLength);
+
             showMessage('landed');
+            setTimeout(() => {
+                gameState.isExploding = false;
+                gameState.isLanding = false;
+                resetGame();
+            }, 2000);
         } else {
             console.log("Crash landing!");
-            gameState.isExploding = true; // Set the flag
+            gameState.isExploding = true;
+            gameState.isLanding = true;
             scores.crashes++;
             document.getElementById('crashes').textContent = scores.crashes;
+
+            // Stop lander movement immediately
             lander.velocity = { x: 0, y: 0 };
-            lander.y = terrain.padHeight - (lander.height/2 + lander.legLength);
+            lander.y = terrain.padHeight - (lander.height / 2 + lander.legLength);
+
             createLanderExplosion();
             lander.color = 'transparent';
             setTimeout(() => {
@@ -303,7 +321,8 @@ function checkCollision() {
                 showMessage('crashed');
                 const checkParticles = setInterval(() => {
                     if (!particles.some(p => p.isExplosion)) {
-                        gameState.isExploding = false; // Reset the flag
+                        gameState.isExploding = false;
+                        gameState.isLanding = false;
                         resetGame();
                         clearInterval(checkParticles);
                     }
@@ -312,23 +331,27 @@ function checkCollision() {
         }
         return;
     }
-    
+
     // Check for terrain collision
     for (let i = 0; i < terrain.length - 1; i++) {
         if (lander.x >= terrain[i].x && lander.x <= terrain[i + 1].x) {
             const terrainSegmentWidth = terrain[i + 1].x - terrain[i].x;
             const terrainHeightDiff = terrain[i + 1].y - terrain[i].y;
             const landerDistanceInSegment = lander.x - terrain[i].x;
-            const terrainHeightAtLander = terrain[i].y + 
+            const terrainHeightAtLander = terrain[i].y +
                 (terrainHeightDiff * landerDistanceInSegment / terrainSegmentWidth);
-            
+
             if (legsY >= terrainHeightAtLander) {
                 console.log("Crash!");
-                gameState.isExploding = true; // Set the flag
+                gameState.isExploding = true;
+                gameState.isLanding = true;
                 scores.crashes++;
                 document.getElementById('crashes').textContent = scores.crashes;
+
+                // Stop lander movement immediately
                 lander.velocity = { x: 0, y: 0 };
-                lander.y = terrainHeightAtLander - (lander.height/2 + lander.legLength);
+                lander.y = terrainHeightAtLander - (lander.height / 2 + lander.legLength);
+
                 createLanderExplosion();
                 lander.color = 'transparent';
                 setTimeout(() => {
@@ -336,7 +359,8 @@ function checkCollision() {
                     showMessage('crashed');
                     const checkParticles = setInterval(() => {
                         if (!particles.some(p => p.isExplosion)) {
-                            gameState.isExploding = false; // Reset the flag
+                            gameState.isExploding = false;
+                            gameState.isLanding = false;
                             resetGame();
                             clearInterval(checkParticles);
                         }
