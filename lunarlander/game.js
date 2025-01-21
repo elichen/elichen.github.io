@@ -78,24 +78,41 @@ function generateTerrain() {
 }
 
 function drawTerrain() {
+    // Draw terrain gradient
+    const gradient = ctx.createLinearGradient(0, canvas.height - 200, 0, canvas.height);
+    gradient.addColorStop(0, '#1e3a8a');
+    gradient.addColorStop(1, '#1e40af');
+    
     ctx.beginPath();
     ctx.moveTo(0, canvas.height);
     terrain.forEach(point => {
         ctx.lineTo(point.x, point.y);
     });
     ctx.lineTo(canvas.width, canvas.height);
-    ctx.fillStyle = '#666';
+    ctx.fillStyle = gradient;
     ctx.fill();
+
+    // Draw landing pad
+    const padLeft = terrain.landingPadCenter - terrain.landingPadWidth / 2;
+    const padRight = terrain.landingPadCenter + terrain.landingPadWidth / 2;
+    
+    // Draw landing pad without glow
+    ctx.beginPath();
+    ctx.moveTo(padLeft, terrain.padHeight);
+    ctx.lineTo(padRight, terrain.padHeight);
+    ctx.strokeStyle = '#60a5fa';
+    ctx.lineWidth = 3;
+    ctx.stroke();
 
     // Draw landing pad flags
     const flagHeight = 30;
-    drawFlag(terrain.landingPadCenter - terrain.landingPadWidth/2, terrain.padHeight, flagHeight);
-    drawFlag(terrain.landingPadCenter + terrain.landingPadWidth/2, terrain.padHeight, flagHeight);
+    drawFlag(terrain.landingPadCenter - terrain.landingPadWidth / 2, terrain.padHeight, flagHeight);
+    drawFlag(terrain.landingPadCenter + terrain.landingPadWidth / 2, terrain.padHeight, flagHeight);
 }
 
 function drawFlag(x, y, height) {
     ctx.beginPath();
-    ctx.strokeStyle = 'yellow';
+    ctx.strokeStyle = '#fbbf24'; // Flag color
     ctx.lineWidth = 2;
     
     // Flag pole
@@ -125,30 +142,30 @@ function drawLander() {
     ctx.translate(lander.x, lander.y);
     ctx.rotate(lander.angle);
     
-    // Draw main body (trapezoid)
+    // Draw main body (trapezoid) without glow
     ctx.fillStyle = lander.color;
     ctx.beginPath();
-    ctx.moveTo(-lander.width/4, -lander.height/2);  // Top left (narrower)
-    ctx.lineTo(lander.width/4, -lander.height/2);   // Top right (narrower)
-    ctx.lineTo(lander.width/2, lander.height/2);    // Bottom right
-    ctx.lineTo(-lander.width/2, lander.height/2);   // Bottom left
+    ctx.moveTo(-lander.width / 4, -lander.height / 2);
+    ctx.lineTo(lander.width / 4, -lander.height / 2);
+    ctx.lineTo(lander.width / 2, lander.height / 2);
+    ctx.lineTo(-lander.width / 2, lander.height / 2);
     ctx.closePath();
     ctx.fill();
     
-    // Draw legs
-    ctx.strokeStyle = 'white';
+    // Draw legs without glow
+    ctx.strokeStyle = '#e5e7eb';
     ctx.lineWidth = 2;
     
     // Left leg
     ctx.beginPath();
-    ctx.moveTo(-lander.width/2, lander.height/2);
-    ctx.lineTo(-lander.legSpread/2, lander.height/2 + lander.legLength);
+    ctx.moveTo(-lander.width / 2, lander.height / 2);
+    ctx.lineTo(-lander.legSpread / 2, lander.height / 2 + lander.legLength);
     ctx.stroke();
     
     // Right leg
     ctx.beginPath();
-    ctx.moveTo(lander.width/2, lander.height/2);
-    ctx.lineTo(lander.legSpread/2, lander.height/2 + lander.legLength);
+    ctx.moveTo(lander.width / 2, lander.height / 2);
+    ctx.lineTo(lander.legSpread / 2, lander.height / 2 + lander.legLength);
     ctx.stroke();
     
     // Draw thrusters when active
@@ -157,8 +174,8 @@ function drawLander() {
         for (let i = 0; i < 3; i++) {
             particles.push(createParticle(
                 lander.x,
-                lander.y + lander.height/2,
-                lander.angle + Math.PI/2 + (Math.random() - 0.5) * 0.5,
+                lander.y + lander.height / 2,
+                lander.angle + Math.PI / 2 + (Math.random() - 0.5) * 0.5,
                 2 + Math.random() * 2,
                 'pink'
             ));
@@ -169,9 +186,9 @@ function drawLander() {
         // Right thruster
         for (let i = 0; i < 2; i++) {
             particles.push(createParticle(
-                lander.x + lander.width/2,
+                lander.x + lander.width / 2,
                 lander.y,
-                lander.angle + (Math.random() * Math.PI/4),
+                lander.angle + (Math.random() * Math.PI / 4),
                 1 + Math.random(),
                 'pink'
             ));
@@ -182,9 +199,9 @@ function drawLander() {
         // Left thruster
         for (let i = 0; i < 2; i++) {
             particles.push(createParticle(
-                lander.x - lander.width/2,
+                lander.x - lander.width / 2,
                 lander.y,
-                lander.angle + Math.PI - (Math.random() * Math.PI/4),
+                lander.angle + Math.PI - (Math.random() * Math.PI / 4),
                 1 + Math.random(),
                 'pink'
             ));
@@ -382,15 +399,41 @@ function resetGame() {
     lander.angle = 0;
     lander.fuel = 100;
     lander.color = '#8080FF'; // Reset lander color to original
+
+    drawBackground(); // Draw the background and stars once after reset
+}
+
+function drawBackground() {
+    // Create a subtle gradient background
+    const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    bgGradient.addColorStop(0, '#000420');
+    bgGradient.addColorStop(1, '#000845');
+    
+    ctx.fillStyle = bgGradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Add some stars
+    for (let i = 0; i < 50; i++) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.5 + 0.5})`;
+        ctx.beginPath();
+        ctx.arc(
+            Math.random() * canvas.width,
+            Math.random() * canvas.height * 0.7,
+            Math.random() * 1.5,
+            0,
+            Math.PI * 2
+        );
+        ctx.fill();
+    }
 }
 
 function gameLoop() {
-    ctx.fillStyle = 'black';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Clear the canvas before drawing the new frame
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     
     updateParticles();
     drawTerrain();
-    drawParticles();  // Draw particles behind the lander
+    drawParticles();
     drawLander();
     update();
     updateStats();
@@ -462,4 +505,6 @@ function hexToRgb(hex) {
         '255,255,255';
 }
 
+// Call drawBackground once at the start
+drawBackground();
 gameLoop(); 
