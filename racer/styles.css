@@ -2,7 +2,7 @@ body {
     margin: 0;
     padding: 0;
     overflow: hidden;  /* Prevent scrollbars */
-    background-color: #666;
+    background-color: #1a1a1a;  /* Darker background */
 }
 
 #gameCanvas {

@@ -90,8 +90,18 @@ class Car {
         ctx.translate(this.x, this.y)
         ctx.rotate(this.angle)
         
-        // Main body - flipped direction
-        ctx.fillStyle = 'red'
+        // Shadow
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
+        ctx.shadowBlur = 5
+        ctx.shadowOffsetY = 4
+
+        // Main body
+        const gradient = ctx.createLinearGradient(-30, 0, 30, 0)
+        gradient.addColorStop(0, '#ff0000')    // Darker red
+        gradient.addColorStop(0.5, '#ff3333')  // Brighter red
+        gradient.addColorStop(1, '#ff0000')    // Darker red
+        
+        ctx.fillStyle = gradient
         ctx.beginPath()
         ctx.moveTo(-30, -5)
         ctx.lineTo(-30, 5)
@@ -106,26 +116,46 @@ class Car {
         ctx.closePath()
         ctx.fill()
 
-        // Cockpit
-        ctx.fillStyle = 'black'
+        // Remove shadow for details
+        ctx.shadowColor = 'transparent'
+
+        // Cockpit with gradient
+        const cockpitGradient = ctx.createRadialGradient(-5, 0, 0, -5, 0, 6)
+        cockpitGradient.addColorStop(0, '#666666')
+        cockpitGradient.addColorStop(1, '#000000')
+        ctx.fillStyle = cockpitGradient
         ctx.beginPath()
         ctx.ellipse(-5, 0, 5, 5, Math.PI/2, 0, Math.PI * 2)
         ctx.fill()
 
-        // Rear wing
-        ctx.fillStyle = '#333'
-        ctx.fillRect(-36, -15, 8, 30)
+        // Wings with metallic effect
+        const wingGradient = ctx.createLinearGradient(0, -15, 0, 15)
+        wingGradient.addColorStop(0, '#444444')
+        wingGradient.addColorStop(0.5, '#666666')
+        wingGradient.addColorStop(1, '#444444')
+        ctx.fillStyle = wingGradient
 
+        // Rear wing
+        ctx.fillRect(-36, -15, 8, 30)
         // Front wing
-        ctx.fillStyle = '#333'
         ctx.fillRect(25, -12, 5, 24)
         
-        // Wheels - rear wheels moved back
-        ctx.fillStyle = 'black'
-        ctx.fillRect(10, -18, 12, 6)     // Left front
-        ctx.fillRect(10, 12, 12, 6)      // Right front
-        ctx.fillRect(-25, -18, 12, 6)    // Left rear (moved back)
-        ctx.fillRect(-25, 12, 12, 6)     // Right rear (moved back)
+        // Wheels with detail
+        ctx.fillStyle = '#111111'
+        const wheels = [
+            {x: 10, y: -18, w: 12, h: 6},  // Left front
+            {x: 10, y: 12, w: 12, h: 6},   // Right front
+            {x: -25, y: -18, w: 12, h: 6}, // Left rear
+            {x: -25, y: 12, w: 12, h: 6}   // Right rear
+        ]
+        
+        wheels.forEach(wheel => {
+            ctx.fillRect(wheel.x, wheel.y, wheel.w, wheel.h)
+            // Wheel rim detail
+            ctx.fillStyle = '#666666'
+            ctx.fillRect(wheel.x + 3, wheel.y + 2, 2, 2)
+            ctx.fillStyle = '#111111'
+        })
 
         ctx.restore()
     }
