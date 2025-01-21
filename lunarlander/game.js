@@ -36,6 +36,11 @@ const scores = {
 // Add particle system for thrusters
 const particles = [];
 
+// Add this to the top with other game state variables
+const gameState = {
+    isExploding: false
+};
+
 function generateTerrain() {
     const points = [];
     const segments = 10;
@@ -191,9 +196,17 @@ function drawLander() {
 function updateParticles() {
     for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        p.x += Math.cos(p.angle) * p.speed;
-        p.y += Math.sin(p.angle) * p.speed;
-        p.life -= 0.05;
+        
+        if (p.isExplosion) {
+            p.x += Math.cos(p.angle) * p.speed;
+            p.y += Math.sin(p.angle) * p.speed;
+            p.speed *= 0.95; // Slow down
+            p.life -= 0.02;
+        } else {  // Thruster particles
+            p.x += Math.cos(p.angle) * p.speed;
+            p.y += Math.sin(p.angle) * p.speed;
+            p.life -= 0.05;
+        }
         
         if (p.life <= 0) {
             particles.splice(i, 1);
@@ -203,10 +216,19 @@ function updateParticles() {
 
 function drawParticles() {
     particles.forEach(p => {
-        ctx.fillStyle = `rgba(255,192,203,${p.life})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.save();
+        if (p.isExplosion) {
+            ctx.fillStyle = `rgba(${hexToRgb(p.color)},${p.life})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+            ctx.fill();
+        } else {  // Thruster particles
+            ctx.fillStyle = `rgba(255,192,203,${p.life})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
     });
 }
 
@@ -245,6 +267,8 @@ function update() {
 }
 
 function checkCollision() {
+    if (gameState.isExploding) return; // Skip collision check if already exploding
+    
     const leftLegX = lander.x - (lander.legSpread/2);
     const rightLegX = lander.x + (lander.legSpread/2);
     const legsY = lander.y + lander.height/2 + lander.legLength;
@@ -264,32 +288,60 @@ function checkCollision() {
             scores.landings++;
             document.getElementById('landings').textContent = scores.landings;
             resetGame();
+            showMessage('landed');
         } else {
             console.log("Crash landing!");
+            gameState.isExploding = true; // Set the flag
             scores.crashes++;
             document.getElementById('crashes').textContent = scores.crashes;
-            resetGame();
+            lander.velocity = { x: 0, y: 0 };
+            lander.y = terrain.padHeight - (lander.height/2 + lander.legLength);
+            createLanderExplosion();
+            lander.color = 'transparent';
+            setTimeout(() => {
+                lander.color = '#8080FF';
+                showMessage('crashed');
+                const checkParticles = setInterval(() => {
+                    if (!particles.some(p => p.isExplosion)) {
+                        gameState.isExploding = false; // Reset the flag
+                        resetGame();
+                        clearInterval(checkParticles);
+                    }
+                }, 100);
+            }, 1000);
         }
         return;
     }
     
     // Check for terrain collision
     for (let i = 0; i < terrain.length - 1; i++) {
-        // Find the terrain height at the lander's position
         if (lander.x >= terrain[i].x && lander.x <= terrain[i + 1].x) {
-            // Interpolate terrain height at lander's x position
             const terrainSegmentWidth = terrain[i + 1].x - terrain[i].x;
             const terrainHeightDiff = terrain[i + 1].y - terrain[i].y;
             const landerDistanceInSegment = lander.x - terrain[i].x;
             const terrainHeightAtLander = terrain[i].y + 
                 (terrainHeightDiff * landerDistanceInSegment / terrainSegmentWidth);
             
-            // Check both legs for collision
             if (legsY >= terrainHeightAtLander) {
                 console.log("Crash!");
+                gameState.isExploding = true; // Set the flag
                 scores.crashes++;
                 document.getElementById('crashes').textContent = scores.crashes;
-                resetGame();
+                lander.velocity = { x: 0, y: 0 };
+                lander.y = terrainHeightAtLander - (lander.height/2 + lander.legLength);
+                createLanderExplosion();
+                lander.color = 'transparent';
+                setTimeout(() => {
+                    lander.color = '#8080FF';
+                    showMessage('crashed');
+                    const checkParticles = setInterval(() => {
+                        if (!particles.some(p => p.isExplosion)) {
+                            gameState.isExploding = false; // Reset the flag
+                            resetGame();
+                            clearInterval(checkParticles);
+                        }
+                    }, 100);
+                }, 1000);
                 return;
             }
         }
@@ -334,5 +386,57 @@ document.addEventListener('keyup', (e) => {
         keys[e.key] = false;
     }
 });
+
+function showMessage(type) {
+    const message = type === 'landed' ? document.getElementById('landedMessage') : document.getElementById('crashedMessage');
+    message.classList.add('show');
+    setTimeout(() => {
+        message.classList.remove('show');
+    }, 2000);
+}
+
+function createLanderExplosion() {
+    // Create explosion particles from impact point
+    const particleCount = 30;
+    const impactY = lander.y + lander.height/2 + lander.legLength; // Bottom of lander
+    
+    for (let i = 0; i < particleCount; i++) {
+        const angle = (i / particleCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        const speed = 2 + Math.random() * 3;
+        
+        particles.push({
+            x: lander.x,
+            y: impactY,
+            angle: angle,
+            speed: speed,
+            life: 1.0,
+            color: '#FF4444',
+            size: 4 + Math.random() * 3,
+            isExplosion: true
+        });
+    }
+
+    // Add some sparks
+    for (let i = 0; i < 15; i++) {
+        const angle = -Math.PI/2 + (Math.random() - 0.5) * Math.PI; // Upward arc
+        particles.push({
+            x: lander.x,
+            y: impactY,
+            angle: angle,
+            speed: 4 + Math.random() * 4,
+            life: 1.0,
+            color: '#FFFF00',
+            size: 2,
+            isExplosion: true
+        });
+    }
+}
+
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? 
+        `${parseInt(result[1], 16)},${parseInt(result[2], 16)},${parseInt(result[3], 16)}` : 
+        '255,255,255';
+}
 
 gameLoop(); 

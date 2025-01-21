@@ -18,4 +18,31 @@ body {
     left: 20px;
     color: white;
     font-family: monospace;
+}
+
+/* Add new styles for game messages */
+.game-message {
+    position: absolute;
+    font-family: 'Arial', sans-serif;
+    font-size: 48px;
+    font-weight: bold;
+    text-align: center;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all 0.3s ease-out;
+}
+
+.game-message.show {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.landed {
+    color: #4CAF50;
+    text-shadow: 0 0 10px #4CAF50;
+}
+
+.crashed {
+    color: #ff4444;
+    text-shadow: 0 0 10px #ff4444;
 } 
