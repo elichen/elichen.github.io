@@ -317,7 +317,6 @@ function checkCollision() {
             createLanderExplosion();
             lander.color = 'transparent';
             setTimeout(() => {
-                lander.color = '#8080FF';
                 showMessage('crashed');
                 const checkParticles = setInterval(() => {
                     if (!particles.some(p => p.isExplosion)) {
@@ -355,7 +354,6 @@ function checkCollision() {
                 createLanderExplosion();
                 lander.color = 'transparent';
                 setTimeout(() => {
-                    lander.color = '#8080FF';
                     showMessage('crashed');
                     const checkParticles = setInterval(() => {
                         if (!particles.some(p => p.isExplosion)) {
@@ -383,6 +381,7 @@ function resetGame() {
     lander.velocity = { x: 0, y: 0 };
     lander.angle = 0;
     lander.fuel = 100;
+    lander.color = '#8080FF'; // Reset lander color to original
 }
 
 function gameLoop() {
