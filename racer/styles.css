@@ -7,4 +7,26 @@ body {
 
 #gameCanvas {
     display: block;  /* Remove any default canvas spacing */
+}
+
+#controls {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 15px 25px;
+    border-radius: 10px;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+#controls h3 {
+    margin: 0 0 10px 0;
+    color: #ffff00;
+    font-size: 18px;
+}
+
+#controls p {
+    margin: 5px 0;
+    font-size: 16px;
 } 
