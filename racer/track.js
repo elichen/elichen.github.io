@@ -72,36 +72,73 @@ class Track {
         ctx.save()
         ctx.translate(this.offsetX, this.offsetY)
 
+        // Draw track background/grass
+        ctx.fillStyle = '#2d5e1e'  // Dark grass green
+        ctx.fillRect(-600, -300, 1200, 600)
+
+        // Draw track surface
+        ctx.strokeStyle = '#333333'  // Dark gray for track
+        ctx.lineWidth = 150  // Thick track
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+
+        // Draw main track surface
+        ctx.beginPath()
+        this.drawPath(ctx, this.outerPoints)
+        ctx.fillStyle = '#666666'  // Medium gray
+        ctx.fill()
+
+        // Draw track border lines
         ctx.strokeStyle = 'white'
         ctx.lineWidth = 5
 
+        // Outer white line
         ctx.beginPath()
         this.drawPath(ctx, this.outerPoints)
         ctx.stroke()
 
+        // Inner white line
         ctx.beginPath()
         this.drawPath(ctx, this.innerPoints)
         ctx.stroke()
 
-        // Draw finish line
+        // Draw racing line markers (dashed center line)
+        ctx.strokeStyle = '#ffffff44'  // Semi-transparent white
+        ctx.lineWidth = 3
+        ctx.setLineDash([20, 20])  // Dashed line pattern
+        
+        // Approximate center line between inner and outer track
+        ctx.beginPath()
+        for(let i = 0; i < this.outerPoints.length; i++) {
+            const x = (this.outerPoints[i][0] + this.innerPoints[i][0]) / 2
+            const y = (this.outerPoints[i][1] + this.innerPoints[i][1]) / 2
+            if(i === 0) ctx.moveTo(x, y)
+            else ctx.lineTo(x, y)
+        }
+        ctx.closePath()
+        ctx.stroke()
+        ctx.setLineDash([])  // Reset line dash
+
+        // Draw finish line with enhanced style
+        const finishWidth = 20
         ctx.strokeStyle = 'black'
-        ctx.lineWidth = 8
+        ctx.lineWidth = finishWidth
         ctx.beginPath()
         ctx.moveTo(this.finishLine.x1, this.finishLine.y1)
         ctx.lineTo(this.finishLine.x2, this.finishLine.y2)
         ctx.stroke()
 
-        // Checkered pattern
-        const squares = 8
+        // Checkered pattern on finish line
+        const squares = 12
         const squareHeight = (this.finishLine.y2 - this.finishLine.y1) / squares
         
         ctx.fillStyle = 'white'
         for (let i = 0; i < squares; i++) {
             if (i % 2 === 0) {
                 ctx.fillRect(
-                    this.finishLine.x1 - 4,
+                    this.finishLine.x1 - finishWidth/2,
                     this.finishLine.y1 + (i * squareHeight),
-                    8,
+                    finishWidth,
                     squareHeight
                 )
             }
