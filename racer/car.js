@@ -130,9 +130,11 @@ class Car {
 
         // Wings with metallic effect
         const wingGradient = ctx.createLinearGradient(0, -15, 0, 15)
-        wingGradient.addColorStop(0, '#444444')
-        wingGradient.addColorStop(0.5, '#666666')
-        wingGradient.addColorStop(1, '#444444')
+        wingGradient.addColorStop(0, '#999999')    // Light silver
+        wingGradient.addColorStop(0.3, '#ffffff')  // White highlight
+        wingGradient.addColorStop(0.5, '#cccccc')  // Medium silver
+        wingGradient.addColorStop(0.7, '#ffffff')  // White highlight
+        wingGradient.addColorStop(1, '#999999')    // Light silver
         ctx.fillStyle = wingGradient
 
         // Rear wing
