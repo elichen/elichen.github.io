@@ -1,0 +1,24 @@
+body {
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    font-family: Arial, sans-serif;
+    background: #f0f0f0;
+}
+
+.container {
+    text-align: center;
+}
+
+canvas {
+    border: 1px solid black;
+    image-rendering: pixelated;
+    background: white;
+    margin: 20px 0;
+}
+
+.instructions {
+    color: #666;
+    font-size: 14px;
+} 
