@@ -15,7 +15,10 @@ canvas {
     border: 1px solid black;
     image-rendering: pixelated;
     background: white;
-    margin: 20px 0;
+    margin: 20px auto;
+    width: 384px;
+    height: 384px;
+    display: block;
 }
 
 .instructions {
