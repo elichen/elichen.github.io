@@ -21,7 +21,6 @@ class CircularBuffer {
 
 class TrainingManager {
     constructor(config = {}) {
-        this.isSwingUpMode = false;  // Start in balance mode
         this.isManualMode = false;   // Add manual mode flag
         this.animationFrameId = null;
         this.initializeEnvironment(config);
@@ -31,9 +30,7 @@ class TrainingManager {
     }
 
     initializeEnvironment(config) {
-        let env = new CartPole({
-            swingUp: this.isSwingUpMode
-        });
+        let env = new CartPole();
         env = new ScaleReward(env, config.gamma || 0.99);
         env = new NormalizeObservation(env);
         env = new AddTimeInfo(env);
@@ -100,22 +97,6 @@ class TrainingManager {
             }
         };
 
-        // Task mode toggle (balance/swing-up)
-        const taskButton = document.getElementById('toggleMode');
-        taskButton.onclick = () => {
-            this.isSwingUpMode = !this.isSwingUpMode;
-            taskButton.textContent = this.isSwingUpMode ? 'Swing Up Mode' : 'Balance Mode';
-            // Reset agent when switching modes
-            this.initializeEnvironment({
-                epsilonStart: parseFloat(document.getElementById('epsilonStart').value),
-                epsilonTarget: parseFloat(document.getElementById('epsilonTarget').value),
-                totalSteps: parseFloat(document.getElementById('decaySteps').value)
-            });
-            if (!this.isManualMode) {
-                this.train();
-            }
-        };
-
         // Add change listeners to parameter inputs
         ['epsilonStart', 'epsilonTarget', 'decaySteps'].forEach(id => {
             document.getElementById(id).addEventListener('change', () => {
@@ -155,16 +136,14 @@ class TrainingManager {
             if (result.done) {
                 const rawReturn = result.info.episode.r;
                 const steps = result.info.episode.steps;
-                const mode = result.info.episode.mode;
                 this.episodeRewards.push(rawReturn);
                 episodeCount++;
                 
-                console.log(`Mode: ${mode}, Episodic Return: ${rawReturn.toFixed(1)}, Steps: ${steps}, Episode ${episodeCount}, Epsilon ${this.agent.epsilon.toFixed(3)}`);
+                console.log(`Episodic Return: ${rawReturn.toFixed(1)}, Steps: ${steps}, Episode ${episodeCount}, Epsilon ${this.agent.epsilon.toFixed(3)}`);
                 
                 const avgReward = this.episodeRewards.average();
                 
                 this.stats.innerHTML = `
-                    Mode: ${mode} Training<br>
                     Episode: ${episodeCount}<br>
                     Last Return: ${rawReturn.toFixed(1)}<br>
                     Steps: ${steps}<br>
