@@ -14,9 +14,6 @@ class CartPole {
         this.xLimit = 2.4;  // Gym's x_threshold
         this.thetaLimit = 12 * 2 * Math.PI / 360;  // Gym's theta_threshold_radians (12 degrees)
 
-        // Swing-up mode configuration
-        this.swingUp = config.swingUp || false;
-
         // Episode management
         this.steps = 0;
         this.maxSteps = 500;
@@ -41,23 +38,13 @@ class CartPole {
     }
 
     reset() {
-        if (this.swingUp) {
-            // Start pole hanging down in swing-up mode
-            this.state = [
-                0.0,                    // Cart Position
-                0.0,                    // Cart Velocity
-                Math.PI,                // Pole Angle (hanging down)
-                0.0                     // Pole Angular Velocity
-            ];
-        } else {
-            // Match Gym's starting state: uniform random in (-0.05, 0.05) for all observations
-            this.state = [
-                (Math.random() - 0.5) * 0.1,  // Cart Position
-                (Math.random() - 0.5) * 0.1,  // Cart Velocity
-                (Math.random() - 0.5) * 0.1,  // Pole Angle
-                (Math.random() - 0.5) * 0.1   // Pole Angular Velocity
-            ];
-        }
+        // Match Gym's starting state: uniform random in (-0.05, 0.05) for all observations
+        this.state = [
+            (Math.random() - 0.5) * 0.1,  // Cart Position
+            (Math.random() - 0.5) * 0.1,  // Cart Velocity
+            (Math.random() - 0.5) * 0.1,  // Pole Angle
+            (Math.random() - 0.5) * 0.1   // Pole Angular Velocity
+        ];
         this.steps = 0;
         this.episodeReturn = 0;
         return this.getState();
@@ -94,27 +81,11 @@ class CartPole {
         this.state = [x, xDot, theta, thetaDot];
 
         // Calculate reward and done flag
-        let done = false;
-        let reward;
-
-        if (this.swingUp) {
-            // Reward based on pole angle (1 when upright, -1 when hanging)
-            reward = Math.cos(theta);
-            
-            // Terminate if cart hits boundaries
-            done = Math.abs(x) >= this.xLimit || this.steps >= this.maxSteps;
-            
-            if (Math.abs(x) >= this.xLimit) {
-                reward = -2.0;  // Penalty for boundary violation
-            }
-        } else {
-            // Original balance task termination conditions (matching Gym exactly)
-            done = Math.abs(x) >= this.xLimit || 
-                  Math.abs(theta) > this.thetaLimit || 
-                  this.steps >= this.maxSteps;
-            
-            reward = done ? 0.0 : 1.0;  // Gym's reward structure
-        }
+        const done = Math.abs(x) >= this.xLimit || 
+                    Math.abs(theta) > this.thetaLimit || 
+                    this.steps >= this.maxSteps;
+        
+        const reward = done ? 0.0 : 1.0;  // Gym's reward structure
 
         this.episodeReturn += reward;
 
@@ -125,8 +96,7 @@ class CartPole {
             info: { 
                 episode: { 
                     r: this.episodeReturn,
-                    steps: this.steps,
-                    mode: this.swingUp ? 'swing-up' : 'balance'
+                    steps: this.steps
                 } 
             }
         };
