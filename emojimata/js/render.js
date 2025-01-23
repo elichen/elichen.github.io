@@ -50,6 +50,9 @@ async function init() {
     }
 
     render();
+
+    // Make the canvas visible after initialization
+    canvas.classList.add('visible');
 }
 
 window.onload = init; 
