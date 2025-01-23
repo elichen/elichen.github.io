@@ -21,4 +21,6 @@ canvas {
 .instructions {
     color: #666;
     font-size: 14px;
+    max-width: 500px;
+    margin: 0 auto;
 } 
