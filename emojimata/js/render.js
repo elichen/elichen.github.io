@@ -12,12 +12,19 @@ async function init() {
     canvas.style.width = `${w * ca.scale}px`;
     canvas.style.height = `${h * ca.scale}px`;
     
-    // Plant initial seeds in both tiles
-    const centerX1 = Math.floor(ca.tileSize / 2);  // Center of first tile
-    const centerX2 = Math.floor(ca.tileSize * 1.5);  // Center of second tile
-    const centerY = Math.floor(h / 2);
-    ca.plantSeed(centerX1, centerY);
-    ca.plantSeed(centerX2, centerY);
+    // Clear the entire canvas by applying damage everywhere
+    for (let x = 0; x < w; x += 8) {
+        for (let y = 0; y < h; y += 8) {
+            ca.damage(x, y, 8);
+        }
+    }
+    
+    // Remove the automatic seed planting
+    // const centerX1 = Math.floor(ca.tileSize / 2);  // Center of first tile
+    // const centerX2 = Math.floor(ca.tileSize * 1.5);  // Center of second tile
+    // const centerY = Math.floor(h / 2);
+    // ca.plantSeed(centerX1, centerY);
+    // ca.plantSeed(centerX2, centerY);
     
     canvas.onmousedown = e => {
         const rect = canvas.getBoundingClientRect();
@@ -45,9 +52,10 @@ async function init() {
         ca.step();
 
         const imageData = tf.tidy(() => {
+            // For white: RGB should be 1.0 (255), alpha should be 1.0
             const rgba = ca.state.slice([0, 0, 0, 0], [-1, -1, -1, 4]);
-            const a = ca.state.slice([0, 0, 0, 3], [-1, -1, -1, 1]);
-            const img = tf.tensor(1.0).sub(a).add(rgba).mul(255);
+            // Just multiply by 255 to get white (1.0 -> 255)
+            const img = rgba.mul(255);
             const rgbaBytes = new Uint8ClampedArray(img.dataSync());
             return new ImageData(rgbaBytes, w, h);
         });
