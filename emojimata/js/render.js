@@ -7,10 +7,17 @@ async function init() {
     await ca.loadModel();
     
     const [_, h, w, ch] = ca.state.shape;
-    canvas.width = w;
+    canvas.width = w;  // This will now be 2x the original tile width
     canvas.height = h;
     canvas.style.width = `${w * ca.scale}px`;
     canvas.style.height = `${h * ca.scale}px`;
+    
+    // Plant initial seeds in both tiles
+    const centerX1 = Math.floor(ca.tileSize / 2);  // Center of first tile
+    const centerX2 = Math.floor(ca.tileSize * 1.5);  // Center of second tile
+    const centerY = Math.floor(h / 2);
+    ca.plantSeed(centerX1, centerY);
+    ca.plantSeed(centerX2, centerY);
     
     canvas.onmousedown = e => {
         const rect = canvas.getBoundingClientRect();
