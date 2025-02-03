@@ -19,15 +19,43 @@ async function init() {
         }
     }
     
-    // Plant seeds in each quadrant (optional - commented out by default)
-    // const centerX1 = Math.floor(ca.tileSize / 2);  // Center of top-left tile
-    // const centerX2 = Math.floor(ca.tileSize * 1.5);  // Center of top-right tile
-    // const centerY1 = Math.floor(ca.tileSize / 2);  // Center of top row
-    // const centerY2 = Math.floor(ca.tileSize * 1.5);  // Center of bottom row
-    // ca.plantSeed(centerX1, centerY1);  // Top-left
-    // ca.plantSeed(centerX2, centerY1);  // Top-right
-    // ca.plantSeed(centerX1, centerY2);  // Bottom-left
-    // ca.plantSeed(centerX2, centerY2);  // Bottom-right
+    // Function to get random position within a quadrant
+    function getRandomQuadrantPosition(quadrant) {
+        const tileSize = ca.tileSize;
+        const padding = 20; // Keep seeds away from edges
+        
+        // Define quadrant boundaries
+        const quadrants = {
+            topLeft: { 
+                x: [padding, tileSize - padding],
+                y: [padding, tileSize - padding]
+            },
+            topRight: {
+                x: [tileSize + padding, 2 * tileSize - padding],
+                y: [padding, tileSize - padding]
+            },
+            bottomLeft: {
+                x: [padding, tileSize - padding],
+                y: [tileSize + padding, 2 * tileSize - padding]
+            },
+            bottomRight: {
+                x: [tileSize + padding, 2 * tileSize - padding],
+                y: [tileSize + padding, 2 * tileSize - padding]
+            }
+        };
+        
+        const bounds = quadrants[quadrant];
+        const x = Math.floor(Math.random() * (bounds.x[1] - bounds.x[0])) + bounds.x[0];
+        const y = Math.floor(Math.random() * (bounds.y[1] - bounds.y[0])) + bounds.y[0];
+        return { x, y };
+    }
+    
+    // Plant seeds in random positions in each quadrant
+    const quadrants = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+    quadrants.forEach(quadrant => {
+        const pos = getRandomQuadrantPosition(quadrant);
+        ca.plantSeed(pos.x, pos.y);
+    });
     
     canvas.onmousedown = e => {
         const rect = canvas.getBoundingClientRect();
