@@ -7,7 +7,7 @@ async function init() {
     await ca.loadModel();
     
     const [_, h, w, ch] = ca.state.shape;
-    canvas.width = w;  // This will now be 2x the original tile width
+    canvas.width = w;  // This will now be 4x the original tile width
     canvas.height = h;
     canvas.style.width = `${w * ca.scale}px`;
     canvas.style.height = `${h * ca.scale}px`;
@@ -19,12 +19,15 @@ async function init() {
         }
     }
     
-    // Remove the automatic seed planting
-    // const centerX1 = Math.floor(ca.tileSize / 2);  // Center of first tile
-    // const centerX2 = Math.floor(ca.tileSize * 1.5);  // Center of second tile
-    // const centerY = Math.floor(h / 2);
-    // ca.plantSeed(centerX1, centerY);
-    // ca.plantSeed(centerX2, centerY);
+    // Plant seeds in each quadrant (optional - commented out by default)
+    // const centerX1 = Math.floor(ca.tileSize / 2);  // Center of top-left tile
+    // const centerX2 = Math.floor(ca.tileSize * 1.5);  // Center of top-right tile
+    // const centerY1 = Math.floor(ca.tileSize / 2);  // Center of top row
+    // const centerY2 = Math.floor(ca.tileSize * 1.5);  // Center of bottom row
+    // ca.plantSeed(centerX1, centerY1);  // Top-left
+    // ca.plantSeed(centerX2, centerY1);  // Top-right
+    // ca.plantSeed(centerX1, centerY2);  // Bottom-left
+    // ca.plantSeed(centerX2, centerY2);  // Bottom-right
     
     canvas.onmousedown = e => {
         const rect = canvas.getBoundingClientRect();
