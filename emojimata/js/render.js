@@ -3,65 +3,58 @@ async function init() {
     const ctx = canvas.getContext('2d');
     const ca = new CAModel();
     
-    // Set canvas to visible immediately
-    canvas.style.display = 'block';
-    
-    // Load the model
-    await ca.loadModel();
-    
-    const [_, h, w, ch] = ca.state.shape;
-    canvas.width = w;
-    canvas.height = h;
-    canvas.style.width = `${w * ca.scale}px`;
-    canvas.style.height = `${h * ca.scale}px`;
-    
-    // Clear the entire canvas by applying damage everywhere
-    for (let x = 0; x < w; x += 8) {
-        for (let y = 0; y < h; y += 8) {
-            ca.damage(x, y, 8);
+    // Function to handle resize
+    function handleResize() {
+        // Recalculate tiles
+        ca.calculateTiles();
+        
+        // Resize canvas to match the state dimensions
+        const stateWidth = ca.tileSize * ca.numTilesX;
+        const stateHeight = ca.tileSize * ca.numTilesY;
+        
+        canvas.width = stateWidth;
+        canvas.height = stateHeight;
+        
+        // Scale up for display
+        canvas.style.width = `${stateWidth * ca.scale}px`;
+        canvas.style.height = `${stateHeight * ca.scale}px`;
+        
+        // Reinitialize state with new dimensions
+        ca.initState();
+        
+        // Plant new seeds proportional to width
+        const seedsPerTile = 2;
+        const totalSeeds = ca.numTilesX * ca.numTilesY * seedsPerTile;
+        
+        for (let i = 0; i < totalSeeds; i++) {
+            const x = Math.floor(Math.random() * stateWidth);
+            const y = Math.floor(Math.random() * stateHeight);
+            ca.plantSeed(x, y);
         }
     }
     
-    // Plant seeds immediately after clearing
-    const quadrants = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
-    quadrants.forEach(quadrant => {
-        const pos = getRandomQuadrantPosition(quadrant);
-        ca.plantSeed(pos.x, pos.y);
-    });
-    
-    // Start rendering immediately
-    render();
-    
-    // Function to get random position within a quadrant
-    function getRandomQuadrantPosition(quadrant) {
-        const tileSize = ca.tileSize;
-        const padding = 20; // Keep seeds away from edges
-        
-        // Define quadrant boundaries
-        const quadrants = {
-            topLeft: { 
-                x: [padding, tileSize - padding],
-                y: [padding, tileSize - padding]
-            },
-            topRight: {
-                x: [tileSize + padding, 2 * tileSize - padding],
-                y: [padding, tileSize - padding]
-            },
-            bottomLeft: {
-                x: [padding, tileSize - padding],
-                y: [tileSize + padding, 2 * tileSize - padding]
-            },
-            bottomRight: {
-                x: [tileSize + padding, 2 * tileSize - padding],
-                y: [tileSize + padding, 2 * tileSize - padding]
-            }
+    // Debounce helper
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
         };
-        
-        const bounds = quadrants[quadrant];
-        const x = Math.floor(Math.random() * (bounds.x[1] - bounds.x[0])) + bounds.x[0];
-        const y = Math.floor(Math.random() * (bounds.y[1] - bounds.y[0])) + bounds.y[0];
-        return { x, y };
     }
+    
+    // Add resize listener
+    window.addEventListener('resize', debounce(handleResize, 250));
+    
+    // Set canvas to visible immediately
+    canvas.style.display = 'block';
+    
+    // Initial setup
+    await ca.loadModel();
+    handleResize();
     
     canvas.onmousedown = e => {
         const rect = canvas.getBoundingClientRect();
@@ -89,6 +82,7 @@ async function init() {
         ca.step();
 
         const imageData = tf.tidy(() => {
+            const [_, h, w, ch] = ca.state.shape;
             const rgba = ca.state.slice([0, 0, 0, 0], [-1, -1, -1, 4]);
             const img = rgba.mul(255);
             const rgbaBytes = new Uint8ClampedArray(img.dataSync());
@@ -98,6 +92,8 @@ async function init() {
         ctx.putImageData(imageData, 0, 0);
         requestAnimationFrame(render);
     }
+    
+    render();
 }
 
 window.onload = init; 

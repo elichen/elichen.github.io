@@ -19,8 +19,8 @@ body {
 
 .container {
     width: 100%;
-    max-width: 1200px;
-    padding: 40px 20px;
+    max-width: none;
+    padding: 40px 0;
     text-align: center;
 }
 
@@ -35,11 +35,10 @@ canvas {
     border: none;
     image-rendering: pixelated;
     background: white;
-    margin: 40px auto;
-    width: 768px;
+    margin: 0;
+    width: 100vw;
     height: 768px;
     display: block;
-    border-radius: 12px;
     box-shadow: 0 4px 32px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s ease;
 }

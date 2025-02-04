@@ -1,11 +1,18 @@
 class CAModel {
     constructor() {
-        this.D = 96;
+        this.tileSize = 96;  // Original model size
+        this.padding = 16;   // Padding for tile boundaries
         this.scale = 4;
         this.state = null;
         this.model = null;
-        this.tileSize = 96;  // Original model size
-        this.padding = 16;   // Padding for tile boundaries
+        this.numTilesX = 0;  // Will be calculated based on window width
+        this.numTilesY = 2;  // Keep 2 rows
+    }
+
+    calculateTiles() {
+        // Calculate how many tiles we need to cover the window width
+        const windowWidth = window.innerWidth;
+        this.numTilesX = Math.ceil(windowWidth / (this.tileSize * this.scale));
     }
 
     async loadModel() {
@@ -23,19 +30,20 @@ class CAModel {
     }
 
     initState() {
+        this.calculateTiles();
         // Start with a completely blank state (all 0.0s)
         const initState = tf.tidy(() => {
-            // Double both dimensions for 2x2 grid
-            const base = tf.zeros([1, this.D * 2, this.D * 2, 16]);
+            const width = this.tileSize * this.numTilesX;
+            const height = this.tileSize * this.numTilesY;
+            const base = tf.zeros([1, height, width, 16]);
             
-            // Verify initial state
-            const data = base.dataSync();
             console.log('Initial state:', {
                 shape: base.shape,
-                min: 0,
-                max: 0,
-                channels: 16,
-                totalPixels: this.D * this.D * 4  // 4 tiles now
+                tilesX: this.numTilesX,
+                tilesY: this.numTilesY,
+                width,
+                height,
+                channels: 16
             });
             
             return base;
@@ -57,14 +65,12 @@ class CAModel {
     plantSeed(x, y) {
         const [_, h, w, ch] = this.state.shape;
         console.log('Planting seed at:', x, y);
-        console.log('Current state shape:', [h, w, ch]);
         
         // Use the exact same seed values as initialization
         const seed = new Array(16).fill(0).map((x, i) => i < 3 ? 0.0 : 1.0);
         
         tf.tidy(() => {
-            // Create a single seed at the specified position
-            const newState = this.state.clone();  // Clone current state
+            const newState = this.state.clone();
             for (let i = 0; i < 16; i++) {
                 newState.bufferSync().set(seed[i], 0, y, x, i);
             }
@@ -75,95 +81,56 @@ class CAModel {
     step() {
         tf.tidy(() => {
             const [_, height, width, channels] = this.state.shape;
+            const processedTiles = [];
             
-            // Process top-left tile
-            const topLeftTile = this.state.slice(
-                [0, 0, 0, 0],
-                [1, this.tileSize + this.padding, this.tileSize + this.padding, channels]
-            ).pad([[0, 0], [1, 1], [1, 1], [0, 0]], 0.0);
+            // Process each tile
+            for (let y = 0; y < this.numTilesY; y++) {
+                const rowTiles = [];
+                for (let x = 0; x < this.numTilesX; x++) {
+                    // Calculate start positions with padding
+                    const startY = Math.max(0, y * this.tileSize - this.padding);
+                    const startX = Math.max(0, x * this.tileSize - this.padding);
+                    
+                    // Calculate slice dimensions including padding in both directions
+                    const sliceHeight = Math.min(this.tileSize + 2 * this.padding, height - startY);
+                    const sliceWidth = Math.min(this.tileSize + 2 * this.padding, width - startX);
+                    
+                    // Extract tile with padding
+                    const tile = this.state.slice(
+                        [0, startY, startX, 0],
+                        [1, sliceHeight, sliceWidth, channels]
+                    ).pad([[0, 0], [1, 1], [1, 1], [0, 0]], 0.0);
+                    
+                    // Process the tile
+                    const processed = this.model.execute(
+                        {
+                            x: tile,
+                            fire_rate: tf.scalar(0.5),
+                            angle: tf.scalar(0.0),
+                            step_size: tf.scalar(1.0)
+                        },
+                        ['Identity']
+                    );
+                    
+                    // Calculate the offset for extracting the valid region
+                    const validStartY = startY === 0 ? 1 : this.padding + 1;
+                    const validStartX = startX === 0 ? 1 : this.padding + 1;
+                    
+                    // Extract the valid region (remove padding)
+                    const valid = processed.slice(
+                        [0, validStartY, validStartX, 0],
+                        [1, this.tileSize, this.tileSize, channels]
+                    );
+                    
+                    rowTiles.push(valid);
+                }
+                // Combine tiles in this row
+                const row = tf.concat(rowTiles, 2);
+                processedTiles.push(row);
+            }
             
-            const processedTopLeft = this.model.execute(
-                {
-                    x: topLeftTile,
-                    fire_rate: tf.scalar(0.5),
-                    angle: tf.scalar(0.0),
-                    step_size: tf.scalar(1.0)
-                },
-                ['Identity']
-            );
-
-            // Process top-right tile
-            const topRightTile = this.state.slice(
-                [0, 0, this.tileSize - this.padding, 0],
-                [1, this.tileSize + this.padding, this.tileSize + this.padding, channels]
-            ).pad([[0, 0], [1, 1], [1, 1], [0, 0]], 0.0);
-            
-            const processedTopRight = this.model.execute(
-                {
-                    x: topRightTile,
-                    fire_rate: tf.scalar(0.5),
-                    angle: tf.scalar(0.0),
-                    step_size: tf.scalar(1.0)
-                },
-                ['Identity']
-            );
-
-            // Process bottom-left tile
-            const bottomLeftTile = this.state.slice(
-                [0, this.tileSize - this.padding, 0, 0],
-                [1, this.tileSize + this.padding, this.tileSize + this.padding, channels]
-            ).pad([[0, 0], [1, 1], [1, 1], [0, 0]], 0.0);
-            
-            const processedBottomLeft = this.model.execute(
-                {
-                    x: bottomLeftTile,
-                    fire_rate: tf.scalar(0.5),
-                    angle: tf.scalar(0.0),
-                    step_size: tf.scalar(1.0)
-                },
-                ['Identity']
-            );
-
-            // Process bottom-right tile
-            const bottomRightTile = this.state.slice(
-                [0, this.tileSize - this.padding, this.tileSize - this.padding, 0],
-                [1, this.tileSize + this.padding, this.tileSize + this.padding, channels]
-            ).pad([[0, 0], [1, 1], [1, 1], [0, 0]], 0.0);
-            
-            const processedBottomRight = this.model.execute(
-                {
-                    x: bottomRightTile,
-                    fire_rate: tf.scalar(0.5),
-                    angle: tf.scalar(0.0),
-                    step_size: tf.scalar(1.0)
-                },
-                ['Identity']
-            );
-
-            // Remove padding before combining
-            const topLeftValid = processedTopLeft.slice(
-                [0, 1, 1, 0],
-                [1, this.tileSize, this.tileSize, channels]
-            );
-            const topRightValid = processedTopRight.slice(
-                [0, 1, this.padding + 1, 0],
-                [1, this.tileSize, this.tileSize, channels]
-            );
-            const bottomLeftValid = processedBottomLeft.slice(
-                [0, this.padding + 1, 1, 0],
-                [1, this.tileSize, this.tileSize, channels]
-            );
-            const bottomRightValid = processedBottomRight.slice(
-                [0, this.padding + 1, this.padding + 1, 0],
-                [1, this.tileSize, this.tileSize, channels]
-            );
-
-            // Combine top and bottom rows
-            const topRow = tf.concat([topLeftValid, topRightValid], 2);
-            const bottomRow = tf.concat([bottomLeftValid, bottomRightValid], 2);
-            
-            // Combine all tiles
-            const combined = tf.concat([topRow, bottomRow], 1);
+            // Combine all rows
+            const combined = tf.concat(processedTiles, 1);
             this.state.assign(combined);
         });
     }
