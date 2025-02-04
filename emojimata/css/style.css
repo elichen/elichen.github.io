@@ -1,29 +1,90 @@
+:root {
+    --anthropic-bg: #FAFAFA;
+    --anthropic-text: #1A1A1A;
+    --anthropic-accent: #5736DD;
+    --font-sans: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+}
+
 body {
     margin: 0;
-    padding: 20px;
+    padding: 0;
+    min-height: 100vh;
     display: flex;
-    justify-content: center;
-    font-family: Arial, sans-serif;
-    background: #f0f0f0;
+    flex-direction: column;
+    align-items: center;
+    font-family: var(--font-sans);
+    background: var(--anthropic-bg);
+    color: var(--anthropic-text);
 }
 
 .container {
+    width: 100%;
+    max-width: 1200px;
+    padding: 40px 20px;
     text-align: center;
 }
 
+h1 {
+    font-size: 2.5rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    color: var(--anthropic-text);
+}
+
 canvas {
-    border: 1px solid black;
+    border: none;
     image-rendering: pixelated;
     background: white;
-    margin: 20px auto;
-    width: 384px;
-    height: 384px;
+    margin: 40px auto;
+    width: 768px;
+    height: 768px;
     display: block;
+    border-radius: 12px;
+    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease;
+}
+
+canvas:hover {
+    transform: translateY(-2px);
 }
 
 .instructions {
-    color: #666;
-    font-size: 14px;
-    max-width: 500px;
-    margin: 0 auto;
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 24px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.instructions p {
+    color: #4A4A4A;
+    font-size: 1rem;
+    line-height: 1.6;
+    margin: 0.75rem 0;
+}
+
+.instructions p:first-child {
+    margin-top: 0;
+}
+
+.instructions p:last-child {
+    margin-bottom: 0;
+}
+
+.instructions hr {
+    border: none;
+    height: 1px;
+    background: #E5E5E5;
+    margin: 1.5rem 0;
+}
+
+.instructions a {
+    color: var(--anthropic-accent);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.instructions a:hover {
+    color: #4529B3;
 } 

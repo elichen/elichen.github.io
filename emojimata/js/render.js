@@ -3,11 +3,14 @@ async function init() {
     const ctx = canvas.getContext('2d');
     const ca = new CAModel();
     
+    // Set canvas to visible immediately
+    canvas.style.display = 'block';
+    
     // Load the model
     await ca.loadModel();
     
     const [_, h, w, ch] = ca.state.shape;
-    canvas.width = w;  // This will now be 4x the original tile width
+    canvas.width = w;
     canvas.height = h;
     canvas.style.width = `${w * ca.scale}px`;
     canvas.style.height = `${h * ca.scale}px`;
@@ -18,6 +21,16 @@ async function init() {
             ca.damage(x, y, 8);
         }
     }
+    
+    // Plant seeds immediately after clearing
+    const quadrants = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+    quadrants.forEach(quadrant => {
+        const pos = getRandomQuadrantPosition(quadrant);
+        ca.plantSeed(pos.x, pos.y);
+    });
+    
+    // Start rendering immediately
+    render();
     
     // Function to get random position within a quadrant
     function getRandomQuadrantPosition(quadrant) {
@@ -50,13 +63,6 @@ async function init() {
         return { x, y };
     }
     
-    // Plant seeds in random positions in each quadrant
-    const quadrants = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
-    quadrants.forEach(quadrant => {
-        const pos = getRandomQuadrantPosition(quadrant);
-        ca.plantSeed(pos.x, pos.y);
-    });
-    
     canvas.onmousedown = e => {
         const rect = canvas.getBoundingClientRect();
         const x = Math.floor((e.clientX - rect.left) / ca.scale);
@@ -83,9 +89,7 @@ async function init() {
         ca.step();
 
         const imageData = tf.tidy(() => {
-            // For white: RGB should be 1.0 (255), alpha should be 1.0
             const rgba = ca.state.slice([0, 0, 0, 0], [-1, -1, -1, 4]);
-            // Just multiply by 255 to get white (1.0 -> 255)
             const img = rgba.mul(255);
             const rgbaBytes = new Uint8ClampedArray(img.dataSync());
             return new ImageData(rgbaBytes, w, h);
@@ -94,11 +98,6 @@ async function init() {
         ctx.putImageData(imageData, 0, 0);
         requestAnimationFrame(render);
     }
-
-    render();
-
-    // Make the canvas visible after initialization
-    canvas.classList.add('visible');
 }
 
 window.onload = init; 
