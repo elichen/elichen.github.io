@@ -11,6 +11,10 @@
     <div class="container">
         <h1>Neural Cellular Automata</h1>
         <canvas id="canvas"></canvas>
+        <div class="controls">
+            <label for="seedCount">Initial Seeds: <span id="seedValue">10</span></label>
+            <input type="range" id="seedCount" min="0" max="100" value="10">
+        </div>
         <div class="instructions">
             <p>Interact with this self-organizing system:</p>
             <p><strong>Click and drag</strong> to create perturbations in the pattern</p>
