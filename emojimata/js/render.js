@@ -2,6 +2,10 @@ async function init() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const ca = new CAModel();
+    const seedSlider = document.getElementById('seedCount');
+    const seedValue = document.getElementById('seedValue');
+    let isRunning = false;
+    let animationFrame = null;
     
     // Function to handle resize
     function handleResize() {
@@ -22,10 +26,8 @@ async function init() {
         // Reinitialize state with new dimensions
         ca.initState();
         
-        // Plant new seeds proportional to width
-        const seedsPerTile = 2;
-        const totalSeeds = ca.numTilesX * ca.numTilesY * seedsPerTile;
-        
+        // Plant new seeds based on slider value
+        const totalSeeds = parseInt(seedSlider.value);
         for (let i = 0; i < totalSeeds; i++) {
             const x = Math.floor(Math.random() * stateWidth);
             const y = Math.floor(Math.random() * stateHeight);
@@ -45,6 +47,19 @@ async function init() {
             timeout = setTimeout(later, wait);
         };
     }
+    
+    // Handle slider changes
+    seedSlider.addEventListener('input', (e) => {
+        seedValue.textContent = e.target.value;
+    });
+    
+    seedSlider.addEventListener('change', () => {
+        if (isRunning) {
+            cancelAnimationFrame(animationFrame);
+        }
+        handleResize();
+        render();
+    });
     
     // Add resize listener
     window.addEventListener('resize', debounce(handleResize, 250));
@@ -79,6 +94,7 @@ async function init() {
     };
 
     function render() {
+        isRunning = true;
         ca.step();
 
         const imageData = tf.tidy(() => {
@@ -90,7 +106,7 @@ async function init() {
         });
         
         ctx.putImageData(imageData, 0, 0);
-        requestAnimationFrame(render);
+        animationFrame = requestAnimationFrame(render);
     }
     
     render();
