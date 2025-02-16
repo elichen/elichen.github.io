@@ -10,6 +10,7 @@ const quickSignInForm = document.getElementById('quick-signin-form');
 const googleSignInBtn = document.getElementById('google-signin');
 const userNameDisplay = document.getElementById('user-name');
 const userPhoneDisplay = document.getElementById('user-phone');
+const profileImage = document.getElementById('profile-image');
 const durationModal = document.getElementById('duration-modal');
 const cardStack = document.getElementById('card-stack');
 const noUsersMessage = document.querySelector('.no-users-message');
@@ -88,7 +89,8 @@ googleSignInBtn.addEventListener('click', async () => {
         document.getElementById('name').value = name;
         document.getElementById('phone').value = phone;
         
-        if (photoURL) {
+        // Use the global profileImage element and update if available
+        if (photoURL && profileImage) {
             profileImage.src = photoURL;
             profileImage.classList.remove('hidden');
         }
@@ -171,7 +173,8 @@ profileForm.addEventListener('submit', async (e) => {
     
     const name = document.getElementById('name').value.trim();
     const phone = document.getElementById('phone').value.trim();
-    const photoURL = profileImage.classList.contains('hidden') ? null : profileImage.src;
+    const profileImage = document.getElementById('profile-image');
+    const photoURL = profileImage && !profileImage.classList.contains('hidden') ? profileImage.src : null;
     
     // Generate a new user ID or use the Google UID if available
     const userId = auth.currentUser ? auth.currentUser.uid : generateUserId();
