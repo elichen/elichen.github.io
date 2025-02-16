@@ -28,6 +28,7 @@ let currentUser = null;
 let currentCard = null;
 let currentCardData = null;
 let swipingEnabled = true;
+let swipedUserIds = []; // added to track already swiped profiles
 
 // Set up Google Auth Provider
 const googleProvider = new firebase.auth.GoogleAuthProvider();
@@ -153,18 +154,21 @@ function displayUserInfo() {
         userPhoneDisplay.classList.add('hidden');
     }
     
-    // Update profile photo in home screen if available
+    // Update profile photo in home screen with fallback
     const userInfoSection = document.querySelector('.user-info');
-    if (currentUser.photoURL) {
-        const img = document.createElement('img');
-        img.src = currentUser.photoURL;
-        img.alt = 'Profile Photo';
-        img.style.width = '60px';
-        img.style.height = '60px';
-        img.style.borderRadius = '50%';
-        img.style.marginBottom = '10px';
-        userInfoSection.insertBefore(img, userInfoSection.firstChild);
+    // Remove any existing image to avoid duplicates
+    const existingImg = userInfoSection.querySelector('img');
+    if(existingImg) {
+        existingImg.remove();
     }
+    const img = document.createElement('img');
+    img.src = currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'User')}`;
+    img.alt = 'Profile Photo';
+    img.style.width = '60px';
+    img.style.height = '60px';
+    img.style.borderRadius = '50%';
+    img.style.marginBottom = '10px';
+    userInfoSection.insertBefore(img, userInfoSection.firstChild);
 }
 
 // Handle profile form submission
@@ -276,14 +280,14 @@ function setupRealtimeListeners() {
 
 function updateCardStack(users) {
     cardStack.innerHTML = '';
-    
-    if (users.length === 0) {
+    // Filter out users that have already been swiped
+    const availableUsers = users.filter(user => !swipedUserIds.includes(user.id));
+    if (availableUsers.length === 0) {
         noUsersMessage.classList.remove('hidden');
         return;
     }
-    
     noUsersMessage.classList.add('hidden');
-    createNewCard(users[0]);
+    createNewCard(availableUsers[0]);
 }
 
 function createNewCard(userData) {
@@ -363,6 +367,9 @@ function initializeSwipe(card) {
 async function completeSwipe(direction) {
     if (!currentCardData) return;
     
+    // Record this swiped user so that they don't show up again
+    swipedUserIds.push(currentCardData.id);
+    
     swipingEnabled = false;
     const swipedUserId = currentCardData.id;
     
@@ -371,7 +378,6 @@ async function completeSwipe(direction) {
     
     if (direction === 'right') {
         try {
-            // Check if the other user has already swiped right on us
             const matchDoc = await db.collection('matches')
                 .where('user1', '==', swipedUserId)
                 .where('user2', '==', currentUser.id)
@@ -391,6 +397,8 @@ async function completeSwipe(direction) {
                     status: 'pending',
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
+                // Provide feedback for swipe right with no immediate match
+                showSwipeFeedback();
             }
         } catch (error) {
             console.error('Error handling match:', error);
@@ -406,16 +414,38 @@ async function completeSwipe(direction) {
     }, 500);
 }
 
+// New function to show temporary feedback on swipe right
+function showSwipeFeedback() {
+    const feedback = document.createElement('div');
+    feedback.className = 'swipe-feedback';
+    feedback.textContent = 'Swipe recorded. Waiting for a match...';
+    feedback.style.position = 'fixed';
+    feedback.style.top = '20px';
+    feedback.style.left = '50%';
+    feedback.style.transform = 'translateX(-50%)';
+    feedback.style.backgroundColor = '#3498db';
+    feedback.style.color = '#fff';
+    feedback.style.padding = '10px 20px';
+    feedback.style.borderRadius = '8px';
+    feedback.style.zIndex = '1000';
+    document.body.appendChild(feedback);
+    setTimeout(() => feedback.remove(), 2000);
+}
+
 function showMatchModal(matchedUser) {
-    matchUser1Photo.src = currentUser.photoURL || 'default-avatar.png';
-    matchUser2Photo.src = matchedUser.photoURL || 'default-avatar.png';
-    matchName.textContent = matchedUser.name;
-    
-    let matchedUserPhone = matchedUser.phoneNumber;
+    const currentName = currentUser.name ? currentUser.name : 'User';
+    const matchedName = matchedUser.name ? matchedUser.name : 'User';
+
+    // Use ui-avatars.com as fallback if photoURLs are missing
+    matchUser1Photo.src = currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentName)}`;
+    matchUser2Photo.src = matchedUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(matchedName)}`;
+    matchName.textContent = matchedName;
+
+    const matchedUserPhone = matchedUser.phoneNumber || '';
     callMatchBtn.onclick = () => {
         window.location.href = `tel:${matchedUserPhone}`;
     };
-    
+
     matchModal.classList.remove('hidden');
 }
 
