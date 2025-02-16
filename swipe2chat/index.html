@@ -8,13 +8,23 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 </head>
 <body>
     <div id="app">
         <!-- Initial Setup Screen -->
         <div id="setup-screen" class="screen">
             <h1>Welcome to Swipe2Chat</h1>
-            <form id="profile-form">
+            <div class="auth-section">
+                <button id="google-signin" class="google-btn">
+                    <img src="https://www.google.com/favicon.ico" alt="Google" width="20" height="20">
+                    Sign in with Google
+                </button>
+            </div>
+            <form id="profile-form" class="hidden">
+                <div class="profile-photo">
+                    <img id="profile-image" src="" alt="Profile Photo" class="hidden">
+                </div>
                 <input type="text" id="name" placeholder="Your Name" required>
                 <input type="tel" id="phone" placeholder="Phone Number" required>
                 <button type="submit">Save Profile</button>
