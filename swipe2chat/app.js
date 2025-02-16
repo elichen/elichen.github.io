@@ -6,21 +6,72 @@ const auth = firebase.auth();
 const setupScreen = document.getElementById('setup-screen');
 const homeScreen = document.getElementById('home-screen');
 const profileForm = document.getElementById('profile-form');
+const quickSignInForm = document.getElementById('quick-signin-form');
 const googleSignInBtn = document.getElementById('google-signin');
 const userNameDisplay = document.getElementById('user-name');
 const userPhoneDisplay = document.getElementById('user-phone');
-const markFreeBtn = document.getElementById('mark-free-btn');
 const durationModal = document.getElementById('duration-modal');
-const freeUsersList = document.getElementById('free-users-list');
-const profileImage = document.getElementById('profile-image');
+const cardStack = document.getElementById('card-stack');
+const noUsersMessage = document.querySelector('.no-users-message');
+const matchModal = document.getElementById('match-modal');
+const matchUser1Photo = document.getElementById('match-user1-photo');
+const matchUser2Photo = document.getElementById('match-user2-photo');
+const matchName = document.getElementById('match-name');
+const callMatchBtn = document.getElementById('call-match-btn');
+const closeMatchBtn = document.getElementById('close-match-btn');
+const swipeLeftBtn = document.getElementById('swipe-left');
+const swipeRightBtn = document.getElementById('swipe-right');
 
 // User state
 let currentUser = null;
+let currentCard = null;
+let currentCardData = null;
+let swipingEnabled = true;
 
 // Set up Google Auth Provider
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 googleProvider.addScope('profile');
 googleProvider.addScope('email');
+
+// Handle quick sign-in
+quickSignInForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const name = document.getElementById('quick-name').value.trim();
+    const userId = generateUserId();
+    
+    try {
+        // Save to Firestore
+        await db.collection('users').doc(userId).set({
+            name,
+            phoneNumber: '',
+            photoURL: null,
+            isFree: false,
+            expiresAt: null,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            isQuickSignIn: true
+        });
+        
+        // Save to localStorage
+        localStorage.setItem('userId', userId);
+        localStorage.setItem('userName', name);
+        localStorage.setItem('userPhone', '');
+        localStorage.setItem('isQuickSignIn', 'true');
+        
+        currentUser = { 
+            id: userId, 
+            name, 
+            phone: '',
+            photoURL: null,
+            isQuickSignIn: true
+        };
+        
+        showDurationPrompt();
+    } catch (error) {
+        console.error('Error during quick sign-in:', error);
+        alert('Error signing in. Please try again.');
+    }
+});
 
 // Handle Google Sign-in
 googleSignInBtn.addEventListener('click', async () => {
@@ -44,6 +95,7 @@ googleSignInBtn.addEventListener('click', async () => {
         
         // Show the profile form to collect any missing information
         googleSignInBtn.classList.add('hidden');
+        quickSignInForm.classList.add('hidden');
         profileForm.classList.remove('hidden');
         
     } catch (error) {
@@ -58,15 +110,17 @@ async function checkExistingUser() {
     const userName = localStorage.getItem('userName');
     const userPhone = localStorage.getItem('userPhone');
     const userPhoto = localStorage.getItem('userPhoto');
+    const isQuickSignIn = localStorage.getItem('isQuickSignIn') === 'true';
 
     if (userId && userName) {
         currentUser = { 
             id: userId, 
             name: userName, 
             phone: userPhone,
-            photoURL: userPhoto
+            photoURL: userPhoto,
+            isQuickSignIn
         };
-        showHomeScreen();
+        showDurationPrompt();
     } else {
         showSetupScreen();
     }
@@ -88,7 +142,14 @@ function showSetupScreen() {
 // Display user information
 function displayUserInfo() {
     userNameDisplay.textContent = `Name: ${currentUser.name}`;
-    userPhoneDisplay.textContent = `Phone: ${currentUser.phone}`;
+    
+    // Only show phone if it exists
+    if (currentUser.phone) {
+        userPhoneDisplay.textContent = `Phone: ${currentUser.phone}`;
+        userPhoneDisplay.classList.remove('hidden');
+    } else {
+        userPhoneDisplay.classList.add('hidden');
+    }
     
     // Update profile photo in home screen if available
     const userInfoSection = document.querySelector('.user-info');
@@ -133,7 +194,7 @@ profileForm.addEventListener('submit', async (e) => {
         if (photoURL) localStorage.setItem('userPhoto', photoURL);
         
         currentUser = { id: userId, name, phone, photoURL };
-        showHomeScreen();
+        showDurationPrompt();
     } catch (error) {
         console.error('Error saving profile:', error);
         alert('Error saving profile. Please try again.');
@@ -144,11 +205,6 @@ profileForm.addEventListener('submit', async (e) => {
 function generateUserId() {
     return 'user-' + Math.random().toString(36).substr(2, 9);
 }
-
-// Handle marking user as free
-markFreeBtn.addEventListener('click', () => {
-    durationModal.classList.remove('hidden');
-});
 
 // Handle duration selection
 durationModal.addEventListener('click', async (e) => {
@@ -165,6 +221,18 @@ durationModal.addEventListener('click', async (e) => {
                 expiresAt: expiresAt.getTime(),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
+            
+            // Show time remaining
+            const timeDisplay = document.createElement('div');
+            timeDisplay.className = 'time-remaining';
+            timeDisplay.textContent = `Free for ${duration} minutes`;
+            document.querySelector('.availability-controls').appendChild(timeDisplay);
+            
+            // Show and start the swipe interface
+            const swipeContainer = document.querySelector('.swipe-container');
+            swipeContainer.classList.remove('hidden');
+            setupRealtimeListeners();
+            
         } catch (error) {
             console.error('Error updating availability:', error);
             alert('Error updating availability. Please try again.');
@@ -179,14 +247,13 @@ function setupRealtimeListeners() {
         .where('isFree', '==', true)
         .onSnapshot((snapshot) => {
             const now = Date.now();
-            freeUsersList.innerHTML = '';
+            const freeUsers = [];
             
             snapshot.forEach((doc) => {
                 const userData = doc.data();
                 
                 // Skip if availability has expired
                 if (userData.expiresAt < now) {
-                    // Automatically update the expired status
                     db.collection('users').doc(doc.id).update({
                         isFree: false,
                         expiresAt: null
@@ -197,45 +264,174 @@ function setupRealtimeListeners() {
                 // Skip current user
                 if (doc.id === currentUser.id) return;
                 
-                const userCard = createUserCard(userData);
-                freeUsersList.appendChild(userCard);
+                freeUsers.push({ id: doc.id, ...userData });
             });
+            
+            updateCardStack(freeUsers);
         });
 }
 
-// Create a user card element
-function createUserCard(userData) {
-    const div = document.createElement('div');
-    div.className = 'user-card';
+function updateCardStack(users) {
+    cardStack.innerHTML = '';
     
-    // Add profile photo if available
-    if (userData.photoURL) {
-        const img = document.createElement('img');
-        img.src = userData.photoURL;
-        img.alt = 'Profile Photo';
-        img.style.width = '40px';
-        img.style.height = '40px';
-        img.style.borderRadius = '50%';
-        img.style.marginRight = '10px';
-        div.appendChild(img);
+    if (users.length === 0) {
+        noUsersMessage.classList.remove('hidden');
+        return;
     }
     
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'name';
-    nameSpan.textContent = userData.name;
+    noUsersMessage.classList.add('hidden');
+    createNewCard(users[0]);
+}
+
+function createNewCard(userData) {
+    const card = document.createElement('div');
+    card.className = 'card sliding-in';
     
-    const callButton = document.createElement('button');
-    callButton.className = 'call-button';
-    callButton.textContent = 'Call';
-    callButton.onclick = () => {
-        window.location.href = `tel:${userData.phoneNumber}`;
+    const photo = document.createElement('img');
+    photo.className = 'card-photo';
+    photo.src = userData.photoURL || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(userData.name);
+    photo.alt = userData.name;
+    
+    const info = document.createElement('div');
+    info.className = 'card-info';
+    
+    const name = document.createElement('div');
+    name.className = 'card-name';
+    name.textContent = userData.name;
+    
+    const status = document.createElement('div');
+    status.className = 'card-status';
+    status.textContent = 'Free to chat!';
+    
+    info.appendChild(name);
+    info.appendChild(status);
+    card.appendChild(photo);
+    card.appendChild(info);
+    
+    cardStack.appendChild(card);
+    currentCard = card;
+    currentCardData = userData;
+    
+    initializeSwipe(card);
+}
+
+function initializeSwipe(card) {
+    let startX = 0;
+    let currentX = 0;
+    let isDragging = false;
+    
+    card.addEventListener('mousedown', handleDragStart);
+    card.addEventListener('mousemove', handleDragMove);
+    card.addEventListener('mouseup', handleDragEnd);
+    card.addEventListener('mouseleave', handleDragEnd);
+    
+    card.addEventListener('touchstart', (e) => handleDragStart(e.touches[0]));
+    card.addEventListener('touchmove', (e) => handleDragMove(e.touches[0]));
+    card.addEventListener('touchend', handleDragEnd);
+    
+    function handleDragStart(e) {
+        if (!swipingEnabled) return;
+        isDragging = true;
+        startX = e.clientX;
+        card.classList.add('swiping');
+    }
+    
+    function handleDragMove(e) {
+        if (!isDragging || !swipingEnabled) return;
+        currentX = e.clientX - startX;
+        const rotation = currentX * 0.1;
+        card.style.transform = `translateX(${currentX}px) rotate(${rotation}deg)`;
+    }
+    
+    function handleDragEnd() {
+        if (!isDragging || !swipingEnabled) return;
+        isDragging = false;
+        card.classList.remove('swiping');
+        
+        if (Math.abs(currentX) > 100) {
+            const direction = currentX > 0 ? 'right' : 'left';
+            completeSwipe(direction);
+        } else {
+            card.style.transform = '';
+        }
+    }
+}
+
+async function completeSwipe(direction) {
+    if (!currentCardData) return;
+    
+    swipingEnabled = false;
+    const swipedUserId = currentCardData.id;
+    
+    currentCard.style.transition = 'transform 0.5s';
+    currentCard.style.transform = `translateX(${direction === 'right' ? '150%' : '-150%'})`;
+    
+    if (direction === 'right') {
+        try {
+            // Check if the other user has already swiped right on us
+            const matchDoc = await db.collection('matches')
+                .where('user1', '==', swipedUserId)
+                .where('user2', '==', currentUser.id)
+                .where('status', '==', 'pending')
+                .get();
+            
+            if (!matchDoc.empty) {
+                // It's a match!
+                const match = matchDoc.docs[0];
+                await match.ref.update({ status: 'matched' });
+                showMatchModal(currentCardData);
+            } else {
+                // Create a new pending match
+                await db.collection('matches').add({
+                    user1: currentUser.id,
+                    user2: swipedUserId,
+                    status: 'pending',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+        } catch (error) {
+            console.error('Error handling match:', error);
+        }
+    }
+    
+    // Remove the card after animation
+    setTimeout(() => {
+        currentCard.remove();
+        currentCard = null;
+        currentCardData = null;
+        swipingEnabled = true;
+    }, 500);
+}
+
+function showMatchModal(matchedUser) {
+    matchUser1Photo.src = currentUser.photoURL || 'default-avatar.png';
+    matchUser2Photo.src = matchedUser.photoURL || 'default-avatar.png';
+    matchName.textContent = matchedUser.name;
+    
+    let matchedUserPhone = matchedUser.phoneNumber;
+    callMatchBtn.onclick = () => {
+        window.location.href = `tel:${matchedUserPhone}`;
     };
     
-    div.appendChild(nameSpan);
-    div.appendChild(callButton);
-    
-    return div;
+    matchModal.classList.remove('hidden');
 }
+
+// Handle swipe buttons
+swipeLeftBtn.addEventListener('click', () => {
+    if (currentCard && swipingEnabled) {
+        completeSwipe('left');
+    }
+});
+
+swipeRightBtn.addEventListener('click', () => {
+    if (currentCard && swipingEnabled) {
+        completeSwipe('right');
+    }
+});
+
+closeMatchBtn.addEventListener('click', () => {
+    matchModal.classList.add('hidden');
+});
 
 // Check for expired availability periodically
 setInterval(() => {
@@ -251,6 +447,20 @@ setInterval(() => {
         });
     }
 }, 60000); // Check every minute
+
+// Show duration prompt immediately after sign-in
+function showDurationPrompt() {
+    setupScreen.classList.add('hidden');
+    homeScreen.classList.remove('hidden');
+    
+    // Hide swipe container initially
+    document.querySelector('.swipe-container').classList.add('hidden');
+    
+    // Show duration modal immediately
+    durationModal.classList.remove('hidden');
+    
+    displayUserInfo();
+}
 
 // Initialize the app
 checkExistingUser(); 

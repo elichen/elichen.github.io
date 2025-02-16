@@ -20,6 +20,13 @@
                     <img src="https://www.google.com/favicon.ico" alt="Google" width="20" height="20">
                     Sign in with Google
                 </button>
+                <div class="divider">
+                    <span>or</span>
+                </div>
+                <form id="quick-signin-form">
+                    <input type="text" id="quick-name" placeholder="Enter your name" required>
+                    <button type="submit" class="quick-signin-btn">Continue with Name</button>
+                </form>
             </div>
             <form id="profile-form" class="hidden">
                 <div class="profile-photo">
@@ -40,10 +47,9 @@
             </div>
             
             <div class="availability-controls">
-                <button id="mark-free-btn">Mark Me Free</button>
                 <div id="duration-modal" class="modal hidden">
                     <div class="modal-content">
-                        <h3>How long are you free?</h3>
+                        <h3>How long are you free to chat?</h3>
                         <button data-duration="15">15 minutes</button>
                         <button data-duration="30">30 minutes</button>
                         <button data-duration="60">1 hour</button>
@@ -51,9 +57,34 @@
                 </div>
             </div>
 
-            <div class="free-users-section">
-                <h2>Currently Free</h2>
-                <div id="free-users-list"></div>
+            <div class="swipe-container">
+                <div id="card-stack"></div>
+                <div class="no-users-message hidden">
+                    <h3>No one is free right now</h3>
+                    <p>Check back later or mark yourself as free!</p>
+                </div>
+                <div class="swipe-buttons">
+                    <button class="swipe-button" id="swipe-left">
+                        <span>✕</span>
+                    </button>
+                    <button class="swipe-button" id="swipe-right">
+                        <span>✓</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="match-modal" class="modal hidden">
+                <div class="modal-content match-content">
+                    <h2>It's a Match! 🎉</h2>
+                    <div class="match-profiles">
+                        <img id="match-user1-photo" class="match-photo" src="" alt="Your photo">
+                        <img id="match-user2-photo" class="match-photo" src="" alt="Their photo">
+                    </div>
+                    <h3 id="match-name"></h3>
+                    <p>You both want to chat!</p>
+                    <button id="call-match-btn" class="call-button">Call Now</button>
+                    <button id="close-match-btn" class="secondary-button">Maybe Later</button>
+                </div>
             </div>
         </div>
     </div>
