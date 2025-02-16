@@ -1,27 +1,71 @@
-// Initialize Firestore
+// Initialize Firebase services
 const db = firebase.firestore();
+const auth = firebase.auth();
 
 // DOM Elements
 const setupScreen = document.getElementById('setup-screen');
 const homeScreen = document.getElementById('home-screen');
 const profileForm = document.getElementById('profile-form');
+const googleSignInBtn = document.getElementById('google-signin');
 const userNameDisplay = document.getElementById('user-name');
 const userPhoneDisplay = document.getElementById('user-phone');
 const markFreeBtn = document.getElementById('mark-free-btn');
 const durationModal = document.getElementById('duration-modal');
 const freeUsersList = document.getElementById('free-users-list');
+const profileImage = document.getElementById('profile-image');
 
 // User state
 let currentUser = null;
 
-// Check if user exists in localStorage
-function checkExistingUser() {
+// Set up Google Auth Provider
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+googleProvider.addScope('profile');
+googleProvider.addScope('email');
+
+// Handle Google Sign-in
+googleSignInBtn.addEventListener('click', async () => {
+    try {
+        const result = await auth.signInWithPopup(googleProvider);
+        const user = result.user;
+        
+        // Get user profile data
+        const name = user.displayName;
+        const phone = user.phoneNumber || '';
+        const photoURL = user.photoURL;
+        
+        // Pre-fill the profile form
+        document.getElementById('name').value = name;
+        document.getElementById('phone').value = phone;
+        
+        if (photoURL) {
+            profileImage.src = photoURL;
+            profileImage.classList.remove('hidden');
+        }
+        
+        // Show the profile form to collect any missing information
+        googleSignInBtn.classList.add('hidden');
+        profileForm.classList.remove('hidden');
+        
+    } catch (error) {
+        console.error('Error during Google sign-in:', error);
+        alert('Error signing in with Google. Please try again.');
+    }
+});
+
+// Check if user exists in localStorage and Firestore
+async function checkExistingUser() {
     const userId = localStorage.getItem('userId');
     const userName = localStorage.getItem('userName');
     const userPhone = localStorage.getItem('userPhone');
+    const userPhoto = localStorage.getItem('userPhoto');
 
-    if (userId && userName && userPhone) {
-        currentUser = { id: userId, name: userName, phone: userPhone };
+    if (userId && userName) {
+        currentUser = { 
+            id: userId, 
+            name: userName, 
+            phone: userPhone,
+            photoURL: userPhoto
+        };
         showHomeScreen();
     } else {
         showSetupScreen();
@@ -45,6 +89,19 @@ function showSetupScreen() {
 function displayUserInfo() {
     userNameDisplay.textContent = `Name: ${currentUser.name}`;
     userPhoneDisplay.textContent = `Phone: ${currentUser.phone}`;
+    
+    // Update profile photo in home screen if available
+    const userInfoSection = document.querySelector('.user-info');
+    if (currentUser.photoURL) {
+        const img = document.createElement('img');
+        img.src = currentUser.photoURL;
+        img.alt = 'Profile Photo';
+        img.style.width = '60px';
+        img.style.height = '60px';
+        img.style.borderRadius = '50%';
+        img.style.marginBottom = '10px';
+        userInfoSection.insertBefore(img, userInfoSection.firstChild);
+    }
 }
 
 // Handle profile form submission
@@ -53,15 +110,17 @@ profileForm.addEventListener('submit', async (e) => {
     
     const name = document.getElementById('name').value.trim();
     const phone = document.getElementById('phone').value.trim();
+    const photoURL = profileImage.classList.contains('hidden') ? null : profileImage.src;
     
-    // Generate a new user ID
-    const userId = generateUserId();
+    // Generate a new user ID or use the Google UID if available
+    const userId = auth.currentUser ? auth.currentUser.uid : generateUserId();
     
     try {
         // Save to Firestore
         await db.collection('users').doc(userId).set({
             name,
             phoneNumber: phone,
+            photoURL: photoURL,
             isFree: false,
             expiresAt: null,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -71,8 +130,9 @@ profileForm.addEventListener('submit', async (e) => {
         localStorage.setItem('userId', userId);
         localStorage.setItem('userName', name);
         localStorage.setItem('userPhone', phone);
+        if (photoURL) localStorage.setItem('userPhoto', photoURL);
         
-        currentUser = { id: userId, name, phone };
+        currentUser = { id: userId, name, phone, photoURL };
         showHomeScreen();
     } catch (error) {
         console.error('Error saving profile:', error);
@@ -147,6 +207,18 @@ function setupRealtimeListeners() {
 function createUserCard(userData) {
     const div = document.createElement('div');
     div.className = 'user-card';
+    
+    // Add profile photo if available
+    if (userData.photoURL) {
+        const img = document.createElement('img');
+        img.src = userData.photoURL;
+        img.alt = 'Profile Photo';
+        img.style.width = '40px';
+        img.style.height = '40px';
+        img.style.borderRadius = '50%';
+        img.style.marginRight = '10px';
+        div.appendChild(img);
+    }
     
     const nameSpan = document.createElement('span');
     nameSpan.className = 'name';

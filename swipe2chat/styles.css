@@ -143,4 +143,42 @@ button:hover {
 
 .user-card .call-button:hover {
     background-color: #27ae60;
+}
+
+.auth-section {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.google-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background-color: white;
+    color: #444;
+    border: 1px solid #ddd;
+    padding: 12px 24px;
+    font-weight: 500;
+    width: 100%;
+    max-width: 300px;
+    margin: 0 auto;
+}
+
+.google-btn:hover {
+    background-color: #f8f9fa;
+}
+
+.profile-photo {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+#profile-image {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #3498db;
+    margin: 0 auto;
 } 
