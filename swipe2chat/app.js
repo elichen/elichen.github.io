@@ -366,43 +366,15 @@ function initializeSwipe(card) {
 
 async function completeSwipe(direction) {
     if (!currentCardData) return;
-    
     // Record this swiped user so that they don't show up again
     swipedUserIds.push(currentCardData.id);
-    
     swipingEnabled = false;
-    const swipedUserId = currentCardData.id;
-    
     currentCard.style.transition = 'transform 0.5s';
     currentCard.style.transform = `translateX(${direction === 'right' ? '150%' : '-150%'})`;
     
     if (direction === 'right') {
-        try {
-            const matchDoc = await db.collection('matches')
-                .where('user1', '==', swipedUserId)
-                .where('user2', '==', currentUser.id)
-                .where('status', '==', 'pending')
-                .get();
-            
-            if (!matchDoc.empty) {
-                // It's a match!
-                const match = matchDoc.docs[0];
-                await match.ref.update({ status: 'matched' });
-                showMatchModal(currentCardData);
-            } else {
-                // Create a new pending match
-                await db.collection('matches').add({
-                    user1: currentUser.id,
-                    user2: swipedUserId,
-                    status: 'pending',
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                // Provide feedback for swipe right with no immediate match
-                showSwipeFeedback();
-            }
-        } catch (error) {
-            console.error('Error handling match:', error);
-        }
+        // Directly show call modal without mutual match checking
+        showCallModal(currentCardData);
     }
     
     // Remove the card after animation
@@ -414,38 +386,32 @@ async function completeSwipe(direction) {
     }, 500);
 }
 
-// New function to show temporary feedback on swipe right
-function showSwipeFeedback() {
-    const feedback = document.createElement('div');
-    feedback.className = 'swipe-feedback';
-    feedback.textContent = 'Swipe recorded. Waiting for a match...';
-    feedback.style.position = 'fixed';
-    feedback.style.top = '20px';
-    feedback.style.left = '50%';
-    feedback.style.transform = 'translateX(-50%)';
-    feedback.style.backgroundColor = '#3498db';
-    feedback.style.color = '#fff';
-    feedback.style.padding = '10px 20px';
-    feedback.style.borderRadius = '8px';
-    feedback.style.zIndex = '1000';
-    document.body.appendChild(feedback);
-    setTimeout(() => feedback.remove(), 2000);
-}
-
-function showMatchModal(matchedUser) {
-    const currentName = currentUser.name ? currentUser.name : 'User';
-    const matchedName = matchedUser.name ? matchedUser.name : 'User';
-
-    // Use ui-avatars.com as fallback if photoURLs are missing
-    matchUser1Photo.src = currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentName)}`;
-    matchUser2Photo.src = matchedUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(matchedName)}`;
-    matchName.textContent = matchedName;
-
-    const matchedUserPhone = matchedUser.phoneNumber || '';
+// New function to show call confirmation modal
+function showCallModal(targetUser) {
+    // Repurpose the modal to confirm calling the chosen person
+    // Hide the current user's photo
+    matchUser1Photo.style.display = 'none';
+    matchUser2Photo.style.display = 'block';
+    
+    // Update modal title and message
+    const modalTitle = matchModal.querySelector('h2');
+    modalTitle.textContent = 'Call Now?';
+    const modalMessage = matchModal.querySelector('p');
+    modalMessage.textContent = `Would you like to call ${targetUser.name || 'this person'}?`;
+    
+    // Set the target user's photo with fallback
+    matchUser2Photo.src = targetUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(targetUser.name || 'User')}`;
+    
+    // Update the displayed name
+    matchName.textContent = targetUser.name || 'User';
+    
+    // Set the call button action
+    const targetPhone = targetUser.phoneNumber || '';
     callMatchBtn.onclick = () => {
-        window.location.href = `tel:${matchedUserPhone}`;
+        window.location.href = `tel:${targetPhone}`;
     };
-
+    
+    // Show the modal
     matchModal.classList.remove('hidden');
 }
 
