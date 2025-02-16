@@ -29,6 +29,7 @@ let currentCard = null;
 let currentCardData = null;
 let swipingEnabled = true;
 let swipedUserIds = []; // added to track already swiped profiles
+let lastFreeUsers = []; // store the latest snapshot of free users
 
 // Set up Google Auth Provider
 const googleProvider = new firebase.auth.GoogleAuthProvider();
@@ -279,13 +280,18 @@ function setupRealtimeListeners() {
 }
 
 function updateCardStack(users) {
+    console.log('updateCardStack called with users:', users);
+    lastFreeUsers = users; // store the latest snapshot
     cardStack.innerHTML = '';
     // Filter out users that have already been swiped
     const availableUsers = users.filter(user => !swipedUserIds.includes(user.id));
+    console.log('Available users count:', availableUsers.length);
     if (availableUsers.length === 0) {
+        console.log('No available users found, showing no-users-message');
         noUsersMessage.classList.remove('hidden');
         return;
     }
+    console.log('Available users exist, hiding no-users-message');
     noUsersMessage.classList.add('hidden');
     createNewCard(availableUsers[0]);
 }
@@ -377,12 +383,24 @@ async function completeSwipe(direction) {
         showCallModal(currentCardData);
     }
     
-    // Remove the card after animation
+    // Remove the card after animation and show next card if available
     setTimeout(() => {
         currentCard.remove();
         currentCard = null;
         currentCardData = null;
         swipingEnabled = true;
+
+        // Check for next available user
+        const availableUsers = lastFreeUsers.filter(user => !swipedUserIds.includes(user.id));
+        console.log('Looking for next card, available users:', availableUsers.length);
+        if (availableUsers.length > 0) {
+            console.log('Creating next card');
+            createNewCard(availableUsers[0]);
+            noUsersMessage.classList.add('hidden');
+        } else {
+            console.log('No more users available, showing no-users-message');
+            noUsersMessage.classList.remove('hidden');
+        }
     }, 500);
 }
 
@@ -429,7 +447,21 @@ swipeRightBtn.addEventListener('click', () => {
 });
 
 closeMatchBtn.addEventListener('click', () => {
+    console.log('closeMatchBtn clicked, cardStack children count:', cardStack.children.length);
     matchModal.classList.add('hidden');
+    // Compute available users from the latest snapshot
+    const availableUsers = lastFreeUsers.filter(user => !swipedUserIds.includes(user.id));
+    console.log('Available users from last snapshot after swipe:', availableUsers.length);
+    if (availableUsers.length === 0) {
+        console.log('No available users remaining, showing no-users-message');
+        noUsersMessage.classList.remove('hidden');
+    } else {
+        // If there is no card currently displaying, create a new card
+        if (cardStack.children.length === 0) {
+            console.log('Creating new card for available user:', availableUsers[0]);
+            createNewCard(availableUsers[0]);
+        }
+    }
 });
 
 // Check for expired availability periodically
