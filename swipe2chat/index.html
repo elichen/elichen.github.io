@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swipe2Chat</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Initial Setup Screen -->
+        <div id="setup-screen" class="screen">
+            <h1>Welcome to Swipe2Chat</h1>
+            <form id="profile-form">
+                <input type="text" id="name" placeholder="Your Name" required>
+                <input type="tel" id="phone" placeholder="Phone Number" required>
+                <button type="submit">Save Profile</button>
+            </form>
+        </div>
+
+        <!-- Home Screen -->
+        <div id="home-screen" class="screen hidden">
+            <div class="user-info">
+                <h2>Your Profile</h2>
+                <p id="user-name"></p>
+                <p id="user-phone"></p>
+            </div>
+            
+            <div class="availability-controls">
+                <button id="mark-free-btn">Mark Me Free</button>
+                <div id="duration-modal" class="modal hidden">
+                    <div class="modal-content">
+                        <h3>How long are you free?</h3>
+                        <button data-duration="15">15 minutes</button>
+                        <button data-duration="30">30 minutes</button>
+                        <button data-duration="60">1 hour</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="free-users-section">
+                <h2>Currently Free</h2>
+                <div id="free-users-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html> 
