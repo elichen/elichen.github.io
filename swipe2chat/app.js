@@ -41,13 +41,14 @@ quickSignInForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const name = document.getElementById('quick-name').value.trim();
+    const phone = document.getElementById('quick-phone').value.trim();
     const userId = generateUserId();
     
     try {
         // Save to Firestore
         await db.collection('users').doc(userId).set({
             name,
-            phoneNumber: '',
+            phoneNumber: phone,
             photoURL: null,
             isFree: false,
             expiresAt: null,
@@ -58,13 +59,13 @@ quickSignInForm.addEventListener('submit', async (e) => {
         // Save to localStorage
         localStorage.setItem('userId', userId);
         localStorage.setItem('userName', name);
-        localStorage.setItem('userPhone', '');
+        localStorage.setItem('userPhone', phone);
         localStorage.setItem('isQuickSignIn', 'true');
         
         currentUser = { 
             id: userId, 
             name, 
-            phone: '',
+            phone: phone,
             photoURL: null,
             isQuickSignIn: true
         };
