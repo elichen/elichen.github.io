@@ -92,8 +92,8 @@
         const L2 = 0.08; // Shorter lower leg length
         const legMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
         const legPositions = [
-            [0.1, 0.06, -0.05], [0.0, 0.06, -0.05], [-0.1, 0.06, -0.05],
-            [0.1, -0.06, -0.05], [0.0, -0.06, -0.05], [-0.1, -0.06, -0.05]
+            [0.1, 0.06, -0.02], [0.0, 0.08, -0.02], [-0.1, 0.06, -0.02],
+            [0.1, -0.06, -0.02], [0.0, -0.08, -0.02], [-0.1, -0.06, -0.02]
         ];
 
         const legs = legPositions.map((pos, i) => {
@@ -117,17 +117,17 @@
                 lowerLeg: lowerLeg,
                 plantedT: new THREE.Vector3(),
                 phaseOffset: (i % 2) * 0.5,
-                deltaU: 0.02 * (pos[0] > 0 ? 1 : -1),
-                deltaV: 0.02 * (pos[1] > 0 ? 1 : -1)
+                deltaU: 0.01 * (pos[0] > 0 ? 1 : -1),
+                deltaV: 0.01 * (pos[1] > 0 ? 1 : -1)
             };
 
             return upperLeg;
         });
 
-        // Animation parameters - adjusted for smaller ant
-        const speed = 0.001;
-        const period = 2000;
-        const h_max = 0.02; // Reduced maximum foot lift height
+        // Animation parameters - adjusted for slower movement and better positioning
+        const speed = 0.0003;
+        const period = 3000;
+        const h_max = 0.02;
         const epsilon = 0.001;
 
         // Helper function to compute Klein bottle position
@@ -157,11 +157,15 @@
             const right = n.clone().cross(forward).normalize();
             const up = right.clone().cross(forward).normalize();
             
-            // Use lookAt instead of matrix transformation
+            // Rotate the ant to face the direction of movement
             const target = P.clone().add(forward);
             const tempMatrix = new THREE.Matrix4();
             tempMatrix.lookAt(P, target, up);
             body.quaternion.setFromRotationMatrix(tempMatrix);
+            
+            // Rotate the body 90 degrees around its up axis to face forward
+            const rotationMatrix = new THREE.Matrix4().makeRotationAxis(up, Math.PI / 2);
+            body.quaternion.premultiply(new THREE.Quaternion().setFromRotationMatrix(rotationMatrix));
 
             // Update legs
             legs.forEach((upperLeg, i) => {
