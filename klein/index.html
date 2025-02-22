@@ -76,7 +76,7 @@
         camera.lookAt(0, 0, 0);
 
         // Ant setup - reduced sizes
-        const bodyGeometry = new THREE.BoxGeometry(0.3, 0.1, 0.1);  // Smaller body
+        const bodyGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.3);  // Swapped x and z dimensions
         const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         scene.add(body);
@@ -85,15 +85,21 @@
         const headGeometry = new THREE.SphereGeometry(0.06, 16, 16);
         const headMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
         const head = new THREE.Mesh(headGeometry, headMaterial);
-        head.position.set(0.18, 0, 0);  // Position relative to smaller body
+        head.position.set(0, 0, 0.18);  // Changed from x to z axis
         body.add(head);
 
         const L1 = 0.08; // Shorter upper leg length
         const L2 = 0.08; // Shorter lower leg length
         const legMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
         const legPositions = [
-            [0.1, 0.06, -0.02], [0.0, 0.08, -0.02], [-0.1, 0.06, -0.02],
-            [0.1, -0.06, -0.02], [0.0, -0.08, -0.02], [-0.1, -0.06, -0.02]
+            // Adjusted leg positions for z-forward orientation
+            // Format: [x, y, z]
+            [ 0.06, 0.06, 0.1],  // Front right
+            [ 0.08, 0.06, 0.0],  // Middle right
+            [ 0.06, 0.06,-0.1],  // Back right
+            [-0.06, 0.06, 0.1],  // Front left
+            [-0.08, 0.06, 0.0],  // Middle left
+            [-0.06, 0.06,-0.1]   // Back left
         ];
 
         const legs = legPositions.map((pos, i) => {
@@ -153,7 +159,7 @@
             const du = computeKleinBottle(u_body + epsilon, v_body).sub(P).divideScalar(epsilon);
             const dv = computeKleinBottle(u_body, v_body + epsilon).sub(P).divideScalar(epsilon);
             const n = du.clone().cross(dv).normalize();
-            const forward = du.normalize();
+            const forward = du.normalize().multiplyScalar(-1);  // Negate the forward direction
             const right = n.clone().cross(forward).normalize();
             const up = right.clone().cross(forward).normalize();
             
@@ -162,10 +168,6 @@
             const tempMatrix = new THREE.Matrix4();
             tempMatrix.lookAt(P, target, up);
             body.quaternion.setFromRotationMatrix(tempMatrix);
-            
-            // Rotate the body 90 degrees around its up axis to face forward
-            const rotationMatrix = new THREE.Matrix4().makeRotationAxis(up, Math.PI / 2);
-            body.quaternion.premultiply(new THREE.Quaternion().setFromRotationMatrix(rotationMatrix));
 
             // Update legs
             legs.forEach((upperLeg, i) => {
