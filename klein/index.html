@@ -136,6 +136,10 @@
         const h_max = 0.02;
         const epsilon = 0.001;
 
+        // Add a constant for body offset
+        const BODY_HEIGHT = 0.1; // This matches our body's y-dimension
+        const BODY_OFFSET = BODY_HEIGHT / 2;
+
         // Helper function to compute Klein bottle position
         const computeKleinBottle = (u, v) => {
             const target = new THREE.Vector3();
@@ -153,15 +157,18 @@
             const u_body = t % (2 * Math.PI);
             const v_body = t % (2 * Math.PI);
             const P = computeKleinBottle(u_body, v_body);
-            body.position.copy(P);
 
-            // Compute body orientation using surface normal
+            // Compute body orientation using surface normal - MOVED UP
             const du = computeKleinBottle(u_body + epsilon, v_body).sub(P).divideScalar(epsilon);
             const dv = computeKleinBottle(u_body, v_body + epsilon).sub(P).divideScalar(epsilon);
             const n = du.clone().cross(dv).normalize();
             const forward = du.normalize().multiplyScalar(-1);  // Negate the forward direction
             const right = n.clone().cross(forward).normalize();
             const up = right.clone().cross(forward).normalize();
+
+            // Now we can use 'n' to offset the position
+            const offsetPosition = P.clone().add(n.clone().multiplyScalar(BODY_OFFSET));
+            body.position.copy(offsetPosition);
             
             // Rotate the ant to face the direction of movement
             const target = P.clone().add(forward);
