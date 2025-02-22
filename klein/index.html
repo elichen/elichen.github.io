@@ -75,37 +75,52 @@
         camera.position.set(0, 0, 15);  // Adjusted camera position
         camera.lookAt(0, 0, 0);
 
-        // Ant setup - reduced sizes
-        const bodyGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.3);  // Swapped x and z dimensions
+        // Ant setup - replaced box with ovoids
+        const thoraxGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+        const abdomenGeometry = new THREE.SphereGeometry(0.1, 16, 16);
         const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
-        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        
+        // Create thorax (front part)
+        const thorax = new THREE.Mesh(thoraxGeometry, bodyMaterial);
+        thorax.scale.set(1, 1, 1.2); // Slightly elongated
+        
+        // Create abdomen (back part)
+        const abdomen = new THREE.Mesh(abdomenGeometry, bodyMaterial);
+        abdomen.scale.set(1, 1, 1.4); // More elongated
+        abdomen.position.set(0, 0, -0.2); // Position behind thorax
+        
+        // Create a container for both body parts
+        const body = new THREE.Object3D();
+        body.add(thorax);
+        body.add(abdomen);
         scene.add(body);
 
-        // Add head to ant - proportionally smaller
+        // Add head to ant - attached to thorax now
         const headGeometry = new THREE.SphereGeometry(0.06, 16, 16);
         const headMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
         const head = new THREE.Mesh(headGeometry, headMaterial);
-        head.position.set(0, 0, 0.18);  // Changed from x to z axis
-        body.add(head);
+        head.position.set(0, 0, 0.15);  // Attach to thorax
+        thorax.add(head);
 
-        const L1 = 0.08; // Shorter upper leg length
-        const L2 = 0.08; // Shorter lower leg length
+        // Update leg positions to attach to thorax
+        const L1 = 0.08; // Upper leg length
+        const L2 = 0.08; // Lower leg length
         const legMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
+        
         const legPositions = [
-            // Adjusted leg positions for z-forward orientation
             // Format: [x, y, z]
-            [ 0.06, 0.06, 0.1],  // Front right
-            [ 0.08, 0.06, 0.0],  // Middle right
-            [ 0.06, 0.06,-0.1],  // Back right
-            [-0.06, 0.06, 0.1],  // Front left
-            [-0.08, 0.06, 0.0],  // Middle left
-            [-0.06, 0.06,-0.1]   // Back left
+            [ 0.08, 0.02, 0.08],  // Front right
+            [ 0.08, 0.02, 0.0],   // Middle right
+            [ 0.08, 0.02,-0.08],  // Back right
+            [-0.08, 0.02, 0.08],  // Front left
+            [-0.08, 0.02, 0.0],   // Middle left
+            [-0.08, 0.02,-0.08]   // Back left
         ];
 
         const legs = legPositions.map((pos, i) => {
             const upperLeg = new THREE.Object3D();
             upperLeg.position.set(...pos);
-            body.add(upperLeg);
+            thorax.add(upperLeg);  // Attach legs to thorax instead of body
 
             const upperLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, L1), legMaterial);
             upperLegMesh.position.set(0, 0, L1 / 2);
@@ -136,8 +151,8 @@
         const h_max = 0.02;
         const epsilon = 0.001;
 
-        // Add a constant for body offset
-        const BODY_HEIGHT = 0.1; // This matches our body's y-dimension
+        // Update the BODY_HEIGHT constant
+        const BODY_HEIGHT = 0.16; // Increased to account for ovoid shape
         const BODY_OFFSET = BODY_HEIGHT / 2;
 
         // Helper function to compute Klein bottle position
