@@ -24,9 +24,7 @@
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.minDistance = 5;
-        controls.maxDistance = 50;
-
+        
         // Klein bottle geometry
         const r = 2;  // Reduced radius for better proportions
         const kleinBottle = (u, v, target) => {
