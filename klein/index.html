@@ -73,78 +73,116 @@
         camera.position.set(0, 0, 15);  // Adjusted camera position
         camera.lookAt(0, 0, 0);
 
-        // Ant setup - replaced box with ovoids
-        const thoraxGeometry = new THREE.SphereGeometry(0.08, 16, 16);
-        const abdomenGeometry = new THREE.SphereGeometry(0.1, 16, 16);
-        const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
-        
-        // Create thorax (front part)
-        const thorax = new THREE.Mesh(thoraxGeometry, bodyMaterial);
-        thorax.scale.set(1, 1, 1.2); // Slightly elongated
-        
-        // Create abdomen (back part)
-        const abdomen = new THREE.Mesh(abdomenGeometry, bodyMaterial);
-        abdomen.scale.set(1, 1, 1.4); // More elongated
-        abdomen.position.set(0, 0, -0.2); // Position behind thorax
-        
-        // Create a container for both body parts
-        const body = new THREE.Object3D();
-        body.add(thorax);
-        body.add(abdomen);
-        scene.add(body);
-
-        // Add head to ant - attached to thorax now
-        const headGeometry = new THREE.SphereGeometry(0.06, 16, 16);
-        const headMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
-        const head = new THREE.Mesh(headGeometry, headMaterial);
-        head.position.set(0, 0, 0.15);  // Attach to thorax
-        thorax.add(head);
-
-        // Update leg positions to attach to thorax
-        const L1 = 0.15; // Increased upper leg length
-        const L2 = 0.15; // Increased lower leg length
-        const legMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
-        
-        const legPositions = [
-            // Format: [x, y, z]
-            [ 0.08,  0.02,  0.08],  // Front right
-            [ 0.08,  0.02,    0],   // Middle right
-            [ 0.08,  0.02, -0.08],  // Back right
-            [-0.08,  0.02,  0.08],  // Front left
-            [-0.08,  0.02,    0],   // Middle left
-            [-0.08,  0.02, -0.08]   // Back left
-        ];
-
-        const legs = legPositions.map((pos, i) => {
-            const upperLeg = new THREE.Object3D();
-            upperLeg.position.set(...pos);
-            thorax.add(upperLeg);
-
-            const upperLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, L1), legMaterial);
-            upperLegMesh.position.set(0, 0, L1 / 2);
-            upperLeg.add(upperLegMesh);
-
-            const lowerLeg = new THREE.Object3D();
-            lowerLeg.position.set(0, 0, L1);
-            upperLeg.add(lowerLeg);
-
-            const lowerLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.015, L2), legMaterial);
-            lowerLegMesh.position.set(0, 0, L2 / 2);
-            lowerLeg.add(lowerLegMesh);
+        // Create improved ant with more realistic body and legs
+        const createAnt = () => {
+            const antGroup = new THREE.Object3D();
+            
+            // Better materials
+            const bodyMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x8B4513,
+                shininess: 30
+            });
+            
+            // Create thorax (front part)
+            const thoraxGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+            const thorax = new THREE.Mesh(thoraxGeometry, bodyMaterial);
+            thorax.scale.set(1, 0.8, 1.2); // Slightly elongated
+            antGroup.add(thorax);
+            
+            // Create abdomen (back part)
+            const abdomenGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+            const abdomen = new THREE.Mesh(abdomenGeometry, bodyMaterial);
+            abdomen.scale.set(1, 0.8, 1.4); // More elongated
+            abdomen.position.set(0, 0, -0.2); // Position behind thorax
+            antGroup.add(abdomen);
+            
+            // Add head
+            const headGeometry = new THREE.SphereGeometry(0.06, 16, 16);
+            const head = new THREE.Mesh(headGeometry, bodyMaterial);
+            head.position.set(0, 0, 0.15);
+            antGroup.add(head);
+            
+            // Add antennae
+            const antennaGeometry = new THREE.CylinderGeometry(0.005, 0.002, 0.15);
+            const antennaMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
+            
+            for (let i = 0; i < 2; i++) {
+                const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+                const side = i === 0 ? -1 : 1;
+                antenna.position.set(side * 0.03, 0.02, 0.2);
+                antenna.rotation.x = -Math.PI / 4;
+                antenna.rotation.z = side * Math.PI / 8;
+                head.add(antenna);
+            }
+            
+            // Create legs (6 segments, each with 3 parts)
+            const legs = [];
+            const legMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
+            
+            const legPositions = [
+                // Format: [x, y, z, side]
+                [ 0.08,  0.00,  0.08, 1],  // Front right
+                [ 0.08,  0.00,  0.00, 1],  // Middle right
+                [ 0.08,  0.00, -0.08, 1],  // Back right
+                [-0.08,  0.00,  0.08, -1], // Front left
+                [-0.08,  0.00,  0.00, -1], // Middle left
+                [-0.08,  0.00, -0.08, -1]  // Back left
+            ];
 
             // More natural phase offsets for tripod gait
             const phaseOffsets = [0, 0.5, 0, 0.5, 0, 0.5];
             
-            upperLeg.userData = {
-                lowerLeg: lowerLeg,
-                plantedT: new THREE.Vector3(),
-                phaseOffset: phaseOffsets[i],
-                deltaU: 0.02 * (pos[0] > 0 ? 1 : -1), // Increased stride length
-                deltaV: 0.02 * (pos[2] > 0 ? 1 : -1)  // Use z-coordinate for better stride
-            };
-
-            return upperLeg;
-        });
+            legPositions.forEach((pos, i) => {
+                const legGroup = new THREE.Group();
+                legGroup.position.set(pos[0], pos[1], pos[2]);
+                thorax.add(legGroup);
+                
+                // Upper leg segment (coxa)
+                const coxaGeometry = new THREE.CylinderGeometry(0.01, 0.008, 0.1);
+                const coxa = new THREE.Mesh(coxaGeometry, legMaterial);
+                coxa.position.set(0, -0.05, 0);
+                coxa.rotation.x = Math.PI / 2;
+                legGroup.add(coxa);
+                
+                // Middle leg segment (femur)
+                const femurGroup = new THREE.Group();
+                femurGroup.position.set(0, -0.1, 0);
+                coxa.add(femurGroup);
+                
+                const femurGeometry = new THREE.CylinderGeometry(0.008, 0.006, 0.15);
+                const femur = new THREE.Mesh(femurGeometry, legMaterial);
+                femur.position.set(0, -0.075, 0);
+                femurGroup.add(femur);
+                
+                // Lower leg segment (tibia)
+                const tibiaGroup = new THREE.Group();
+                tibiaGroup.position.set(0, -0.15, 0);
+                femurGroup.add(tibiaGroup);
+                
+                const tibiaGeometry = new THREE.CylinderGeometry(0.006, 0.003, 0.2);
+                const tibia = new THREE.Mesh(tibiaGeometry, legMaterial);
+                tibia.position.set(0, -0.1, 0);
+                tibiaGroup.add(tibia);
+                
+                // Store leg data
+                legs.push({
+                    legGroup,
+                    coxa,
+                    femurGroup,
+                    tibiaGroup,
+                    plantedT: new THREE.Vector3(),
+                    phaseOffset: phaseOffsets[i],
+                    side: pos[3],
+                    deltaU: 0.02 * pos[3], // Using side for direction
+                    deltaV: 0.02 * (pos[2] > 0 ? 1 : pos[2] < 0 ? -1 : 0)
+                });
+            });
+            
+            return { antGroup, thorax, abdomen, head, legs };
+        };
+        
+        const { antGroup, thorax, abdomen, head, legs } = createAnt();
+        scene.add(antGroup);
 
         // Animation parameters
         const speed = 0.0002; // Slowed down movement
@@ -174,36 +212,43 @@
             const v_body = t % (2 * Math.PI);
             const P = computeKleinBottle(u_body, v_body);
 
-            // Compute body orientation using surface normal - MOVED UP
+            // Compute body orientation using surface normal
             const du = computeKleinBottle(u_body + epsilon, v_body).sub(P).divideScalar(epsilon);
             const dv = computeKleinBottle(u_body, v_body + epsilon).sub(P).divideScalar(epsilon);
             const n = du.clone().cross(dv).normalize();
-            const forward = du.normalize().multiplyScalar(-1);  // Negate the forward direction
+            const forward = du.normalize().multiplyScalar(-1); // Negate the forward direction
             const right = n.clone().cross(forward).normalize();
             const up = right.clone().cross(forward).normalize();
 
             // Now we can use 'n' to offset the position
             const offsetPosition = P.clone().add(n.clone().multiplyScalar(BODY_OFFSET));
-            body.position.copy(offsetPosition);
+            antGroup.position.copy(offsetPosition);
             
             // Rotate the ant to face the direction of movement
             const target = P.clone().add(forward);
             const tempMatrix = new THREE.Matrix4();
             tempMatrix.lookAt(P, target, up);
-            body.quaternion.setFromRotationMatrix(tempMatrix);
+            antGroup.quaternion.setFromRotationMatrix(tempMatrix);
+            
+            // Add subtle body animation
+            thorax.rotation.x = Math.sin(time * 0.005) * 0.05;
+            abdomen.rotation.x = Math.sin(time * 0.005 + 0.5) * 0.05;
+            head.rotation.y = Math.sin(time * 0.003) * 0.1;
 
             // Update legs
-            legs.forEach((upperLeg, i) => {
-                const legData = upperLeg.userData;
-                const phase = (time / period + legData.phaseOffset) % 1;
-                const new_target_u = (u_body + legData.deltaU) % (2 * Math.PI);
-                const new_target_v = (v_body + legData.deltaV) % (2 * Math.PI);
+            legs.forEach((leg, i) => {
+                const phase = (time / period + leg.phaseOffset) % 1;
+                
+                // Calculate target foot position on surface
+                const new_target_u = (u_body + leg.deltaU) % (2 * Math.PI);
+                const new_target_v = (v_body + leg.deltaV) % (2 * Math.PI);
                 const new_target = computeKleinBottle(new_target_u, new_target_v);
-
-                let T;
+                
+                let footTarget;
+                
                 if (phase < 0.5) {
                     // Stance phase - foot planted
-                    T = legData.plantedT;
+                    footTarget = leg.plantedT;
                 } else {
                     // Swing phase - moving to new position
                     const swingPhase = (phase - 0.5) * 2; // Normalize to 0-1
@@ -212,39 +257,54 @@
                     // Calculate target position with better surface following
                     const targetPos = new_target.clone().add(n.clone().multiplyScalar(BODY_OFFSET));
                     const currentPos = P.clone().add(n.clone().multiplyScalar(BODY_OFFSET));
-                    T = currentPos.lerp(targetPos, swingPhase).add(up.clone().multiplyScalar(height));
+                    footTarget = currentPos.clone().lerp(targetPos, swingPhase).add(up.clone().multiplyScalar(height));
                     
                     if (phase >= 0.99) {
-                        legData.plantedT = T.clone();
+                        leg.plantedT = footTarget.clone();
                     }
                 }
-
-                // Convert target to local space
-                const localT = T.clone().sub(body.position);
-                localT.applyQuaternion(body.quaternion.clone().invert());
-                localT.sub(upperLeg.position);
-
-                // Improved IK calculation
-                const targetDist = localT.length();
+                
+                // Convert foot target to local space relative to thorax
+                const worldToLocalMatrix = new THREE.Matrix4();
+                thorax.updateMatrixWorld();
+                worldToLocalMatrix.copy(thorax.matrixWorld).invert();
+                
+                // Get target in thorax local space
+                const localTarget = footTarget.clone();
+                localTarget.applyMatrix4(worldToLocalMatrix);
+                
+                // IK calculation for leg segments
+                const legPos = new THREE.Vector3(leg.legGroup.position.x, leg.legGroup.position.y, leg.legGroup.position.z);
+                const toTarget = localTarget.clone().sub(legPos);
+                const targetDist = toTarget.length();
+                                
+                // Adjust coxa (hip) to point in the general direction
+                leg.legGroup.lookAt(legPos.clone().add(toTarget));
+                
+                // Rotate femur and tibia based on distance
+                const L1 = 0.15; // femur length
+                const L2 = 0.2;  // tibia length
                 const maxReach = L1 + L2;
                 const minReach = Math.abs(L1 - L2);
                 
+                let clampedDist = targetDist;
                 if (targetDist > maxReach) {
-                    // Target too far - stretch towards it
-                    localT.normalize().multiplyScalar(maxReach);
+                    clampedDist = maxReach * 0.99;
                 } else if (targetDist < minReach) {
-                    // Target too close - push away
-                    localT.normalize().multiplyScalar(minReach);
+                    clampedDist = minReach * 1.01;
                 }
-
-                // Calculate joint angles
-                const upperAngle = Math.acos((targetDist * targetDist + L1 * L1 - L2 * L2) / (2 * targetDist * L1));
-                const lowerAngle = Math.acos((L1 * L1 + L2 * L2 - targetDist * targetDist) / (2 * L1 * L2));
-
+                
+                // Law of cosines to calculate joint angles
+                const cosKneeAngle = (L1*L1 + L2*L2 - clampedDist*clampedDist) / (2*L1*L2);
+                const kneeAngle = Math.acos(Math.min(Math.max(cosKneeAngle, -1), 1));
+                
+                const cosHipAngle = (L1*L1 + clampedDist*clampedDist - L2*L2) / (2*L1*clampedDist);
+                const hipAngle = Math.acos(Math.min(Math.max(cosHipAngle, -1), 1));
+                
                 // Apply rotations
-                upperLeg.lookAt(localT.clone().add(upperLeg.position));
-                upperLeg.rotateX(upperAngle);
-                legData.lowerLeg.rotation.x = Math.PI - lowerAngle;
+                leg.coxa.rotation.y = leg.side * Math.PI/4; // Rotate outward slightly
+                leg.femurGroup.rotation.x = hipAngle;
+                leg.tibiaGroup.rotation.x = -kneeAngle;
             });
 
             renderer.render(scene, camera);
