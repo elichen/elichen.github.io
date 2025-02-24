@@ -101,26 +101,26 @@
         thorax.add(head);
 
         // Update leg positions to attach to thorax
-        const L1 = 0.08; // Upper leg length
-        const L2 = 0.08; // Lower leg length
+        const L1 = 0.15; // Increased upper leg length
+        const L2 = 0.15; // Increased lower leg length
         const legMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
         
         const legPositions = [
             // Format: [x, y, z]
-            [ 0.08, 0.02, 0.08],  // Front right
-            [ 0.08, 0.02, 0.0],   // Middle right
-            [ 0.08, 0.02,-0.08],  // Back right
-            [-0.08, 0.02, 0.08],  // Front left
-            [-0.08, 0.02, 0.0],   // Middle left
-            [-0.08, 0.02,-0.08]   // Back left
+            [ 0.08,  0.02,  0.08],  // Front right
+            [ 0.08,  0.02,    0],   // Middle right
+            [ 0.08,  0.02, -0.08],  // Back right
+            [-0.08,  0.02,  0.08],  // Front left
+            [-0.08,  0.02,    0],   // Middle left
+            [-0.08,  0.02, -0.08]   // Back left
         ];
 
         const legs = legPositions.map((pos, i) => {
             const upperLeg = new THREE.Object3D();
             upperLeg.position.set(...pos);
-            thorax.add(upperLeg);  // Attach legs to thorax instead of body
+            thorax.add(upperLeg);
 
-            const upperLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, L1), legMaterial);
+            const upperLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, L1), legMaterial);
             upperLegMesh.position.set(0, 0, L1 / 2);
             upperLeg.add(upperLegMesh);
 
@@ -128,29 +128,32 @@
             lowerLeg.position.set(0, 0, L1);
             upperLeg.add(lowerLeg);
 
-            const lowerLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, L2), legMaterial);
+            const lowerLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.015, L2), legMaterial);
             lowerLegMesh.position.set(0, 0, L2 / 2);
             lowerLeg.add(lowerLegMesh);
 
+            // More natural phase offsets for tripod gait
+            const phaseOffsets = [0, 0.5, 0, 0.5, 0, 0.5];
+            
             upperLeg.userData = {
                 lowerLeg: lowerLeg,
                 plantedT: new THREE.Vector3(),
-                phaseOffset: (i % 2) * 0.5,
-                deltaU: 0.01 * (pos[0] > 0 ? 1 : -1),
-                deltaV: 0.01 * (pos[1] > 0 ? 1 : -1)
+                phaseOffset: phaseOffsets[i],
+                deltaU: 0.02 * (pos[0] > 0 ? 1 : -1), // Increased stride length
+                deltaV: 0.02 * (pos[2] > 0 ? 1 : -1)  // Use z-coordinate for better stride
             };
 
             return upperLeg;
         });
 
-        // Animation parameters - adjusted for slower movement and better positioning
-        const speed = 0.0003;
-        const period = 3000;
-        const h_max = 0.02;
+        // Animation parameters
+        const speed = 0.0002; // Slowed down movement
+        const period = 4000;  // Longer period for more natural movement
+        const h_max = 0.1;    // Increased maximum leg height
         const epsilon = 0.001;
 
         // Update the BODY_HEIGHT constant
-        const BODY_HEIGHT = 0.16; // Increased to account for ovoid shape
+        const BODY_HEIGHT = 0.2; // Increased body height
         const BODY_OFFSET = BODY_HEIGHT / 2;
 
         // Helper function to compute Klein bottle position
@@ -199,54 +202,49 @@
 
                 let T;
                 if (phase < 0.5) {
-                    // On ground
+                    // Stance phase - foot planted
                     T = legData.plantedT;
                 } else {
-                    // Moving
-                    const fraction = (phase - 0.5) / 0.5;
-                    T = legData.plantedT.clone()
-                        .lerp(new_target, fraction)
-                        .add(n.clone().multiplyScalar(h_max * Math.sin(Math.PI * fraction)));
+                    // Swing phase - moving to new position
+                    const swingPhase = (phase - 0.5) * 2; // Normalize to 0-1
+                    const height = h_max * Math.sin(Math.PI * swingPhase);
+                    
+                    // Calculate target position with better surface following
+                    const targetPos = new_target.clone().add(n.clone().multiplyScalar(BODY_OFFSET));
+                    const currentPos = P.clone().add(n.clone().multiplyScalar(BODY_OFFSET));
+                    T = currentPos.lerp(targetPos, swingPhase).add(up.clone().multiplyScalar(height));
+                    
+                    if (phase >= 0.99) {
+                        legData.plantedT = T.clone();
+                    }
                 }
 
-                // Update plantedT when phase wraps
-                if (phase < 0.1 && !legData.planted) {
-                    legData.plantedT.copy(new_target);
-                    legData.planted = true;
-                } else if (phase >= 0.1) {
-                    legData.planted = false;
+                // Convert target to local space
+                const localT = T.clone().sub(body.position);
+                localT.applyQuaternion(body.quaternion.clone().invert());
+                localT.sub(upperLeg.position);
+
+                // Improved IK calculation
+                const targetDist = localT.length();
+                const maxReach = L1 + L2;
+                const minReach = Math.abs(L1 - L2);
+                
+                if (targetDist > maxReach) {
+                    // Target too far - stretch towards it
+                    localT.normalize().multiplyScalar(maxReach);
+                } else if (targetDist < minReach) {
+                    // Target too close - push away
+                    localT.normalize().multiplyScalar(minReach);
                 }
 
-                // Inverse Kinematics
-                const S = new THREE.Vector3().setFromMatrixPosition(upperLeg.matrixWorld);
-                const N = up.clone(); // Use body's up direction
-                const T_proj = T.clone().sub(N.clone().multiplyScalar((T.clone().sub(S)).dot(N)));
-                const U = T_proj.clone().sub(S).normalize();
-                const D = T_proj.distanceTo(S);
-                let K;
-                if (D > L1 + L2 - 0.01) {  // Small epsilon to avoid floating point issues
-                    K = S.clone().add(U.clone().multiplyScalar(L1));
-                } else {
-                    const cos_alpha = (L1 * L1 + D * D - L2 * L2) / (2 * L1 * D);
-                    const alpha = Math.acos(Math.max(-1, Math.min(1, cos_alpha)));
-                    const W = N.clone().cross(U).normalize();
-                    K = S.clone().add(
-                        U.clone().multiplyScalar(Math.cos(alpha))
-                        .add(W.clone().multiplyScalar(Math.sin(alpha)))
-                        .multiplyScalar(L1)
-                    );
-                }
-                const R = K.clone().sub(S).normalize();
-                const V = R.clone().applyQuaternion(body.quaternion.conjugate());
-                upperLeg.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), V.normalize());
+                // Calculate joint angles
+                const upperAngle = Math.acos((targetDist * targetDist + L1 * L1 - L2 * L2) / (2 * targetDist * L1));
+                const lowerAngle = Math.acos((L1 * L1 + L2 * L2 - targetDist * targetDist) / (2 * L1 * L2));
 
-                const lowerLeg = legData.lowerLeg;
-                const Q_world_lower = new THREE.Quaternion().setFromUnitVectors(
-                    new THREE.Vector3(0, 0, 1),
-                    T.clone().sub(K).normalize()
-                );
-                const Q_body_upper = body.quaternion.clone().multiply(upperLeg.quaternion);
-                lowerLeg.quaternion.copy(Q_body_upper.conjugate().multiply(Q_world_lower));
+                // Apply rotations
+                upperLeg.lookAt(localT.clone().add(upperLeg.position));
+                upperLeg.rotateX(upperAngle);
+                legData.lowerLeg.rotation.x = Math.PI - lowerAngle;
             });
 
             renderer.render(scene, camera);
