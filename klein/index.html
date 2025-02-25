@@ -120,13 +120,13 @@
             const legMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
             
             const legPositions = [
-                // Format: [x, y, z, side]
-                [ 0.08,  0.00,  0.08, 1],  // Front right
-                [ 0.08,  0.00,  0.00, 1],  // Middle right
-                [ 0.08,  0.00, -0.08, 1],  // Back right
-                [-0.08,  0.00,  0.08, -1], // Front left
-                [-0.08,  0.00,  0.00, -1], // Middle left
-                [-0.08,  0.00, -0.08, -1]  // Back left
+                // Format: [x, y, z, side, isRear]
+                [ 0.08, -0.02,  0.08, 1, false],  // Front right
+                [ 0.08, -0.02,  0.00, 1, false],  // Middle right
+                [ 0.08, -0.02, -0.08, 1, true],   // Back right
+                [-0.08, -0.02,  0.08, -1, false], // Front left
+                [-0.08, -0.02,  0.00, -1, false], // Middle left
+                [-0.08, -0.02, -0.08, -1, true]   // Back left
             ];
 
             // More natural phase offsets for tripod gait
@@ -164,7 +164,7 @@
                 tibia.position.set(0, -0.1, 0);
                 tibiaGroup.add(tibia);
                 
-                // Store leg data
+                // Store leg data with better defaults and limited ranges
                 legs.push({
                     legGroup,
                     coxa,
@@ -173,8 +173,14 @@
                     plantedT: new THREE.Vector3(),
                     phaseOffset: phaseOffsets[i],
                     side: pos[3],
-                    deltaU: 0.02 * pos[3], // Using side for direction
-                    deltaV: 0.02 * (pos[2] > 0 ? 1 : pos[2] < 0 ? -1 : 0)
+                    isRear: pos[4],
+                    // Different spread for front, middle, and rear legs
+                    deltaU: 0.03 * pos[3] * (pos[2] === 0 ? 1.2 : pos[2] > 0 ? 1.5 : 1),
+                    deltaV: 0.03 * (pos[2] > 0 ? 1.2 : pos[2] < 0 ? -1.2 : 0),
+                    // Store default angles for reset if needed
+                    defaultCoxaAngle: pos[3] * Math.PI/6,
+                    defaultFemurAngle: Math.PI/6,
+                    defaultTibiaAngle: -Math.PI/3
                 });
             });
             
@@ -186,12 +192,12 @@
 
         // Animation parameters
         const speed = 0.0002; // Slowed down movement
-        const period = 4000;  // Longer period for more natural movement
-        const h_max = 0.1;    // Increased maximum leg height
+        const period = 3000;  // Adjusted period for more natural movement
+        const h_max = 0.05;    // Lower maximum leg height for more stable gait
         const epsilon = 0.001;
 
-        // Update the BODY_HEIGHT constant
-        const BODY_HEIGHT = 0.2; // Increased body height
+        // Update the BODY_HEIGHT constant - slightly lower to the surface
+        const BODY_HEIGHT = 0.15; 
         const BODY_OFFSET = BODY_HEIGHT / 2;
 
         // Helper function to compute Klein bottle position
@@ -230,6 +236,11 @@
             tempMatrix.lookAt(P, target, up);
             antGroup.quaternion.setFromRotationMatrix(tempMatrix);
             
+            // Small body movements for lifelike feel
+            const bodyBob = Math.sin(time * 0.002) * 0.005;
+            thorax.position.y = bodyBob;
+            abdomen.position.y = bodyBob * 0.8;
+            
             // Add subtle body animation
             thorax.rotation.x = Math.sin(time * 0.005) * 0.05;
             abdomen.rotation.x = Math.sin(time * 0.005 + 0.5) * 0.05;
@@ -240,8 +251,10 @@
                 const phase = (time / period + leg.phaseOffset) % 1;
                 
                 // Calculate target foot position on surface
-                const new_target_u = (u_body + leg.deltaU) % (2 * Math.PI);
-                const new_target_v = (v_body + leg.deltaV) % (2 * Math.PI);
+                // Different foot placement for different legs
+                const footSpreadFactor = leg.isRear ? 1.2 : 1.0;
+                const new_target_u = (u_body + leg.deltaU * footSpreadFactor) % (2 * Math.PI);
+                const new_target_v = (v_body + leg.deltaV * footSpreadFactor) % (2 * Math.PI);
                 const new_target = computeKleinBottle(new_target_u, new_target_v);
                 
                 let footTarget;
@@ -252,21 +265,28 @@
                 } else {
                     // Swing phase - moving to new position
                     const swingPhase = (phase - 0.5) * 2; // Normalize to 0-1
-                    const height = h_max * Math.sin(Math.PI * swingPhase);
                     
-                    // Calculate target position with better surface following
-                    const targetPos = new_target.clone().add(n.clone().multiplyScalar(BODY_OFFSET));
-                    const currentPos = P.clone().add(n.clone().multiplyScalar(BODY_OFFSET));
+                    // Use a more natural arc for the leg lift with different heights based on leg position
+                    const legHeightFactor = leg.isRear ? 0.8 : 1.0;
+                    const height = h_max * Math.sin(Math.PI * swingPhase) * legHeightFactor;
+                    
+                    // Keep foot closer to surface
+                    const surfaceOffset = BODY_OFFSET * 0.1;
+                    const targetPos = new_target.clone().add(n.clone().multiplyScalar(surfaceOffset));
+                    const currentPos = P.clone().add(n.clone().multiplyScalar(surfaceOffset));
+                    
+                    // Move foot in an arc that better follows the bottle surface
                     footTarget = currentPos.clone().lerp(targetPos, swingPhase).add(up.clone().multiplyScalar(height));
                     
                     if (phase >= 0.99) {
-                        leg.plantedT = footTarget.clone();
+                        // Set planted position at exactly the target point on the surface
+                        leg.plantedT = targetPos.clone();
                     }
                 }
                 
                 // Convert foot target to local space relative to thorax
                 const worldToLocalMatrix = new THREE.Matrix4();
-                thorax.updateMatrixWorld();
+                thorax.updateMatrixWorld(true); // Force update the entire matrix hierarchy
                 worldToLocalMatrix.copy(thorax.matrixWorld).invert();
                 
                 // Get target in thorax local space
@@ -277,34 +297,58 @@
                 const legPos = new THREE.Vector3(leg.legGroup.position.x, leg.legGroup.position.y, leg.legGroup.position.z);
                 const toTarget = localTarget.clone().sub(legPos);
                 const targetDist = toTarget.length();
-                                
-                // Adjust coxa (hip) to point in the general direction
-                leg.legGroup.lookAt(legPos.clone().add(toTarget));
                 
-                // Rotate femur and tibia based on distance
+                // Direction components for smarter joint angles
+                const horizontalDir = new THREE.Vector3(toTarget.x, 0, toTarget.z).normalize();
+                const verticalComponent = toTarget.y;
+                
+                // Adjust coxa rotation based on horizontal direction
+                // Keep the math simple and robust to avoid flipping
+                const coxaAngle = Math.atan2(horizontalDir.x, horizontalDir.z);
+                
+                // Rotate leg group to point toward the target horizontally 
+                leg.legGroup.rotation.y = coxaAngle;
+                
+                // Precise segment lengths
                 const L1 = 0.15; // femur length
                 const L2 = 0.2;  // tibia length
-                const maxReach = L1 + L2;
-                const minReach = Math.abs(L1 - L2);
                 
+                // Constraint reach to avoid impossible poses
+                const maxReach = (L1 + L2) * 0.9; // 90% of theoretical max to keep joints from fully extending
+                const minReach = Math.max(0.08, Math.abs(L1 - L2) * 1.1); // Minimum reasonable distance
+                
+                // Clamp the target distance to physically possible range
                 let clampedDist = targetDist;
                 if (targetDist > maxReach) {
-                    clampedDist = maxReach * 0.99;
+                    clampedDist = maxReach;
                 } else if (targetDist < minReach) {
-                    clampedDist = minReach * 1.01;
+                    clampedDist = minReach;
                 }
                 
                 // Law of cosines to calculate joint angles
                 const cosKneeAngle = (L1*L1 + L2*L2 - clampedDist*clampedDist) / (2*L1*L2);
-                const kneeAngle = Math.acos(Math.min(Math.max(cosKneeAngle, -1), 1));
+                const kneeAngle = Math.acos(Math.min(Math.max(cosKneeAngle, -0.95), 0.95)); // Avoid exact ±1
                 
                 const cosHipAngle = (L1*L1 + clampedDist*clampedDist - L2*L2) / (2*L1*clampedDist);
-                const hipAngle = Math.acos(Math.min(Math.max(cosHipAngle, -1), 1));
+                const hipAngle = Math.acos(Math.min(Math.max(cosHipAngle, -0.95), 0.95)); // Avoid exact ±1
                 
-                // Apply rotations
-                leg.coxa.rotation.y = leg.side * Math.PI/4; // Rotate outward slightly
-                leg.femurGroup.rotation.x = hipAngle;
-                leg.tibiaGroup.rotation.x = -kneeAngle;
+                // Calculate the vertical angle component for the hip
+                const verticalAngle = Math.atan2(-verticalComponent, Math.sqrt(toTarget.x*toTarget.x + toTarget.z*toTarget.z));
+                
+                // Apply rotations with natural constraints for an ant
+                
+                // Hip angle combines horizontal positioning and vertical angle
+                const constrainedHipAngle = Math.max(0.1, Math.min(Math.PI * 0.5, hipAngle + verticalAngle));
+                leg.femurGroup.rotation.x = constrainedHipAngle;
+                
+                // Keep knee angle in natural range
+                const minKneeAngle = Math.PI * 0.1;  // Almost straight
+                const maxKneeAngle = Math.PI * 0.7;  // Significantly bent but not fully
+                const constrainedKneeAngle = Math.max(minKneeAngle, Math.min(maxKneeAngle, kneeAngle));
+                leg.tibiaGroup.rotation.x = -constrainedKneeAngle; // Negative because bending is in opposite direction
+                
+                // Apply a slight rotation to coxa to make legs stick outward a bit
+                leg.coxa.rotation.y = leg.side * Math.PI/8;
             });
 
             renderer.render(scene, camera);
