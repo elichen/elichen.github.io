@@ -138,15 +138,16 @@
                 thorax.add(legGroup);
                 
                 // Upper leg segment (coxa)
-                const coxaGeometry = new THREE.CylinderGeometry(0.01, 0.008, 0.1);
+                const coxaGeometry = new THREE.CylinderGeometry(0.01, 0.008, 0.08);
                 const coxa = new THREE.Mesh(coxaGeometry, legMaterial);
-                coxa.position.set(0, -0.05, 0);
+                coxa.position.set(0, -0.04, 0);
                 coxa.rotation.x = Math.PI / 2;
                 legGroup.add(coxa);
                 
                 // Middle leg segment (femur)
                 const femurGroup = new THREE.Group();
-                femurGroup.position.set(0, -0.1, 0);
+                // Position at the end of coxa to fix the gap
+                femurGroup.position.set(0, -0.08, 0);
                 coxa.add(femurGroup);
                 
                 const femurGeometry = new THREE.CylinderGeometry(0.008, 0.006, 0.15);
@@ -231,9 +232,10 @@
             antGroup.position.copy(offsetPosition);
             
             // Rotate the ant to face the direction of movement
+            // Flip the orientation so the ant is right-side up on the bottle surface
             const target = P.clone().add(forward);
             const tempMatrix = new THREE.Matrix4();
-            tempMatrix.lookAt(P, target, up);
+            tempMatrix.lookAt(P, target, up.clone().multiplyScalar(-1)); // Flip the up vector
             antGroup.quaternion.setFromRotationMatrix(tempMatrix);
             
             // Small body movements for lifelike feel
