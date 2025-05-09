@@ -87,7 +87,7 @@
             for (let i = 0; i < 2; i++) {
                 const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
                 const side = i === 0 ? -1 : 1;
-                antenna.position.set(side * 0.03, 0.025, 0.18); 
+                antenna.position.set(side * 0.03, 0.025, 0.10); 
                 antenna.rotation.x = -Math.PI / 3; 
                 antenna.rotation.z = side * Math.PI / 6;
                 antenna.castShadow = true;
