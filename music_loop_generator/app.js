@@ -120,8 +120,24 @@ function playTestNote() {
 }
 
 // Load event: setup everything
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => { // Make the load listener async
     console.log("Window loaded. Initializing application components.");
+
+    // TensorFlow.js Test Code
+    try {
+      console.log('Attempting to test TensorFlow.js...');
+      if (typeof tf !== 'undefined' && typeof tf.version !== 'undefined') {
+        console.log('TensorFlow.js version:', tf.version.tfjs);
+        tf.tensor([1, 2, 3, 4]).print();
+        console.log('TensorFlow.js basic test successful.');
+      } else {
+        console.error('TensorFlow.js (tf) is not defined or tf.version is undefined.');
+        alert("Critical Error: TensorFlow.js (tf) is not loaded correctly. The application may not function as expected.");
+      }
+    } catch (e) {
+      console.error('Error during TensorFlow.js test:', e);
+      alert("Error during TensorFlow.js test. Check console for details. The application may not function as expected.");
+    }
 
     // Verify Magenta UMD bundle
     if (typeof magenta !== 'undefined') {
@@ -139,7 +155,9 @@ window.addEventListener('load', () => {
 
     initializePlayer(); // Initialize player on load after Magenta is confirmed
     initializeGrid();
-    initializeMusicVAE(); // Initialize MusicVAE model on load
+    // initializeMusicVAE is async, ensure it's handled correctly if it needs to be awaited
+    // or if subsequent initializations depend on it.
+    await initializeMusicVAE(); // Initialize MusicVAE model on load
     initializeTempoControls();
     initializeClearGridButton();
     initializePlayTestNoteButton();
