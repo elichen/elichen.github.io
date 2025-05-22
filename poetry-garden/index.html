@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Poetry Garden</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="garden-container">
+        <header class="garden-header">
+            <h1>AI Poetry Garden</h1>
+            <p class="subtitle">Plant word seeds and watch AI poetry bloom</p>
+        </header>
+
+        <div class="garden-workspace">
+            <div class="seed-panel">
+                <h3>Word Seeds</h3>
+                <div class="seed-categories">
+                    <div class="category" data-category="nature">
+                        <h4>Nature</h4>
+                        <div class="seeds">
+                            <span class="seed" data-word="moonlight">moonlight</span>
+                            <span class="seed" data-word="ocean">ocean</span>
+                            <span class="seed" data-word="forest">forest</span>
+                            <span class="seed" data-word="starlight">starlight</span>
+                            <span class="seed" data-word="wind">wind</span>
+                            <span class="seed" data-word="sunrise">sunrise</span>
+                        </div>
+                    </div>
+                    <div class="category" data-category="emotions">
+                        <h4>Emotions</h4>
+                        <div class="seeds">
+                            <span class="seed" data-word="longing">longing</span>
+                            <span class="seed" data-word="joy">joy</span>
+                            <span class="seed" data-word="melancholy">melancholy</span>
+                            <span class="seed" data-word="wonder">wonder</span>
+                            <span class="seed" data-word="peace">peace</span>
+                            <span class="seed" data-word="hope">hope</span>
+                        </div>
+                    </div>
+                    <div class="category" data-category="abstract">
+                        <h4>Abstract</h4>
+                        <div class="seeds">
+                            <span class="seed" data-word="time">time</span>
+                            <span class="seed" data-word="memory">memory</span>
+                            <span class="seed" data-word="dream">dream</span>
+                            <span class="seed" data-word="silence">silence</span>
+                            <span class="seed" data-word="infinity">infinity</span>
+                            <span class="seed" data-word="shadow">shadow</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="custom-seed">
+                    <input type="text" id="custom-word" placeholder="Enter your own word...">
+                    <button id="add-custom">Plant</button>
+                </div>
+            </div>
+
+            <div class="garden-plot">
+                <canvas id="garden-canvas"></canvas>
+                <div class="planted-seeds"></div>
+                <div class="growing-poems"></div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="poetry-style">Poetry Style:</label>
+                <select id="poetry-style">
+                    <option value="haiku">Haiku</option>
+                    <option value="free-verse">Free Verse</option>
+                    <option value="rhyming">Rhyming Couplets</option>
+                    <option value="minimalist">Minimalist</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="growth-speed">Growth Speed:</label>
+                <input type="range" id="growth-speed" min="1" max="5" value="3">
+            </div>
+            <button id="clear-garden">Clear Garden</button>
+            <button id="harvest-poems">Harvest All</button>
+        </div>
+
+        <div class="poem-harvest">
+            <h3>Harvested Poems</h3>
+            <div id="harvested-poems"></div>
+        </div>
+    </div>
+
+    <div class="info-panel">
+        <h3>How It Works</h3>
+        <p>Drag word seeds directly into the garden to plant them. The AI will generate poetry that grows organically from your planted words.</p>
+        <ul>
+            <li><strong>Drag and drop:</strong> Drag any word seed into the garden area to plant it</li>
+            <li><strong>Watch poetry grow:</strong> AI generates verses that bloom from each planted word</li>
+            <li><strong>Style selection:</strong> Choose different poetry forms (Haiku, Free Verse, etc.)</li>
+            <li><strong>Harvest:</strong> Click the harvest button on poems to save them</li>
+            <li><strong>Custom words:</strong> Create your own word seeds using the input field</li>
+        </ul>
+        <p><em>Hover over planted seeds for magical word suggestions that create beautiful poetry combinations!</em></p>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
