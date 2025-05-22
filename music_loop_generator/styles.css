@@ -1,0 +1,78 @@
+body {
+    font-family: sans-serif;
+    margin: 20px;
+    background-color: #f4f4f4;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+header {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+main {
+    width: 100%;
+    max-width: 800px; /* Adjust as needed */
+}
+
+#grid-container {
+    margin-bottom: 20px;
+    display: flex; /* Added to center the grid if it's narrower than container */
+    justify-content: center; /* Added to center the grid */
+}
+
+#music-grid {
+    margin-bottom: 20px;
+    /* border: 1px solid #777; */ /* Optional: border for the whole grid */
+    display: inline-block; /* To make it shrink-to-fit its content */
+}
+
+.grid-row {
+    display: flex;
+}
+
+.grid-cell {
+    width: 40px;
+    height: 40px;
+    border: 1px solid #ccc;
+    margin: 2px;
+    background-color: #f0f0f0;
+    cursor: pointer;
+    display: flex; /* For centering content within cell, if any */
+    align-items: center; /* For centering content within cell */
+    justify-content: center; /* For centering content within cell */
+    font-size: 10px; /* For displaying debug info like pitch/time if needed */
+}
+
+.grid-cell.active {
+    background-color: #64b5f6; /* A light blue color */
+}
+
+.grid-cell.playing {
+    background-color: #ffeb3b; /* A yellow color for playing */
+    transition: background-color 0.1s;
+}
+
+#controls-container {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    /* Styles for controls will be added later */
+}
+
+/* Example button style - can be refined later */
+button {
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
