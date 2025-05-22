@@ -4,8 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interactive Music Loop Generator</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@magenta/music@1.19.0/dist/magentamusic.min.js"></script>
+
+    <!-- 1. Magenta.js UMD Bundle (includes TensorFlow.js and Tone.js) -->
+    <!-- Using ^1.0.0 to get the latest 1.x.x version, which is currently 1.23.1 -->
+    <!-- This should provide the 'mm' global object -->
+    <script src="https://cdn.jsdelivr.net/npm/@magenta/music@^1.0.0/dist/magentamusic.min.js"></script>
+
+    <!-- REMOVED: Separate TensorFlow.js script tag -->
+    <!-- REMOVED: Separate Tone.js script tag -->
+
     <link rel="stylesheet" href="styles.css">
     <script src="app.js" defer></script>
 </head>
@@ -17,49 +24,13 @@
         <div id="grid-container">
             <div id="music-grid">
                 <!-- Row 1 (Pitch 60 - C4) -->
-                <div class="grid-row">
-                    <div class="grid-cell" data-pitch="60" data-time="0"></div>
-                    <div class="grid-cell" data-pitch="60" data-time="1"></div>
-                    <div class="grid-cell" data-pitch="60" data-time="2"></div>
-                    <div class="grid-cell" data-pitch="60" data-time="3"></div>
-                    <div class="grid-cell" data-pitch="60" data-time="4"></div>
-                    <div class="grid-cell" data-pitch="60" data-time="5"></div>
-                    <div class="grid-cell" data-pitch="60" data-time="6"></div>
-                    <div class="grid-cell" data-pitch="60" data-time="7"></div>
-                </div>
+                <div class="grid-row"> <div class="grid-cell" data-pitch="60" data-time="0"></div> <div class="grid-cell" data-pitch="60" data-time="1"></div> <div class="grid-cell" data-pitch="60" data-time="2"></div> <div class="grid-cell" data-pitch="60" data-time="3"></div> <div class="grid-cell" data-pitch="60" data-time="4"></div> <div class="grid-cell" data-pitch="60" data-time="5"></div> <div class="grid-cell" data-pitch="60" data-time="6"></div> <div class="grid-cell" data-pitch="60" data-time="7"></div> </div>
                 <!-- Row 2 (Pitch 62 - D4) -->
-                <div class="grid-row">
-                    <div class="grid-cell" data-pitch="62" data-time="0"></div>
-                    <div class="grid-cell" data-pitch="62" data-time="1"></div>
-                    <div class="grid-cell" data-pitch="62" data-time="2"></div>
-                    <div class="grid-cell" data-pitch="62" data-time="3"></div>
-                    <div class="grid-cell" data-pitch="62" data-time="4"></div>
-                    <div class="grid-cell" data-pitch="62" data-time="5"></div>
-                    <div class="grid-cell" data-pitch="62" data-time="6"></div>
-                    <div class="grid-cell" data-pitch="62" data-time="7"></div>
-                </div>
+                <div class="grid-row"> <div class="grid-cell" data-pitch="62" data-time="0"></div> <div class="grid-cell" data-pitch="62" data-time="1"></div> <div class="grid-cell" data-pitch="62" data-time="2"></div> <div class="grid-cell" data-pitch="62" data-time="3"></div> <div class="grid-cell" data-pitch="62" data-time="4"></div> <div class="grid-cell" data-pitch="62" data-time="5"></div> <div class="grid-cell" data-pitch="62" data-time="6"></div> <div class="grid-cell" data-pitch="62" data-time="7"></div> </div>
                 <!-- Row 3 (Pitch 64 - E4) -->
-                <div class="grid-row">
-                    <div class="grid-cell" data-pitch="64" data-time="0"></div>
-                    <div class="grid-cell" data-pitch="64" data-time="1"></div>
-                    <div class="grid-cell" data-pitch="64" data-time="2"></div>
-                    <div class="grid-cell" data-pitch="64" data-time="3"></div>
-                    <div class="grid-cell" data-pitch="64" data-time="4"></div>
-                    <div class="grid-cell" data-pitch="64" data-time="5"></div>
-                    <div class="grid-cell" data-pitch="64" data-time="6"></div>
-                    <div class="grid-cell" data-pitch="64" data-time="7"></div>
-                </div>
+                <div class="grid-row"> <div class="grid-cell" data-pitch="64" data-time="0"></div> <div class="grid-cell" data-pitch="64" data-time="1"></div> <div class="grid-cell" data-pitch="64" data-time="2"></div> <div class="grid-cell" data-pitch="64" data-time="3"></div> <div class="grid-cell" data-pitch="64" data-time="4"></div> <div class="grid-cell" data-pitch="64" data-time="5"></div> <div class="grid-cell" data-pitch="64" data-time="6"></div> <div class="grid-cell" data-pitch="64" data-time="7"></div> </div>
                 <!-- Row 4 (Pitch 65 - F4) -->
-                <div class="grid-row">
-                    <div class="grid-cell" data-pitch="65" data-time="0"></div>
-                    <div class="grid-cell" data-pitch="65" data-time="1"></div>
-                    <div class="grid-cell" data-pitch="65" data-time="2"></div>
-                    <div class="grid-cell" data-pitch="65" data-time="3"></div>
-                    <div class="grid-cell" data-pitch="65" data-time="4"></div>
-                    <div class="grid-cell" data-pitch="65" data-time="5"></div>
-                    <div class="grid-cell" data-pitch="65" data-time="6"></div>
-                    <div class="grid-cell" data-pitch="65" data-time="7"></div>
-                </div>
+                <div class="grid-row"> <div class="grid-cell" data-pitch="65" data-time="0"></div> <div class="grid-cell" data-pitch="65" data-time="1"></div> <div class="grid-cell" data-pitch="65" data-time="2"></div> <div class="grid-cell" data-pitch="65" data-time="3"></div> <div class="grid-cell" data-pitch="65" data-time="4"></div> <div class="grid-cell" data-pitch="65" data-time="5"></div> <div class="grid-cell" data-pitch="65" data-time="6"></div> <div class="grid-cell" data-pitch="65" data-time="7"></div> </div>
             </div>
         </div>
         <div id="controls-container">
