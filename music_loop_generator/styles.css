@@ -1,33 +1,65 @@
 body {
-    font-family: sans-serif;
-    margin: 20px;
-    background-color: #f4f4f4;
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+    background-color: #f0f2f5; /* Light grayish background */
     color: #333;
     display: flex;
-    flex-direction: column;
-    align-items: center;
+    justify-content: center;
+    align-items: flex-start; /* Align to top for longer content */
+    min-height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.app-container {
+    width: 100%;
+    max-width: 900px; /* Increased max-width */
+    background-color: #ffffff; /* White background for the app itself */
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 25px 30px;
 }
 
 header {
-    margin-bottom: 20px;
+    margin-bottom: 30px;
     text-align: center;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 20px;
+}
+
+header h1 {
+    color: #2c3e50; /* Darker blue-gray */
+    font-weight: 500;
+    font-size: 2.2em;
+    margin-bottom: 5px;
+}
+
+header .subtitle {
+    color: #7f8c8d; /* Muted gray */
+    font-size: 1.1em;
+    margin-top: 0;
 }
 
 main {
     width: 100%;
-    max-width: 800px; /* Adjust as needed */
+}
+
+#grid-section {
+    margin-bottom: 30px;
 }
 
 #grid-container {
+    display: flex;
+    justify-content: center;
     margin-bottom: 20px;
-    display: flex; /* Added to center the grid if it's narrower than container */
-    justify-content: center; /* Added to center the grid */
 }
 
 #music-grid {
-    margin-bottom: 20px;
-    /* border: 1px solid #777; */ /* Optional: border for the whole grid */
-    display: inline-block; /* To make it shrink-to-fit its content */
+    display: inline-block;
+    border: 1px solid #d1d8dd; /* Softer border for the grid */
+    border-radius: 6px;
+    padding: 5px; /* Add some padding around the cells within the grid border */
+    background-color: #f8f9fa; /* Light background for the grid area */
 }
 
 .grid-row {
@@ -35,44 +67,343 @@ main {
 }
 
 .grid-cell {
-    width: 40px;
-    height: 40px;
-    border: 1px solid #ccc;
-    margin: 2px;
-    background-color: #f0f0f0;
+    width: 45px;  /* Slightly larger cells */
+    height: 45px;
+    border: 1px solid #ced4da; /* Lighter border for cells */
+    margin: 3px; /* Increased margin for better separation */
+    background-color: #e9ecef; /* Default cell color */
     cursor: pointer;
-    display: flex; /* For centering content within cell, if any */
-    align-items: center; /* For centering content within cell */
-    justify-content: center; /* For centering content within cell */
-    font-size: 10px; /* For displaying debug info like pitch/time if needed */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    border-radius: 4px; /* Rounded corners for cells */
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.grid-cell:hover {
+    background-color: #dee2e6; /* Hover effect */
+    border-color: #adb5bd;
 }
 
 .grid-cell.active {
-    background-color: #64b5f6; /* A light blue color */
+    background-color: #007bff; /* Primary blue for active */
+    border-color: #0056b3;
+    color: white; /* For any potential text inside */
+    transform: scale(1.05); /* Slight pop effect */
 }
 
 .grid-cell.playing {
-    background-color: #ffeb3b; /* A yellow color for playing */
-    transition: background-color 0.1s;
+    background-color: #ffc107; /* Vibrant yellow for playing */
+    border-color: #e0a800;
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.7); /* Glow effect */
+    transform: scale(1.1);
+    transition: background-color 0.05s, transform 0.05s;
 }
 
-#controls-container {
+#controls-section {
     display: flex;
+    flex-wrap: wrap; /* Allow controls to wrap on smaller screens */
     justify-content: center;
-    gap: 10px;
-    /* Styles for controls will be added later */
+    gap: 20px; /* Gap between control groups */
+    padding: 20px;
+    background-color: #f8f9fa; /* Light background for controls area */
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
 }
 
-/* Example button style - can be refined later */
-button {
-    padding: 10px 15px;
-    background-color: #007bff;
+.controls-group {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Gap within a control group */
+}
+
+button.btn-control {
+    padding: 12px 20px;
+    font-size: 1em;
+    font-weight: 500;
     color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+    min-width: 120px; /* Minimum width for buttons */
+    text-align: center;
 }
 
-button:hover {
-    background-color: #0056b3;
+button.btn-control:hover {
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+    transform: translateY(-1px);
+}
+
+button.btn-control:active {
+    transform: translateY(0px);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+
+button.btn-control:disabled {
+    background-color: #adb5bd; /* Gray for disabled */
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+#play-test-note-btn {
+    background-color: #6c757d; /* Secondary/Gray */
+}
+#play-test-note-btn:hover:not(:disabled) {
+    background-color: #5a6268;
+}
+
+.btn-play {
+    background-color: #28a745; /* Green for play */
+}
+.btn-play:hover:not(:disabled) {
+    background-color: #218838;
+}
+
+.btn-generate {
+    background-color: #17a2b8; /* Info/Teal for generate */
+}
+.btn-generate:hover:not(:disabled) {
+    background-color: #138496;
+}
+
+.btn-clear {
+    background-color: #dc3545; /* Red for clear/danger */
+}
+.btn-clear:hover:not(:disabled) {
+    background-color: #c82333;
+}
+
+
+#tempo-control-container {
+    padding: 10px 15px;
+    border-radius: 5px;
+    /* background-color: #e9ecef; */ /* Optional: slightly different bg for this group */
+    /* border: 1px solid #ced4da; */
+    color: #495057;
+}
+
+#tempo-control-container label {
+    margin-right: 8px;
+    font-weight: 500;
+}
+
+#tempo-slider {
+    width: 150px; /* Adjust as needed */
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+#tempo-value {
+    font-weight: 500;
+    min-width: 25px; /* Ensure space for 3 digits */
+    display: inline-block;
+    text-align: right;
+}
+
+footer {
+    text-align: center;
+    margin-top: 30px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+    font-size: 0.9em;
+    color: #7f8c8d;
+}
+
+footer a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+footer a:hover {
+    text-decoration: underline;
+}
+
+/* Basic responsiveness for controls */
+@media (max-width: 768px) {
+    header h1 {
+        font-size: 1.8em;
+    }
+    header .subtitle {
+        font-size: 1em;
+    }
+    .app-container {
+        padding: 20px 15px;
+    }
+    #controls-section {
+        flex-direction: column; /* Stack control groups vertically */
+        align-items: stretch; /* Make control groups take full width */
+    }
+    .controls-group {
+        flex-direction: column; /* Stack items within a group */
+        width: 100%;
+    }
+    button.btn-control {
+        width: 100%; /* Make buttons full width in their group */
+        margin-bottom: 10px;
+    }
+    .controls-group:last-child button.btn-control {
+        margin-bottom: 0;
+    }
+    #tempo-control-container {
+        flex-direction: row; /* Keep tempo items in a row but allow wrap */
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    #tempo-slider {
+        width: calc(100% - 100px); /* Adjust slider width */
+    }
+}
+
+@media (max-width: 480px) {
+    .grid-cell {
+        width: 35px;
+        height: 35px;
+        margin: 2px;
+    }
+    #music-grid {
+        padding: 3px;
+    }
+    button.btn-control {
+        padding: 10px 15px;
+        font-size: 0.9em;
+    }
+}
+
+#technical-details {
+    margin-top: 40px;
+    padding: 25px;
+    background-color: #f8f9fa; /* Light background for this section */
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    color: #495057; /* Slightly softer text color */
+}
+
+#technical-details h2 {
+    color: #2c3e50; /* Darker blue-gray, same as header h1 */
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #d1d8dd;
+    padding-bottom: 10px;
+}
+
+#technical-details h3 {
+    color: #34495e; /* Slightly lighter than h2 */
+    margin-top: 25px;
+    margin-bottom: 10px;
+    border-bottom: 1px dashed #ced4da;
+    padding-bottom: 5px;
+}
+
+#technical-details p {
+    line-height: 1.6;
+    margin-bottom: 15px;
+}
+
+#technical-details ul,
+#technical-details ol {
+    margin-left: 20px; /* Default indentation for lists */
+    padding-left: 20px; /* Add padding for list markers */
+    line-height: 1.6;
+}
+
+#technical-details ul ul {
+    margin-top: 5px;
+    margin-bottom: 10px;
+}
+
+#technical-details li {
+    margin-bottom: 8px;
+}
+
+#technical-details code,
+#technical-details kbd,
+#technical-details samp {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-size: 0.9em;
+    background-color: #e9ecef;
+    padding: 2px 5px;
+    border-radius: 3px;
+    color: #c0392b; /* A reddish color for code elements */
+}
+
+footer {
+    text-align: center;
+    margin-top: 30px;
+    padding-top: 20px; /* Increased padding */
+    border-top: 1px solid #e0e0e0;
+    font-size: 0.9em;
+    color: #7f8c8d;
+}
+
+footer a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+footer a:hover {
+    text-decoration: underline;
+}
+
+/* Basic responsiveness for controls */
+@media (max-width: 768px) {
+    header h1 {
+        font-size: 1.8em;
+    }
+    header .subtitle {
+        font-size: 1em;
+    }
+    .app-container {
+        padding: 20px 15px;
+    }
+    #controls-section {
+        flex-direction: column; /* Stack control groups vertically */
+        align-items: stretch; /* Make control groups take full width */
+    }
+    .controls-group {
+        flex-direction: column; /* Stack items within a group */
+        width: 100%;
+    }
+    button.btn-control {
+        width: 100%; /* Make buttons full width in their group */
+        margin-bottom: 10px;
+    }
+    .controls-group:last-child button.btn-control {
+        margin-bottom: 0;
+    }
+    #tempo-control-container {
+        flex-direction: row; /* Keep tempo items in a row but allow wrap */
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    #tempo-slider {
+        width: calc(100% - 100px); /* Adjust slider width */
+    }
+    #technical-details {
+        padding: 20px 15px;
+    }
+    #technical-details h2 {
+        font-size: 1.5em;
+    }
+    #technical-details h3 {
+        font-size: 1.2em;
+    }
+}
+
+@media (max-width: 480px) {
+    .grid-cell {
+        width: 35px;
+        height: 35px;
+        margin: 2px;
+    }
+    #music-grid {
+        padding: 3px;
+    }
+    button.btn-control {
+        padding: 10px 15px;
+        font-size: 0.9em;
+    }
 }
