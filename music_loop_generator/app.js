@@ -1,4 +1,4 @@
-console.log("Music Loop Generator app loaded");
+console.log('app.js: Script execution started.');
 
 // Initialize Magenta.js Player
 // Global instance for the Magenta.js player and MusicVAE
@@ -121,23 +121,33 @@ function playTestNote() {
 
 // Load event: setup everything
 window.addEventListener('load', async () => { // Make the load listener async
-    console.log("Window loaded. Initializing application components.");
+    console.log('app.js: window.load event fired.');
 
-    // TensorFlow.js Test Code
-    try {
-      console.log('Attempting to test TensorFlow.js...');
-      if (typeof tf !== 'undefined' && typeof tf.version !== 'undefined') {
+    // TFJS Check
+    console.log('app.js: Checking for TensorFlow.js (tf) object...');
+    if (typeof tf !== 'undefined' && typeof tf.version !== 'undefined' && tf.version.tfjs) { // More robust check
+      console.log('app.js: TensorFlow.js (tf) IS defined.');
+      try {
+        console.log('app.js: Attempting to use TensorFlow.js...');
         console.log('TensorFlow.js version:', tf.version.tfjs);
-        tf.tensor([1, 2, 3, 4]).print();
-        console.log('TensorFlow.js basic test successful.');
-      } else {
-        console.error('TensorFlow.js (tf) is not defined or tf.version is undefined.');
-        alert("Critical Error: TensorFlow.js (tf) is not loaded correctly. The application may not function as expected.");
+        tf.tensor([1, 2, 3, 4]).print(); // tf.print() is not a function, .print() is a method on a tensor
+        console.log('app.js: TensorFlow.js basic test successful.');
+      } catch (e) {
+        console.error('app.js: Error during TensorFlow.js test:', e);
+        alert("app.js: Error during TensorFlow.js test. Check console. App might not work.");
       }
-    } catch (e) {
-      console.error('Error during TensorFlow.js test:', e);
-      alert("Error during TensorFlow.js test. Check console for details. The application may not function as expected.");
+    } else {
+      console.error('app.js: TensorFlow.js (tf) IS UNDEFINED or version is missing.');
+      if (typeof tf === 'undefined') {
+        console.error('Reason: tf object itself is undefined.');
+      } else {
+        console.error('Reason: tf object is defined, but tf.version or tf.version.tfjs is missing.');
+      }
+      alert("app.js: Critical Error: TensorFlow.js (tf) is not loaded correctly. App will likely fail.");
     }
+    
+    console.log('app.js: Music Loop Generator app loaded, proceeding with initializations.');
+    // ... rest of the initializations as before
 
     // Verify Magenta UMD bundle
     if (typeof magenta !== 'undefined') {
