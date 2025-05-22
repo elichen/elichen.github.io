@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wave Function Collapse</title>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Wave Function Collapse</h1>
+            <p class="subtitle">Quantum-inspired procedural generation</p>
+        </header>
+        
+        <div class="controls">
+            <button id="generateBtn" class="btn">Generate</button>
+            <button id="stepBtn" class="btn">Step</button>
+            <button id="playBtn" class="btn">Play</button>
+            <button id="resetBtn" class="btn">Reset</button>
+            
+            <div class="control-group">
+                <label for="speedSlider">Speed:</label>
+                <input type="range" id="speedSlider" min="1" max="100" value="50">
+                <span id="speedValue">50</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="sizeSlider">Grid Size:</label>
+                <input type="range" id="sizeSlider" min="10" max="50" value="25" step="5">
+                <span id="sizeValue">25</span>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="canvas-container">
+                <canvas id="wfcCanvas"></canvas>
+                <div class="info-overlay">
+                    <div id="entropyInfo">Entropy: <span id="entropyValue">0</span></div>
+                    <div id="collapsedInfo">Collapsed: <span id="collapsedValue">0</span>/<span id="totalValue">0</span></div>
+                </div>
+            </div>
+            
+            <div class="explanation">
+                <h2>How It Works</h2>
+                <div class="explanation-content">
+                    <p>Wave Function Collapse (WFC) is an algorithm inspired by quantum mechanics that generates patterns from local constraints.</p>
+                    
+                    <h3>The Process:</h3>
+                    <ol>
+                        <li><strong>Superposition:</strong> Each cell starts in a superposition of all possible states (tiles)</li>
+                        <li><strong>Observation:</strong> The algorithm picks the cell with lowest entropy (uncertainty)</li>
+                        <li><strong>Collapse:</strong> That cell collapses to a single state</li>
+                        <li><strong>Propagation:</strong> Neighboring cells update their possibilities based on constraints</li>
+                    </ol>
+                    
+                    <h3>Tile Types:</h3>
+                    <div class="tile-legend">
+                        <div class="tile-item">
+                            <div class="tile-preview empty"></div>
+                            <span>Empty Space</span>
+                        </div>
+                        <div class="tile-item">
+                            <div class="tile-preview wall"></div>
+                            <span>Wall</span>
+                        </div>
+                        <div class="tile-item">
+                            <div class="tile-preview corner"></div>
+                            <span>Corner</span>
+                        </div>
+                        <div class="tile-item">
+                            <div class="tile-preview junction"></div>
+                            <span>Junction</span>
+                        </div>
+                    </div>
+                    
+                    <p class="tip">Click on cells to manually collapse them and watch the pattern propagate!</p>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <a href="../index.html" class="back-link">← Back to Projects</a>
+        </footer>
+    </div>
+    
+    <script src="wfc.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
