@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Bridge Builder - Unifying LLMs and Knowledge Graphs</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <header>
+            <h1>Neural Bridge Builder</h1>
+            <p class="subtitle">Connect Large Language Models with Knowledge Graphs</p>
+        </header>
+        
+        <div class="game-stats">
+            <div class="stat-item">
+                <span class="stat-label">Score:</span>
+                <span id="score">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Level:</span>
+                <span id="level">1</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Bridges:</span>
+                <span id="bridges">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Accuracy:</span>
+                <span id="accuracy">100%</span>
+            </div>
+        </div>
+        
+        <div class="game-area">
+            <canvas id="gameCanvas" width="1000" height="600"></canvas>
+        </div>
+        
+        <div class="info-panel">
+            <div class="info-section">
+                <h3>Current Challenge</h3>
+                <p id="challenge-text">Connect the LLM query to the correct Knowledge Graph facts!</p>
+            </div>
+            <div class="info-section">
+                <h3>Selected Node</h3>
+                <div id="node-info">Click on a node to see details</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn" class="btn btn-primary">Start Game</button>
+            <button id="tutorialBtn" class="btn btn-secondary">Tutorial</button>
+            <button id="resetBtn" class="btn btn-danger">Reset</button>
+        </div>
+        
+        <div id="tutorial-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>How to Play Neural Bridge Builder</h2>
+                <div class="tutorial-content">
+                    <h3>Background</h3>
+                    <p>This game is based on the research paper "Unifying Large Language Models and Knowledge Graphs".</p>
+                    
+                    <h3>Key Concepts</h3>
+                    <ul>
+                        <li><strong>LLMs (Large Language Models):</strong> AI models like ChatGPT that generate text but may lack factual accuracy</li>
+                        <li><strong>Knowledge Graphs:</strong> Structured databases containing verified facts and relationships</li>
+                        <li><strong>The Challenge:</strong> LLMs need access to factual knowledge, while KGs need natural language capabilities</li>
+                    </ul>
+                    
+                    <h3>Game Mechanics</h3>
+                    <ol>
+                        <li>Blue nodes represent LLM queries or capabilities</li>
+                        <li>Green nodes represent Knowledge Graph facts</li>
+                        <li>Draw bridges between compatible nodes to create unified AI systems</li>
+                        <li>Correct connections earn points and unlock new challenges</li>
+                        <li>Wrong connections reduce accuracy - be careful!</li>
+                    </ol>
+                    
+                    <h3>Scoring</h3>
+                    <ul>
+                        <li>Correct bridge: +100 points</li>
+                        <li>Speed bonus: Extra points for quick connections</li>
+                        <li>Perfect level: 2x multiplier for 100% accuracy</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="game.js"></script>
+</body>
+</html>
