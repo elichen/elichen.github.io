@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ant on Klein Bottle - Simple Legs</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { width: 100%; height: 100vh; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/geometries/ParametricGeometry.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; 
+        controls.dampingFactor = 0.05;
+        
+        // Klein bottle
+        const kleinBottleParametric = (u_param, v_param, target) => {
+            const u = u_param * Math.PI * 2; 
+            const v = v_param * Math.PI * 2;
+            let x, y, z;
+            if (u < Math.PI) {
+                x = 3*Math.cos(u)*(1+Math.sin(u))+(2*(1-Math.cos(u)/2))*Math.cos(u)*Math.cos(v);
+                y = 8*Math.sin(u)+(2*(1-Math.cos(u)/2))*Math.sin(u)*Math.cos(v);
+                z = (2*(1-Math.cos(u)/2))*Math.sin(v);
+            } else {
+                x = 3*Math.cos(u)*(1+Math.sin(u))+(2*(1-Math.cos(u)/2))*Math.cos(v+Math.PI);
+                y = 8*Math.sin(u);
+                z = (2*(1-Math.cos(u)/2))*Math.sin(v);
+            }
+            target.set(x*0.25, y*0.25, z*0.25);
+        };
+
+        const geometry = new THREE.ParametricGeometry(kleinBottleParametric, 120, 120);
+        const material = new THREE.MeshPhongMaterial({ 
+            color: 0x77bbff, side: THREE.DoubleSide, transparent: true, opacity: 0.8,
+            shininess: 90, specular: 0x333333,
+        });
+        const kleinMesh = new THREE.Mesh(geometry, material);
+        kleinMesh.receiveShadow = true;
+        scene.add(kleinMesh);
+
+        // Lighting
+        scene.add(new THREE.AmbientLight(0x707070));
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(8, 12, 10);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        camera.position.set(0, 3, 10);
+        camera.lookAt(0, 0, 0);
+
+        // Create ant with simple animated legs
+        const createAnt = () => {
+            const antGroup = new THREE.Object3D();
+            const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x7A4426 });
+            const legMaterial = new THREE.MeshPhongMaterial({ color: 0x5C3317 });
+            
+            // Body
+            const thorax = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 12), bodyMaterial);
+            thorax.scale.set(1, 0.8, 1.2);
+            antGroup.add(thorax);
+            
+            const abdomen = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12), bodyMaterial);
+            abdomen.scale.set(1, 0.8, 1.4);
+            abdomen.position.set(0, 0, -0.2);
+            antGroup.add(abdomen);
+            
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), bodyMaterial);
+            head.position.set(0, 0, 0.15);
+            antGroup.add(head);
+            
+            // Create 6 simple legs
+            const legs = [];
+            const legPositions = [
+                { x:  0.08, z:  0.06, side:  1 },
+                { x:  0.08, z:  0,    side:  1 },
+                { x:  0.08, z: -0.06, side:  1 },
+                { x: -0.08, z:  0.06, side: -1 },
+                { x: -0.08, z:  0,    side: -1 },
+                { x: -0.08, z: -0.06, side: -1 },
+            ];
+            
+            legPositions.forEach((pos, i) => {
+                // Create simple leg as one piece
+                const legGroup = new THREE.Group();
+                legGroup.position.set(pos.x, -0.02, pos.z);
+                thorax.add(legGroup);
+                
+                // Single leg mesh
+                const legGeom = new THREE.CylinderGeometry(0.01, 0.005, 0.35, 8);
+                const legMesh = new THREE.Mesh(legGeom, legMaterial);
+                legMesh.position.y = -0.175;
+                legGroup.add(legMesh);
+                
+                // Add joint visual at "knee"
+                const jointGeom = new THREE.SphereGeometry(0.012, 8, 6);
+                const joint = new THREE.Mesh(jointGeom, legMaterial);
+                joint.position.y = -0.15;
+                legGroup.add(joint);
+                
+                legs.push({
+                    group: legGroup,
+                    mesh: legMesh,
+                    index: i,
+                    side: pos.side,
+                    baseRotX: -0.3,
+                    baseRotZ: pos.side * 0.4
+                });
+            });
+            
+            return { antGroup, legs };
+        };
+        
+        const { antGroup, legs } = createAnt();
+        scene.add(antGroup);
+
+        // Animation
+        const speed = 0.00009;
+        const computeKleinBottlePoint = (u, v, target) => {
+            kleinBottleParametric(u/(2*Math.PI), v/(2*Math.PI), target);
+        };
+        
+        const computeSurfaceNormal = (u, v, target) => {
+            const eps = 0.00001;
+            const p = new THREE.Vector3();
+            const p_du = new THREE.Vector3();
+            const p_dv = new THREE.Vector3();
+            
+            computeKleinBottlePoint(u, v, p);
+            computeKleinBottlePoint(u + eps*(2*Math.PI), v, p_du);
+            computeKleinBottlePoint(u, v + eps*(2*Math.PI), p_dv);
+            
+            const du = p_du.sub(p).normalize();
+            const dv = p_dv.sub(p).normalize();
+            target.crossVectors(du, dv).normalize();
+        };
+
+        const tempMatrix = new THREE.Matrix4();
+
+        function animate(time) {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Move ant on Klein bottle
+            const t = time * speed;
+            const u = t % (2 * Math.PI);
+            const v = t % (2 * Math.PI);
+            
+            const pos = new THREE.Vector3();
+            const normal = new THREE.Vector3();
+            const forward = new THREE.Vector3();
+            
+            computeKleinBottlePoint(u, v, pos);
+            computeSurfaceNormal(u, v, normal);
+            
+            // Calculate forward direction
+            const p_ahead = new THREE.Vector3();
+            computeKleinBottlePoint(u + 0.0001*(2*Math.PI), v, p_ahead);
+            forward.subVectors(p_ahead, pos).normalize().multiplyScalar(-1);
+            
+            // Position ant
+            antGroup.position.copy(pos).addScaledVector(normal, 0.12);
+            tempMatrix.lookAt(antGroup.position, antGroup.position.clone().add(forward), normal);
+            antGroup.quaternion.setFromRotationMatrix(tempMatrix);
+            
+            // Simple leg animation
+            legs.forEach((leg, i) => {
+                const phase = (time * 0.002 + i * Math.PI/3) % (Math.PI * 2);
+                
+                // Simple rotation animation
+                leg.group.rotation.x = leg.baseRotX + Math.sin(phase) * 0.2;
+                leg.group.rotation.z = leg.baseRotZ + Math.cos(phase) * 0.1;
+                
+                // Lift leg slightly during "swing"
+                if (Math.sin(phase) > 0.5) {
+                    leg.group.position.y = -0.02 + Math.sin(phase) * 0.03;
+                } else {
+                    leg.group.position.y = -0.02;
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        animate(0);
+    </script>
+</body>
+</html>

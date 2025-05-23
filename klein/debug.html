@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ant Debug - Multi-View</title>
+    <style>
+        body { margin: 0; font-family: Arial; }
+        #container { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; height: 100vh; }
+        .viewport { border: 1px solid #333; position: relative; }
+        .label { position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.7); color: white; padding: 5px; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="viewport" id="viewport1"><div class="label">Perspective</div></div>
+        <div class="viewport" id="viewport2"><div class="label">Top</div></div>
+        <div class="viewport" id="viewport3"><div class="label">Side</div></div>
+        <div class="viewport" id="viewport4"><div class="label">Front</div></div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f0f0);
+        
+        // Add grid
+        const gridHelper = new THREE.GridHelper(10, 20);
+        scene.add(gridHelper);
+        
+        // Add axes helper
+        const axesHelper = new THREE.AxesHelper(2);
+        scene.add(axesHelper);
+        
+        // Lighting
+        scene.add(new THREE.AmbientLight(0x404040));
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 5);
+        scene.add(directionalLight);
+        
+        // Create cameras
+        const aspect = window.innerWidth / window.innerHeight / 2;
+        const cameras = {
+            perspective: new THREE.PerspectiveCamera(50, aspect, 0.1, 100),
+            top: new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 100),
+            side: new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 100),
+            front: new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 100)
+        };
+        
+        // Position cameras
+        cameras.perspective.position.set(3, 3, 3);
+        cameras.perspective.lookAt(0, 0, 0);
+        
+        cameras.top.position.set(0, 5, 0);
+        cameras.top.lookAt(0, 0, 0);
+        
+        cameras.side.position.set(5, 0, 0);
+        cameras.side.lookAt(0, 0, 0);
+        
+        cameras.front.position.set(0, 0, 5);
+        cameras.front.lookAt(0, 0, 0);
+        
+        // Create renderers
+        const renderers = [];
+        const viewports = document.querySelectorAll('.viewport');
+        viewports.forEach(viewport => {
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            viewport.appendChild(renderer.domElement);
+            renderers.push(renderer);
+        });
+        
+        // Create simple ant
+        const createAnt = () => {
+            const antGroup = new THREE.Group();
+            
+            // Body parts
+            const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
+            
+            // Thorax
+            const thoraxGeometry = new THREE.BoxGeometry(0.3, 0.15, 0.4);
+            const thorax = new THREE.Mesh(thoraxGeometry, bodyMaterial);
+            thorax.position.y = 0.3; // Raise body off ground
+            antGroup.add(thorax);
+            
+            // Head
+            const headGeometry = new THREE.BoxGeometry(0.2, 0.15, 0.2);
+            const head = new THREE.Mesh(headGeometry, bodyMaterial);
+            head.position.set(0, 0.3, 0.3);
+            antGroup.add(head);
+            
+            // Abdomen
+            const abdomenGeometry = new THREE.BoxGeometry(0.35, 0.2, 0.5);
+            const abdomen = new THREE.Mesh(abdomenGeometry, bodyMaterial);
+            abdomen.position.set(0, 0.3, -0.35);
+            antGroup.add(abdomen);
+            
+            // Create legs
+            const legMaterial = new THREE.MeshPhongMaterial({ color: 0x5C3317 });
+            const legs = [];
+            
+            // Leg positions on thorax (left and right sides)
+            const legAttachments = [
+                { x:  0.15, z:  0.15, side:  1 }, // Right front
+                { x:  0.15, z:  0,    side:  1 }, // Right middle
+                { x:  0.15, z: -0.15, side:  1 }, // Right back
+                { x: -0.15, z:  0.15, side: -1 }, // Left front
+                { x: -0.15, z:  0,    side: -1 }, // Left middle
+                { x: -0.15, z: -0.15, side: -1 }, // Left back
+            ];
+            
+            const COXA_LENGTH = 0.15;
+            const FEMUR_LENGTH = 0.25;
+            const TIBIA_LENGTH = 0.3;
+            
+            legAttachments.forEach((pos, i) => {
+                // Leg root (attached to thorax)
+                const legRoot = new THREE.Group();
+                legRoot.position.set(pos.x, 0.3, pos.z); // At thorax height
+                antGroup.add(legRoot);
+                
+                // Coxa (horizontal segment)
+                const coxaGeom = new THREE.CylinderGeometry(0.02, 0.02, COXA_LENGTH);
+                const coxa = new THREE.Mesh(coxaGeom, legMaterial);
+                coxa.rotation.z = Math.PI/2; // Make horizontal
+                coxa.position.x = COXA_LENGTH/2 * pos.side;
+                legRoot.add(coxa);
+                
+                // Femur joint
+                const femurJoint = new THREE.Group();
+                femurJoint.position.x = COXA_LENGTH * pos.side;
+                legRoot.add(femurJoint);
+                
+                // Femur (thigh)
+                const femurGeom = new THREE.CylinderGeometry(0.018, 0.015, FEMUR_LENGTH);
+                const femur = new THREE.Mesh(femurGeom, legMaterial);
+                femur.position.y = -FEMUR_LENGTH/2;
+                femurJoint.add(femur);
+                
+                // Tibia joint
+                const tibiaJoint = new THREE.Group();
+                tibiaJoint.position.y = -FEMUR_LENGTH;
+                femurJoint.add(tibiaJoint);
+                
+                // Tibia (shin)
+                const tibiaGeom = new THREE.CylinderGeometry(0.015, 0.01, TIBIA_LENGTH);
+                const tibia = new THREE.Mesh(tibiaGeom, legMaterial);
+                tibia.position.y = -TIBIA_LENGTH/2;
+                tibiaJoint.add(tibia);
+                
+                // Set initial leg pose (slightly angled)
+                legRoot.rotation.y = pos.side * 0.2; // Slight outward angle
+                femurJoint.rotation.x = -0.3; // Angle forward
+                femurJoint.rotation.z = pos.side * 0.4; // Angle outward
+                tibiaJoint.rotation.x = 0.6; // Knee bend
+                
+                legs.push({
+                    root: legRoot,
+                    femurJoint: femurJoint,
+                    tibiaJoint: tibiaJoint,
+                    side: pos.side,
+                    index: i
+                });
+            });
+            
+            return { antGroup, legs };
+        };
+        
+        const { antGroup, legs } = createAnt();
+        scene.add(antGroup);
+        
+        // Simple walking animation
+        function animate(time) {
+            requestAnimationFrame(animate);
+            
+            // Animate legs with simple sine waves
+            legs.forEach((leg, i) => {
+                const phase = (time * 0.001 + i * Math.PI/3) % (Math.PI * 2);
+                
+                // Simple leg motion
+                leg.femurJoint.rotation.x = -0.3 + Math.sin(phase) * 0.2;
+                leg.tibiaJoint.rotation.x = 0.6 + Math.sin(phase + Math.PI/4) * 0.3;
+                
+                // Lift leg during swing phase
+                if (Math.sin(phase) > 0) {
+                    leg.root.position.y = 0.3 + Math.sin(phase) * 0.1;
+                } else {
+                    leg.root.position.y = 0.3;
+                }
+            });
+            
+            // Render all viewports
+            const width = window.innerWidth / 2;
+            const height = window.innerHeight / 2;
+            
+            renderers.forEach((renderer, i) => {
+                renderer.setSize(width - 2, height - 2);
+                const camera = Object.values(cameras)[i];
+                
+                // Update aspect ratio for orthographic cameras
+                if (camera instanceof THREE.OrthographicCamera) {
+                    const aspect = width / height;
+                    camera.left = -2 * aspect;
+                    camera.right = 2 * aspect;
+                    camera.updateProjectionMatrix();
+                }
+                
+                renderer.render(scene, camera);
+            });
+        }
+        
+        animate(0);
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const aspect = window.innerWidth / window.innerHeight / 2;
+            cameras.perspective.aspect = aspect;
+            cameras.perspective.updateProjectionMatrix();
+        });
+    </script>
+</body>
+</html>

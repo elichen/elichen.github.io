@@ -97,8 +97,8 @@
             const legs = [];
             const legMaterial = new THREE.MeshPhongMaterial({ color: 0x5C3317 });
             const legPositions = [
-                [ 0.08, -0.02,  0.07, 1, false], [ 0.08, -0.02,  0.00, 1, false], [ 0.08, -0.02, -0.07, 1, true],
-                [-0.08, -0.02,  0.07, -1, false],[-0.08, -0.02,  0.00, -1, false],[-0.08, -0.02, -0.07, -1, true]
+                [ 0.06, -0.02,  0.05, 1, false], [ 0.06, -0.02,  0.00, 1, false], [ 0.06, -0.02, -0.05, 1, true],
+                [-0.06, -0.02,  0.05, -1, false],[-0.06, -0.02,  0.00, -1, false],[-0.06, -0.02, -0.05, -1, true]
             ];
             const phaseOffsets = [0, 0.5, 0.25, 0.75, 0.5, 0]; 
 
@@ -107,24 +107,33 @@
                 legRootGroup.position.set(posData[0], posData[1], posData[2]);
                 thorax.add(legRootGroup);
 
+                // Create properly oriented leg segments
                 const coxaMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.01,COXA_LENGTH,8), legMaterial);
-                coxaMesh.castShadow = true; coxaMesh.rotation.x = Math.PI/2; coxaMesh.position.z = COXA_LENGTH/2;
+                coxaMesh.castShadow = true; 
+                coxaMesh.rotation.z = Math.PI/2; // Horizontal segment
+                coxaMesh.position.x = COXA_LENGTH/2 * posData[3];
                 legRootGroup.add(coxaMesh);
 
                 const femurPivotGroup = new THREE.Group();
-                femurPivotGroup.position.z = COXA_LENGTH; 
+                femurPivotGroup.position.x = COXA_LENGTH * posData[3];
+                // Initial downward angle for femur
+                femurPivotGroup.rotation.x = Math.PI * 0.3;
                 legRootGroup.add(femurPivotGroup);
 
                 const femurMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.007,FEMUR_LENGTH,8), legMaterial);
-                femurMesh.castShadow = true; femurMesh.rotation.x = Math.PI/2; femurMesh.position.z = FEMUR_LENGTH/2;
+                femurMesh.castShadow = true; 
+                femurMesh.position.y = -FEMUR_LENGTH/2;
                 femurPivotGroup.add(femurMesh);
 
                 const tibiaPivotGroup = new THREE.Group();
-                tibiaPivotGroup.position.z = FEMUR_LENGTH; 
+                tibiaPivotGroup.position.y = -FEMUR_LENGTH;
+                // Initial angle for tibia
+                tibiaPivotGroup.rotation.x = Math.PI * 0.4;
                 femurPivotGroup.add(tibiaPivotGroup);
 
                 const tibiaMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.004,TIBIA_LENGTH,8), legMaterial);
-                tibiaMesh.castShadow = true; tibiaMesh.rotation.x = Math.PI/2; tibiaMesh.position.z = TIBIA_LENGTH/2;
+                tibiaMesh.castShadow = true; 
+                tibiaMesh.position.y = -TIBIA_LENGTH/2;
                 tibiaPivotGroup.add(tibiaMesh);
                 
                 // Refined deltaU multipliers: less spread for front legs
@@ -137,8 +146,12 @@
                     legRootGroup, femurPivotGroup, tibiaPivotGroup, 
                     coxaMesh, femurMesh, tibiaMesh, 
                     plantedT: new THREE.Vector3(), phaseOffset: phaseOffsets[legs.length], side: posData[3], isRear: posData[4],
-                    deltaU: 0.038 * posData[3] * du_multiplier, // Base deltaU slightly reduced
-                    deltaV: 0.04 * (posData[2] > 0 ? 1.0 : posData[2] < 0 ? -1.0 : (legs.length % 2 === 0 ? 0.25 : -0.25)), // Middle leg V slightly less
+                    deltaU: 0.045 * posData[3] * du_multiplier, // Increased spread for better stability
+                    deltaV: 0.04 * (posData[2] > 0 ? 1.0 : posData[2] < 0 ? -1.0 : (legs.length % 2 === 0 ? 0.25 : -0.25)),
+                    lastPhase: 0,
+                    currentTarget: new THREE.Vector3(),
+                    swingStartPos: new THREE.Vector3(),
+                    initialized: false, // Track if leg has been initialized
                 });
             });
             return { antGroup, thorax, abdomen, head, legs };
@@ -149,8 +162,9 @@
 
         const speed = 0.00009; 
         const period = 3200; const h_max = 0.065; 
-        const epsilon = 0.0001; const BODY_HEIGHT = 0.16; const BODY_OFFSET = BODY_HEIGHT / 2;
-        const FOOT_SURFACE_OFFSET = 0.005; 
+        const epsilon = 0.0001; const BODY_HEIGHT = 0.20; const BODY_OFFSET = BODY_HEIGHT / 2;
+        const FOOT_SURFACE_OFFSET = 0.01;
+        const PHASE_BLEND_DURATION = 0.1; // Smooth transition duration 
 
         const _vec = {
             p: new THREE.Vector3(), p_du: new THREE.Vector3(), p_dv: new THREE.Vector3(),
@@ -213,68 +227,149 @@
                 computeKleinBottlePoint(u_foot, v_foot, _vec.footTargetSurface);
                 computeSurfaceNormal(u_foot, v_foot, _vec.normalAtFootTarget);  
 
+                // Smooth normal vector handling
                 _vec.correctedFootNormal.copy(_vec.normalAtFootTarget);
                 if (_vec.correctedFootNormal.dot(_vec.N) < 0) {
                     _vec.correctedFootNormal.negate();
                 }
+                
+                // Apply smooth interpolation to normal changes
+                const normalBlendFactor = 0.15;
+                if (leg.lastNormal) {
+                    _vec.correctedFootNormal.lerp(leg.lastNormal, 1 - normalBlendFactor);
+                }
+                leg.lastNormal = leg.lastNormal || new THREE.Vector3();
+                leg.lastNormal.copy(_vec.correctedFootNormal);
 
                 const actualFootPlantTarget = _vec.footTargetSurface.clone().addScaledVector(_vec.correctedFootNormal, FOOT_SURFACE_OFFSET);
 
+                // Detect phase transitions
+                const wasPlanted = leg.lastPhase < 0.5;
+                const isPlanted = phase < 0.5;
+                const justStartedSwing = wasPlanted && !isPlanted;
+                
+                if (justStartedSwing) {
+                    // Capture actual foot position at swing start
+                    leg.swingStartPos.copy(leg.currentTarget);
+                }
+
+                // Initialize leg position if needed
+                if (!leg.initialized) {
+                    leg.plantedT.copy(actualFootPlantTarget);
+                    leg.currentTarget.copy(actualFootPlantTarget);
+                    leg.swingStartPos.copy(actualFootPlantTarget);
+                    leg.initialized = true;
+                }
+
                 if (phase < 0.5) { 
+                    // Planted phase - keep foot stable
                     _vec.finalFootTargetWorld.copy(leg.plantedT);
                 } else { 
-                    const swingNormalized = (phase - 0.5) * 2; 
-                    const liftHeight = h_max * Math.sin(Math.PI * swingNormalized);
+                    // Swing phase with smooth trajectory
+                    const swingNormalized = (phase - 0.5) * 2;
                     
-                    _vec.swingStartWorld.copy(leg.plantedT); // Start swing from where foot was planted
-
-                    _vec.swingLerpBase.copy(_vec.swingStartWorld).lerp(actualFootPlantTarget, swingNormalized);
+                    // Use easing function for smoother motion
+                    const easedSwing = swingNormalized < 0.5 
+                        ? 2 * swingNormalized * swingNormalized 
+                        : 1 - Math.pow(-2 * swingNormalized + 2, 2) / 2;
+                    
+                    const liftHeight = h_max * Math.sin(Math.PI * easedSwing);
+                    
+                    // Interpolate from actual swing start position
+                    _vec.swingLerpBase.copy(leg.swingStartPos).lerp(actualFootPlantTarget, easedSwing);
                     _vec.finalFootTargetWorld.copy(_vec.swingLerpBase).addScaledVector(_vec.correctedFootNormal, liftHeight);
                     
-                    if (swingNormalized >= 0.99) { 
+                    // Update planted position near end of swing
+                    if (swingNormalized >= 0.95) { 
                         leg.plantedT.copy(actualFootPlantTarget); 
                     }
                 }
                 
-                _vec.targetInThorax.copy(_vec.finalFootTargetWorld).applyMatrix4(worldToLocalMatrix);
+                // Smooth target interpolation
+                if (!leg.currentTarget.x && !leg.currentTarget.y && !leg.currentTarget.z) {
+                    leg.currentTarget.copy(_vec.finalFootTargetWorld);
+                }
+                leg.currentTarget.lerp(_vec.finalFootTargetWorld, 0.25);
+                
+                leg.lastPhase = phase;
+                
+                _vec.targetInThorax.copy(leg.currentTarget).applyMatrix4(worldToLocalMatrix);
                 _vec.targetRelToLegRoot.subVectors(_vec.targetInThorax, leg.legRootGroup.position);
 
+                // Rotate leg to point toward target
                 const yawAngle = Math.atan2(_vec.targetRelToLegRoot.x, _vec.targetRelToLegRoot.z);
                 leg.legRootGroup.rotation.y = yawAngle;
 
                 _vec.tempQuat.setFromAxisAngle(_vec.Y_AXIS, -yawAngle);
                 _vec.targetInYawedLegRoot.copy(_vec.targetRelToLegRoot).applyQuaternion(_vec.tempQuat);
 
-                const ik_target_y = _vec.targetInYawedLegRoot.y;
-                const ik_target_z = _vec.targetInYawedLegRoot.z - COXA_LENGTH; 
+                // Account for new leg structure - adjust target for coxa offset
+                let ik_target_x = _vec.targetInYawedLegRoot.x - COXA_LENGTH * leg.side;
+                let ik_target_y = _vec.targetInYawedLegRoot.y;
+                let ik_target_z = _vec.targetInYawedLegRoot.z; 
 
                 const L1 = FEMUR_LENGTH; const L2 = TIBIA_LENGTH;
-                const D_sq = ik_target_y * ik_target_y + ik_target_z * ik_target_z;
-                const D = Math.sqrt(D_sq);
+                // Calculate distance from femur pivot to target - for downward legs we need X-Y distance
+                const horizontal_dist = Math.sqrt(ik_target_x * ik_target_x + ik_target_z * ik_target_z);
+                const D_sq = ik_target_y * ik_target_y + horizontal_dist * horizontal_dist;
+                let D = Math.sqrt(D_sq);
 
                 let femurAngle, tibiaAngle;
-                const D_EPSILON = 0.001; 
+                const D_EPSILON = 0.001;
+                const MAX_REACH = L1 + L2 - 0.01; // Slightly less than full extension
 
-                if (D > L1 + L2 - D_EPSILON) { 
-                    femurAngle = Math.atan2(ik_target_y, ik_target_z); 
-                    tibiaAngle = -0.05; // Slightly bent, not perfectly straight
+                if (D > MAX_REACH) { 
+                    // Handle overextension smoothly
+                    const overextension = (D - MAX_REACH) / (L1 + L2 - MAX_REACH);
+                    const clampedD = MAX_REACH;
+                    // Point leg toward target when overextended
+                    const baseAngle = Math.atan2(-ik_target_y, horizontal_dist);
+                    femurAngle = baseAngle;
+                    tibiaAngle = 0.1; // Slight bend
+                    
+                    // Recalculate with clamped distance for smooth transition
+                    const scale = clampedD / D;
+                    ik_target_y *= scale;
+                    ik_target_z *= scale;
+                    D = clampedD;
                 } else if (D < D_EPSILON ) { 
-                    femurAngle = -Math.PI / 4; 
-                    tibiaAngle = -Math.PI / 2; 
+                    // Handle too-close targets - fold leg
+                    femurAngle = Math.PI * 0.4; 
+                    tibiaAngle = Math.PI * 0.7; 
                 } else { 
-                    const cos_angle_at_knee = Math.max(-1.0, Math.min(1.0, (L1*L1 + L2*L2 - D_sq) / (2*L1*L2) ));
+                    // Normal IK calculation with safety checks
+                    const cos_angle_at_knee = Math.max(-1.0, Math.min(1.0, (L1*L1 + L2*L2 - D*D) / (2*L1*L2) ));
                     const angle_at_knee = Math.acos(cos_angle_at_knee); 
-                    tibiaAngle = -(Math.PI - angle_at_knee); 
+                    tibiaAngle = Math.PI - angle_at_knee; // Positive for proper knee bend 
 
-                    const cos_alpha = Math.max(-1.0, Math.min(1.0, (L1*L1 + D_sq - L2*L2) / (2*L1*D) ));
+                    const cos_alpha = Math.max(-1.0, Math.min(1.0, (L1*L1 + D*D - L2*L2) / (2*L1*D) ));
                     const alpha = Math.acos(cos_alpha); 
-                    const target_angle_in_plane = Math.atan2(ik_target_y, ik_target_z);
-                    femurAngle = target_angle_in_plane - alpha; 
+                    // Calculate femur angle - negative Y points downward, use horizontal distance
+                    const target_angle = Math.atan2(-ik_target_y, horizontal_dist);
+                    femurAngle = target_angle + alpha; 
                 }
                 
-                // Apply rotations with refined joint limits
-                leg.femurPivotGroup.rotation.x = Math.max(-Math.PI*0.25, Math.min(Math.PI*0.45, femurAngle)); // Tighter femur range
-                leg.tibiaPivotGroup.rotation.x = Math.max(-Math.PI*0.85, Math.min(-Math.PI*0.05, tibiaAngle)); 
+                // Smooth angle transitions
+                leg.lastFemurAngle = leg.lastFemurAngle || femurAngle;
+                leg.lastTibiaAngle = leg.lastTibiaAngle || tibiaAngle;
+                
+                const angleBlendFactor = 0.2;
+                femurAngle = leg.lastFemurAngle + (femurAngle - leg.lastFemurAngle) * angleBlendFactor;
+                tibiaAngle = leg.lastTibiaAngle + (tibiaAngle - leg.lastTibiaAngle) * angleBlendFactor;
+                
+                leg.lastFemurAngle = femurAngle;
+                leg.lastTibiaAngle = tibiaAngle;
+                
+                // Apply rotations with smoother joint limits
+                const smoothClamp = (value, min, max) => {
+                    if (value < min) return min + (value - min) * 0.1;
+                    if (value > max) return max + (value - max) * 0.1;
+                    return value;
+                };
+                
+                // Apply rotations - X axis for proper ant leg movement
+                leg.femurPivotGroup.rotation.x = smoothClamp(femurAngle, -Math.PI*0.1, Math.PI*0.7);
+                leg.tibiaPivotGroup.rotation.x = smoothClamp(tibiaAngle, 0, Math.PI*0.9); 
 
             });
 
