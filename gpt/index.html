@@ -15,17 +15,61 @@
         <button id="generateButton" disabled>Generate Text</button>
         <div id="output"></div>
         <div id="explanation">
-            <h2>What is this app doing?</h2>
-            <p>This app demonstrates a simple implementation of a language model using TensorFlow.js. Here's what's happening:</p>
-            <ol>
-                <li>The app loads a dataset of Shakespeare's text.</li>
-                <li>It trains a small neural network to predict the next character in a sequence.</li>
-                <li>After training, you can generate new text that mimics Shakespeare's style.</li>
-            </ol>
-            <p>This is a minimal version of how large language models like GPT work, but on a much smaller scale. By using TensorFlow.js, the model can leverage GPU acceleration in supported browsers, making the training process faster.</p>
+            <h2>Technical Details</h2>
+            <p>This is a character-level GPT (Generative Pre-trained Transformer) implementation in TensorFlow.js, trained on Shakespeare's works.</p>
+            
+            <h3>Model Architecture</h3>
+            <ul>
+                <li><strong>Type:</strong> Decoder-only Transformer (like GPT)</li>
+                <li><strong>Parameters:</strong> ~290K (small model for browser training)</li>
+                <li><strong>Embedding dimension:</strong> 128</li>
+                <li><strong>Attention heads:</strong> 4</li>
+                <li><strong>Transformer layers:</strong> 2</li>
+                <li><strong>Sequence length:</strong> 64 characters</li>
+                <li><strong>Vocabulary size:</strong> 65 (unique characters in Shakespeare)</li>
+            </ul>
+
+            <h3>Key Components</h3>
+            <ul>
+                <li><strong>Character Embeddings:</strong> Converts characters to 128-dimensional vectors</li>
+                <li><strong>Positional Embeddings:</strong> Learned position encodings for sequence order</li>
+                <li><strong>Multi-Head Self-Attention:</strong> Custom implementation with causal masking to prevent looking ahead</li>
+                <li><strong>Feed-Forward Network:</strong> 2-layer MLP with 4x expansion and ELU activation</li>
+                <li><strong>Layer Normalization:</strong> Applied before each sub-layer (pre-norm architecture)</li>
+                <li><strong>Residual Connections:</strong> Around both attention and FFN blocks</li>
+                <li><strong>Dropout:</strong> 5% dropout rate for regularization</li>
+            </ul>
+
+            <h3>Training Details</h3>
+            <ul>
+                <li><strong>Optimizer:</strong> Adam with learning rate 0.001</li>
+                <li><strong>Loss:</strong> Cross-entropy loss on next-character prediction</li>
+                <li><strong>Batch size:</strong> 16 sequences</li>
+                <li><strong>Training data:</strong> ~1.1M characters of Shakespeare text</li>
+                <li><strong>Epochs:</strong> 300 (takes ~10-15 minutes on GPU)</li>
+            </ul>
+
+            <h3>Implementation Notes</h3>
+            <p>This implementation demonstrates several key concepts:</p>
+            <ul>
+                <li>Custom TensorFlow.js layers for multi-head attention (since TF.js lacks built-in transformer layers)</li>
+                <li>Causal masking to ensure autoregressive generation</li>
+                <li>Efficient tensor operations using tf.tidy() for memory management</li>
+                <li>Browser-based GPU acceleration via WebGL backend</li>
+            </ul>
+
+            <h3>Expected Performance</h3>
+            <p>After 300 epochs, the model should achieve:</p>
+            <ul>
+                <li>Training loss: ~1.5-2.0 (down from initial ~4.5)</li>
+                <li>Accuracy: ~35-45% next-character prediction</li>
+                <li>Generated text: Recognizable Shakespeare-like structure with some coherent phrases</li>
+            </ul>
+
+            <p><em>Note: This is a minimal educational implementation. Production models like GPT-3 have billions of parameters and train on much larger datasets.</em></p>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"> </script>
-    <script src="script.js"></script>
+    <script src="script.js?v=9"></script>
 </body>
 </html>

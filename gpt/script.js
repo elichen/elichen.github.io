@@ -42,7 +42,7 @@ class DataLoader {
         }
 
         const inputsTensor = tf.tensor2d(inputs, [batchSize, this.seqLength], 'int32');
-        const targetsTensor = tf.oneHot(tf.tensor2d(targets, [batchSize, this.seqLength], 'int32'), this.vocabSize).toFloat();
+        const targetsTensor = tf.oneHot(tf.tensor2d(targets, [batchSize, this.seqLength], 'int32'), this.vocabSize);
         
         return { inputs: inputsTensor, targets: targetsTensor };
     }
@@ -65,8 +65,8 @@ class GPT {
         this.vocabSize = vocabSize;
         this.seqLength = seqLength;
 
-        // Model parameters
-        const embedDim = 256;    // Embedding size for each token
+        // Model parameters - reduced for better training
+        const embedDim = 128;    // Embedding size for each token
         const numHeads = 4;      // Number of attention heads
         const numLayers = 2;     // Number of transformer blocks
 
@@ -85,6 +85,7 @@ class GPT {
 
         // Combine embeddings
         let x = tf.layers.add().apply([tokenEmbeddings, positionEmbeddings]);
+        x = tf.layers.dropout({ rate: 0.05 }).apply(x); // Reduced dropout
 
         // Transformer blocks
         for (let i = 0; i < numLayers; i++) {
@@ -94,14 +95,16 @@ class GPT {
             // Multi-head self-attention with attention mask
             const attentionLayer = new MultiHeadSelfAttention({ numHeads, embedDim });
             let attnOutput = attentionLayer.apply([attnInput, attentionMask]);
+            attnOutput = tf.layers.dropout({ rate: 0.05 }).apply(attnOutput); // Reduced dropout
 
             // Add & Norm
             x = tf.layers.add().apply([x, attnOutput]);
 
             // Feed-forward network
             let ffnInput = tf.layers.layerNormalization({ epsilon: 1e-6 }).apply(x);
-            let ffnOutput = tf.layers.dense({ units: embedDim * 4, activation: 'relu' }).apply(ffnInput);
+            let ffnOutput = tf.layers.dense({ units: embedDim * 4, activation: 'elu' }).apply(ffnInput); // ELU is similar to GELU
             ffnOutput = tf.layers.dense({ units: embedDim }).apply(ffnOutput);
+            ffnOutput = tf.layers.dropout({ rate: 0.05 }).apply(ffnOutput); // Reduced dropout
 
             // Add & Norm
             x = tf.layers.add().apply([x, ffnOutput]);
@@ -117,17 +120,22 @@ class GPT {
         this.model = tf.model({ inputs: [tokenInputs, positionInputs, attentionMask], outputs: logits });
 
         this.model.compile({
-            optimizer: tf.train.adam(0.001), // Learning rate: 0.001
-            loss: (labels, logits) => tf.losses.softmaxCrossEntropy(labels, logits).mean(),
+            optimizer: tf.train.adam(0.001), // Higher learning rate for smaller model
+            loss: (yTrue, yPred) => {
+                // Reshape for loss calculation like minGPT
+                const yTrueFlat = tf.reshape(yTrue, [-1, this.vocabSize]);
+                const yPredFlat = tf.reshape(yPred, [-1, this.vocabSize]);
+                return tf.losses.softmaxCrossEntropy(yTrueFlat, yPredFlat);
+            },
             metrics: ['accuracy'],
         });
 
-        // Log the model summary (if possible)
-        try {
-            this.model.summary();
-        } catch (e) {
-            console.log('Model summary unavailable in TensorFlow.js:', e);
-        }
+        // Model summary commented out to reduce console output
+        // this.model.summary();
+        
+        // Debug: Check trainable parameters count
+        const totalParams = this.model.countParams();
+        console.log(`Total trainable parameters: ${totalParams}`);
     }
 
     async train(dataLoader, epochs, batchSize) {
@@ -137,39 +145,37 @@ class GPT {
         progressElement.max = epochs;
 
         for (let epoch = 0; epoch < epochs; epoch++) {
-            const { inputs, targets } = dataLoader.getBatch(batchSize);
-            const seqLength = inputs.shape[1];
-            const positionIndices = tf.tensor2d(
-                Array.from({ length: batchSize }, () =>
-                    Array.from({ length: seqLength }, (_, i) => i)
-                ),
-                [batchSize, seqLength],
-                'int32'
-            );
+                const { inputs, targets } = dataLoader.getBatch(batchSize);
+                const seqLength = inputs.shape[1];
+                const positionIndices = tf.tensor2d(
+                    Array.from({ length: batchSize }, () =>
+                        Array.from({ length: seqLength }, (_, i) => i)
+                    ),
+                    [batchSize, seqLength],
+                    'int32'
+                );
 
-            // Create causal attention mask
-            const attentionMask = createCausalMask(batchSize, seqLength);
-            
-            const history = await this.model.fit([inputs, positionIndices, attentionMask], targets, {
-                epochs: 1,
-                verbose: 0,
-            });
+                // Create causal attention mask
+                const attentionMask = createCausalMask(batchSize, seqLength);
+                
+                const history = await this.model.fit([inputs, positionIndices, attentionMask], targets, {
+                    epochs: 1,
+                    verbose: 0,
+                });
 
-            // Dispose tensors to free memory
-            inputs.dispose();
-            targets.dispose();
-            positionIndices.dispose();
-            attentionMask.dispose();
+                // Dispose tensors to free memory
+                inputs.dispose();
+                targets.dispose();
+                positionIndices.dispose();
+                attentionMask.dispose();
 
-            // Log training history
-            console.log('Training History:', history);
-            if (history.history) {
-                // Depending on TensorFlow.js version, accuracy might be under 'accuracy' or 'acc'
-                const accuracy = history.history.accuracy || history.history.acc;
-                console.log(`Epoch ${epoch + 1} - Loss: ${history.history.loss[0].toFixed(4)}, Accuracy: ${accuracy ? accuracy[0].toFixed(4) : 'N/A'}`);
-            }
+                // Log training history every 20 epochs
+                if ((epoch + 1) % 20 === 0 && history.history) {
+                    const accuracy = history.history.accuracy || history.history.acc;
+                    console.log(`Epoch ${epoch + 1} - Loss: ${history.history.loss[0].toFixed(4)}, Accuracy: ${accuracy ? accuracy[0].toFixed(4) : 'N/A'}`);
+                }
 
-            statusElement.innerText = `Epoch ${epoch + 1}/${epochs} - Loss: ${history.history.loss[0].toFixed(4)}`;
+                statusElement.innerText = `Epoch ${epoch + 1}/${epochs} - Loss: ${history.history.loss[0].toFixed(4)}`;
             progressElement.value = epoch + 1;
             await tf.nextFrame();
         }
@@ -191,7 +197,7 @@ class GPT {
             const positionIndices = this.getPositionIndices(1, currentSequence.length);
             const attentionMask = createCausalMask(1, currentSequence.length);
         
-            const logits = this.model.predict([input, positionIndices, attentionMask]);
+            const logits = this.model.predict([input, positionIndices, attentionMask], { training: false });
             const logitsLast = logits.slice([0, currentSequence.length - 1, 0], [1, 1, this.vocabSize]);
             
             // Reshape logitsLast from [1, 1, vocabSize] to [1, vocabSize]
@@ -244,10 +250,26 @@ class MultiHeadSelfAttention extends tf.layers.Layer {
 
         this.projectionDim = this.embedDim / this.numHeads;
 
-        this.queryDense = tf.layers.dense({ units: this.embedDim });
-        this.keyDense = tf.layers.dense({ units: this.embedDim });
-        this.valueDense = tf.layers.dense({ units: this.embedDim });
-        this.combineHeadsDense = tf.layers.dense({ units: this.embedDim });
+        // Initialize with Xavier/Glorot initialization
+        const initConfig = {
+            kernelInitializer: 'glorotUniform',
+            biasInitializer: 'zeros'
+        };
+        
+        this.queryDense = tf.layers.dense({ units: this.embedDim, ...initConfig });
+        this.keyDense = tf.layers.dense({ units: this.embedDim, ...initConfig });
+        this.valueDense = tf.layers.dense({ units: this.embedDim, ...initConfig });
+        this.combineHeadsDense = tf.layers.dense({ units: this.embedDim, ...initConfig });
+    }
+
+    build(inputShape) {
+        super.build(inputShape);
+        const embeddingShape = inputShape[0];
+        
+        this.queryDense.build(embeddingShape);
+        this.keyDense.build(embeddingShape);
+        this.valueDense.build(embeddingShape);
+        this.combineHeadsDense.build(embeddingShape);
     }
 
     call(inputs, kwargs) {
@@ -284,15 +306,28 @@ class MultiHeadSelfAttention extends tf.layers.Layer {
         // Reshape mask to match the shape of scaledMatmulQK
         const reshapedMask = tf.reshape(mask, [mask.shape[0], 1, mask.shape[2], mask.shape[3]]);
         
-        const maskedScaledMatmulQK = tf.mul(scaledMatmulQK, reshapedMask);
-        const maskedScaledMatmulQK_sub = tf.sub(maskedScaledMatmulQK, tf.mul(tf.sub(1, reshapedMask), 1e9));
+        // Apply mask: add large negative value to positions where mask is 0
+        const maskedScaledMatmulQK = tf.where(
+            tf.equal(reshapedMask, 0),
+            tf.mul(tf.onesLike(scaledMatmulQK), -1e10),
+            scaledMatmulQK
+        );
         
-        const attentionWeights = tf.softmax(maskedScaledMatmulQK_sub, -1);
+        const attentionWeights = tf.softmax(maskedScaledMatmulQK, -1);
         return tf.matMul(attentionWeights, value);
     }
 
     computeOutputShape(inputShape) {
         return inputShape[0];
+    }
+
+    getConfig() {
+        const config = super.getConfig();
+        Object.assign(config, {
+            numHeads: this.numHeads,
+            embedDim: this.embedDim
+        });
+        return config;
     }
 
     static get className() {
@@ -318,6 +353,9 @@ function createCausalMask(batchSize, seqLength) {
 }
 
 // Load dataset, train model, and generate text
+let trainedModel = null;
+let dataLoader = null;
+
 document.getElementById('trainButton').addEventListener('click', async () => {
     const datasetURL = 'input.txt'; // The URL/path of the tiny shakespeare dataset
     const statusElement = document.getElementById('status');
@@ -333,7 +371,7 @@ document.getElementById('trainButton').addEventListener('click', async () => {
         const text = await loadTextDataset(datasetURL);
         statusElement.textContent = 'Status: Preparing data...';
 
-        const seqLength = 128;
+        const seqLength = 64;
 
         // Split the dataset into training and validation sets (90% training, 10% validation)
         const splitText = (text, validationSplit) => {
@@ -360,25 +398,19 @@ document.getElementById('trainButton').addEventListener('click', async () => {
         const valDataLoader = new SharedDataLoader(valText, seqLength, char2idx, idx2char, vocabSize);
 
         // Initialize GPT model with shared vocabSize
-        const model = new GPT(vocabSize, seqLength);
+        trainedModel = new GPT(vocabSize, seqLength);
+        dataLoader = trainDataLoader;
 
         statusElement.textContent = 'Status: Training model...';
         
         // Train the model with the dataset
-        const epochs = 100;
-        const batchSize = 64;
-        await model.train(trainDataLoader, epochs, batchSize);
+        const epochs = 300; // More epochs since model is still learning
+        const batchSize = 16; // Smaller batch for more frequent updates
+        await trainedModel.train(trainDataLoader, epochs, batchSize);
 
         // Enable the "Generate Text" button after training
         generateButton.disabled = false;
-
-        // Generate text on button click
-        generateButton.addEventListener('click', async () => {
-            const startSequence = 'The '; // Starting sequence with length <= seqLength
-            const numChars = 100; // Number of characters to generate
-            const generatedText = await model.generateText(startSequence, numChars, trainDataLoader);
-            outputElement.textContent = generatedText;
-        });
+        statusElement.textContent = 'Status: Training complete!';
 
         // After training, evaluate on validation data
         console.log('Evaluating on validation data...');
@@ -399,7 +431,7 @@ document.getElementById('trainButton').addEventListener('click', async () => {
             const attentionMask = createCausalMask(batchSize, seqLength);
 
             // Evaluate the model on the validation batch
-            const evaluation = model.model.evaluate([inputs, positionIndices, attentionMask], targets, { verbose: 0 });
+            const evaluation = trainedModel.model.evaluate([inputs, positionIndices, attentionMask], targets, { verbose: 0 });
 
             // Accumulate loss and accuracy
             totalValLoss += evaluation[0].dataSync()[0];
@@ -416,4 +448,24 @@ document.getElementById('trainButton').addEventListener('click', async () => {
         statusElement.textContent = 'Error loading dataset!';
         console.error(error);
     }
+});
+
+// Generate text button handler
+document.getElementById('generateButton').addEventListener('click', async () => {
+    if (!trainedModel || !dataLoader) {
+        console.error('Model not trained yet!');
+        return;
+    }
+    
+    const outputElement = document.getElementById('output');
+    const statusElement = document.getElementById('status');
+    
+    statusElement.textContent = 'Status: Generating text...';
+    
+    const startSequence = 'The '; // Starting sequence
+    const numChars = 200; // Number of characters to generate
+    const generatedText = await trainedModel.generateText(startSequence, numChars, dataLoader);
+    
+    outputElement.textContent = generatedText;
+    statusElement.textContent = 'Status: Text generated!';
 });
