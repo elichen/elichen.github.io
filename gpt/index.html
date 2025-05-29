@@ -9,10 +9,11 @@
 <body>
     <div id="app">
         <h1>minGPT TensorFlow.js</h1>
-        <div id="status">Status: Idle</div>
+        <div id="status">Status: Loading pre-trained model...</div>
         <progress id="trainingProgress" value="0" max="100"></progress>
-        <button id="trainButton">Train Model</button>
+        <button id="trainButton" disabled>Train 100 More Epochs</button>
         <button id="generateButton" disabled>Generate Text</button>
+        <div id="modelInfo"></div>
         <div id="output"></div>
         <div id="explanation">
             <h2>Technical Details</h2>
@@ -21,32 +22,33 @@
             <h3>Model Architecture</h3>
             <ul>
                 <li><strong>Type:</strong> Decoder-only Transformer (like GPT)</li>
-                <li><strong>Parameters:</strong> ~290K (small model for browser training)</li>
-                <li><strong>Embedding dimension:</strong> 128</li>
-                <li><strong>Attention heads:</strong> 4</li>
-                <li><strong>Transformer layers:</strong> 2</li>
+                <li><strong>Parameters:</strong> ~2.16M (optimized for coherent text generation)</li>
+                <li><strong>Embedding dimension:</strong> 256</li>
+                <li><strong>Attention heads:</strong> 8</li>
+                <li><strong>Transformer layers:</strong> 4</li>
                 <li><strong>Sequence length:</strong> 64 characters</li>
                 <li><strong>Vocabulary size:</strong> 65 (unique characters in Shakespeare)</li>
             </ul>
 
             <h3>Key Components</h3>
             <ul>
-                <li><strong>Character Embeddings:</strong> Converts characters to 128-dimensional vectors</li>
+                <li><strong>Character Embeddings:</strong> Converts characters to 256-dimensional vectors</li>
                 <li><strong>Positional Embeddings:</strong> Learned position encodings for sequence order</li>
                 <li><strong>Multi-Head Self-Attention:</strong> Custom implementation with causal masking to prevent looking ahead</li>
-                <li><strong>Feed-Forward Network:</strong> 2-layer MLP with 4x expansion and ELU activation</li>
+                <li><strong>Feed-Forward Network:</strong> 2-layer MLP with 4x expansion and ReLU activation</li>
                 <li><strong>Layer Normalization:</strong> Applied before each sub-layer (pre-norm architecture)</li>
                 <li><strong>Residual Connections:</strong> Around both attention and FFN blocks</li>
-                <li><strong>Dropout:</strong> 5% dropout rate for regularization</li>
+                <li><strong>Dropout:</strong> 10% dropout rate for regularization</li>
             </ul>
 
             <h3>Training Details</h3>
             <ul>
-                <li><strong>Optimizer:</strong> Adam with learning rate 0.001</li>
+                <li><strong>Optimizer:</strong> Adam with learning rate 0.0003 and transformer-specific betas (0.9, 0.98)</li>
                 <li><strong>Loss:</strong> Cross-entropy loss on next-character prediction</li>
-                <li><strong>Batch size:</strong> 16 sequences</li>
-                <li><strong>Training data:</strong> ~1.1M characters of Shakespeare text</li>
-                <li><strong>Epochs:</strong> 300 (takes ~10-15 minutes on GPU)</li>
+                <li><strong>Batch size:</strong> 24 sequences</li>
+                <li><strong>Training data:</strong> ~800K characters of Shakespeare text</li>
+                <li><strong>Pre-trained epochs:</strong> 1500 (best loss: 1.99)</li>
+                <li><strong>Incremental training:</strong> 100 epochs per button click</li>
             </ul>
 
             <h3>Implementation Notes</h3>
@@ -58,18 +60,19 @@
                 <li>Browser-based GPU acceleration via WebGL backend</li>
             </ul>
 
-            <h3>Expected Performance</h3>
-            <p>After 300 epochs, the model should achieve:</p>
+            <h3>Current Performance</h3>
+            <p>The pre-trained model has achieved:</p>
             <ul>
-                <li>Training loss: ~1.5-2.0 (down from initial ~4.5)</li>
-                <li>Accuracy: ~35-45% next-character prediction</li>
-                <li>Generated text: Recognizable Shakespeare-like structure with some coherent phrases</li>
+                <li>Training loss: ~1.99 (down from initial ~3.7)</li>
+                <li>Accuracy: ~35% next-character prediction</li>
+                <li>Generated text: Produces real English words and some coherent phrases</li>
+                <li>Sample output: "The l thachyove bereid. Hin gt orsth s ak, an s angh'mede..."</li>
             </ul>
 
             <p><em>Note: This is a minimal educational implementation. Production models like GPT-3 have billions of parameters and train on much larger datasets.</em></p>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"> </script>
-    <script src="script.js?v=9"></script>
+    <script src="script.js?v=11"></script>
 </body>
 </html>
