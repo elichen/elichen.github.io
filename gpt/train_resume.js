@@ -93,7 +93,7 @@ async function trainWithResume() {
     // Hyperparameters
     const seqLength = 64;
     const batchSize = 24;
-    const totalEpochs = 1500;
+    const totalEpochs = 5000;
     const epochsPerSession = 400; // Target for 10-minute window
     
     // Create data loader
