@@ -1,0 +1,27 @@
+{
+  "name": "gpt-tfjs-cli",
+  "version": "1.0.0",
+  "description": "CLI version of GPT model using TensorFlow.js",
+  "main": "train_cli.js",
+  "scripts": {
+    "train": "./run_with_node22.sh --train --epochs 100",
+    "train-long": "./run_with_node22.sh --train --epochs 1000",
+    "generate": "./run_with_node22.sh --generate",
+    "interactive": "./run_with_node22.sh --generate --interactive",
+    "fresh": "./run_with_node22.sh --fresh --train --epochs 100",
+    "test": "./run_with_node22.sh --train --epochs 10 --generate",
+    "clean": "rm -rf saved_model node_modules package-lock.json"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs-node": "3.20.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "gpt",
+    "transformer",
+    "tensorflow.js",
+    "language-model"
+  ],
+  "author": "",
+  "license": "MIT"
+}

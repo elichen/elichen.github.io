@@ -1,0 +1,11 @@
+# Node modules
+node_modules/
+
+# Training checkpoints and temporary files
+checkpoints/
+saved_model/
+training_state.json
+*.log
+
+# OS files
+.DS_Store
