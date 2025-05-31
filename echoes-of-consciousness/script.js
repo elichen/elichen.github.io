@@ -27,6 +27,7 @@ function showChapter(chapterNum) {
         targetLink.classList.add('active');
         currentChapter = chapterNum;
         updateProgress();
+        updateNavButtons();
         
         // Smooth scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -42,12 +43,39 @@ function updateProgress() {
     progressBar.style.width = `${progress}%`;
 }
 
+// Update navigation buttons
+function updateNavButtons() {
+    // Update all prev/next buttons in all chapters
+    document.querySelectorAll('.prev-chapter').forEach(btn => {
+        btn.disabled = currentChapter === 1;
+        btn.style.visibility = currentChapter === 1 ? 'hidden' : 'visible';
+    });
+    
+    document.querySelectorAll('.next-chapter').forEach(btn => {
+        btn.disabled = currentChapter === totalChapters;
+        btn.style.visibility = currentChapter === totalChapters ? 'hidden' : 'visible';
+    });
+}
+
 // Chapter link click handlers
 chapterLinks.forEach((link, index) => {
     link.addEventListener('click', (e) => {
         e.preventDefault();
         showChapter(index + 1);
     });
+});
+
+// Navigation button handlers - use event delegation
+document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('prev-chapter')) {
+        if (currentChapter > 1) {
+            showChapter(currentChapter - 1);
+        }
+    } else if (e.target.classList.contains('next-chapter')) {
+        if (currentChapter < totalChapters) {
+            showChapter(currentChapter + 1);
+        }
+    }
 });
 
 // Keyboard navigation
