@@ -497,7 +497,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <strong>Model Status:</strong><br>
                 Total epochs trained: ${gptModel.totalEpochsTrained}<br>
                 Current loss: ${gptModel.currentLoss ? gptModel.currentLoss.toFixed(4) : 'Unknown'}<br>
-                Parameters: ~2.16M
+                Parameters: ${(gptModel.model.countParams() / 1000000).toFixed(2)}M
             </div>
         `;
         generateButton.disabled = false;
@@ -531,7 +531,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         Total epochs trained: ${info.totalEpochsTrained}<br>
                         Current loss: ${info.loss.toFixed(4)}<br>
                         Current accuracy: ${(info.accuracy * 100).toFixed(1)}%<br>
-                        Parameters: ~2.16M
+                        Parameters: ${(gptModel.model.countParams() / 1000000).toFixed(2)}M
                     </div>
                 `;
             });
