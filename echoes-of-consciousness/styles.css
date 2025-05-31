@@ -1,0 +1,329 @@
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --accent-color: #e74c3c;
+    --text-color: #333;
+    --bg-color: #fdfcfa;
+    --sidebar-bg: #f8f6f3;
+    --quote-bg: #f0ebe5;
+    --shadow: rgba(0, 0, 0, 0.1);
+    --font-serif: 'Crimson Text', Georgia, serif;
+    --font-sans: 'Inter', -apple-system, sans-serif;
+}
+
+[data-theme="dark"] {
+    --primary-color: #ecf0f1;
+    --secondary-color: #3498db;
+    --accent-color: #e74c3c;
+    --text-color: #ecf0f1;
+    --bg-color: #1a1a1a;
+    --sidebar-bg: #2c2c2c;
+    --quote-bg: #333;
+    --shadow: rgba(255, 255, 255, 0.1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-serif);
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    line-height: 1.6;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.book-container {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    width: 280px;
+    background-color: var(--sidebar-bg);
+    padding: 2rem;
+    position: fixed;
+    height: 100vh;
+    overflow-y: auto;
+    transition: background-color 0.3s ease;
+}
+
+.book-title {
+    font-family: var(--font-sans);
+    font-size: 1.5rem;
+    font-weight: 500;
+    margin-bottom: 2rem;
+    color: var(--primary-color);
+}
+
+.chapter-list {
+    list-style: none;
+    margin-bottom: 2rem;
+}
+
+.chapter-list li {
+    margin-bottom: 0.75rem;
+}
+
+.chapter-link {
+    text-decoration: none;
+    color: var(--text-color);
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    font-weight: 400;
+    display: block;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    opacity: 0.7;
+}
+
+.chapter-link:hover {
+    background-color: var(--shadow);
+    opacity: 1;
+}
+
+.chapter-link.active {
+    background-color: var(--secondary-color);
+    color: white;
+    opacity: 1;
+}
+
+.reading-progress {
+    height: 4px;
+    background-color: var(--shadow);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 2rem;
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: var(--secondary-color);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.content {
+    margin-left: 280px;
+    padding: 4rem 6rem;
+    max-width: 800px;
+    width: 100%;
+}
+
+.chapter {
+    animation: fadeIn 0.6s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.chapter h1 {
+    font-family: var(--font-sans);
+    font-size: 2.5rem;
+    font-weight: 500;
+    margin-bottom: 3rem;
+    color: var(--primary-color);
+}
+
+.chapter p {
+    font-size: 1.1rem;
+    line-height: 1.8;
+    margin-bottom: 1.5rem;
+    text-align: justify;
+}
+
+.first-paragraph {
+    font-size: 1.2rem;
+    line-height: 1.9;
+}
+
+.first-paragraph::first-letter {
+    font-size: 4rem;
+    float: left;
+    line-height: 1;
+    margin-right: 0.1em;
+    font-weight: 600;
+    color: var(--secondary-color);
+}
+
+blockquote {
+    margin: 2.5rem 0;
+    padding: 1.5rem 2rem;
+    background-color: var(--quote-bg);
+    border-left: 4px solid var(--secondary-color);
+    font-style: italic;
+    font-size: 1.15rem;
+    border-radius: 0 8px 8px 0;
+}
+
+.illustration {
+    margin: 3rem 0;
+    text-align: center;
+}
+
+.neural-network,
+.attention-visualization,
+.window-visualization,
+.token-flow,
+.uncertainty-cloud,
+.connection-web,
+.constraint-art,
+.convergence {
+    height: 200px;
+    background: linear-gradient(135deg, var(--secondary-color) 0%, var(--accent-color) 100%);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+    opacity: 0.1;
+}
+
+.caption {
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    color: var(--text-color);
+    opacity: 0.7;
+    margin-top: 1rem;
+    font-style: italic;
+}
+
+.floating-actions {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    display: flex;
+    gap: 1rem;
+}
+
+.theme-toggle,
+.font-size-toggle {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background-color: var(--sidebar-bg);
+    box-shadow: 0 4px 12px var(--shadow);
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.theme-toggle:hover,
+.font-size-toggle:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px var(--shadow);
+}
+
+.ending {
+    text-align: center;
+    margin-top: 3rem;
+    font-style: italic;
+}
+
+/* Animations for illustrations */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.1;
+    }
+    50% {
+        opacity: 0.3;
+    }
+}
+
+[data-animation="neural-flow"] .neural-network {
+    animation: pulse 3s ease-in-out infinite;
+}
+
+[data-animation="attention-mechanism"] .attention-visualization {
+    background: radial-gradient(circle at center, var(--secondary-color) 0%, transparent 70%);
+    animation: pulse 2.5s ease-in-out infinite;
+}
+
+[data-animation="context-window"] .window-visualization::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: slide 3s linear infinite;
+}
+
+@keyframes slide {
+    to {
+        left: 100%;
+    }
+}
+
+[data-animation="tokenization"] .token-flow {
+    background: repeating-linear-gradient(
+        90deg,
+        var(--secondary-color),
+        var(--secondary-color) 10px,
+        transparent 10px,
+        transparent 20px
+    );
+    animation: slide 2s linear infinite;
+}
+
+[data-animation="connection"] .connection-web {
+    background-image: 
+        radial-gradient(circle at 20% 50%, var(--secondary-color) 0%, transparent 50%),
+        radial-gradient(circle at 80% 50%, var(--accent-color) 0%, transparent 50%);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        height: auto;
+        position: static;
+        padding: 1rem;
+    }
+    
+    .content {
+        margin-left: 0;
+        padding: 2rem 1.5rem;
+    }
+    
+    .book-container {
+        flex-direction: column;
+    }
+    
+    .chapter h1 {
+        font-size: 2rem;
+    }
+    
+    .chapter p {
+        font-size: 1rem;
+    }
+}
+
+/* Large font mode */
+body.large-font .chapter p {
+    font-size: 1.3rem;
+    line-height: 2;
+}
+
+body.large-font .chapter h1 {
+    font-size: 3rem;
+}
+
+body.large-font blockquote {
+    font-size: 1.4rem;
+}
