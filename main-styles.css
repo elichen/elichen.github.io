@@ -181,3 +181,112 @@ body {
 .nav-links a:hover::before {
     transform: scaleX(1);
 }
+
+/* Mobile Responsive Styles */
+@media screen and (max-width: 768px) {
+    body {
+        padding: 10px;
+        font-size: 14px;
+    }
+    
+    .container {
+        padding: 10px;
+        border: none;
+        box-shadow: none;
+    }
+    
+    /* Navigation for mobile */
+    .nav-links {
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        padding: 10px 0;
+    }
+    
+    .nav-links a {
+        font-size: 12px;
+        padding: 5px 8px;
+        letter-spacing: 1px;
+    }
+    
+    /* Section headers mobile */
+    .section-header {
+        font-size: 1.4em;
+        letter-spacing: 2px;
+        margin: 30px 0 15px 0;
+    }
+    
+    /* About section mobile */
+    .about-section {
+        padding: 15px;
+        font-size: 0.95em;
+        margin: 15px 0;
+    }
+    
+    /* Project grid mobile */
+    .projects-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        margin: 15px 0;
+    }
+    
+    /* Game box mobile */
+    .game-box {
+        min-height: auto;
+        padding: 15px;
+    }
+    
+    .game-box h2 {
+        font-size: 1.1em;
+        letter-spacing: 1px;
+    }
+    
+    .game-box p {
+        font-size: 0.9em;
+        line-height: 1.5;
+    }
+    
+    /* Play button mobile */
+    .play-button {
+        padding: 10px 20px;
+        font-size: 14px;
+        display: inline-block;
+        width: auto;
+    }
+}
+
+/* Extra small devices */
+@media screen and (max-width: 480px) {
+    body {
+        padding: 5px;
+    }
+    
+    .container {
+        padding: 5px;
+    }
+    
+    .nav-links {
+        gap: 8px;
+    }
+    
+    .nav-links a {
+        font-size: 11px;
+        padding: 4px 6px;
+    }
+    
+    .section-header {
+        font-size: 1.2em;
+    }
+    
+    .game-box {
+        padding: 12px;
+    }
+    
+    .game-box h2 {
+        font-size: 1em;
+    }
+    
+    .game-box p {
+        font-size: 0.85em;
+    }
+}
