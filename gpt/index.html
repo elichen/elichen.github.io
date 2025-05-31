@@ -22,17 +22,17 @@
             <h3>Model Architecture</h3>
             <ul>
                 <li><strong>Type:</strong> Decoder-only Transformer (like GPT)</li>
-                <li><strong>Parameters:</strong> ~2.16M (optimized for coherent text generation)</li>
-                <li><strong>Embedding dimension:</strong> 256</li>
-                <li><strong>Attention heads:</strong> 8</li>
-                <li><strong>Transformer layers:</strong> 4</li>
+                <li><strong>Parameters:</strong> ~421K (optimized for fast browser inference)</li>
+                <li><strong>Embedding dimension:</strong> 128</li>
+                <li><strong>Attention heads:</strong> 4</li>
+                <li><strong>Transformer layers:</strong> 3</li>
                 <li><strong>Sequence length:</strong> 64 characters</li>
-                <li><strong>Vocabulary size:</strong> 65 (unique characters in Shakespeare)</li>
+                <li><strong>Vocabulary size:</strong> 63 (unique characters in Shakespeare)</li>
             </ul>
 
             <h3>Key Components</h3>
             <ul>
-                <li><strong>Character Embeddings:</strong> Converts characters to 256-dimensional vectors</li>
+                <li><strong>Character Embeddings:</strong> Converts characters to 128-dimensional vectors</li>
                 <li><strong>Positional Embeddings:</strong> Learned position encodings for sequence order</li>
                 <li><strong>Multi-Head Self-Attention:</strong> Custom implementation with causal masking to prevent looking ahead</li>
                 <li><strong>Feed-Forward Network:</strong> 2-layer MLP with 4x expansion and ReLU activation</li>
@@ -43,11 +43,12 @@
 
             <h3>Training Details</h3>
             <ul>
-                <li><strong>Optimizer:</strong> Adam with learning rate 0.0003 and transformer-specific betas (0.9, 0.98)</li>
+                <li><strong>Optimizer:</strong> Adam with adaptive learning rate and transformer-specific betas</li>
                 <li><strong>Loss:</strong> Cross-entropy loss on next-character prediction</li>
-                <li><strong>Batch size:</strong> 24 sequences</li>
-                <li><strong>Training data:</strong> ~800K characters of Shakespeare text</li>
-                <li><strong>Pre-trained epochs:</strong> 1500 (best loss: 1.99)</li>
+                <li><strong>Batch size:</strong> 16-32 sequences</li>
+                <li><strong>Training data:</strong> ~1M characters of Shakespeare text</li>
+                <li><strong>Pre-trained epochs:</strong> 150+ with progressive curriculum learning</li>
+                <li><strong>Best achieved loss:</strong> ~1.35 (significant improvement from initial 3.4+)</li>
                 <li><strong>Incremental training:</strong> 100 epochs per button click</li>
             </ul>
 
@@ -61,18 +62,19 @@
             </ul>
 
             <h3>Current Performance</h3>
-            <p>The pre-trained model has achieved:</p>
+            <p>The improved model has achieved:</p>
             <ul>
-                <li>Training loss: ~1.99 (down from initial ~3.7)</li>
-                <li>Accuracy: ~35% next-character prediction</li>
-                <li>Generated text: Produces real English words and some coherent phrases</li>
-                <li>Sample output: "The l thachyove bereid. Hin gt orsth s ak, an s angh'mede..."</li>
+                <li>Training loss: ~1.35 (down from initial ~3.4)</li>
+                <li>Text quality: Generates recognizable words and basic grammatical structure</li>
+                <li>Vocabulary usage: Shows proper word boundaries and common English patterns</li>
+                <li>Sample outputs demonstrate emerging coherence with words like "the", "to", "be", "in", "what"</li>
+                <li>Model continues to improve with each training session</li>
             </ul>
 
             <p><em>Note: This is a minimal educational implementation. Production models like GPT-3 have billions of parameters and train on much larger datasets.</em></p>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"> </script>
-    <script src="script.js?v=11"></script>
+    <script src="script.js?v=12"></script>
 </body>
 </html>
