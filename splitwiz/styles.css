@@ -417,8 +417,15 @@ main {
     color: var(--text-primary);
 }
 
-.expense-amount .delete-btn {
+.expense-actions {
+    display: flex;
+    gap: 0.5rem;
     margin-top: 0.5rem;
+    justify-content: flex-end;
+}
+
+.expense-actions .btn {
+    flex: 0 0 auto;
 }
 
 /* Empty States */
