@@ -190,7 +190,7 @@ function createTripCard(trip, participantCount, balance) {
     const balanceClass = balance > 0 ? 'positive' : balance < 0 ? 'negative' : '';
     const balanceText = balance > 0 ? `You're owed $${balance.toFixed(2)}` : 
                        balance < 0 ? `You owe $${Math.abs(balance).toFixed(2)}` : 
-                       'All settled up';
+                       'Nothing owed';
 
     return `
         <div class="trip-card" onclick="showTripDetail('${trip.id}')">
@@ -356,7 +356,13 @@ async function loadExpenses() {
             });
 
             return `
-                <div class="expense-item">
+                <div class="expense-item" data-expense='${JSON.stringify({
+                    id: expense.id,
+                    description: expense.description,
+                    amount: expense.amount,
+                    expense_date: expense.expense_date,
+                    splits: expense.expense_splits.map(s => s.user_id)
+                })}'>
                     <div class="expense-info">
                         <h4>${expense.description}</h4>
                         <p class="paid-by">Paid by ${paidBy} on ${dateStr}</p>
@@ -364,7 +370,12 @@ async function loadExpenses() {
                     </div>
                     <div class="expense-amount">
                         <p class="amount">$${expense.amount}</p>
-                        ${isOwner ? `<button class="btn btn-sm btn-danger delete-btn" onclick="deleteExpense('${expense.id}')">Delete</button>` : ''}
+                        ${isOwner ? `
+                            <div class="expense-actions">
+                                <button class="btn btn-sm btn-secondary" onclick="openEditExpense('${expense.id}')">Edit</button>
+                                <button class="btn btn-sm btn-danger delete-btn" onclick="deleteExpense('${expense.id}')">Delete</button>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -464,7 +475,7 @@ async function calculateAndShowBalances() {
                 `;
             }).join('');
 
-        balancesContainer.innerHTML = balanceItems || '<p class="empty-state">All settled up! 🎉</p>';
+        balancesContainer.innerHTML = balanceItems || '<p class="empty-state">Nothing owed</p>';
     } catch (error) {
         showToast('Error calculating balances: ' + error.message, 'error');
     }
@@ -536,6 +547,86 @@ async function deleteExpense(expenseId) {
 }
 
 window.deleteExpense = deleteExpense; // Make it globally accessible
+
+async function openEditExpense(expenseId) {
+    // Find the expense element and get its data
+    const expenseElement = document.querySelector(`[data-expense*='"id":"${expenseId}"']`);
+    if (!expenseElement) return;
+    
+    const expenseData = JSON.parse(expenseElement.getAttribute('data-expense'));
+    
+    // Populate the edit form
+    document.getElementById('edit-expense-id').value = expenseData.id;
+    document.getElementById('edit-expense-description').value = expenseData.description;
+    document.getElementById('edit-expense-amount').value = expenseData.amount;
+    document.getElementById('edit-expense-date').value = expenseData.expense_date;
+    
+    // Set up participant checkboxes
+    const container = document.getElementById('edit-expense-participants');
+    const checkboxes = participants.map(p => {
+        const isChecked = expenseData.splits.includes(p.id);
+        return `
+            <label class="participant-checkbox">
+                <input type="checkbox" value="${p.id}" ${isChecked ? 'checked' : ''}>
+                ${p.name}
+            </label>
+        `;
+    }).join('');
+    
+    container.innerHTML = checkboxes;
+    
+    // Show the modal
+    showModal('edit-expense-modal');
+}
+
+window.openEditExpense = openEditExpense; // Make it globally accessible
+
+async function updateExpense(expenseId, description, amount, date, splitUserIds) {
+    showLoading();
+    try {
+        // Update the expense
+        const { error: updateError } = await supabase
+            .from('expenses')
+            .update({
+                description: description,
+                amount: amount,
+                expense_date: date
+            })
+            .eq('id', expenseId);
+
+        if (updateError) throw updateError;
+
+        // Delete existing splits
+        const { error: deleteError } = await supabase
+            .from('expense_splits')
+            .delete()
+            .eq('expense_id', expenseId);
+
+        if (deleteError) throw deleteError;
+
+        // Create new expense splits
+        const splitAmount = (amount / splitUserIds.length).toFixed(2);
+        const splits = splitUserIds.map(userId => ({
+            expense_id: expenseId,
+            user_id: userId,
+            amount: splitAmount
+        }));
+
+        const { error: splitsError } = await supabase
+            .from('expense_splits')
+            .insert(splits);
+
+        if (splitsError) throw splitsError;
+
+        closeModal('edit-expense-modal');
+        showToast('Expense updated successfully!', 'success');
+        await loadExpenses();
+        await calculateAndShowBalances();
+    } catch (error) {
+        showToast('Error updating expense: ' + error.message, 'error');
+    }
+    hideLoading();
+}
 
 async function removeParticipant(participantId, participantName) {
     if (!confirm(`Are you sure you want to remove ${participantName} from this trip? They will lose access to all trip information.`)) return;
@@ -729,6 +820,24 @@ document.getElementById('add-expense-form').addEventListener('submit', async (e)
 });
 
 document.getElementById('copy-invite-btn').addEventListener('click', copyInviteLink);
+
+document.getElementById('edit-expense-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const expenseId = document.getElementById('edit-expense-id').value;
+    const description = document.getElementById('edit-expense-description').value;
+    const amount = parseFloat(document.getElementById('edit-expense-amount').value);
+    const date = document.getElementById('edit-expense-date').value;
+    
+    const checkboxes = document.querySelectorAll('#edit-expense-participants input[type="checkbox"]:checked');
+    const splitUserIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (splitUserIds.length === 0) {
+        showToast('Please select at least one person to split with', 'error');
+        return;
+    }
+    
+    await updateExpense(expenseId, description, amount, date, splitUserIds);
+});
 
 // Initialize app
 async function initApp() {
