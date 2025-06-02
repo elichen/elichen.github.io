@@ -113,6 +113,16 @@ CREATE POLICY "Authenticated users can add participants" ON trip_participants
     FOR INSERT
     WITH CHECK (auth.role() = 'authenticated');
 
+-- Trip owners can remove participants
+CREATE POLICY "Trip owners can remove participants" ON trip_participants
+    FOR DELETE
+    USING (
+        trip_id IN (
+            SELECT id FROM trips 
+            WHERE created_by = auth.uid()
+        )
+    );
+
 -- RLS Policies for expenses
 -- Users can see all expenses in trips they're part of
 CREATE POLICY "Users can view expenses in their trips" ON expenses
