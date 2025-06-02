@@ -74,10 +74,13 @@ const tripNameElement = document.getElementById('trip-name');
 // Auth Functions
 async function signInWithGoogle() {
     try {
+        // Preserve the current URL including query parameters (like ?trip=...)
+        const currentUrl = window.location.href;
+        
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: window.location.origin + window.location.pathname
+                redirectTo: currentUrl
             }
         });
         if (error) throw error;
@@ -863,6 +866,18 @@ async function initApp() {
             }
         }, 100);
     } else {
+        // Check if there's an invite link
+        const urlParams = new URLSearchParams(window.location.search);
+        const inviteTripId = urlParams.get('trip');
+        
+        if (inviteTripId) {
+            // Update the login message to indicate they need to sign in to join the trip
+            const loginP = document.querySelector('.login-container p');
+            if (loginP) {
+                loginP.textContent = 'Sign in to join this trip and start splitting expenses';
+            }
+        }
+        
         // Ensure login screen is properly displayed
         setTimeout(() => {
             loginScreen.classList.add('active');
