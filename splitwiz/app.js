@@ -31,6 +31,7 @@ function showToast(message, type = 'info', title = '') {
     `;
     
     toastContainer.appendChild(toast);
+    toastContainer.classList.add('has-toasts');
     
     // Auto-remove after 5 seconds
     setTimeout(() => {
@@ -40,9 +41,14 @@ function showToast(message, type = 'info', title = '') {
 
 function removeToast(closeBtn) {
     const toast = closeBtn.closest('.toast');
+    const toastContainer = document.getElementById('toast-container');
     toast.classList.add('removing');
     setTimeout(() => {
         toast.remove();
+        // Remove has-toasts class if no more toasts
+        if (toastContainer.children.length === 0) {
+            toastContainer.classList.remove('has-toasts');
+        }
     }, 300);
 }
 
@@ -732,21 +738,27 @@ async function initApp() {
     if (session) {
         currentUser = session.user;
         userEmail.textContent = currentUser.email;
-        loginScreen.classList.remove('active');
-        mainApp.classList.add('active');
-        
-        // Check if user came from an invite link
-        const urlParams = new URLSearchParams(window.location.search);
-        const inviteTripId = urlParams.get('trip');
-        
-        if (inviteTripId) {
-            await handleInviteLink(inviteTripId);
-        } else {
-            showTripList();
-        }
+        // Ensure smooth transition
+        setTimeout(() => {
+            loginScreen.classList.remove('active');
+            mainApp.classList.add('active');
+            
+            // Check if user came from an invite link
+            const urlParams = new URLSearchParams(window.location.search);
+            const inviteTripId = urlParams.get('trip');
+            
+            if (inviteTripId) {
+                handleInviteLink(inviteTripId);
+            } else {
+                showTripList();
+            }
+        }, 100);
     } else {
-        loginScreen.classList.add('active');
-        mainApp.classList.remove('active');
+        // Ensure login screen is properly displayed
+        setTimeout(() => {
+            loginScreen.classList.add('active');
+            mainApp.classList.remove('active');
+        }, 100);
     }
 }
 
@@ -795,13 +807,19 @@ supabase.auth.onAuthStateChange((event, session) => {
     if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
         currentUser = session.user;
         userEmail.textContent = currentUser.email;
-        loginScreen.classList.remove('active');
-        mainApp.classList.add('active');
-        showTripList();
+        // Small delay to prevent visual glitch during transition
+        setTimeout(() => {
+            loginScreen.classList.remove('active');
+            mainApp.classList.add('active');
+            showTripList();
+        }, 100);
     } else if (event === 'SIGNED_OUT') {
         currentUser = null;
-        loginScreen.classList.add('active');
-        mainApp.classList.remove('active');
+        // Small delay to prevent visual glitch during transition
+        setTimeout(() => {
+            loginScreen.classList.add('active');
+            mainApp.classList.remove('active');
+        }, 100);
     }
 });
 

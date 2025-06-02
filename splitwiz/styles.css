@@ -4,6 +4,12 @@
     box-sizing: border-box;
 }
 
+html {
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
+
 :root {
     --primary-color: #4F46E5;
     --primary-hover: #4338CA;
@@ -24,27 +30,44 @@ body {
     background-color: var(--background);
     color: var(--text-primary);
     line-height: 1.6;
+    margin: 0;
+    padding: 0;
+}
+
+#app {
+    min-height: 100vh;
+    position: relative;
 }
 
 /* Screens */
 .screen {
     display: none;
     min-height: 100vh;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
 }
 
 .screen.active {
     display: block !important;
+    opacity: 1;
 }
 
 /* Login Screen */
 #login-screen {
+    display: none;
     align-items: center;
     justify-content: center;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    width: 100%;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    overflow: hidden;
 }
 
 #login-screen.active {
-    display: flex;
+    display: flex !important;
 }
 
 .login-container {
@@ -629,10 +652,22 @@ main {
     top: 20px;
     right: 20px;
     z-index: 3000;
-    display: flex;
+    display: none;
     flex-direction: column;
     gap: 10px;
     max-width: 400px;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+.toast-container.has-toasts {
+    display: flex;
+    pointer-events: auto;
+    width: auto;
+    height: auto;
+    overflow: visible;
 }
 
 .toast {
@@ -647,6 +682,7 @@ main {
     animation: slideIn 0.3s ease-out;
     position: relative;
     overflow: hidden;
+    pointer-events: auto;
 }
 
 .toast::before {
