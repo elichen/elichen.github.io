@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SplitWiz - Simple Expense Splitting</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="login-screen" class="screen active">
+            <div class="login-container">
+                <h1>SplitWiz</h1>
+                <p>Simple expense splitting for trips with friends</p>
+                <button id="google-login-btn" class="btn btn-primary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" style="margin-right: 8px;">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    Sign in with Google
+                </button>
+            </div>
+        </div>
+
+        <!-- Main App -->
+        <div id="main-app" class="screen">
+            <!-- Header -->
+            <header>
+                <div class="header-content">
+                    <h1>SplitWiz</h1>
+                    <div class="user-info">
+                        <span id="user-email"></span>
+                        <button id="logout-btn" class="btn btn-sm">Logout</button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <main>
+                <!-- Trip List View -->
+                <div id="trip-list-view" class="view active">
+                    <div class="container">
+                        <div class="section-header">
+                            <h2>Your Trips</h2>
+                            <button id="new-trip-btn" class="btn btn-primary">New Trip</button>
+                        </div>
+                        <div id="trips-container" class="trips-grid">
+                            <!-- Trip cards will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trip Detail View -->
+                <div id="trip-detail-view" class="view">
+                    <div class="container">
+                        <button id="back-to-trips" class="btn btn-sm">← Back to Trips</button>
+                        
+                        <div class="trip-header">
+                            <h2 id="trip-name"></h2>
+                            <div class="trip-actions">
+                                <button id="add-expense-btn" class="btn btn-primary">Add Expense</button>
+                                <button id="manage-participants-btn" class="btn">Manage Participants</button>
+                                <button id="delete-trip-btn" class="btn btn-danger">Delete Trip</button>
+                            </div>
+                        </div>
+
+                        <div class="trip-content">
+                            <!-- Balance Summary -->
+                            <div class="balance-column">
+                                <div class="section-card balance-card">
+                                    <div class="section-header-styled">
+                                        <h3>Who Owes Who</h3>
+                                        <div class="balance-icon">💰</div>
+                                    </div>
+                                    <div id="balances-container">
+                                        <!-- Balances will be inserted here -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Expenses List -->
+                            <div class="expenses-column">
+                                <div class="section-card expenses-card">
+                                    <div class="section-header-styled">
+                                        <h3>Expenses</h3>
+                                        <div class="expense-icon">📝</div>
+                                    </div>
+                                    <div id="expenses-container">
+                                        <!-- Expenses will be inserted here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Modals -->
+        <!-- New Trip Modal -->
+        <div id="new-trip-modal" class="modal">
+            <div class="modal-content">
+                <h3>Create New Trip</h3>
+                <form id="new-trip-form">
+                    <div class="form-group">
+                        <label for="trip-name-input">Trip Name</label>
+                        <input type="text" id="trip-name-input" required placeholder="Weekend in Tahoe">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('new-trip-modal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Trip</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Add Expense Modal -->
+        <div id="add-expense-modal" class="modal">
+            <div class="modal-content">
+                <h3>Add Expense</h3>
+                <form id="add-expense-form">
+                    <div class="form-group">
+                        <label for="expense-description">Description</label>
+                        <input type="text" id="expense-description" required placeholder="Dinner at restaurant">
+                    </div>
+                    <div class="form-group">
+                        <label for="expense-amount">Amount</label>
+                        <input type="number" id="expense-amount" step="0.01" min="0.01" required placeholder="50.00">
+                    </div>
+                    <div class="form-group">
+                        <label for="expense-date">Date</label>
+                        <input type="date" id="expense-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Split Between</label>
+                        <div id="expense-participants" class="participant-checkboxes">
+                            <!-- Participant checkboxes will be inserted here -->
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('add-expense-modal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Expense</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Manage Participants Modal -->
+        <div id="manage-participants-modal" class="modal">
+            <div class="modal-content">
+                <h3>Trip Participants</h3>
+                <div class="invite-section">
+                    <h4>Invite Friends</h4>
+                    <p>Share this link with friends to invite them:</p>
+                    <div class="invite-link-container">
+                        <input type="text" id="invite-link" readonly class="invite-link-input">
+                        <button id="copy-invite-btn" class="btn btn-primary">Copy</button>
+                    </div>
+                    <p class="invite-help">Anyone who joins SplitWiz through this link will be added to the trip</p>
+                </div>
+                <div class="participants-list">
+                    <h4>Current Participants</h4>
+                    <div id="participants-list-container">
+                        <!-- Participants will be listed here -->
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('manage-participants-modal')">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Toast Container -->
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
