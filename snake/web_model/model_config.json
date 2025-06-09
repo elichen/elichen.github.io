@@ -1,0 +1,1 @@
+{"input_size": 12, "hidden_size": 256, "output_size": 4, "architecture": "simple_dqn"}
