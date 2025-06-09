@@ -173,3 +173,75 @@ button:hover {
     height: auto;
     border-radius: 6px;
 }
+
+/* Styles for pre-trained demo */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.game-section {
+    display: flex;
+    gap: 30px;
+    margin-bottom: 30px;
+    align-items: flex-start;
+}
+
+.game-section canvas {
+    max-width: 600px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.controls {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 30px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.speed-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.speed-control input[type="range"] {
+    width: 200px;
+}
+
+.chart-container {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 30px;
+}
+
+.info-section {
+    background-color: white;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+    text-align: left;
+}
+
+.info-section h2 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+}
+
+.info-section ul {
+    margin-left: 25px;
+}
+
+.info-section li {
+    margin-bottom: 10px;
+}
+
+#modelStatus {
+    color: #27ae60;
+    font-weight: bold;
+}
