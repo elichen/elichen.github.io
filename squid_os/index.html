@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Squid OS</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="splash-screen">
+        <div class="splash-logo">
+            <svg width="150" height="50" viewBox="0 0 150 50">
+                <circle cx="25" cy="25" r="20" fill="#fff"/>
+                <polygon points="75,5 95,45 55,45" fill="#fff"/>
+                <rect x="105" y="5" width="40" height="40" fill="#fff"/>
+            </svg>
+        </div>
+    </div>
+
+    <div class="desktop">
+        <!-- Desktop icons can still go here if desired -->
+    </div>
+
+    <div id="start-menu" class="start-menu">
+        <div class="start-menu-item" id="red-light-green-light">
+            <img src="img/rlgl-icon.svg" alt="Red Light, Green Light">
+            <span>Red Light, Green Light</span>
+        </div>
+        <div class="start-menu-item" id="dalgona">
+            <img src="img/dalgona-icon.svg" alt="Dalgona">
+            <span>Dalgona</span>
+        </div>
+        <div class="start-menu-item" id="tug-of-war">
+            <img src="img/tug-of-war-icon.svg" alt="Tug of War">
+            <span>Tug of War</span>
+        </div>
+    </div>
+
+    <div class="taskbar">
+        <button id="start-button">
+            <svg width="24" height="24" viewBox="0 0 64 64"><rect width="64" height="64" fill="#fff"/></svg>
+        </button>
+        <div id="clock"></div>
+    </div>
+
+    <div id="game-window" class="game-window">
+        <div class="game-window-header">
+            <span id="game-window-title"></span>
+            <button id="close-game-window">&times;</button>
+        </div>
+        <iframe id="game-iframe" src=""></iframe>
+    </div>
+
+    <script src="js/jquery-3.6.0.min.js"></script>
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
