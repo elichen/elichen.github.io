@@ -116,8 +116,8 @@
 
                 const femurPivotGroup = new THREE.Group();
                 femurPivotGroup.position.x = COXA_LENGTH * posData[3];
-                // Initial downward angle for femur
-                femurPivotGroup.rotation.x = Math.PI * 0.3;
+                // Initial downward angle for femur, signed by side
+                femurPivotGroup.rotation.x = Math.PI * 0.3 * posData[3];
                 legRootGroup.add(femurPivotGroup);
 
                 const femurMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.007,FEMUR_LENGTH,8), legMaterial);
@@ -127,8 +127,8 @@
 
                 const tibiaPivotGroup = new THREE.Group();
                 tibiaPivotGroup.position.y = -FEMUR_LENGTH;
-                // Initial angle for tibia
-                tibiaPivotGroup.rotation.x = Math.PI * 0.4;
+                // Initial angle for tibia, signed by side
+                tibiaPivotGroup.rotation.x = Math.PI * 0.4 * posData[3];
                 femurPivotGroup.add(tibiaPivotGroup);
 
                 const tibiaMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.004,TIBIA_LENGTH,8), legMaterial);
@@ -296,8 +296,17 @@
                 _vec.targetInThorax.copy(leg.currentTarget).applyMatrix4(worldToLocalMatrix);
                 _vec.targetRelToLegRoot.subVectors(_vec.targetInThorax, leg.legRootGroup.position);
 
-                // Rotate leg to point toward target
-                const yawAngle = Math.atan2(_vec.targetRelToLegRoot.x, _vec.targetRelToLegRoot.z);
+                // Rotate leg to point toward target - fixed yaw calculation
+                let yawAngle = 0;
+                const targetProj = new THREE.Vector3(_vec.targetRelToLegRoot.x, 0, _vec.targetRelToLegRoot.z);
+                const projLengthSq = targetProj.lengthSq();
+                if (projLengthSq > 1e-6) {
+                    targetProj.normalize();
+                    const defaultDir = new THREE.Vector3(leg.side, 0, 0);
+                    const dot = defaultDir.dot(targetProj);
+                    const cross = defaultDir.x * targetProj.z - defaultDir.z * targetProj.x;
+                    yawAngle = -Math.atan2(cross, dot); // Note the negative sign for correct direction
+                }
                 leg.legRootGroup.rotation.y = yawAngle;
 
                 _vec.tempQuat.setFromAxisAngle(_vec.Y_AXIS, -yawAngle);
@@ -309,9 +318,11 @@
                 let ik_target_z = _vec.targetInYawedLegRoot.z; 
 
                 const L1 = FEMUR_LENGTH; const L2 = TIBIA_LENGTH;
-                // Calculate distance from femur pivot to target - for downward legs we need X-Y distance
-                const horizontal_dist = Math.sqrt(ik_target_x * ik_target_x + ik_target_z * ik_target_z);
-                const D_sq = ik_target_y * ik_target_y + horizontal_dist * horizontal_dist;
+                // Calculate distance from femur pivot to target with signed horizontal
+                let signed_horizontal = ik_target_x;
+                let off_plane = ik_target_z;
+                let horizontal_dist = Math.sqrt(signed_horizontal * signed_horizontal + off_plane * off_plane);
+                let D_sq = ik_target_y * ik_target_y + horizontal_dist * horizontal_dist;
                 let D = Math.sqrt(D_sq);
 
                 let femurAngle, tibiaAngle;
@@ -323,14 +334,16 @@
                     const overextension = (D - MAX_REACH) / (L1 + L2 - MAX_REACH);
                     const clampedD = MAX_REACH;
                     // Point leg toward target when overextended
-                    const baseAngle = Math.atan2(-ik_target_y, horizontal_dist);
+                    const baseAngle = Math.atan2(-ik_target_y, signed_horizontal);
                     femurAngle = baseAngle;
                     tibiaAngle = 0.1; // Slight bend
                     
                     // Recalculate with clamped distance for smooth transition
                     const scale = clampedD / D;
                     ik_target_y *= scale;
-                    ik_target_z *= scale;
+                    signed_horizontal *= scale;
+                    off_plane *= scale;
+                    horizontal_dist = Math.abs(signed_horizontal); // Update
                     D = clampedD;
                 } else if (D < D_EPSILON ) { 
                     // Handle too-close targets - fold leg
@@ -345,8 +358,8 @@
                     const cos_alpha = Math.max(-1.0, Math.min(1.0, (L1*L1 + D*D - L2*L2) / (2*L1*D) ));
                     const alpha = Math.acos(cos_alpha); 
                     // Calculate femur angle - negative Y points downward, use horizontal distance
-                    const target_angle = Math.atan2(-ik_target_y, horizontal_dist);
-                    femurAngle = target_angle + alpha; 
+                    const target_angle = Math.atan2(-ik_target_y, Math.abs(signed_horizontal));
+                    femurAngle = target_angle + (signed_horizontal >= 0 ? alpha : -alpha); 
                 }
                 
                 // Smooth angle transitions
@@ -360,16 +373,30 @@
                 leg.lastFemurAngle = femurAngle;
                 leg.lastTibiaAngle = tibiaAngle;
                 
-                // Apply rotations with smoother joint limits
+                // Apply rotations with smoother joint limits, mirrored for side
                 const smoothClamp = (value, min, max) => {
                     if (value < min) return min + (value - min) * 0.1;
                     if (value > max) return max + (value - max) * 0.1;
                     return value;
                 };
                 
+                // Femur limits
+                const femur_abs_min = Math.PI * 0.1;
+                const femur_abs_max = Math.PI * 0.7;
+                const femur_min = leg.side > 0 ? -femur_abs_min : -femur_abs_max;
+                const femur_max = leg.side > 0 ? femur_abs_max : femur_abs_min;
+                const applied_femur = smoothClamp(femurAngle * leg.side, femur_min, femur_max);
+                
+                // Tibia limits
+                const tibia_abs_min = 0;
+                const tibia_abs_max = Math.PI * 0.9;
+                const tibia_min = leg.side > 0 ? tibia_abs_min : -tibia_abs_max;
+                const tibia_max = leg.side > 0 ? tibia_abs_max : tibia_abs_min;
+                const applied_tibia = smoothClamp(tibiaAngle * leg.side, tibia_min, tibia_max);
+                
                 // Apply rotations - X axis for proper ant leg movement
-                leg.femurPivotGroup.rotation.x = smoothClamp(femurAngle, -Math.PI*0.1, Math.PI*0.7);
-                leg.tibiaPivotGroup.rotation.x = smoothClamp(tibiaAngle, 0, Math.PI*0.9); 
+                leg.femurPivotGroup.rotation.x = applied_femur;
+                leg.tibiaPivotGroup.rotation.x = applied_tibia; 
 
             });
 
