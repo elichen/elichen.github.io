@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heap's Algorithm: An Interactive Guide to Generating Permutations</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <article>
+        <header>
+            <h1>Heap's Algorithm</h1>
+            <p class="subtitle">An Interactive Guide to Generating Permutations</p>
+            <p class="author">An exploration of one of the most elegant algorithms in combinatorics</p>
+        </header>
+
+        <section id="introduction">
+            <h2>What are Permutations?</h2>
+            <p>
+                A permutation is a rearrangement of elements in a set. For a set of <em>n</em> distinct elements, 
+                there are exactly <em>n!</em> (n factorial) possible permutations. For example, the set {A, B, C} 
+                has 3! = 6 permutations:
+            </p>
+            
+            <div class="figure" id="permutation-demo">
+                <div class="permutation-list">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+                <p class="caption">All permutations of {A, B, C}</p>
+            </div>
+
+            <p>
+                Generating all permutations is a fundamental problem in computer science, with applications 
+                ranging from cryptography to optimization algorithms. While there are many ways to generate 
+                permutations, Heap's algorithm stands out for its elegance and efficiency.
+            </p>
+        </section>
+
+        <section id="the-algorithm">
+            <h2>Understanding Heap's Algorithm</h2>
+            
+            <p>
+                B. R. Heap discovered this algorithm in 1963. Its beauty lies in generating each permutation 
+                from the previous one by swapping just two elements. This minimal-change property makes it 
+                particularly efficient.
+            </p>
+
+            <div class="algorithm-box">
+                <h3>The Algorithm</h3>
+                <pre><code>procedure generate(k : integer, A : array):
+    if k = 1 then
+        output(A)
+    else
+        // Generate permutations with kth element in each position
+        generate(k - 1, A)
+        
+        for i := 0 to k - 2 do
+            if k is even then
+                swap(A[i], A[k-1])
+            else
+                swap(A[0], A[k-1])
+            generate(k - 1, A)</code></pre>
+            </div>
+
+            <p>
+                The key insight is how the algorithm decides which elements to swap:
+            </p>
+            <ul>
+                <li>For <strong>even</strong> positions: swap with elements in sequence (0, 1, 2, ...)</li>
+                <li>For <strong>odd</strong> positions: always swap with the first element</li>
+            </ul>
+        </section>
+
+        <section id="visualization">
+            <h2>Interactive Visualization</h2>
+            
+            <p>
+                Let's visualize how Heap's algorithm works. Watch as it generates all permutations 
+                by swapping just two elements at each step:
+            </p>
+
+            <div class="interactive-container">
+                <div class="controls">
+                    <button id="play-btn" class="control-btn">▶ Play</button>
+                    <button id="pause-btn" class="control-btn" style="display: none;">⏸ Pause</button>
+                    <button id="step-btn" class="control-btn">Step →</button>
+                    <button id="reset-btn" class="control-btn">↺ Reset</button>
+                    <div class="speed-control">
+                        <label>Speed: <span id="speed-value">500</span>ms</label>
+                        <input type="range" id="speed-slider" min="100" max="2000" value="500" step="100">
+                    </div>
+                </div>
+
+                <div class="visualization-area">
+                    <div class="current-permutation" id="current-perm">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                    
+                    <div class="swap-indicator" id="swap-indicator">
+                        <!-- Shows which elements are being swapped -->
+                    </div>
+
+                    <div class="algorithm-state">
+                        <h4>Algorithm State</h4>
+                        <div id="state-display">
+                            <div class="state-item">
+                                <span class="state-label">Step:</span>
+                                <span id="step-count">0</span>
+                            </div>
+                            <div class="state-item">
+                                <span class="state-label">Current k:</span>
+                                <span id="current-k">-</span>
+                            </div>
+                            <div class="state-item">
+                                <span class="state-label">Swap type:</span>
+                                <span id="swap-type">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="permutation-history" id="perm-history">
+                    <h4>Generated Permutations</h4>
+                    <div class="history-list" id="history-list">
+                        <!-- Will be populated as permutations are generated -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="recursive-tree">
+            <h2>The Recursive Structure</h2>
+            
+            <p>
+                To truly understand Heap's algorithm, it helps to visualize its recursive structure. 
+                Each node in the tree represents a recursive call, and the leaves represent the final permutations:
+            </p>
+
+            <div class="tree-visualization" id="tree-vis">
+                <!-- SVG tree will be generated here -->
+            </div>
+        </section>
+
+        <section id="implementation">
+            <h2>Implementation Variations</h2>
+            
+            <div class="implementation-tabs">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" data-tab="recursive">Recursive</button>
+                    <button class="tab-btn" data-tab="iterative">Iterative</button>
+                    <button class="tab-btn" data-tab="fixed-space">Fixed Space</button>
+                    <button class="tab-btn" data-tab="generator">Generator</button>
+                </div>
+                
+                <div class="tab-content active" id="recursive-tab">
+                    <pre><code class="javascript">function heapPermutation(array) {
+    const result = [];
+    
+    function generate(k, arr) {
+        if (k === 1) {
+            result.push([...arr]);
+            return;
+        }
+        
+        generate(k - 1, arr);
+        
+        for (let i = 0; i < k - 1; i++) {
+            if (k % 2 === 0) {
+                [arr[i], arr[k - 1]] = [arr[k - 1], arr[i]];
+            } else {
+                [arr[0], arr[k - 1]] = [arr[k - 1], arr[0]];
+            }
+            generate(k - 1, arr);
+        }
+    }
+    
+    generate(array.length, array);
+    return result;
+}</code></pre>
+                </div>
+                
+                <div class="tab-content" id="iterative-tab">
+                    <pre><code class="javascript">function heapPermutationIterative(array) {
+    const result = [];
+    const c = new Array(array.length).fill(0);
+    
+    result.push([...array]);
+    
+    let i = 0;
+    while (i < array.length) {
+        if (c[i] < i) {
+            if (i % 2 === 0) {
+                [array[0], array[i]] = [array[i], array[0]];
+            } else {
+                [array[c[i]], array[i]] = [array[i], array[c[i]]];
+            }
+            result.push([...array]);
+            c[i]++;
+            i = 0;
+        } else {
+            c[i] = 0;
+            i++;
+        }
+    }
+    
+    return result;
+}</code></pre>
+                </div>
+                
+                <div class="tab-content" id="fixed-space-tab">
+                    <pre><code class="javascript">// Non-recursive, fixed O(n) space implementation
+function heapPermutationFixedSpace(array, callback) {
+    // Uses only O(n) auxiliary space via the counter array
+    const n = array.length;
+    const c = new Array(n).fill(0);
+    
+    // Process the initial permutation
+    callback([...array]);
+    
+    // The algorithm uses a clever counting mechanism
+    // c[i] counts how many times we've done the i-th swap
+    let i = 0;
+    while (i < n) {
+        if (c[i] < i) {
+            // Perform the swap based on parity
+            if (i % 2 === 0) {
+                [array[0], array[i]] = [array[i], array[0]];
+            } else {
+                [array[c[i]], array[i]] = [array[i], array[c[i]]];
+            }
+            
+            // Process the new permutation
+            callback([...array]);
+            
+            // Increment counter and reset position
+            c[i]++;
+            i = 0;
+        } else {
+            // Reset counter and move to next position
+            c[i] = 0;
+            i++;
+        }
+    }
+}
+
+// Example usage:
+const arr = ['A', 'B', 'C', 'D'];
+heapPermutationFixedSpace(arr, perm => {
+    console.log(perm.join(''));
+});</code></pre>
+                </div>
+                
+                <div class="tab-content" id="generator-tab">
+                    <pre><code class="javascript">function* heapPermutationGenerator(array) {
+    const c = new Array(array.length).fill(0);
+    
+    yield [...array];
+    
+    let i = 0;
+    while (i < array.length) {
+        if (c[i] < i) {
+            if (i % 2 === 0) {
+                [array[0], array[i]] = [array[i], array[0]];
+            } else {
+                [array[c[i]], array[i]] = [array[i], array[c[i]]];
+            }
+            yield [...array];
+            c[i]++;
+            i = 0;
+        } else {
+            c[i] = 0;
+            i++;
+        }
+    }
+}</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <section id="fixed-space-explanation">
+            <h2>The Fixed-Space Implementation</h2>
+            
+            <p>
+                One of the most elegant aspects of Heap's algorithm is that it can be implemented 
+                non-recursively using only O(n) auxiliary space. This fixed-space version is 
+                particularly valuable for embedded systems or when dealing with very large permutations.
+            </p>
+
+            <div class="algorithm-explanation">
+                <h3>How It Works</h3>
+                <p>
+                    The non-recursive version uses a counter array <code>c</code> where <code>c[i]</code> 
+                    tracks how many times we've performed the i-th level swap. This brilliantly simulates 
+                    the recursive call stack without actually using recursion.
+                </p>
+                
+                <div class="key-points">
+                    <h4>Key Insights:</h4>
+                    <ul>
+                        <li><strong>Counter Array:</strong> Each position <code>c[i]</code> represents the state of the i-th recursive level</li>
+                        <li><strong>Stack Simulation:</strong> When <code>c[i] < i</code>, we perform a swap at level i</li>
+                        <li><strong>Backtracking:</strong> When <code>c[i] = i</code>, we reset and move to the next level</li>
+                        <li><strong>Memory Efficiency:</strong> Only requires O(n) extra space regardless of output size</li>
+                    </ul>
+                </div>
+
+                <p>
+                    This implementation is particularly useful when you need to process permutations 
+                    one at a time without storing them all in memory. The callback pattern allows 
+                    for streaming processing of permutations.
+                </p>
+            </div>
+        </section>
+
+        <section id="performance">
+            <h2>Performance Analysis</h2>
+            
+            <p>
+                Heap's algorithm is remarkably efficient. It generates all n! permutations with exactly 
+                n! - 1 swaps, which is the theoretical minimum. Let's compare it with other common approaches:
+            </p>
+
+            <div class="performance-comparison">
+                <canvas id="performance-chart" width="800" height="400"></canvas>
+            </div>
+
+            <div class="complexity-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Algorithm</th>
+                            <th>Time Complexity</th>
+                            <th>Space Complexity</th>
+                            <th>Swaps per Permutation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Heap's Algorithm (Recursive)</td>
+                            <td>O(n!)</td>
+                            <td>O(n)</td>
+                            <td>1</td>
+                        </tr>
+                        <tr>
+                            <td>Heap's Algorithm (Fixed-Space)</td>
+                            <td>O(n!)</td>
+                            <td>O(n)</td>
+                            <td>1</td>
+                        </tr>
+                        <tr>
+                            <td>Lexicographic Order</td>
+                            <td>O(n! × n)</td>
+                            <td>O(n)</td>
+                            <td>≈ n/2</td>
+                        </tr>
+                        <tr>
+                            <td>Recursive Backtracking</td>
+                            <td>O(n! × n)</td>
+                            <td>O(n²)</td>
+                            <td>Variable</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="applications">
+            <h2>Real-World Applications</h2>
+            
+            <p>
+                Heap's algorithm finds use in many practical scenarios:
+            </p>
+
+            <div class="applications-grid">
+                <div class="application-card">
+                    <h3>Cryptography</h3>
+                    <p>Generating permutation-based encryption keys and testing cryptographic strength</p>
+                </div>
+                <div class="application-card">
+                    <h3>Optimization</h3>
+                    <p>Solving traveling salesman problems and other combinatorial optimization tasks</p>
+                </div>
+                <div class="application-card">
+                    <h3>Testing</h3>
+                    <p>Exhaustive testing of functions with different parameter orderings</p>
+                </div>
+                <div class="application-card">
+                    <h3>Game Development</h3>
+                    <p>Generating puzzle configurations and evaluating game states</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="conclusion">
+            <h2>Conclusion</h2>
+            
+            <p>
+                Heap's algorithm exemplifies the beauty of computer science: a simple, elegant solution 
+                to a fundamental problem. Its minimal-swap property and straightforward implementation 
+                make it a go-to choice for permutation generation.
+            </p>
+            
+            <p>
+                Understanding algorithms like Heap's helps us appreciate how clever insights can lead 
+                to optimal solutions. Whether you're solving puzzles, optimizing routes, or exploring 
+                combinatorial spaces, Heap's algorithm provides an efficient tool for generating all 
+                possible arrangements.
+            </p>
+        </section>
+    </article>
+
+    <footer>
+        <p>An interactive exploration of Heap's Algorithm • Built with HTML, CSS, and JavaScript</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
