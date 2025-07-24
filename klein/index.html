@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ant on Klein Bottle - Further Leg Refinements</title>
+    <title>Ant on Klein Bottle - Improved Leg Implementation</title>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { width: 100%; height: 100vh; }
@@ -15,9 +15,9 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
     <script>
         // --- Constants ---
-        const COXA_LENGTH = 0.08;
-        const FEMUR_LENGTH = 0.15;
-        const TIBIA_LENGTH = 0.20;
+        const COXA_LENGTH = 0.06;
+        const FEMUR_LENGTH = 0.12;
+        const TIBIA_LENGTH = 0.18;
 
         // Scene setup
         const scene = new THREE.Scene();
@@ -97,28 +97,40 @@
             const legs = [];
             const legMaterial = new THREE.MeshPhongMaterial({ color: 0x5C3317 });
             const legPositions = [
-                [ 0.06, -0.02,  0.05, 1, false], [ 0.06, -0.02,  0.00, 1, false], [ 0.06, -0.02, -0.05, 1, true],
-                [-0.06, -0.02,  0.05, -1, false],[-0.06, -0.02,  0.00, -1, false],[-0.06, -0.02, -0.05, -1, true]
+                [ 0.06, 0.00,  0.05, 1, false], [ 0.06, 0.00,  0.00, 1, false], [ 0.06, 0.00, -0.05, 1, true],
+                [-0.06, 0.00,  0.05, -1, false],[-0.06, 0.00,  0.00, -1, false],[-0.06, 0.00, -0.05, -1, true]
             ];
-            const phaseOffsets = [0, 0.5, 0.25, 0.75, 0.5, 0]; 
+            
+            // Improved tripod gait phase offsets
+            const getTripodPhaseOffset = (index) => {
+                // Tripod A: legs 0, 2, 4 (right front, left middle, right back)
+                // Tripod B: legs 1, 3, 5 (right middle, left front, left back)
+                const tripodA = [0, 2, 4];
+                return tripodA.includes(index) ? 0 : 0.5;
+            };
 
-            legPositions.forEach((posData) => {
+            legPositions.forEach((posData, index) => {
                 const legRootGroup = new THREE.Group(); 
                 legRootGroup.position.set(posData[0], posData[1], posData[2]);
                 thorax.add(legRootGroup);
 
-                // Create properly oriented leg segments
+                // Improved leg orientation
+                const coxaPivot = new THREE.Group();
+                // Angle legs outward naturally
+                coxaPivot.rotation.y = posData[3] > 0 ? -Math.PI/6 : Math.PI/6;
+                legRootGroup.add(coxaPivot);
+
                 const coxaMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.01,COXA_LENGTH,8), legMaterial);
                 coxaMesh.castShadow = true; 
                 coxaMesh.rotation.z = Math.PI/2; // Horizontal segment
-                coxaMesh.position.x = COXA_LENGTH/2 * posData[3];
-                legRootGroup.add(coxaMesh);
+                coxaMesh.position.x = COXA_LENGTH/2;
+                coxaPivot.add(coxaMesh);
 
                 const femurPivotGroup = new THREE.Group();
-                femurPivotGroup.position.x = COXA_LENGTH * posData[3];
-                // Initial downward angle for femur, signed by side
-                femurPivotGroup.rotation.x = Math.PI * 0.3 * posData[3];
-                legRootGroup.add(femurPivotGroup);
+                femurPivotGroup.position.x = COXA_LENGTH;
+                // Initial downward angle for femur
+                femurPivotGroup.rotation.x = Math.PI * 0.2 * posData[3];
+                coxaPivot.add(femurPivotGroup);
 
                 const femurMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.007,FEMUR_LENGTH,8), legMaterial);
                 femurMesh.castShadow = true; 
@@ -127,8 +139,8 @@
 
                 const tibiaPivotGroup = new THREE.Group();
                 tibiaPivotGroup.position.y = -FEMUR_LENGTH;
-                // Initial angle for tibia, signed by side
-                tibiaPivotGroup.rotation.x = Math.PI * 0.4 * posData[3];
+                // Initial angle for tibia
+                tibiaPivotGroup.rotation.x = Math.PI * 0.3 * posData[3];
                 femurPivotGroup.add(tibiaPivotGroup);
 
                 const tibiaMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.004,TIBIA_LENGTH,8), legMaterial);
@@ -136,24 +148,27 @@
                 tibiaMesh.position.y = -TIBIA_LENGTH/2;
                 tibiaPivotGroup.add(tibiaMesh);
                 
-                // Refined deltaU multipliers: less spread for front legs
-                // posData[2] is Z offset on thorax: >0 front, 0 middle, <0 rear
+                // Refined deltaU multipliers
                 let du_multiplier = 1.0; // Default for middle
-                if (posData[2] > 0) du_multiplier = 0.9; // Front legs less splayed
-                else if (posData[2] < 0) du_multiplier = 0.8; // Rear legs
+                if (posData[2] > 0) du_multiplier = 0.8; // Front legs less splayed
+                else if (posData[2] < 0) du_multiplier = 0.9; // Rear legs
 
                 legs.push({
                     legRootGroup, femurPivotGroup, tibiaPivotGroup, 
                     coxaMesh, femurMesh, tibiaMesh, 
-                    plantedT: new THREE.Vector3(), phaseOffset: phaseOffsets[legs.length], side: posData[3], isRear: posData[4],
-                    deltaU: 0.045 * posData[3] * du_multiplier, // Increased spread for better stability
-                    deltaV: 0.04 * (posData[2] > 0 ? 1.0 : posData[2] < 0 ? -1.0 : (legs.length % 2 === 0 ? 0.25 : -0.25)),
+                    plantedT: new THREE.Vector3(), 
+                    phaseOffset: getTripodPhaseOffset(index),
+                    side: posData[3], 
+                    isRear: posData[4],
+                    deltaU: 0.045 * posData[3] * du_multiplier,
+                    deltaV: 0.04 * (posData[2] > 0 ? 1.0 : posData[2] < 0 ? -1.0 : (index % 2 === 0 ? 0.25 : -0.25)),
                     lastPhase: 0,
                     currentTarget: new THREE.Vector3(),
                     swingStartPos: new THREE.Vector3(),
-                    initialized: false, // Track if leg has been initialized
+                    initialized: false,
                 });
             });
+            
             return { antGroup, thorax, abdomen, head, legs };
         };
         
@@ -161,10 +176,13 @@
         scene.add(antGroup);
 
         const speed = 0.00009; 
-        const period = 3200; const h_max = 0.065; 
-        const epsilon = 0.0001; const BODY_HEIGHT = 0.20; const BODY_OFFSET = BODY_HEIGHT / 2;
-        const FOOT_SURFACE_OFFSET = 0.01;
-        const PHASE_BLEND_DURATION = 0.1; // Smooth transition duration 
+        const period = 3200; 
+        const h_max = 0.065; 
+        const epsilon = 0.0001; 
+        const BODY_HEIGHT = 0.20; 
+        const BODY_OFFSET = BODY_HEIGHT / 2;
+        const FOOT_SURFACE_OFFSET = 0.02; // Increased to prevent penetration
+        const PHASE_BLEND_DURATION = 0.1;
 
         const _vec = {
             p: new THREE.Vector3(), p_du: new THREE.Vector3(), p_dv: new THREE.Vector3(),
@@ -172,24 +190,32 @@
             antOffsetPos: new THREE.Vector3(), lookAtTarget: new THREE.Vector3(),
             footTargetSurface: new THREE.Vector3(), normalAtFootTarget: new THREE.Vector3(),
             correctedFootNormal: new THREE.Vector3(), 
-            swingStartWorld: new THREE.Vector3(), // Explicit swing start point
+            swingStartWorld: new THREE.Vector3(),
             swingLerpBase: new THREE.Vector3(),
             finalFootTargetWorld: new THREE.Vector3(), 
             targetInThorax: new THREE.Vector3(), targetRelToLegRoot: new THREE.Vector3(),
             targetInYawedLegRoot: new THREE.Vector3(),
             Y_AXIS: new THREE.Vector3(0,1,0), Z_AXIS: new THREE.Vector3(0,0,1),
-            tempQuat: new THREE.Quaternion()
+            tempQuat: new THREE.Quaternion(),
+            temp1: new THREE.Vector3(), temp2: new THREE.Vector3()
         };
-        const tempMatrix = new THREE.Matrix4(); const worldToLocalMatrix = new THREE.Matrix4();
+        const tempMatrix = new THREE.Matrix4(); 
+        const worldToLocalMatrix = new THREE.Matrix4();
         
-        const computeKleinBottlePoint = (u,v,target) => { kleinBottleParametric(u/(2*Math.PI),v/(2*Math.PI),target); return target; };
+        const computeKleinBottlePoint = (u,v,target) => { 
+            kleinBottleParametric(u/(2*Math.PI),v/(2*Math.PI),target); 
+            return target; 
+        };
+        
         const computeSurfaceNormal = (u,v,target) => {
             const un=u/(2*Math.PI), vn=v/(2*Math.PI), epsNorm=0.00001;
             computeKleinBottlePoint(u,v,_vec.p); 
             computeKleinBottlePoint(u+epsNorm*(2*Math.PI),v,_vec.p_du); 
             computeKleinBottlePoint(u,v+epsNorm*(2*Math.PI),_vec.p_dv); 
-            _vec.du.subVectors(_vec.p_du,_vec.p).normalize(); _vec.dv.subVectors(_vec.p_dv,_vec.p).normalize();
-            target.crossVectors(_vec.du,_vec.dv).normalize(); return target;
+            _vec.du.subVectors(_vec.p_du,_vec.p).normalize(); 
+            _vec.dv.subVectors(_vec.p_dv,_vec.p).normalize();
+            target.crossVectors(_vec.du,_vec.dv).normalize(); 
+            return target;
         };
 
         function animate(time) {
@@ -197,7 +223,8 @@
             controls.update();
 
             const t = time * speed;
-            const u_body = t % (2 * Math.PI); const v_body = t % (2 * Math.PI);
+            const u_body = t % (2 * Math.PI); 
+            const v_body = t % (2 * Math.PI);
             
             computeKleinBottlePoint(u_body, v_body, _vec.p);
             computeSurfaceNormal(u_body, v_body, _vec.N); 
@@ -211,8 +238,10 @@
             antGroup.quaternion.setFromRotationMatrix(tempMatrix);
             
             const bob = Math.sin(time * 0.003) * 0.005;
-            thorax.position.y = bob; abdomen.position.y = bob * 0.8;
-            thorax.rotation.x = Math.sin(time*0.006)*0.04; abdomen.rotation.x = Math.sin(time*0.006+0.5)*0.05;
+            thorax.position.y = bob; 
+            abdomen.position.y = bob * 0.8;
+            thorax.rotation.x = Math.sin(time*0.006)*0.04; 
+            abdomen.rotation.x = Math.sin(time*0.006+0.5)*0.05;
             head.rotation.y = Math.sin(time*0.004)*0.1;
 
             thorax.updateMatrixWorld(true);
@@ -220,7 +249,7 @@
 
             legs.forEach((leg) => {
                 const phase = (time / period + leg.phaseOffset) % 1;
-                const footSpreadFactor = leg.isRear ? 1.05 : 1.0; // Slightly less spread for rear too
+                const footSpreadFactor = leg.isRear ? 1.05 : 1.0;
                 const u_foot = (u_body + leg.deltaU * footSpreadFactor); 
                 const v_foot = (v_body + leg.deltaV * footSpreadFactor);
                 
@@ -233,7 +262,6 @@
                     _vec.correctedFootNormal.negate();
                 }
                 
-                // Apply smooth interpolation to normal changes
                 const normalBlendFactor = 0.15;
                 if (leg.lastNormal) {
                     _vec.correctedFootNormal.lerp(leg.lastNormal, 1 - normalBlendFactor);
@@ -243,49 +271,44 @@
 
                 const actualFootPlantTarget = _vec.footTargetSurface.clone().addScaledVector(_vec.correctedFootNormal, FOOT_SURFACE_OFFSET);
 
-                // Detect phase transitions
                 const wasPlanted = leg.lastPhase < 0.5;
                 const isPlanted = phase < 0.5;
                 const justStartedSwing = wasPlanted && !isPlanted;
                 
                 if (justStartedSwing) {
-                    // Capture actual foot position at swing start
                     leg.swingStartPos.copy(leg.currentTarget);
                 }
 
-                // Initialize leg position if needed
                 if (!leg.initialized) {
                     leg.plantedT.copy(actualFootPlantTarget);
                     leg.currentTarget.copy(actualFootPlantTarget);
                     leg.swingStartPos.copy(actualFootPlantTarget);
                     leg.initialized = true;
+                    
+                    // Initialize leg angles for standing position
+                    leg.femurPivotGroup.rotation.x = Math.PI * 0.2 * leg.side;
+                    leg.tibiaPivotGroup.rotation.x = Math.PI * 0.3 * leg.side;
                 }
 
                 if (phase < 0.5) { 
-                    // Planted phase - keep foot stable
                     _vec.finalFootTargetWorld.copy(leg.plantedT);
                 } else { 
-                    // Swing phase with smooth trajectory
                     const swingNormalized = (phase - 0.5) * 2;
                     
-                    // Use easing function for smoother motion
                     const easedSwing = swingNormalized < 0.5 
                         ? 2 * swingNormalized * swingNormalized 
                         : 1 - Math.pow(-2 * swingNormalized + 2, 2) / 2;
                     
                     const liftHeight = h_max * Math.sin(Math.PI * easedSwing);
                     
-                    // Interpolate from actual swing start position
                     _vec.swingLerpBase.copy(leg.swingStartPos).lerp(actualFootPlantTarget, easedSwing);
                     _vec.finalFootTargetWorld.copy(_vec.swingLerpBase).addScaledVector(_vec.correctedFootNormal, liftHeight);
                     
-                    // Update planted position near end of swing
                     if (swingNormalized >= 0.95) { 
                         leg.plantedT.copy(actualFootPlantTarget); 
                     }
                 }
                 
-                // Smooth target interpolation
                 if (!leg.currentTarget.x && !leg.currentTarget.y && !leg.currentTarget.z) {
                     leg.currentTarget.copy(_vec.finalFootTargetWorld);
                 }
@@ -296,29 +319,25 @@
                 _vec.targetInThorax.copy(leg.currentTarget).applyMatrix4(worldToLocalMatrix);
                 _vec.targetRelToLegRoot.subVectors(_vec.targetInThorax, leg.legRootGroup.position);
 
-                // Rotate leg to point toward target - fixed yaw calculation
-                let yawAngle = 0;
-                const targetProj = new THREE.Vector3(_vec.targetRelToLegRoot.x, 0, _vec.targetRelToLegRoot.z);
-                const projLengthSq = targetProj.lengthSq();
-                if (projLengthSq > 1e-6) {
-                    targetProj.normalize();
-                    const defaultDir = new THREE.Vector3(leg.side, 0, 0);
-                    const dot = defaultDir.dot(targetProj);
-                    const cross = defaultDir.x * targetProj.z - defaultDir.z * targetProj.x;
-                    yawAngle = -Math.atan2(cross, dot); // Note the negative sign for correct direction
-                }
+                // Improved yaw calculation
+                const targetLocal = _vec.targetRelToLegRoot.clone();
+                const targetDir = targetLocal.clone().normalize();
+                
+                // Calculate yaw relative to leg's natural direction
+                let yawAngle = Math.atan2(targetDir.z, targetDir.x * leg.side);
+                yawAngle = Math.max(-Math.PI/3, Math.min(Math.PI/3, yawAngle));
                 leg.legRootGroup.rotation.y = yawAngle;
 
                 _vec.tempQuat.setFromAxisAngle(_vec.Y_AXIS, -yawAngle);
                 _vec.targetInYawedLegRoot.copy(_vec.targetRelToLegRoot).applyQuaternion(_vec.tempQuat);
 
-                // Account for new leg structure - adjust target for coxa offset
-                let ik_target_x = _vec.targetInYawedLegRoot.x - COXA_LENGTH * leg.side;
+                // Account for coxa offset
+                let ik_target_x = _vec.targetInYawedLegRoot.x - COXA_LENGTH;
                 let ik_target_y = _vec.targetInYawedLegRoot.y;
                 let ik_target_z = _vec.targetInYawedLegRoot.z; 
 
-                const L1 = FEMUR_LENGTH; const L2 = TIBIA_LENGTH;
-                // Calculate distance from femur pivot to target with signed horizontal
+                const L1 = FEMUR_LENGTH; 
+                const L2 = TIBIA_LENGTH;
                 let signed_horizontal = ik_target_x;
                 let off_plane = ik_target_z;
                 let horizontal_dist = Math.sqrt(signed_horizontal * signed_horizontal + off_plane * off_plane);
@@ -327,37 +346,22 @@
 
                 let femurAngle, tibiaAngle;
                 const D_EPSILON = 0.001;
-                const MAX_REACH = L1 + L2 - 0.01; // Slightly less than full extension
+                const MAX_REACH = L1 + L2 - 0.01;
 
                 if (D > MAX_REACH) { 
-                    // Handle overextension smoothly
-                    const overextension = (D - MAX_REACH) / (L1 + L2 - MAX_REACH);
-                    const clampedD = MAX_REACH;
-                    // Point leg toward target when overextended
                     const baseAngle = Math.atan2(-ik_target_y, signed_horizontal);
                     femurAngle = baseAngle;
-                    tibiaAngle = 0.1; // Slight bend
-                    
-                    // Recalculate with clamped distance for smooth transition
-                    const scale = clampedD / D;
-                    ik_target_y *= scale;
-                    signed_horizontal *= scale;
-                    off_plane *= scale;
-                    horizontal_dist = Math.abs(signed_horizontal); // Update
-                    D = clampedD;
+                    tibiaAngle = 0.1;
                 } else if (D < D_EPSILON ) { 
-                    // Handle too-close targets - fold leg
                     femurAngle = Math.PI * 0.4; 
                     tibiaAngle = Math.PI * 0.7; 
                 } else { 
-                    // Normal IK calculation with safety checks
                     const cos_angle_at_knee = Math.max(-1.0, Math.min(1.0, (L1*L1 + L2*L2 - D*D) / (2*L1*L2) ));
                     const angle_at_knee = Math.acos(cos_angle_at_knee); 
-                    tibiaAngle = Math.PI - angle_at_knee; // Positive for proper knee bend 
+                    tibiaAngle = Math.PI - angle_at_knee;
 
                     const cos_alpha = Math.max(-1.0, Math.min(1.0, (L1*L1 + D*D - L2*L2) / (2*L1*D) ));
                     const alpha = Math.acos(cos_alpha); 
-                    // Calculate femur angle - negative Y points downward, use horizontal distance
                     const target_angle = Math.atan2(-ik_target_y, Math.abs(signed_horizontal));
                     femurAngle = target_angle + (signed_horizontal >= 0 ? alpha : -alpha); 
                 }
@@ -373,7 +377,7 @@
                 leg.lastFemurAngle = femurAngle;
                 leg.lastTibiaAngle = tibiaAngle;
                 
-                // Apply rotations with smoother joint limits, mirrored for side
+                // Improved joint limits with proper mirroring
                 const smoothClamp = (value, min, max) => {
                     if (value < min) return min + (value - min) * 0.1;
                     if (value > max) return max + (value - max) * 0.1;
@@ -385,26 +389,26 @@
                 const femur_abs_max = Math.PI * 0.7;
                 const femur_min = leg.side > 0 ? -femur_abs_min : -femur_abs_max;
                 const femur_max = leg.side > 0 ? femur_abs_max : femur_abs_min;
-                const applied_femur = smoothClamp(femurAngle * leg.side, femur_min, femur_max);
+                const applied_femur = smoothClamp(femurAngle, femur_min, femur_max);
                 
                 // Tibia limits
                 const tibia_abs_min = 0;
                 const tibia_abs_max = Math.PI * 0.9;
                 const tibia_min = leg.side > 0 ? tibia_abs_min : -tibia_abs_max;
                 const tibia_max = leg.side > 0 ? tibia_abs_max : tibia_abs_min;
-                const applied_tibia = smoothClamp(tibiaAngle * leg.side, tibia_min, tibia_max);
+                const applied_tibia = smoothClamp(tibiaAngle, tibia_min, tibia_max);
                 
-                // Apply rotations - X axis for proper ant leg movement
+                // Apply rotations
                 leg.femurPivotGroup.rotation.x = applied_femur;
-                leg.tibiaPivotGroup.rotation.x = applied_tibia; 
-
+                leg.tibiaPivotGroup.rotation.x = applied_tibia;
             });
 
             renderer.render(scene, camera);
         }
 
         window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+            camera.aspect = window.innerWidth/window.innerHeight; 
+            camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
         animate(0);
