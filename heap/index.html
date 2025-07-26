@@ -40,9 +40,9 @@
             <h2>Understanding Heap's Algorithm</h2>
             
             <p>
-                B. R. Heap discovered this algorithm in 1963. Its beauty lies in generating each permutation 
-                from the previous one by swapping just two elements. This minimal-change property makes it 
-                particularly efficient.
+                B. R. Heap discovered this algorithm in 1963. Its brilliance is deceptively simple: to generate 
+                all n! permutations, it swaps just two elements between each permutation. This creates a complete 
+                sequence where each arrangement differs from the previous by exactly one swap.
             </p>
 
             <div class="algorithm-box">
@@ -63,21 +63,39 @@
             </div>
 
             <p>
-                The key insight is how the algorithm decides which elements to swap:
+                The algorithm's clever trick is its swap pattern based on whether k (the current size) is even or odd:
             </p>
             <ul>
-                <li>For <strong>even</strong> positions: swap with elements in sequence (0, 1, 2, ...)</li>
-                <li>For <strong>odd</strong> positions: always swap with the first element</li>
+                <li><strong>When k is even:</strong> Rotate through positions - swap k-1 with position 0, then 1, then 2, etc.</li>
+                <li><strong>When k is odd:</strong> Always swap k-1 with position 0 (the first element)</li>
             </ul>
+            <p class="algorithm-note">
+                This pattern ensures every possible arrangement is generated exactly once, with minimal movement.
+            </p>
         </section>
 
         <section id="visualization">
             <h2>Interactive Visualization</h2>
             
             <p>
-                Let's visualize how Heap's algorithm works. Watch as it generates all permutations 
-                by swapping just two elements at each step:
+                Let's see Heap's algorithm in action. This visualization shows exactly how the algorithm 
+                generates all permutations by swapping just two elements at each step.
             </p>
+            
+            <div class="visualization-guide">
+                <h3>What You'll See:</h3>
+                <ul>
+                    <li><strong>Current Permutation:</strong> The large letters show the current arrangement of elements</li>
+                    <li><strong>Swap Indicator:</strong> Arrows highlight which two elements are about to be swapped</li>
+                    <li><strong>Algorithm State:</strong> Shows the current recursion level (k value) and whether we're doing an "even" or "odd" type swap</li>
+                    <li><strong>Generated Permutations:</strong> A growing list of all permutations created so far</li>
+                </ul>
+                
+                <p class="tip">
+                    💡 <strong>Tip:</strong> Use the Step button to go through one swap at a time and observe the pattern:
+                    even k values swap different positions each time, while odd k values always swap with position 0.
+                </p>
+            </div>
 
             <div class="interactive-container">
                 <div class="controls">
@@ -132,8 +150,15 @@
             <h2>The Recursive Structure</h2>
             
             <p>
-                To truly understand Heap's algorithm, it helps to visualize its recursive structure. 
-                Each node in the tree represents a recursive call, and the leaves represent the final permutations:
+                Heap's algorithm works by recursively solving smaller problems. Think of it like this: to permute 
+                n elements, it first generates all permutations of n-1 elements, then systematically moves the 
+                nth element through different positions.
+            </p>
+            
+            <p>
+                The tree below shows this recursive breakdown. Each node represents a recursive call with a 
+                specific k value (the size of the sub-problem). The leaf nodes (k=1) are where permutations 
+                are actually output:
             </p>
 
             <div class="tree-visualization" id="tree-vis">
@@ -143,6 +168,11 @@
 
         <section id="implementation">
             <h2>Implementation Variations</h2>
+            
+            <p>
+                While the recursive version is easiest to understand, Heap's algorithm can be implemented 
+                in several ways. Each approach has its own advantages:
+            </p>
             
             <div class="implementation-tabs">
                 <div class="tab-buttons">
@@ -287,20 +317,27 @@ heapPermutationFixedSpace(arr, perm => {
             </p>
 
             <div class="algorithm-explanation">
-                <h3>How It Works</h3>
+                <h3>How the Counter Array Works</h3>
                 <p>
-                    The non-recursive version uses a counter array <code>c</code> where <code>c[i]</code> 
-                    tracks how many times we've performed the i-th level swap. This brilliantly simulates 
-                    the recursive call stack without actually using recursion.
+                    The magic lies in the counter array <code>c</code>. Think of it as tracking "where we are" 
+                    in each recursive level. For an array of size 4, the counter works like this:
                 </p>
                 
+                <div class="counter-example">
+                    <code>c = [0, 0, 0, 0]</code> → At the beginning<br>
+                    <code>c = [1, 0, 0, 0]</code> → Did 1st swap at position 1<br>
+                    <code>c = [0, 1, 0, 0]</code> → Reset c[1], did 1st swap at position 2<br>
+                    <code>c = [1, 1, 0, 0]</code> → Did another swap at position 1<br>
+                    ...and so on
+                </div>
+                
                 <div class="key-points">
-                    <h4>Key Insights:</h4>
+                    <h4>The Pattern:</h4>
                     <ul>
-                        <li><strong>Counter Array:</strong> Each position <code>c[i]</code> represents the state of the i-th recursive level</li>
-                        <li><strong>Stack Simulation:</strong> When <code>c[i] < i</code>, we perform a swap at level i</li>
-                        <li><strong>Backtracking:</strong> When <code>c[i] = i</code>, we reset and move to the next level</li>
-                        <li><strong>Memory Efficiency:</strong> Only requires O(n) extra space regardless of output size</li>
+                        <li><strong>c[i] < i:</strong> We still have swaps to do at position i - perform the swap</li>
+                        <li><strong>c[i] = i:</strong> We've done all swaps for position i - reset counter and move up</li>
+                        <li><strong>i = 0 after each swap:</strong> Always restart from the beginning to handle nested loops</li>
+                        <li><strong>When i reaches array length:</strong> We've generated all permutations!</li>
                     </ul>
                 </div>
 
@@ -316,13 +353,19 @@ heapPermutationFixedSpace(arr, perm => {
             <h2>Performance Analysis</h2>
             
             <p>
-                Heap's algorithm is remarkably efficient. It generates all n! permutations with exactly 
-                n! - 1 swaps, which is the theoretical minimum. Let's compare it with other common approaches:
+                What makes Heap's algorithm special? It achieves the theoretical minimum number of swaps: 
+                exactly n! - 1 swaps to generate all n! permutations. That's just one swap between each 
+                consecutive permutation!
             </p>
 
             <div class="performance-comparison">
                 <canvas id="performance-chart" width="800" height="400"></canvas>
             </div>
+            
+            <p class="chart-note">
+                The chart above shows how different algorithms scale. Notice how Heap's algorithm maintains 
+                optimal performance even as the input size grows.
+            </p>
 
             <div class="complexity-table">
                 <table>
