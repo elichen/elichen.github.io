@@ -66,9 +66,9 @@ class TreeSimulation extends HTMLElement {
             0.1, 
             1000
         );
-        // Position camera to see full tree (trunk height 8 + branches ~4-5 = ~12-13 total height)
+        // Initial camera position (will be adjusted dynamically based on tree height)
         this.camera.position.set(15, 6, 15);
-        this.camera.lookAt(0, 6, 0); // Look at tree center, not ground
+        this.camera.lookAt(0, 6, 0);
         
         // Renderer setup
         this.renderer = new THREE.WebGLRenderer({ 
@@ -88,7 +88,7 @@ class TreeSimulation extends HTMLElement {
         this.controls.maxDistance = 50;
         this.controls.minDistance = 5;
         this.controls.maxPolarAngle = Math.PI * 0.48;
-        // Center controls on tree middle instead of ground
+        // Initial controls target (will be adjusted dynamically based on tree height)
         this.controls.target.set(0, 6, 0);
         this.controls.update();
         
@@ -151,17 +151,21 @@ class TreeSimulation extends HTMLElement {
         this.branches = [];
         this.leaves = [];
         
-        // Tree parameters (now dynamic based on user controls)
+        // Tree parameters (now dynamic based on user controls and realistic architecture)
         const treeParams = {
             trunkHeight: this.treeHeight,
-            trunkRadius: 0.5,
-            maxDepth: 5,
+            trunkRadius: Math.max(0.3, this.treeHeight * 0.04), // Taller trees = thicker trunks
+            maxDepth: Math.min(6, Math.floor(this.treeHeight * 0.3) + 3), // Taller trees = more branching levels
             branchAngleVariation: Math.PI / 6,
             branchLengthRatio: 0.7,
             branchRadiusRatio: 0.7,
-            leafDensity: this.treeFullness, // User-controlled fullness
+            leafDensity: this.treeFullness,
             leafSize: 0.4,
-            leafClusters: Math.max(2, Math.floor(this.treeFullness / 8)) // More clusters for fuller trees
+            leafClusters: Math.max(2, Math.floor(this.treeFullness / 8)),
+            // New architecture parameters
+            mainBranchCount: Math.floor(this.treeHeight * 0.4) + 2, // 2-8 main branches based on height
+            firstBranchHeight: Math.max(0.3, this.treeHeight * 0.2), // Higher first branch on tall trees
+            trunkClearance: Math.min(0.7, this.treeHeight * 0.15) // Clear trunk section for tall trees
         };
         
         // Generate trunk and branches recursively
@@ -175,6 +179,32 @@ class TreeSimulation extends HTMLElement {
         );
         
         this.scene.add(this.tree);
+        
+        // Adjust camera position based on tree height
+        this.adjustCameraForTreeHeight();
+    }
+    
+    adjustCameraForTreeHeight() {
+        // Calculate total tree height including branches (~50% extra height from branches)
+        const totalTreeHeight = this.treeHeight * 1.5;
+        
+        // Position camera to see full tree
+        // Y position: middle of tree for good viewing angle
+        // Distance: proportional to tree height for proper framing
+        const cameraY = totalTreeHeight * 0.5;
+        const cameraDistance = Math.max(15, totalTreeHeight * 1.2); // Minimum distance of 15
+        
+        // Update camera position (keep same angle, adjust height and distance)
+        this.camera.position.set(cameraDistance, cameraY, cameraDistance);
+        this.camera.lookAt(0, cameraY, 0);
+        
+        // Update orbit controls target to center on tree
+        this.controls.target.set(0, cameraY, 0);
+        this.controls.update();
+        
+        // Adjust control limits based on tree size
+        this.controls.maxDistance = Math.max(50, totalTreeHeight * 3);
+        this.controls.minDistance = Math.max(5, totalTreeHeight * 0.3);
     }
     
     generateBranch(startPos, direction, length, radius, depth, params) {
@@ -214,13 +244,35 @@ class TreeSimulation extends HTMLElement {
         this.branches.push(branchData);
         this.tree.add(branch);
         
-        // Generate child branches
+        // Generate child branches with realistic architecture
         if (depth < params.maxDepth - 1) {
-            const numBranches = depth === 0 ? 4 : Math.max(2, 4 - depth);
+            let numBranches, branchStartRange, branchEndRange;
+            
+            if (depth === 0) {
+                // Main trunk - use height-based branch count
+                numBranches = params.mainBranchCount;
+                // Space main branches along trunk, avoiding lower clear section
+                branchStartRange = Math.max(0.4, params.trunkClearance);
+                branchEndRange = 0.9;
+            } else {
+                // Secondary and tertiary branches - traditional fractal
+                numBranches = Math.max(2, 4 - depth);
+                branchStartRange = 0.6;
+                branchEndRange = 0.9;
+            }
             
             for (let i = 0; i < numBranches; i++) {
                 // Branch positioning along parent
-                const branchPoint = 0.6 + (Math.random() * 0.3);
+                let branchPoint;
+                if (depth === 0 && numBranches > 1) {
+                    // Evenly distribute main branches with some randomness
+                    const basePosition = branchStartRange + 
+                        (branchEndRange - branchStartRange) * (i / (numBranches - 1));
+                    branchPoint = basePosition + (Math.random() - 0.5) * 0.1;
+                } else {
+                    branchPoint = branchStartRange + (Math.random() * (branchEndRange - branchStartRange));
+                }
+                
                 const branchStart = startPos.clone().add(
                     direction.clone().multiplyScalar(length * branchPoint)
                 );
@@ -233,15 +285,23 @@ class TreeSimulation extends HTMLElement {
                     (Math.random() - 0.5) * 2
                 ).normalize();
                 
-                const angle = params.branchAngleVariation + Math.random() * params.branchAngleVariation;
+                // Main branches have wider angles on taller trees
+                const angleMultiplier = depth === 0 ? Math.min(1.5, this.treeHeight * 0.1) : 1;
+                const angle = params.branchAngleVariation * angleMultiplier + 
+                             Math.random() * params.branchAngleVariation;
                 branchDirection.applyAxisAngle(randomAxis, angle);
                 branchDirection.normalize();
+                
+                // Branch length and thickness scaling
+                const lengthScale = depth === 0 ? 
+                    (0.6 + Math.random() * 0.5) : // Main branches more varied
+                    (0.8 + Math.random() * 0.4);   // Secondary branches consistent
                 
                 // Recursive branch generation
                 this.generateBranch(
                     branchStart,
                     branchDirection,
-                    length * params.branchLengthRatio * (0.8 + Math.random() * 0.4),
+                    length * params.branchLengthRatio * lengthScale,
                     radius * params.branchRadiusRatio,
                     depth + 1,
                     params
