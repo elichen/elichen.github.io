@@ -69,11 +69,6 @@ export function applyCSS(shadowRoot) {
                 background: #27ae60;
             }
             
-            .season-buttons {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 5px;
-            }
             
             .value-display {
                 font-weight: bold;
@@ -107,19 +102,19 @@ export function applyCSS(shadowRoot) {
             </div>
             
             <div class="control-group">
-                <label>Season</label>
-                <div class="season-buttons">
-                    <button class="season-btn active" data-season="spring">Spring</button>
-                    <button class="season-btn" data-season="summer">Summer</button>
-                    <button class="season-btn" data-season="autumn">Autumn</button>
-                    <button class="season-btn" data-season="winter">Winter</button>
-                </div>
+                <label>Tree Height: <span class="value-display" id="treeHeightValue">8</span></label>
+                <input type="range" id="treeHeight" min="4" max="16" step="1" value="8">
+            </div>
+            
+            <div class="control-group">
+                <label>Tree Fullness: <span class="value-display" id="treeFullnessValue">15</span></label>
+                <input type="range" id="treeFullness" min="5" max="30" step="2" value="15">
             </div>
             
             <div class="keyboard-hints">
                 <div><strong>Space</strong>: Toggle wind</div>
                 <div><strong>R</strong>: Regenerate tree</div>
-                <div><strong>S</strong>: Cycle season</div>
+                <div><strong>H/F</strong>: Adjust height/fullness</div>
             </div>
         </div>
     `;
