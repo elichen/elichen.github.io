@@ -30,8 +30,9 @@ class TreeSimulation extends HTMLElement {
         this.fpsCounter = 0;
         this.lastFpsUpdate = 0;
         
-        // Current season
-        this.season = 'summer'; // spring, summer, autumn, winter
+        // Tree parameters
+        this.treeHeight = 8;
+        this.treeFullness = 15;
         
         // Initialize component
         this.init();
@@ -65,7 +66,9 @@ class TreeSimulation extends HTMLElement {
             0.1, 
             1000
         );
-        this.camera.position.set(15, 10, 15);
+        // Position camera to see full tree (trunk height 8 + branches ~4-5 = ~12-13 total height)
+        this.camera.position.set(15, 6, 15);
+        this.camera.lookAt(0, 6, 0); // Look at tree center, not ground
         
         // Renderer setup
         this.renderer = new THREE.WebGLRenderer({ 
@@ -85,6 +88,9 @@ class TreeSimulation extends HTMLElement {
         this.controls.maxDistance = 50;
         this.controls.minDistance = 5;
         this.controls.maxPolarAngle = Math.PI * 0.48;
+        // Center controls on tree middle instead of ground
+        this.controls.target.set(0, 6, 0);
+        this.controls.update();
         
         // Lighting setup
         this.setupLighting();
@@ -145,17 +151,17 @@ class TreeSimulation extends HTMLElement {
         this.branches = [];
         this.leaves = [];
         
-        // Tree parameters
+        // Tree parameters (now dynamic based on user controls)
         const treeParams = {
-            trunkHeight: 8,
+            trunkHeight: this.treeHeight,
             trunkRadius: 0.5,
             maxDepth: 5,
             branchAngleVariation: Math.PI / 6,
             branchLengthRatio: 0.7,
             branchRadiusRatio: 0.7,
-            leafDensity: 15, // Increased from 3 to 15 for much fuller foliage
-            leafSize: 0.4,   // Slightly larger leaves
-            leafClusters: 3  // Multiple leaf clusters per branch
+            leafDensity: this.treeFullness, // User-controlled fullness
+            leafSize: 0.4,
+            leafClusters: Math.max(2, Math.floor(this.treeFullness / 8)) // More clusters for fuller trees
         };
         
         // Generate trunk and branches recursively
@@ -169,7 +175,6 @@ class TreeSimulation extends HTMLElement {
         );
         
         this.scene.add(this.tree);
-        this.updateSeasonColors();
     }
     
     generateBranch(startPos, direction, length, radius, depth, params) {
@@ -311,30 +316,12 @@ class TreeSimulation extends HTMLElement {
     }
     
     getLeafMaterial() {
-        let color;
-        switch (this.season) {
-            case 'spring':
-                color = new THREE.Color(0x90EE90);
-                break;
-            case 'summer':
-                color = new THREE.Color(0x228B22);
-                break;
-            case 'autumn':
-                color = new THREE.Color().setHSL(
-                    0.1 + Math.random() * 0.1, // Orange to red hues
-                    0.8,
-                    0.5 + Math.random() * 0.3
-                );
-                break;
-            case 'winter':
-                return new THREE.MeshLambertMaterial({ 
-                    color: 0xF0F0F0, 
-                    transparent: true, 
-                    opacity: 0.3 
-                });
-            default:
-                color = new THREE.Color(0x228B22);
-        }
+        // Use natural green with slight variation for realism
+        const hue = 0.25 + (Math.random() - 0.5) * 0.1; // Green hues with variation
+        const saturation = 0.6 + Math.random() * 0.3;   // Varied saturation
+        const lightness = 0.3 + Math.random() * 0.4;    // Varied brightness
+        
+        const color = new THREE.Color().setHSL(hue, saturation, lightness);
         
         return new THREE.MeshLambertMaterial({ 
             color: color,
@@ -373,16 +360,22 @@ class TreeSimulation extends HTMLElement {
             this.regenerateTree();
         });
         
-        // Season buttons
-        controls.querySelectorAll('.season-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const season = e.target.dataset.season;
-                this.setSeason(season);
-                
-                // Update button states
-                controls.querySelectorAll('.season-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-            });
+        // Tree height control
+        const treeHeightSlider = controls.querySelector('#treeHeight');
+        const treeHeightValue = controls.querySelector('#treeHeightValue');
+        treeHeightSlider.addEventListener('input', (e) => {
+            this.treeHeight = parseInt(e.target.value);
+            treeHeightValue.textContent = e.target.value;
+            this.generateTree(); // Regenerate tree with new height
+        });
+        
+        // Tree fullness control
+        const treeFullnessSlider = controls.querySelector('#treeFullness');
+        const treeFullnessValue = controls.querySelector('#treeFullnessValue');
+        treeFullnessSlider.addEventListener('input', (e) => {
+            this.treeFullness = parseInt(e.target.value);
+            treeFullnessValue.textContent = e.target.value;
+            this.generateTree(); // Regenerate tree with new fullness
         });
     }
     
@@ -477,51 +470,6 @@ class TreeSimulation extends HTMLElement {
         this.generateTree();
     }
     
-    cycleSeason() {
-        const seasons = ['spring', 'summer', 'autumn', 'winter'];
-        const currentIndex = seasons.indexOf(this.season);
-        const nextIndex = (currentIndex + 1) % seasons.length;
-        this.setSeason(seasons[nextIndex]);
-        
-        // Update UI
-        this.shadowRoot.querySelectorAll('.season-btn').forEach((btn, index) => {
-            btn.classList.toggle('active', index === nextIndex);
-        });
-    }
-    
-    setSeason(season) {
-        this.season = season;
-        this.updateSeasonColors();
-    }
-    
-    updateSeasonColors() {
-        // Update leaf materials
-        this.leaves.forEach(leafData => {
-            leafData.mesh.material = this.getLeafMaterial();
-        });
-        
-        // Update scene background and fog color based on season
-        let backgroundColor;
-        switch (this.season) {
-            case 'spring':
-                backgroundColor = 0x87CEEB; // Light sky blue
-                break;
-            case 'summer':
-                backgroundColor = 0x87CEFA; // Light blue
-                break;
-            case 'autumn':
-                backgroundColor = 0xFFA500; // Orange
-                break;
-            case 'winter':
-                backgroundColor = 0xE6E6FA; // Light gray
-                break;
-            default:
-                backgroundColor = 0x87CEEB;
-        }
-        
-        this.scene.background.setHex(backgroundColor);
-        this.scene.fog.color.setHex(backgroundColor);
-    }
     
     updateWindInfo() {
         let description;
