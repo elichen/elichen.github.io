@@ -1,0 +1,31 @@
+# Training artifacts
+*.gif
+*.pth
+perfect_snake_models/
+checkpoints/
+
+# Python virtual environment
+snake_env/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+training_log.txt
+training_metrics.json
+metrics.json
+
+# Model exports
+js_weights/
+tfjs_model/
+web_model/
+model_weights/
+
+# OS files
+.DS_Store
+Thumbs.db
