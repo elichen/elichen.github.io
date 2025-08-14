@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Create GIF of best game from 10 plays using latest weights
+Create GIF of best game from 10 plays using specified weights
+Usage: python create_gif.py [checkpoint_name]
 """
 
 import torch
@@ -9,11 +10,45 @@ import random
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import imageio.v3 as iio
+import sys
+import os
 from train_perfect_snake import EnhancedSnakeEnv, HybridSnakeDQN
 
-def play_ten_games_and_save_best_gif():
-    # Load model - use best_model.pth for best weights
-    checkpoint = torch.load('perfect_snake_models/best_model.pth', weights_only=False)
+def get_latest_checkpoint():
+    """Find the most recent checkpoint file"""
+    checkpoint_dir = 'perfect_snake_models'
+    checkpoints = []
+    
+    for file in os.listdir(checkpoint_dir):
+        if file.endswith('.pth') and 'checkpoint_episode_' in file:
+            episode_num = int(file.split('_')[-1].split('.')[0])
+            checkpoints.append((episode_num, file))
+    
+    if checkpoints:
+        # Return the checkpoint with highest episode number
+        latest_episode, latest_file = max(checkpoints)
+        return os.path.join(checkpoint_dir, latest_file)
+    else:
+        # Fallback to best_model.pth
+        return os.path.join(checkpoint_dir, 'best_model.pth')
+
+def play_ten_games_and_save_best_gif(checkpoint_path=None):
+    # Determine which checkpoint to use
+    if checkpoint_path is None:
+        checkpoint_path = get_latest_checkpoint()
+    elif not os.path.exists(checkpoint_path):
+        # Try adding the directory prefix
+        full_path = os.path.join('perfect_snake_models', checkpoint_path)
+        if os.path.exists(full_path):
+            checkpoint_path = full_path
+        else:
+            print(f"❌ Checkpoint {checkpoint_path} not found. Using latest checkpoint.")
+            checkpoint_path = get_latest_checkpoint()
+    
+    print(f"🎮 Loading checkpoint: {checkpoint_path}")
+    
+    # Load model
+    checkpoint = torch.load(checkpoint_path, weights_only=False)
     print(f"Model from episode {checkpoint['episode']} with best score {checkpoint['best_score']}")
     
     model = HybridSnakeDQN(
@@ -164,4 +199,12 @@ def play_ten_games_and_save_best_gif():
         print("❌ No valid games played!")
 
 if __name__ == "__main__":
-    play_ten_games_and_save_best_gif()
+    # Parse command line arguments
+    checkpoint_path = None
+    if len(sys.argv) > 1:
+        checkpoint_path = sys.argv[1]
+        print(f"📁 Using specified checkpoint: {checkpoint_path}")
+    else:
+        print(f"📁 No checkpoint specified, using latest available")
+    
+    play_ten_games_and_save_best_gif(checkpoint_path)
