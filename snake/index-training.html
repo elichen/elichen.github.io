@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Snake Game - Reinforcement Learning</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+</head>
+<body>
+    <h1>AI Snake Game - Reinforcement Learning</h1>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+    </div>
+    <div id="controls">
+        <button id="toggleMode">Switch to Testing</button>
+        <span id="modeStatus" style="margin-left: 10px;">Mode: Training</span>
+        <a href="index.html" style="margin-left: 20px;">View Pre-trained Demo</a>
+    </div>
+    <div id="stats">
+        <p>Episode: <span id="episode">0</span></p>
+        <p>Score: <span id="score">0</span></p>
+        <p>Epsilon: <span id="epsilon">1.0</span></p>
+        <p>Food Eaten: <span id="foodEaten">0</span></p>
+    </div>
+    <div id="charts">
+        <canvas id="combinedChart"></canvas>
+    </div>
+    <div id="explanation">
+        <h2>How it Works: Reinforcement Learning in Snake</h2>
+        <p>This AI Snake game uses a technique called reinforcement learning to teach the AI how to play. Here's a simple breakdown of how it works:</p>
+        <ol>
+            <li><strong>The Environment:</strong> The game board, snake, and food make up the environment.</li>
+            <li><strong>The Agent:</strong> The AI controlling the snake is the agent.</li>
+            <li><strong>States:</strong> The current position of the snake, food, and obstacles represent the state.</li>
+            <li><strong>Actions:</strong> The agent can move up, down, left, or right.</li>
+            <li><strong>Rewards:</strong> The agent gets positive rewards for eating food and negative rewards for hitting walls or itself.</li>
+        </ol>
+        <p>The AI learns by trying different actions and observing the rewards. Over time, it learns to make better decisions to maximize its reward (score).</p>
+        <h3>Key Concepts:</h3>
+        <ul>
+            <li><strong>Q-Learning:</strong> The AI uses Q-learning, a type of reinforcement learning, to learn the best action for each state.</li>
+            <li><strong>Neural Network:</strong> A neural network is used to approximate the Q-values for each state-action pair.</li>
+            <li><strong>Epsilon-Greedy Strategy:</strong> The AI balances exploration (trying new things) and exploitation (using what it has learned) using an epsilon-greedy strategy.</li>
+            <li><strong>Experience Replay:</strong> The AI remembers past experiences and learns from them repeatedly, improving its learning efficiency.</li>
+        </ul>
+        <p>As you watch the AI train, you'll see it gradually improve its performance, learning to avoid walls, chase food more efficiently, and achieve higher scores!</p>
+    </div>
+
+    <script src="snake.js"></script>
+    <script src="agent.js"></script>
+    <script src="tf-model.js"></script>
+    <script src="visualization.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
