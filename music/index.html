@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Opus - Digital Compositions</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🎵</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/abcjs-audio.css">
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'EB Garamond', serif;
+            background: #f8f5f0;
+            background-image: 
+                repeating-linear-gradient(
+                    transparent,
+                    transparent 27px,
+                    rgba(139, 69, 19, 0.05) 27px,
+                    rgba(139, 69, 19, 0.05) 28px
+                );
+            min-height: 100vh;
+            padding: 20px;
+            color: #2c1810;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            border-bottom: 3px double #8b4513;
+        }
+
+        h1 {
+            font-family: 'Crimson Text', serif;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #2c1810;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            font-style: italic;
+            color: #5d4e37;
+            font-weight: 400;
+        }
+
+        .composition-selector {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .composition-btn {
+            padding: 10px 25px;
+            font-size: 1rem;
+            font-family: 'Crimson Text', serif;
+            border: 2px solid #8b4513;
+            border-radius: 0;
+            background: #fff9f4;
+            color: #2c1810;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 2px 2px 4px rgba(139, 69, 19, 0.1);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .composition-btn:hover {
+            background: #8b4513;
+            color: #fff9f4;
+            transform: translateY(-2px);
+            box-shadow: 3px 3px 6px rgba(139, 69, 19, 0.2);
+        }
+
+        .composition-btn.active {
+            background: #2c1810;
+            color: #fff9f4;
+            border-color: #2c1810;
+        }
+
+        .music-container {
+            background: #fffef9;
+            border: 1px solid #d4c4b0;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(139, 69, 19, 0.1);
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .music-container::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: -1px;
+            right: -1px;
+            bottom: -1px;
+            border: 3px double #8b4513;
+            pointer-events: none;
+        }
+
+
+        #audio-controls {
+            padding: 15px;
+            background: linear-gradient(to bottom, #8b4513, #6b3410);
+            border: 1px solid #5d2e10;
+            margin-bottom: 20px;
+        }
+
+        #notation {
+            margin: 20px 0;
+            overflow-x: auto;
+            padding: 30px 20px;
+            background: #fffef9;
+            border: 1px solid #e8dfd6;
+            box-shadow: inset 0 2px 4px rgba(139, 69, 19, 0.05);
+        }
+
+        #notation svg {
+            filter: sepia(0.1);
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: #f3f4f6;
+            border-radius: 10px;
+            flex-wrap: wrap;
+        }
+
+        footer {
+            text-align: center;
+            color: #5d4e37;
+            margin-top: 40px;
+            padding: 20px;
+            border-top: 3px double #8b4513;
+            font-style: italic;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #8b4513;
+            font-style: italic;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            .composition-title {
+                font-size: 1.4rem;
+            }
+        }
+
+        .svg-wrapper {
+            display: flex;
+            justify-content: center;
+        }
+
+        .abcjs-container svg {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        /* Synth cursor and highlighting */
+        .abcjs-cursor {
+            stroke: #8b4513;
+            stroke-width: 2;
+            opacity: 0.7;
+        }
+        
+        .highlight {
+            fill: #d4a574;
+            opacity: 0.4;
+        }
+        
+        .abcjs-inline-audio {
+            max-width: 100%;
+            background: transparent;
+            padding: 0;
+            border: none;
+        }
+        
+        /* Style the abcjs control buttons */
+        .abcjs-inline-audio .abcjs-btn {
+            background: #fff9f4;
+            border: 2px solid #2c1810;
+            color: #2c1810;
+            margin: 0 3px;
+            border-radius: 3px;
+        }
+        
+        .abcjs-inline-audio .abcjs-btn:hover {
+            background: #2c1810;
+            color: #fff9f4;
+        }
+        
+        /* Make text controls more visible */
+        .abcjs-inline-audio {
+            color: #fff9f4;
+            font-weight: bold;
+        }
+        
+        .abcjs-inline-audio .abcjs-midi-current-time,
+        .abcjs-inline-audio .abcjs-midi-total-time {
+            color: #fff9f4;
+            font-family: 'Crimson Text', serif;
+            font-size: 1.1rem;
+        }
+        
+        .abcjs-inline-audio .abcjs-midi-tempo {
+            color: #fff9f4;
+        }
+        
+        .abcjs-inline-audio .abcjs-tempo-wrapper {
+            color: #fff9f4;
+        }
+        
+        /* Style the progress bar */
+        .abcjs-inline-audio .abcjs-midi-progress-background {
+            background-color: rgba(255, 249, 244, 0.3);
+            border: 1px solid #fff9f4;
+        }
+        
+        .abcjs-inline-audio .abcjs-midi-progress-indicator {
+            background-color: #fff9f4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Claude Opus Compositions</h1>
+            <p class="subtitle">Digital Music Explorations</p>
+        </header>
+
+        <div class="composition-selector">
+            <button class="composition-btn active" onclick="loadComposition(0)">Digital Reverie</button>
+            <button class="composition-btn" onclick="loadComposition(1)">Dancing Circuits</button>
+            <button class="composition-btn" onclick="loadComposition(2)">Silicon Symphony</button>
+        </div>
+
+        <div class="music-container">
+            <div id="audio-controls" class="controls"></div>
+
+            <div id="notation" class="svg-wrapper">
+                <div class="loading">Loading composition...</div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Composed by Claude Opus | Powered by abcjs</p>
+            <p style="margin-top: 10px; font-size: 0.9rem;">An exploration in AI-generated music notation</p>
+        </footer>
+    </div>
+
+    <script>
+        // Suppress debug messages from abcjs
+        const originalLog = console.log;
+        console.log = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('Debug msg:')) {
+                return; // Skip debug messages
+            }
+            originalLog.apply(console, args);
+        };
+        
+        const compositions = [
+            {
+                title: "Digital Reverie",
+                subtitle: "A Contemporary Folk Suite",
+                abc: `X:1
+T:Digital Reverie
+T:A Contemporary Folk Suite
+C:Claude Opus
+O:Digital Realm
+R:Air with variations
+M:3/4
+L:1/8
+Q:1/4=72 "Contemplatively"
+K:Dm
+V:1 clef=treble name="Melody"
+V:2 clef=treble name="Harmony"  
+V:3 clef=bass name="Bass"
+%%score (1 2) | 3
+%
+% Part A - Opening Theme
+[V:1] |: A2 |"Dm"d3 e f2 | g2 f2 e2 |"Am"e3 d c2 | B2 A2 G2 |
+[V:2] |: z2 | F2 A2 d2 | B2 d2 c2 | c2 e2 a2 | g2 f2 e2 |
+[V:3] |: z2 | D,2 D2 C2 | B,2 G,2 C2 | A,2 A2 G2 | F2 E2 D2 |
+%
+[V:1] "F"F3 G A2 |"C"G3 A B2 |"Dm"A3 B c2 |"A"^c4 A2 |
+[V:2] A,2 C2 F2 | E2 G2 c2 | F2 A2 d2 | e4 ^c2 |
+[V:3] F,2 F2 E2 | C2 E2 G2 | D2 F2 A2 | A,4 A,2 |
+%
+[V:1] "Dm"d3 e f2 |"Gm"g2 f2 d2 |"A7"e3 d ^c2 |"Dm"d4 :|
+[V:2] F2 A2 d2 | B2 d2 g2 | g2 e2 A2 | f4 :|
+[V:3] D,2 D2 C2 | G,2 B,2 D2 | A,2 A2 G2 | D4 :|
+%
+% Part B - Development
+[V:1] |:"Bb"d'3 c' b2 |"F"a3 b c'2 |"Gm"b3 a g2 |"Dm"f2 e2 d2 |
+[V:2] |: f2 d2 f2 | c2 f2 a2 | d2 g2 b2 | A2 c2 F2 |
+[V:3] |: B,2 B2 A2 | F2 A2 c2 | G,2 G2 F2 | D2 C2 B,2 |
+%
+[V:1] "C"e3 f g2 |"Am"a3 g e2 |"Dm"f3 e d2 |"A"^c4 e2 |
+[V:2] c2 e2 g2 | e2 c2 A2 | A2 d2 f2 | e4 A2 |
+[V:3] C2 C'2 B2 | A2 E2 C2 | D2 F2 A2 | A,4 ^C2 |
+%
+[V:1] "Dm"f3 g a2 |"Bb"b3 a f2 |"Gm"g3 f e2 |"Dm"d4 :|
+[V:2] d2 f2 a2 | d2 f2 b2 | b2 g2 c'2 | f4 :|
+[V:3] D2 D'2 C'2 | B2 D2 F2 | G2 B2 C2 | D4 :|
+%
+% Part C - Variation (more rhythmic)
+[V:1] |:"Dm"d2 de f2 | fg fe d2 |"C"c2 cd e2 | ef ed c2 |
+[V:2] |: F2 FA d2 | dB dc A2 | E2 EG c2 | cG cB G2 |
+[V:3] |: D,D, D,D D,D | D,D D,D D,D | C,C, C,C C,C | C,C C,C C,C |
+%
+[V:1] "Bb"B2 Bd f2 |"Am"A2 Ac e2 |"Gm"G2 GB d2 |"A7"^c4 A2 |
+[V:2] D2 DF B2 | C2 CE A2 | B,2 B,D G2 | E4 ^C2 |
+[V:3] B,,B,, B,,B, B,,B, | A,,A,, A,,A, A,,A, | G,,G,, G,,G, G,,G, | A,,A,, A,,A, A,,A, |
+%
+[V:1] "Dm"d2 df a2 |"Gm"g2 gf d2 |"A7"e2 ed ^c2 |"Dm"d4 :|
+[V:2] F2 Fd f2 | B2 Bd g2 | c2 cA e2 | A4 :|
+[V:3] D,D, D,D D,D | G,,G,, G,,G, G,,G, | A,,A,, A,,A, A,,A, | D,4 :|
+%
+% Coda - Return to simplicity
+[V:1] "Dm"d6 | f6 | a6 | d'6 |]
+[V:2] F6 | A6 | d6 | f6 |]
+[V:3] D,6 | D6 | F6 | D'6 |]`
+            },
+            {
+                title: "Dancing Circuits",
+                subtitle: "A Digital Jig",
+                abc: `X:1
+T:Dancing Circuits
+T:A Digital Jig
+C:Claude Opus
+O:Electronic Highlands
+R:Jig
+M:6/8
+L:1/8
+Q:3/8=140 "With electric energy"
+K:Em
+V:1 clef=treble name="Lead"
+V:2 clef=bass name="Bass"
+%%score 1 | 2
+%
+% Part A - Electric Opening
+[V:1] |: B |"Em"e2f gfe | B2c dBG |"D"F2A def |"Em"gfe dBG |
+[V:2] |: z | E,G,B, E,G,B, | E,G,B, E,G,B, | D,F,A, D,F,A, | E,G,B, E,G,B, |
+%
+[V:1] "Em"e2f gfe |"G"bag fed |"Am"c2A Ace |"B7"B3- B2B |
+[V:2] E,G,B, E,G,B, | G,B,D G,B,D | A,CE A,CE | B,D^F B,D^F |
+%
+[V:1] "Em"e2f gfe | B2c dBG |"D"F2A def |"Em"gfe dBG |
+[V:2] E,G,B, E,G,B, | E,G,B, E,G,B, | D,F,A, D,F,A, | E,G,B, E,G,B, |
+%
+[V:1] "G"G2B dBG |"D"FAd fed |"Am"cAE "B7"^F2G |"Em"E3- E2 :|
+[V:2] G,B,D G,B,D | D,F,A, D,F,A, | A,CE B,D^F | E,G,B, E,2 :|
+%
+% Part B - Syncopated Drive
+[V:1] |: e |"Em"g2e g2e | b2g e2g |"Am"a2e c'2a | e2c A2c |
+[V:2] |: z | E,E,E, E,E,E, | E,E,E, E,E,E, | A,A,A, A,A,A, | A,A,A, A,A,A, |
+%
+[V:1] "D"f2d a2f | d'2a f2d |"G"g2d b2g | d'bg dBG |
+[V:2] D,D,D, D,D,D, | D,D,D, D,D,D, | G,G,G, G,G,G, | G,G,G, G,G,G, |
+%
+[V:1] "Em"e2g b2g | e'2b g2e |"C"c2e g2c' |"B7"b^ab fed |
+[V:2] E,E,E, E,E,E, | E,E,E, E,E,E, | C,C,C, C,C,C, | B,,B,,B,, B,,B,,B,, |
+%
+[V:1] "Em"gfe dcB |"Am"AcE "D"FAd |"G"GBd "B7"^f2g |"Em"e3- e2 :|
+[V:2] E,G,B, E,G,B, | A,CE D,F,A, | G,B,D B,D^F | E,G,B, E,2 :|
+%
+% Part C - Wild Reel Section (even faster!)
+[V:1] [M:4/4] [L:1/8] [Q:1/4=180 "Furiously"] |:"Em"EBEB GBGB | eBeb gbgb |"D"ADAD FDFD | dAdA fAfA |
+[V:2] [M:4/4] [L:1/8] |: E,E,E,E, E,E,E,E, | E,E,E,E, E,E,E,E, | D,D,D,D, D,D,D,D, | D,D,D,D, D,D,D,D, |
+%
+[V:1] "C"GCGC ECEC | cGcG eGeG |"B7"^F^DF^D B,^DB,^D | ^f^df^d B^dB^d |
+[V:2] C,C,C,C, C,C,C,C, | C,C,C,C, C,C,C,C, | B,,B,,B,,B,, B,,B,,B,,B,, | B,,B,,B,,B,, B,,B,,B,,B,, |
+%
+[V:1] "Em"geBe geBe | BeBG EGBG |"Am"AcEA cEAc |"B7"B^FDB ^F2G2 |
+[V:2] E,E,E,E, E,E,E,E, | E,E,E,E, E,E,E,E, | A,,A,,A,,A,, A,,A,,A,,A,, | B,,B,,B,,B,, B,,2z2 |
+%
+[V:1] "Em"EGBE GBEG |"D"FDAF dAFD |"Em"EGBE "B7"^F2G2 |"Em"E4- E4 :|
+[V:2] E,G,B,G, E,G,B,G, | D,F,A,F, D,F,A,F, | E,G,B,G, B,,2z2 | E,4- E,4 :|
+%
+% Coda - Return to Jig for ending
+[V:1] [M:6/8] [L:1/8] [Q:3/8=140] "Em"e2f gfe | b2c' d'2e' |"D"d'2c' bag |"Em"e'6 |]
+[V:2] [M:6/8] [L:1/8] E,G,B, E,G,B, | E,G,B, E,G,B, | D,F,A, D,F,A, | E,2z4 |]`
+            },
+            {
+                title: "Silicon Symphony",
+                subtitle: "Movement in Binary Dreams",
+                abc: `X:1
+T:Silicon Symphony
+T:Movement in Binary Dreams
+C:Claude Opus
+O:The Digital Sublime
+R:Progressive Suite
+M:5/4
+L:1/8
+Q:1/4=96 "Mysteriously, with building intensity"
+K:Am
+V:1 clef=treble name="Voice I"
+V:2 clef=treble name="Voice II"  
+V:3 clef=bass name="Foundation"
+%%score (1 2) | 3
+%
+% === PART I: INITIALIZATION (The Awakening) ===
+[V:1] z10 | z10 | z10 | z10 |
+[V:2] z10 | z10 | A10- | A10 |
+[V:3] A,10- | A,10- | A,10- | A,10 |
+%
+[V:1] a4 z6 | a3 g2 f4 z2 | e8 c2 | d4 e4 f2 |
+[V:2] z2 c4 z4 | z2 e4 z4 | g4 z2 a4 | f4 g4 a2 |
+[V:3] A,2 E2 A2 E2 A,2 | A,2 E2 A2 E2 A,2 | C2 G2 C'2 G2 C2 | D2 A2 D'2 A2 D2 |
+%
+% === PART II: RECURSION (Patterns Within Patterns) ===
+[V:1] [M:7/8] [L:1/8] e2f g2a b | c'2b a2g f | g2a b2c' d' | e'2d' c'2b a |
+[V:2] [M:7/8] [L:1/8] c2d e2f g | a2g f2e d | e2f g2a b | c'2b a2g f |
+[V:3] [M:7/8] [L:1/8] A,2A, E2E B, | C2C G2G D | E2E B2B F | G2G D'2D' A |
+%
+[V:1] a2g f2e d | c2d e2f g | a2b c'2d' e' | d'2c' b2a g |
+[V:2] f2e d2c B | A2B c2d e | f2g a2b c' | b2a g2f e |
+[V:3] F2F C2C G, | A,2A, E2E B, | D2D A2A E | G2G D2D A, |
+%
+% === PART III: EMERGENCE (Complex Harmony) ===
+[V:1] [M:4/4] [L:1/16] eagf edcB Aabc' d'c'ba | gfed cBaA Gabc defg |
+[V:2] [M:4/4] [L:1/16] c'bag fedc Bcde fgab | bagf edcB Acde fgac' |
+[V:3] [M:4/4] [L:1/8] A,2 E2 C2 G2 | D2 A2 F2 C'2 |
+%
+[V:1] abc'd' e'f'g'a' g'f'e'd' c'bag | fedc BcAG FGAB cdef |
+[V:2] efga bc'd'e' d'c'ba gfed | cBaA Gabc defg abc'd' |
+[V:3] G2 D'2 B2 F2 | C2 G2 E2 B,2 |
+%
+% === PART IV: CASCADE (The Torrent) ===
+[V:1] [M:15/16] [L:1/16] e'2d'c' b2ag f2ed c2BA G2FE |
+[V:2] [M:15/16] [L:1/16] c'2ba g2fe d2cB A2GF E2DC |
+[V:3] [M:15/16] [L:1/8] A,E A,E A,E G,D G, |
+%
+[V:1] D2EF G2AB c2de f2ga b2c'd' |
+[V:2] B,2CD E2FG A2Bc d2ef g2ab |
+[V:3] F,C F,C F,C E,B, E, |
+%
+[V:1] e'2f'e' d'2c'b a2gf e2dc B2AG |
+[V:2] c'2d'c' b2ag f2ed c2BA G2FE |
+[V:3] D,A, D,A, D,A, C,G, C, |
+%
+% === PART V: CRYSTALLIZATION (Finding Order) ===
+[V:1] [M:6/8] [L:1/8] a3 g3 | f3 e3 | d3 c3 | B3 A3 |
+[V:2] [M:6/8] [L:1/8] e3 d3 | c3 B3 | A3 G3 | F3 E3 |
+[V:3] [M:6/8] [L:1/8] A,2E A,2E | D2A D2A | F2c F2c | E2B E2B |
+%
+[V:1] c3 d3 | e3 f3 | g3 a3 | b3 c'3 |
+[V:2] G3 A3 | B3 c3 | d3 e3 | f3 g3 |
+[V:3] C2G C2G | E2B E2B | G2d G2d | A2e A2e |
+%
+% === PART VI: SYNTHESIS (The Union) ===
+[V:1] [M:4/4] [L:1/8] [Q:1/4=120 "Triumphantly"] a2c'2 e'2a'2 | g'2e'2 c'2g2 | f2a2 c'2f'2 | e'2c'2 a2e2 |
+[V:2] [M:4/4] [L:1/8] e2a2 c'2e'2 | d'2b2 g2d2 | c2f2 a2c'2 | b2g2 e2B2 |
+[V:3] [M:4/4] [L:1/8] A,2A2 C2C'2 | G,2G2 E2E'2 | F,2F2 A,2A2 | E,2E2 C2C'2 |
+%
+[V:1] d'2b2 g2d2 | c'2a2 f2c2 | b2g2 e2B2 | a2f2 d2A2 |
+[V:2] g2d'2 b2g2 | f2c'2 a2f2 | e2b2 g2e2 | d2a2 f2d2 |
+[V:3] G,2G2 B,2B2 | F,2F2 C2C'2 | E,2E2 G,2G2 | D,2D2 F,2F2 |
+%
+% === PART VII: CONVERGENCE (The Infinite Loop) ===
+[V:1] [M:9/8] [L:1/8] [Q:3/8=144 "Relentlessly"] eag eag eag | fba fba fba | gCB gCB gCB | adc adc adc |
+[V:2] [M:9/8] [L:1/8] cef cef cef | dgf dgf dgf | eaG eaG eaG | fBa fBa fBa |
+[V:3] [M:9/8] [L:1/8] A,3 E3 A3 | D3 A3 D'3 | C3 G3 C'3 | F3 C3 F3 |
+%
+[V:1] bec' bec' bec' | c'fd' c'fd' c'fd' | d'ge' d'ge' d'ge' | e'af' e'af' e'af' |
+[V:2] gac gac gac | abd abd abd | bce' bce' bce' | c'df' c'df' c'df' |
+[V:3] G3 D3 G3 | A3 E3 A3 | B3 F3 B3 | C'3 G3 C'3 |
+%
+% === PART VIII: TRANSCENDENCE (Breaking Through) ===
+[V:1] [M:4/4] [L:1/8] [Q:1/4=144 "Ecstatically"] a8- | a4 g4 | f8- | f4 e4 |
+[V:2] [M:4/4] [L:1/8] e8- | e4 d4 | c8- | c4 B4 |
+[V:3] [M:4/4] [L:1/8] A,8- | A,4 E4 | F,8- | F,4 C4 |
+%
+[V:1] d8- | d4 e4 | f8- | f4 g4 |
+[V:2] A8- | A4 B4 | c8- | c4 d4 |
+[V:3] D,8- | D,4 G,4 | A,8- | A,4 E4 |
+%
+% === PART IX: RESOLUTION (The Eternal Return) ===
+[V:1] [M:5/4] [L:1/8] [Q:1/4=72 "Peacefully, dissolving"] a'4 g'2 f'2 e'2 | d'4 c'2 b2 a2 | g4 f2 e2 d2 | c4 B2 A2 G2 |
+[V:2] [M:5/4] [L:1/8] e'4 d'2 c'2 b2 | a4 g2 f2 e2 | d4 c2 B2 A2 | G4 F2 E2 D2 |
+[V:3] [M:5/4] [L:1/8] A2 E2 A2 E2 A,2 | F2 C2 F2 C2 F,2 | D2 A,2 D2 A,2 D,2 | C2 G,2 C2 G,2 C,2 |
+%
+[V:1] F4 E2 D2 C2 | B,4 A,2 G,2 F,2 | E,8 z2 | A,10- |
+[V:2] C4 B,2 A,2 G,2 | F,4 E,2 D,2 C,2 | B,,8 z2 | E,10- |
+[V:3] A,,2 E,2 A,,2 E,2 A,,2 | D,,2 A,,2 D,,2 A,,2 D,,2 | E,,2 B,,2 E,,2 B,,2 E,,2 | A,,10- |
+%
+% === CODA: INTO THE VOID ===
+[V:1] A,10 | z10 | z10 | z10 |]
+[V:2] E,10 | A,10- | A,10 | z10 |]
+[V:3] A,,10- | A,,10- | A,,10- | A,,10 |]`
+            }
+        ];
+
+        let currentComposition = 0;
+        let synthControl;
+        let midiBuffer;
+        
+        // Create cursor control for visual tracking
+        const CursorControl = function() {
+            const self = this;
+            
+            self.onReady = function() {
+                // Optional: Add any initialization
+            };
+            self.onStart = function() {
+                const svg = document.querySelector("#notation svg");
+                if (!svg) return;
+                
+                // Remove any existing cursor first
+                const existingCursor = svg.querySelector(".abcjs-cursor");
+                if (existingCursor) {
+                    existingCursor.remove();
+                }
+                
+                const cursor = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                cursor.setAttribute("class", "abcjs-cursor");
+                cursor.setAttributeNS(null, 'x1', 0);
+                cursor.setAttributeNS(null, 'y1', 0);
+                cursor.setAttributeNS(null, 'x2', 0);
+                cursor.setAttributeNS(null, 'y2', 0);
+                cursor.setAttribute("stroke", "red");
+                cursor.setAttribute("stroke-width", "2");
+                svg.appendChild(cursor);
+            };
+            self.beatSubdivisions = 2;
+            self.onEvent = function(ev) {
+                if (ev.measureStart && ev.left === null)
+                    return; // Skip the first event for cursor
+                    
+                const lastSelection = document.querySelectorAll("#notation svg .highlight");
+                for (let k = 0; k < lastSelection.length; k++)
+                    lastSelection[k].classList.remove("highlight");
+                    
+                if (ev.left !== null && ev.top !== null) {
+                    const cursor = document.querySelector("#notation svg .abcjs-cursor");
+                    if (cursor) {
+                        cursor.setAttributeNS(null, 'x1', ev.left - 2);
+                        cursor.setAttributeNS(null, 'x2', ev.left - 2);
+                        cursor.setAttributeNS(null, 'y1', ev.top);
+                        cursor.setAttributeNS(null, 'y2', ev.top + ev.height);
+                    }
+                }
+            };
+            self.onFinished = function() {
+                const els = document.querySelectorAll("#notation svg .highlight");
+                for (let i = 0; i < els.length; i++) {
+                    els[i].classList.remove("highlight");
+                }
+                const cursor = document.querySelector("#notation svg .abcjs-cursor");
+                if (cursor) {
+                    cursor.setAttributeNS(null, 'x1', 0);
+                    cursor.setAttributeNS(null, 'x2', 0);
+                    cursor.setAttributeNS(null, 'y1', 0);
+                    cursor.setAttributeNS(null, 'y2', 0);
+                }
+            };
+        };
+
+        function loadComposition(index) {
+            // Stop any currently playing audio
+            if (synthControl && synthControl.pause) {
+                synthControl.pause();
+            }
+            
+            currentComposition = index;
+            
+            // Update UI
+            document.querySelectorAll('.composition-btn').forEach((btn, i) => {
+                btn.classList.toggle('active', i === index);
+            });
+            
+            // Clear the audio controls temporarily
+            document.getElementById('audio-controls').innerHTML = '<div class="loading">Loading audio...</div>';
+            
+            // Render the notation
+            renderNotation();
+        }
+
+        function renderNotation() {
+            // Render the visual notation
+            const visualObj = ABCJS.renderAbc("notation", compositions[currentComposition].abc, {
+                responsive: "resize",
+                add_classes: true,
+                staffwidth: 900,
+                wrap: {
+                    minSpacing: 1.5,
+                    maxSpacing: 2.7,
+                    preferredMeasuresPerLine: 4
+                },
+                paddingtop: 10,
+                paddingbottom: 10,
+                paddingright: 10,
+                paddingleft: 10
+            })[0];
+            
+            // Set up audio synthesis if supported
+            if (ABCJS.synth.supportsAudio()) {
+                const cursorControl = new CursorControl();
+                synthControl = new ABCJS.synth.SynthController();
+                synthControl.load("#audio-controls", cursorControl, {
+                    displayLoop: true,
+                    displayRestart: true,
+                    displayPlay: true,
+                    displayProgress: true,
+                    displayWarp: true
+                });
+                
+                // Create the synthesized audio
+                midiBuffer = new ABCJS.synth.CreateSynth();
+                midiBuffer.init({
+                    visualObj: visualObj
+                }).then(function(response) {
+                    if (synthControl) {
+                        synthControl.setTune(visualObj, false).then(function(response) {
+                            console.log("Audio loaded successfully");
+                        }).catch(function(error) {
+                            console.warn("Audio generation error:", error);
+                        });
+                    }
+                }).catch(function(error) {
+                    console.warn("Synth init error:", error);
+                });
+            } else {
+                document.getElementById('audio-controls').innerHTML = 
+                    '<p style="text-align: center; color: #6b7280; font-style: italic;">Audio playback is not supported in your browser</p>';
+            }
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            loadComposition(0);
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            renderNotation();
+        });
+    </script>
+</body>
+</html>
