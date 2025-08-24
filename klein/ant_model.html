@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ant Model - Static Rig Check</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { width: 100%; height: 100vh; display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// Static ant model with a clean joint hierarchy (no animation)
+
+const COXA_LENGTH = 0.06;
+const FEMUR_LENGTH = 0.12;
+const TIBIA_LENGTH = 0.18;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0e13);
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 1000);
+camera.position.set(0.6, 0.35, 0.8);
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+// Lights and ground reference
+scene.add(new THREE.AmbientLight(0x3a3a3a));
+const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+dir.position.set(2,2,1);
+dir.castShadow = true;
+scene.add(dir);
+
+const grid = new THREE.GridHelper(4, 40, 0x334455, 0x223344);
+grid.position.y = 0;
+scene.add(grid);
+
+const axes = new THREE.AxesHelper(0.25);
+scene.add(axes);
+
+function createAnt() {
+  const antGroup = new THREE.Group();
+  antGroup.position.set(0, 0.22, 0);
+
+  const bodyMat = new THREE.MeshPhongMaterial({ color: 0x7A4426, shininess: 40 });
+  const legMat = new THREE.MeshPhongMaterial({ color: 0x5C3317, shininess: 20 });
+
+  // Body parts
+  const thorax = new THREE.Mesh(new THREE.SphereGeometry(0.08, 20, 16), bodyMat);
+  thorax.scale.set(1, 0.8, 1.2);
+  thorax.castShadow = true;
+  antGroup.add(thorax);
+
+  const abdomen = new THREE.Mesh(new THREE.SphereGeometry(0.1, 20, 16), bodyMat);
+  abdomen.scale.set(1, 0.8, 1.4);
+  abdomen.position.set(0, 0, -0.2);
+  abdomen.castShadow = true;
+  antGroup.add(abdomen);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 12), bodyMat);
+  head.position.set(0, 0, 0.15);
+  head.castShadow = true;
+  antGroup.add(head);
+
+  // Antennae (attach at base via a pivot so rotations don't detach)
+  const antennaLength = 0.15;
+  // Make the base (at the head) thicker: radiusBottom > radiusTop
+  const antennaGeom = new THREE.CylinderGeometry(0.002, 0.005, antennaLength, 8);
+  const antennaMat = new THREE.MeshPhongMaterial({ color: 0x5C3317 });
+  for (let i=0;i<2;i++) {
+    const side = i===0 ? -1 : 1; // -1 = left side (x<0), +1 = right side (x>0)
+    const root = new THREE.Group();
+    // Base attachment point on head surface (forward +Z ~ radius 0.06)
+    root.position.set(side*0.03, 0.02, 0.055);
+    // Forward tilt and outward splay applied to the root so the base stays attached
+    root.rotation.x = Math.PI/3;        // tilt forward toward +Z (away from body)
+    root.rotation.z = -side*Math.PI/6;  // splay outward: right→-θ (lean +X), left→+θ (lean -X)
+    head.add(root);
+
+    const ant = new THREE.Mesh(antennaGeom, antennaMat);
+    ant.castShadow = true;
+    // Offset mesh so its base sits at the root origin and extends outward along +Y after rotation
+    ant.position.y = antennaLength/2;
+    root.add(ant);
+  }
+
+  // Leg rig: root(yaw) -> coxa(yaw fixed splay) -> femur(pitch in Z plane) -> tibia(pitch in Z plane)
+  const legs = [];
+  const legPositions = [
+    [ 0.06, 0.00,  0.05,  1],
+    [ 0.06, 0.00,  0.00,  1],
+    [ 0.06, 0.00, -0.05,  1],
+    [-0.06, 0.00,  0.05, -1],
+    [-0.06, 0.00,  0.00, -1],
+    [-0.06, 0.00, -0.05, -1],
+  ];
+
+  legPositions.forEach((p, idx) => {
+    const [px, py, pz, side] = p;
+
+    const legRoot = new THREE.Group();
+    legRoot.position.set(px, py, pz);
+    thorax.add(legRoot);
+
+    const coxaPivot = new THREE.Group();
+    // Orient legs by row: front forward, middle sideways, rear backward with slight outward splay
+    const splayMag = Math.PI/8; // ~22.5°
+    const isFront = pz > 0.001;
+    const isBack  = pz < -0.001;
+    let baseYaw;
+    if (isFront) {
+      // Forward (+Z). For right legs (side>0), nudge toward +X; for left, toward -X.
+      baseYaw = -Math.PI/2 + side * splayMag;
+    } else if (isBack) {
+      // Backward (-Z). For right legs, nudge toward +X; for left, toward -X.
+      baseYaw = Math.PI/2 - side * splayMag;
+    } else {
+      // Middle points sideways outward
+      baseYaw = side > 0 ? 0 : Math.PI;
+    }
+    coxaPivot.rotation.y = baseYaw;
+    legRoot.add(coxaPivot);
+
+    // Coxa mesh along +X
+    const coxa = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.010, COXA_LENGTH, 8), legMat);
+    coxa.rotation.z = -Math.PI/2; // align to +X
+    coxa.position.x = COXA_LENGTH/2;
+    coxa.castShadow = true;
+    coxaPivot.add(coxa);
+
+    const femurPivot = new THREE.Group();
+    femurPivot.position.x = COXA_LENGTH;
+    coxaPivot.add(femurPivot);
+
+    const femur = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.007, FEMUR_LENGTH, 8), legMat);
+    femur.rotation.z = -Math.PI/2; // along +X
+    femur.position.x = FEMUR_LENGTH/2;
+    femur.castShadow = true;
+    femurPivot.add(femur);
+
+    const tibiaPivot = new THREE.Group();
+    tibiaPivot.position.x = FEMUR_LENGTH;
+    femurPivot.add(tibiaPivot);
+
+    const tibia = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.004, TIBIA_LENGTH, 8), legMat);
+    tibia.rotation.z = -Math.PI/2; // along +X
+    tibia.position.x = TIBIA_LENGTH/2;
+    tibia.castShadow = true;
+    tibiaPivot.add(tibia);
+
+    // Neutral, comfortable pose
+    legRoot.rotation.y = 0;
+    femurPivot.rotation.z = -0.9; // slightly down
+    tibiaPivot.rotation.z = 0.8;  // slight knee bend
+
+    legs.push({ legRoot, coxaPivot, femurPivot, tibiaPivot, coxa, femur, tibia, side });
+  });
+
+  return { antGroup, thorax, abdomen, head, legs };
+}
+
+const { antGroup, legs } = createAnt();
+scene.add(antGroup);
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+animate();
+</script>
+</body>
+</html>
