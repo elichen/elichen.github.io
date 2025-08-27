@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Ant - Flat Surface IK</title>
+  <title>Ant - Random Plane IK</title>
   <style>
     body { margin: 0; overflow: hidden; }
     canvas { width: 100%; height: 100vh; display: block; }
@@ -35,14 +35,59 @@ dir.position.set(2,3,2);
 dir.castShadow = true;
 scene.add(dir);
 
-const groundY = 0;
+// Define randomly oriented plane parameters
+// Random angles for plane orientation (limited to avoid extreme tilts)
+const MAX_TILT = Math.PI / 6; // 30 degrees max tilt
+const TILT_X = (Math.random() - 0.5) * 2 * MAX_TILT;
+const TILT_Z = (Math.random() - 0.5) * 2 * MAX_TILT;
+
+// Create plane normal from tilts
+const PLANE_NORMAL = new THREE.Vector3(
+  Math.sin(TILT_X),
+  Math.cos(TILT_X) * Math.cos(TILT_Z),
+  Math.sin(TILT_Z)
+).normalize();
+
+const PLANE_POINT = new THREE.Vector3(0, 0, 0); // point on plane
+
+// Log the plane orientation for debugging
+console.log('Plane normal:', PLANE_NORMAL);
+console.log('Tilt angles (degrees):', { x: TILT_X * 180/Math.PI, z: TILT_Z * 180/Math.PI });
+
+// Helper function to get point on plane given X and Z
+function getPlaneY(x, z) {
+  // Plane equation: n·(p - p0) = 0
+  // nx*(x-x0) + ny*(y-y0) + nz*(z-z0) = 0
+  // Solve for y: y = y0 - (nx*(x-x0) + nz*(z-z0))/ny
+  if (Math.abs(PLANE_NORMAL.y) < 0.001) {
+    return PLANE_POINT.y; // Vertical plane edge case
+  }
+  return PLANE_POINT.y - (PLANE_NORMAL.x * (x - PLANE_POINT.x) + PLANE_NORMAL.z * (z - PLANE_POINT.z)) / PLANE_NORMAL.y;
+}
+
+// Create rotation quaternion to align Y-up to plane normal
+const planeQuat = new THREE.Quaternion();
+const up = new THREE.Vector3(0, 1, 0);
+planeQuat.setFromUnitVectors(up, PLANE_NORMAL);
+
+const groundY = 0; // reference height, actual height varies with slant
 const grid = new THREE.GridHelper(6, 60, 0x334455, 0x223344);
-grid.position.y = groundY;
+grid.setRotationFromQuaternion(planeQuat); // rotate grid to match plane
 scene.add(grid);
-// Add a thin ground plane exactly at the grid height (for visual parity + shadow reception)
-const groundMat = new THREE.MeshStandardMaterial({ color: 0x202020, roughness: 0.9, metalness: 0.0, transparent: true, opacity: 0.05, side: THREE.DoubleSide });
+
+// Add a solid slanted ground plane for visual clarity
+const groundMat = new THREE.MeshStandardMaterial({ 
+  color: 0x404040, 
+  roughness: 0.8, 
+  metalness: 0.1,
+  side: THREE.DoubleSide 
+});
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), groundMat);
-ground.rotation.x = -Math.PI / 2; // lie in XZ plane
+// First rotate to XZ plane, then apply plane rotation
+const groundQuat = new THREE.Quaternion();
+groundQuat.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI/2);
+groundQuat.premultiply(planeQuat);
+ground.setRotationFromQuaternion(groundQuat);
 ground.position.y = groundY;
 ground.receiveShadow = true;
 scene.add(ground);
@@ -171,7 +216,18 @@ scene.add(antGroup);
 const FEMUR_NEUTRAL = -0.9;
 const TIBIA_NEUTRAL = 0.8;
 const CLEARANCE = -(FEMUR_LENGTH*Math.sin(FEMUR_NEUTRAL) + TIBIA_LENGTH*Math.sin(FEMUR_NEUTRAL + TIBIA_NEUTRAL));
-antGroup.position.set(0, groundY + CLEARANCE, 0);
+
+// Orient ant body to match plane normal
+const initialZ = 0;
+const initialX = 0;
+// Project clearance along plane normal
+const clearanceVec = new THREE.Vector3().copy(PLANE_NORMAL).multiplyScalar(CLEARANCE);
+antGroup.position.set(
+  initialX + clearanceVec.x, 
+  getPlaneY(initialX, initialZ) + clearanceVec.y, 
+  initialZ + clearanceVec.z
+);
+antGroup.setRotationFromQuaternion(planeQuat); // align to plane
 
 // Tripod gait
 const tripodA = new Set([0,2,4]);
@@ -235,8 +291,6 @@ const STEP_LENGTH = 0.08;
 const FOOT_OFFSET = 0.0; // exact ground contact in stance
 const bodySpeed = 0.04; // slower forward for inspection
 
-// Debug: freeze animation and log feet vs. targets once
-const DEBUG_FREEZE = false;
 const LOG_WALK = true;
 const LOG_EVERY = 20;
 let FRAME_NO = 0;
@@ -244,13 +298,23 @@ let FRAME_NO = 0;
 let t0 = performance.now() / 1000;
 
 function animate() {
-  if (!DEBUG_FREEZE) requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
   FRAME_NO++;
-  const t = DEBUG_FREEZE ? 0 : (performance.now()/1000 - t0);
+  const t = performance.now()/1000 - t0; // Enable animation
 
-  // Move body forward
-  antGroup.position.z = t * bodySpeed;
-  antGroup.rotation.y = 0; // keep facing +Z for simplicity
+  // Move body forward along the slanted plane
+  const bodyZ = t * bodySpeed;
+  const bodyX = 0; // Keep X=0 for simplicity
+  // Project clearance along plane normal
+  const clearanceVec = new THREE.Vector3().copy(PLANE_NORMAL).multiplyScalar(CLEARANCE);
+  antGroup.position.set(
+    bodyX + clearanceVec.x, 
+    getPlaneY(bodyX, bodyZ) + clearanceVec.y, 
+    bodyZ + clearanceVec.z
+  );
+  
+  // Maintain orientation: aligned to plane, facing +Z
+  antGroup.setRotationFromQuaternion(planeQuat);
 
   thorax.updateMatrixWorld(true);
   worldToThorax.copy(thorax.matrixWorld).invert();
@@ -258,7 +322,7 @@ function animate() {
   legs.forEach((leg, i) => {
     // Tripod phase
     const phase = ((t / period) + (tripodA.has(i) ? 0 : 0.5)) % 1;
-    let inStance = DEBUG_FREEZE ? true : (phase < 0.5);
+    let inStance = (phase < 0.5);
 
     // Desired foot target on plane in world space
     // Base position: home in thorax space, then add walking offset along body +Z
@@ -268,8 +332,9 @@ function animate() {
 
     // Transform to world
     tmp.targetWorld.copy(tmp.targetThorax).applyMatrix4(thorax.matrixWorld);
-    // Constrain to plane exactly at the grid height, with optional swing lift
-    tmp.targetWorld.y = groundY + (inStance ? 0 : STEP_HEIGHT*Math.sin(Math.PI*((phase-0.5)/0.5)));
+    // Constrain to slanted plane, with optional swing lift
+    const planeY = getPlaneY(tmp.targetWorld.x, tmp.targetWorld.z);
+    tmp.targetWorld.y = planeY + (inStance ? 0 : STEP_HEIGHT*Math.sin(Math.PI*((phase-0.5)/0.5)));
 
     const st = state[i];
     if (!st.initialized) {
@@ -311,7 +376,7 @@ function animate() {
     const yLeg = pCoxa.y;
 
     // If stance target is barely reachable, trigger swing early to avoid sliding
-    if (!DEBUG_FREEZE && inStance) {
+    if (inStance) {
       const L1 = FEMUR_LENGTH, L2 = TIBIA_LENGTH;
       const D = Math.hypot(xLeg, yLeg);
       const MAX_REACH = L1 + L2 - 1e-3;
@@ -352,7 +417,7 @@ function animate() {
     footMarkers[i].position.copy(tipWorld);
 
     // Optional stance logging (throttled)
-    if (!DEBUG_FREEZE && LOG_WALK && inStance && (FRAME_NO % LOG_EVERY === 0)) {
+    if (LOG_WALK && inStance && (FRAME_NO % LOG_EVERY === 0)) {
       // Compute coxa-local z for planted to verify in-plane
       const pC = st.current.clone().applyMatrix4(new THREE.Matrix4().copy(leg.coxaPivot.matrixWorld).invert());
       const axisZErr = pC.z; // ~0 if in plane
@@ -387,10 +452,10 @@ function logFeet() {
   thorax.updateMatrixWorld(true);
   for (let i=0;i<legs.length;i++) {
     const leg = legs[i];
-    // Desired target on ground at home pose
+    // Desired target on slanted plane at home pose
     const tThorax = home[i].clone();
     const tWorld = tThorax.applyMatrix4(thorax.matrixWorld);
-    tWorld.y = groundY; // should touch ground
+    tWorld.y = getPlaneY(tWorld.x, tWorld.z); // should touch slanted plane
     // Actual tibia tip
     const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0);
     const tipWorld = tipLocal.clone();
@@ -418,13 +483,7 @@ function logFeet() {
   }
 }
 
-if (DEBUG_FREEZE) {
-  // Make sure we render once and log debug positions
-  animate();
-  logFeet();
-} else {
-  animate();
-}
+animate();
 </script>
 </body>
 </html>
