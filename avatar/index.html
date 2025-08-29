@@ -37,6 +37,8 @@
             border-radius: 10px;
             backdrop-filter: blur(10px);
             border: 1px solid #333;
+            width: 320px;
+            box-sizing: border-box;
         }
         
         .control-group {
@@ -90,6 +92,7 @@
             padding: 8px;
             background: rgba(255, 255, 255, 0.05);
             border-radius: 4px;
+            min-height: 16px;
         }
         
         .status.active {
@@ -157,12 +160,13 @@
             line-height: 1.4;
             resize: vertical;
             transition: border-color 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
         }
         
         #tts-text:focus {
-            outline: none;
-            border-color: #4CAF50;
-            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+            outline: none !important;
+            border-color: #4CAF50 !important;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2) !important;
         }
     </style>
 </head>
