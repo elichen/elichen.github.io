@@ -76,15 +76,15 @@ class AvatarLipSync {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x1a1a1a);
         
-        // Camera setup - centered view of full avatar
+        // Camera setup - slightly elevated view of avatar
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-        this.camera.position.set(0, 0.6, -1.4); // Very close
+        this.camera.position.set(0, 1.1, -1.4); // Elevated position
         
         // Controls
         this.controls = new OrbitControls(this.camera, canvas);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
-        this.controls.target.set(0, 1.0, 0); // Target center of avatar
+        this.controls.target.set(0, 0.85, 0); // Target slightly lower on avatar
         this.controls.minDistance = 1.5;
         this.controls.maxDistance = 5; 
         this.controls.maxPolarAngle = Math.PI * 0.9;
