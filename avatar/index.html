@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avatar Lip Sync - Real-time Mouth Animation</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗣️</text></svg>">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0a0a0a;
+            color: white;
+            font-family: 'Source Code Pro', monospace;
+            overflow: hidden;
+        }
+        
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #avatar-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid #333;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #ccc;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        button.stop {
+            background: #f44336;
+        }
+        
+        button.stop:hover {
+            background: #da190b;
+        }
+        
+        .status {
+            font-size: 12px;
+            color: #888;
+            margin-top: 10px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+        
+        .status.active {
+            color: #4CAF50;
+        }
+        
+        .status.error {
+            color: #f44336;
+        }
+        
+        .debug-info {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-family: monospace;
+            color: #0f0;
+            max-width: 300px;
+            backdrop-filter: blur(10px);
+            border: 1px solid #333;
+            transition: opacity 0.3s;
+        }
+        
+        .debug-info.error {
+            color: #f44336;
+        }
+        
+        .debug-info.warning {
+            color: #ff9800;
+        }
+        
+        .debug-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        
+        .debug-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .viseme-display {
+            font-size: 24px;
+            text-align: center;
+            color: #ff6b6b;
+            margin-top: 10px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="avatar-canvas"></canvas>
+        
+        <div id="controls">
+            <div class="control-group">
+                <label>Avatar Lip Sync</label>
+                <button id="start-btn">Start Microphone</button>
+            </div>
+            
+            <div class="status" id="status">
+                Click "Start Microphone" to begin real-time lip sync
+            </div>
+            
+            <div class="viseme-display" id="viseme">
+                REST
+            </div>
+        </div>
+        
+        <div class="debug-info" id="debug">
+            <div class="debug-item">
+                <span>WebGPU:</span>
+                <span id="webgpu-status">Checking...</span>
+            </div>
+            <div class="debug-item">
+                <span>Audio:</span>
+                <span id="audio-status">Ready</span>
+            </div>
+            <div class="debug-item">
+                <span>Audio Processor:</span>
+                <span id="rhubarb-status">Loading...</span>
+            </div>
+            <div class="debug-item">
+                <span>Avatar:</span>
+                <span id="avatar-status">Loading...</span>
+            </div>
+            <div class="debug-item">
+                <span>Latency:</span>
+                <span id="latency">-- ms</span>
+            </div>
+            <div class="debug-item">
+                <span>FPS:</span>
+                <span id="fps">--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js and dependencies -->
+    <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.1.0/lib/three-vrm.module.js",
+            "@pixiv/three-vrm-animation": "https://unpkg.com/@pixiv/three-vrm-animation@2.1.0/lib/three-vrm-animation.module.js"
+        }
+    }
+    </script>
+
+    <!-- Main application -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
