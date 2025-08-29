@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ant - Klein Bottle IK</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { width: 100%; height: 100vh; display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// Ant walking with 2-bone IK on a Klein bottle
+
+const COXA_LENGTH = 0.06 * ANT_SCALE;
+const FEMUR_LENGTH = 0.12 * ANT_SCALE;
+const TIBIA_LENGTH = 0.18 * ANT_SCALE;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0e13);
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 1000);
+camera.position.set(1.2, 0.6, 1.2);
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+scene.add(new THREE.AmbientLight(0x4a4a4a));
+const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+dir.position.set(2,3,2);
+dir.castShadow = true;
+scene.add(dir);
+
+// Define Klein bottle parameters (classic parametrization)
+const KLEIN_SCALE = 0.25; // Scale factor
+const ANT_SCALE = 0.4; // Scale ant relative to bottle
+
+// Log the Klein bottle parameters
+console.log('Klein bottle scale:', KLEIN_SCALE);
+console.log('Ant scale:', ANT_SCALE);
+
+// Klein bottle parametric equations (classic bottle shape)
+// u: 0 to 2π (along the bottle)
+// v: 0 to 2π (around the tube)
+function kleinBottlePoint(u, v) {
+  let x, y, z;
+  if (u < Math.PI) {
+    x = 3*Math.cos(u)*(1+Math.sin(u))+(2*(1-Math.cos(u)/2))*Math.cos(u)*Math.cos(v);
+    y = 8*Math.sin(u)+(2*(1-Math.cos(u)/2))*Math.sin(u)*Math.cos(v);
+    z = (2*(1-Math.cos(u)/2))*Math.sin(v);
+  } else {
+    x = 3*Math.cos(u)*(1+Math.sin(u))+(2*(1-Math.cos(u)/2))*Math.cos(v+Math.PI);
+    y = 8*Math.sin(u);
+    z = (2*(1-Math.cos(u)/2))*Math.sin(v);
+  }
+  
+  return new THREE.Vector3(x * KLEIN_SCALE, y * KLEIN_SCALE, z * KLEIN_SCALE);
+}
+
+// Get Klein bottle surface normal at parametric coordinates
+function kleinBottleNormal(u, v) {
+  const eps = 0.001;
+  
+  // Calculate partial derivatives numerically
+  const p = kleinBottlePoint(u, v);
+  const pu = kleinBottlePoint(u + eps, v).sub(p).divideScalar(eps);
+  const pv = kleinBottlePoint(u, v + eps).sub(p).divideScalar(eps);
+  
+  // Normal is cross product of partial derivatives
+  const normal = new THREE.Vector3().crossVectors(pu, pv).normalize();
+  
+  return normal;
+}
+
+// Store current parametric position
+let currentU = 0;
+let currentV = Math.PI; // Middle of tube
+
+// Create Klein bottle mesh
+const groundMat = new THREE.MeshStandardMaterial({ 
+  color: 0x404040, 
+  roughness: 0.8, 
+  metalness: 0.1,
+  side: THREE.DoubleSide // Important for Klein bottle!
+});
+
+// Generate Klein bottle geometry
+const kleinGeometry = new THREE.BufferGeometry();
+const uSegments = 80;
+const vSegments = 40;
+const vertices = [];
+const normals = [];
+const indices = [];
+
+// Generate vertices and normals
+for (let i = 0; i <= uSegments; i++) {
+  for (let j = 0; j <= vSegments; j++) {
+    const u = (i / uSegments) * Math.PI * 2;
+    const v = (j / vSegments) * Math.PI * 2;
+    
+    const point = kleinBottlePoint(u, v);
+    vertices.push(point.x, point.y, point.z);
+    
+    const normal = kleinBottleNormal(u, v);
+    normals.push(normal.x, normal.y, normal.z);
+  }
+}
+
+// Generate indices for triangles
+for (let i = 0; i < uSegments; i++) {
+  for (let j = 0; j < vSegments; j++) {
+    const a = i * (vSegments + 1) + j;
+    const b = a + 1;
+    const c = (i + 1) * (vSegments + 1) + j;
+    const d = c + 1;
+    
+    indices.push(a, b, c);
+    indices.push(b, d, c);
+  }
+}
+
+kleinGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+kleinGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+kleinGeometry.setIndex(indices);
+
+const kleinBottle = new THREE.Mesh(kleinGeometry, groundMat);
+kleinBottle.receiveShadow = true;
+kleinBottle.castShadow = true;
+scene.add(kleinBottle);
+
+// Add wireframe overlay for better visualization
+const wireframeMat = new THREE.MeshBasicMaterial({ 
+  color: 0x334455, 
+  wireframe: true,
+  transparent: true,
+  opacity: 0.2
+});
+const wireframe = new THREE.Mesh(kleinGeometry, wireframeMat);
+scene.add(wireframe);
+
+const axes = new THREE.AxesHelper(0.3);
+scene.add(axes);
+
+function createAnt() {
+  const antGroup = new THREE.Group();
+  const bodyMat = new THREE.MeshPhongMaterial({ color: 0x7A4426, shininess: 40 });
+  const legMat = new THREE.MeshPhongMaterial({ color: 0x5C3317, shininess: 20 });
+
+  // Body (scaled)
+  const thorax = new THREE.Mesh(new THREE.SphereGeometry(0.08 * ANT_SCALE, 20, 16), bodyMat);
+  thorax.scale.set(1, 0.8, 1.2);
+  thorax.castShadow = true;
+  antGroup.add(thorax);
+
+  const abdomen = new THREE.Mesh(new THREE.SphereGeometry(0.1 * ANT_SCALE, 20, 16), bodyMat);
+  abdomen.scale.set(1, 0.8, 1.4);
+  abdomen.position.set(0, 0, -0.2 * ANT_SCALE);
+  abdomen.castShadow = true;
+  antGroup.add(abdomen);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.06 * ANT_SCALE, 16, 12), bodyMat);
+  head.position.set(0, 0, 0.15 * ANT_SCALE);
+  head.castShadow = true;
+  antGroup.add(head);
+
+  // Antennae (base pivot so attachment stays correct)
+  const antennaLength = 0.15 * ANT_SCALE;
+  const antennaGeom = new THREE.CylinderGeometry(0.002 * ANT_SCALE, 0.005 * ANT_SCALE, antennaLength, 8);
+  const antennaMat = new THREE.MeshPhongMaterial({ color: 0x5C3317 });
+  for (let i=0;i<2;i++) {
+    const side = i===0 ? -1 : 1; // -1 = left, +1 = right
+    const root = new THREE.Group();
+    root.position.set(side*0.03*ANT_SCALE, 0.02*ANT_SCALE, 0.055*ANT_SCALE);
+    root.rotation.x = Math.PI/3;        // tilt forward (+Z)
+    root.rotation.z = -side*Math.PI/6;  // splay outward
+    head.add(root);
+
+    const ant = new THREE.Mesh(antennaGeom, antennaMat);
+    ant.castShadow = true;
+    ant.position.y = antennaLength/2;   // extend from base
+    root.add(ant);
+  }
+
+  // Leg rig (consistent axes):
+  // - legRoot: yaw around Y
+  // - coxaPivot: fixed outward splay around Y
+  // - femurPivot: rotate around Z in XY plane
+  // - tibiaPivot: rotate around Z in XY plane
+  const legs = [];
+  const legPositions = [
+    [ 0.06*ANT_SCALE, 0.00,  0.05*ANT_SCALE,  1],
+    [ 0.06*ANT_SCALE, 0.00,  0.00,  1],
+    [ 0.06*ANT_SCALE, 0.00, -0.05*ANT_SCALE,  1],
+    [-0.06*ANT_SCALE, 0.00,  0.05*ANT_SCALE, -1],
+    [-0.06*ANT_SCALE, 0.00,  0.00, -1],
+    [-0.06*ANT_SCALE, 0.00, -0.05*ANT_SCALE, -1],
+  ];
+
+  legPositions.forEach((p, index) => {
+    const [px, py, pz, side] = p;
+
+    const legRoot = new THREE.Group();
+    legRoot.position.set(px, py, pz);
+    thorax.add(legRoot);
+
+    const coxaPivot = new THREE.Group();
+    // Orient by row: front forward, middle sideways, rear backward with slight outward splay
+    const splayMag = Math.PI/8;
+    const isFront = pz > 0.001;
+    const isBack  = pz < -0.001;
+    let baseYaw;
+    if (isFront) {
+      baseYaw = -Math.PI/2 + side * splayMag; // face +Z
+    } else if (isBack) {
+      baseYaw =  Math.PI/2 - side * splayMag; // face -Z
+    } else {
+      baseYaw = side > 0 ? 0 : Math.PI;       // sideways outward
+    }
+    coxaPivot.rotation.y = baseYaw;
+    legRoot.add(coxaPivot);
+
+    const coxa = new THREE.Mesh(new THREE.CylinderGeometry(0.012*ANT_SCALE, 0.010*ANT_SCALE, COXA_LENGTH, 8), legMat);
+    coxa.rotation.z = -Math.PI/2; // along +X
+    coxa.position.x = COXA_LENGTH/2;
+    coxa.castShadow = true;
+    coxaPivot.add(coxa);
+
+    const femurPivot = new THREE.Group();
+    femurPivot.position.x = COXA_LENGTH;
+    coxaPivot.add(femurPivot);
+
+    const femur = new THREE.Mesh(new THREE.CylinderGeometry(0.009*ANT_SCALE, 0.007*ANT_SCALE, FEMUR_LENGTH, 8), legMat);
+    femur.rotation.z = -Math.PI/2; // along +X
+    femur.position.x = FEMUR_LENGTH/2;
+    femur.castShadow = true;
+    femurPivot.add(femur);
+
+    const tibiaPivot = new THREE.Group();
+    tibiaPivot.position.x = FEMUR_LENGTH;
+    femurPivot.add(tibiaPivot);
+
+    const tibia = new THREE.Mesh(new THREE.CylinderGeometry(0.007*ANT_SCALE, 0.004*ANT_SCALE, TIBIA_LENGTH, 8), legMat);
+    tibia.rotation.z = -Math.PI/2; // along +X
+    tibia.position.x = TIBIA_LENGTH/2;
+    tibia.castShadow = true;
+    tibiaPivot.add(tibia);
+
+    // Neutral, comfortable pose to match static model
+    femurPivot.rotation.z = -0.9;
+    tibiaPivot.rotation.z = 0.8;
+
+    legs.push({ index, side, legRoot, coxaPivot, femurPivot, tibiaPivot });
+  });
+
+  return { antGroup, thorax, legs };
+}
+
+const { antGroup, thorax, legs } = createAnt();
+scene.add(antGroup);
+
+// Body placement calibrated to neutral pose: foot tips touch the ground
+const FEMUR_NEUTRAL = -0.9;
+const TIBIA_NEUTRAL = 0.8;
+const CLEARANCE = -(FEMUR_LENGTH*Math.sin(FEMUR_NEUTRAL) + TIBIA_LENGTH*Math.sin(FEMUR_NEUTRAL + TIBIA_NEUTRAL));
+
+// Orient ant body to match Klein bottle surface at starting position
+currentU = Math.PI * 0.5; // Start position on Klein bottle
+currentV = Math.PI; // Middle of tube
+const initialPoint = kleinBottlePoint(currentU, currentV);
+const surfaceNormal = kleinBottleNormal(currentU, currentV);
+
+// Project clearance along surface normal
+const clearanceVec = new THREE.Vector3().copy(surfaceNormal).multiplyScalar(CLEARANCE);
+antGroup.position.set(
+  initialPoint.x + clearanceVec.x, 
+  initialPoint.y + clearanceVec.y, 
+  initialPoint.z + clearanceVec.z
+);
+
+// Align ant to surface normal and face along path
+// First align Y-axis with surface normal
+const antUp = new THREE.Vector3(0, 1, 0);
+const surfaceQuat = new THREE.Quaternion();
+surfaceQuat.setFromUnitVectors(antUp, surfaceNormal);
+
+// At theta=0, ant is at (0, y, +z) and will move in -X direction
+// So it should face -X (left)
+const headingAngle = Math.PI/2; // Face -X direction
+const headingQuat = new THREE.Quaternion();
+headingQuat.setFromAxisAngle(surfaceNormal, headingAngle);
+
+// Combine: first align to surface, then rotate to face movement direction
+const finalQuat = new THREE.Quaternion();
+finalQuat.multiplyQuaternions(headingQuat, surfaceQuat);
+antGroup.setRotationFromQuaternion(finalQuat);
+
+// Debug logging
+console.log('Initial ant position:', antGroup.position);
+console.log('Initial surface point:', initialPoint);
+console.log('Initial surface normal:', surfaceNormal);
+console.log('Clearance:', CLEARANCE);
+
+// Position camera to look at ant
+camera.position.set(
+  antGroup.position.x + 0.5,
+  antGroup.position.y + 0.3,
+  antGroup.position.z + 0.5
+);
+controls.target.copy(antGroup.position);
+controls.update();
+
+// Tripod gait
+const tripodA = new Set([0,2,4]);
+const period = 2.4; // seconds for full cycle
+
+// IMPORTANT: Update world matrices after setting rotation
+antGroup.updateMatrixWorld(true);
+thorax.updateMatrixWorld(true);
+
+// Home offsets in thorax space for foot targets computed from the neutral FK
+// This MUST be calculated AFTER the ant is rotated to match the surface
+const home = (() => {
+  thorax.updateMatrixWorld(true);
+  const worldToThoraxMat = new THREE.Matrix4().copy(thorax.matrixWorld).invert();
+  return legs.map((leg) => {
+    // get tibia tip in world at current neutral rotations
+    const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0);
+    const tipWorld = tipLocal.clone();
+    leg.tibiaPivot.localToWorld(tipWorld);
+    // convert to thorax local
+    return tipWorld.applyMatrix4(worldToThoraxMat);
+  });
+})();
+
+// Helpers
+const worldToThorax = new THREE.Matrix4();
+const Y = new THREE.Vector3(0,1,0);
+const tmp = {
+  targetWorld: new THREE.Vector3(),
+  targetThorax: new THREE.Vector3(),
+  relFromRoot: new THREE.Vector3(),
+  yawQuat: new THREE.Quaternion(),
+  tempQuat: new THREE.Quaternion(),
+  pA: new THREE.Vector3(), pB: new THREE.Vector3(),
+};
+
+// Debug markers
+const footMarkers = [];
+for (let i=0;i<legs.length;i++) {
+  const s = new THREE.Mesh(new THREE.SphereGeometry(0.01 * ANT_SCALE, 10, 8), new THREE.MeshBasicMaterial({ color: tripodA.has(i)?0x33ffaa:0xffaa33 }));
+  scene.add(s);
+  footMarkers.push(s);
+}
+
+// IK solver in XY plane (after yaw unrotation and coxa splay removal)
+function solvePlanarIK(x, y) {
+  const L1 = FEMUR_LENGTH, L2 = TIBIA_LENGTH;
+  const D = Math.max(1e-6, Math.min(L1 + L2 - 1e-4, Math.hypot(x, y)));
+  const cosKnee = THREE.MathUtils.clamp((L1*L1 + L2*L2 - D*D) / (2*L1*L2), -1, 1);
+  // Mechanical knee rotation (0 straight → pi folded); matches our rig's tibiaPivot rotation
+  const knee = Math.PI - Math.acos(cosKnee);
+  const femur = Math.atan2(y, x) - Math.atan2(L2 * Math.sin(knee), L1 + L2 * Math.cos(knee));
+  return { femur, tibia: knee };
+}
+
+// State per leg
+const state = legs.map((leg, i) => ({
+  planted: new THREE.Vector3(),
+  current: new THREE.Vector3(),
+  initialized: false,
+  inStancePrev: false,
+}));
+
+const STEP_HEIGHT = 0.04 * ANT_SCALE;
+const STEP_LENGTH = 0.08 * ANT_SCALE;
+const FOOT_OFFSET = 0.0; // exact ground contact in stance
+const bodySpeed = 0.04 * ANT_SCALE; // slower forward for inspection
+
+const LOG_WALK = true;
+const LOG_EVERY = 20;
+let FRAME_NO = 0;
+
+let t0 = performance.now() / 1000;
+
+function animate() {
+  requestAnimationFrame(animate);
+  FRAME_NO++;
+  const t = performance.now()/1000 - t0; // Enable animation
+
+  // Move body along Klein bottle surface using parametric coordinates
+  const speed = 0.2; // Parametric speed
+  currentU = (Math.PI * 0.5 + t * speed) % (Math.PI * 2);
+  // Keep V constant for simpler path
+  
+  const bodyPoint = kleinBottlePoint(currentU, currentV);
+  const surfaceNormal = kleinBottleNormal(currentU, currentV);
+  
+  // Project clearance along surface normal
+  const clearanceVec = new THREE.Vector3().copy(surfaceNormal).multiplyScalar(CLEARANCE);
+  antGroup.position.set(
+    bodyPoint.x + clearanceVec.x, 
+    bodyPoint.y + clearanceVec.y, 
+    bodyPoint.z + clearanceVec.z
+  );
+  
+  // Maintain orientation: aligned to surface normal
+  // For now, just align Y-axis with surface normal
+  const antUp = new THREE.Vector3(0, 1, 0);
+  const surfaceQuat = new THREE.Quaternion();
+  surfaceQuat.setFromUnitVectors(antUp, surfaceNormal);
+  
+  // Calculate tangent direction for heading
+  const eps = 0.01;
+  const nextPoint = kleinBottlePoint(currentU + eps, currentV);
+  const tangent = nextPoint.sub(bodyPoint).normalize();
+  
+  // Project tangent onto plane perpendicular to normal
+  const tangentProj = tangent.sub(surfaceNormal.clone().multiplyScalar(tangent.dot(surfaceNormal))).normalize();
+  
+  // Calculate rotation to align with tangent
+  const antForward = new THREE.Vector3(0, 0, 1);
+  antForward.applyQuaternion(surfaceQuat);
+  
+  let angle = Math.acos(Math.max(-1, Math.min(1, antForward.dot(tangentProj))));
+  const cross = antForward.clone().cross(tangentProj);
+  if (cross.dot(surfaceNormal) < 0) angle = -angle;
+  
+  const headingQuat = new THREE.Quaternion();
+  headingQuat.setFromAxisAngle(surfaceNormal, angle);
+  
+  // Combine: first align to surface, then rotate around normal to face forward
+  const finalQuat = new THREE.Quaternion();
+  finalQuat.multiplyQuaternions(headingQuat, surfaceQuat);
+  antGroup.setRotationFromQuaternion(finalQuat);
+
+  thorax.updateMatrixWorld(true);
+  worldToThorax.copy(thorax.matrixWorld).invert();
+
+  legs.forEach((leg, i) => {
+    // Tripod phase
+    const phase = ((t / period) + (tripodA.has(i) ? 0 : 0.5)) % 1;
+    let inStance = (phase < 0.5);
+
+    // Desired foot target on plane in world space
+    // Base position: home in thorax space, then add walking offset along body +Z
+    tmp.targetThorax.copy(home[i]);
+    const stepOffset = (inStance ? -1 : 1) * (STEP_LENGTH * (inStance ? (phase/0.5) : ((phase-0.5)/0.5)) - STEP_LENGTH/2);
+    tmp.targetThorax.z += stepOffset;
+
+    // Transform to world
+    tmp.targetWorld.copy(tmp.targetThorax).applyMatrix4(thorax.matrixWorld);
+    
+    // Project foot onto Klein bottle surface (approximate)
+    // Find parametric coordinates near body position
+    const footOffsetU = (tmp.targetWorld.x - bodyPoint.x) * 0.5;
+    const footU = currentU + footOffsetU;
+    const footPoint = kleinBottlePoint(footU, currentV);
+    
+    // Update foot target to be on Klein bottle surface
+    tmp.targetWorld.y = footPoint.y + (inStance ? 0 : STEP_HEIGHT*Math.sin(Math.PI*((phase-0.5)/0.5)));
+
+    const st = state[i];
+    if (!st.initialized) {
+      st.planted.copy(tmp.targetWorld);
+      st.current.copy(tmp.targetWorld);
+      st.initialized = true;
+      st.inStancePrev = inStance;
+    }
+
+    if (inStance) {
+      if (!st.inStancePrev) {
+        // Just landed: fix planted position to the new point on the ground
+        st.planted.copy(tmp.targetWorld);
+      }
+      // Hold planted position during stance (no slipping)
+      st.current.copy(st.planted);
+    } else {
+      // Swing to next placement target with gentle interpolation
+      st.current.lerp(tmp.targetWorld, 0.25);
+    }
+    st.inStancePrev = inStance;
+
+    // Place debug marker (by default, show desired target; after IK we will update to actual tip)
+    footMarkers[i].position.copy(st.current);
+
+    // Solve yaw s.t. planted lies in coxa local XY plane (z≈0), then do IK in coxa local
+    // First pass: compute coxa local point and yaw correction to zero z
+    const computeWorldToCoxa = () => new THREE.Matrix4().copy(leg.coxaPivot.matrixWorld).invert();
+    let worldToCoxa = computeWorldToCoxa();
+    let pCoxa = st.current.clone().applyMatrix4(worldToCoxa); // in coxa local
+    const dYaw = Math.atan2(pCoxa.z, pCoxa.x);
+    leg.legRoot.rotation.y -= dYaw; // rotate so z→0
+    leg.legRoot.updateMatrixWorld(true);
+    // Recompute with corrected yaw
+    worldToCoxa = computeWorldToCoxa();
+    pCoxa = st.current.clone().applyMatrix4(worldToCoxa);
+    // Planar IK in coxa local XY
+    const xLeg = pCoxa.x - COXA_LENGTH;
+    const yLeg = pCoxa.y;
+
+    // If stance target is barely reachable, trigger swing early to avoid sliding
+    if (inStance) {
+      const L1 = FEMUR_LENGTH, L2 = TIBIA_LENGTH;
+      const D = Math.hypot(xLeg, yLeg);
+      const MAX_REACH = L1 + L2 - 1e-3;
+      if (D > MAX_REACH * 0.985) {
+        inStance = false; // switch to swing early
+      }
+    }
+
+    if (inStance) {
+      // Exact IK in stance so the tibia tip touches ground at st.current
+      const res = solvePlanarIK(xLeg, yLeg);
+      const femur = THREE.MathUtils.clamp(res.femur, -1.6, 0.2);
+      const tibia = THREE.MathUtils.clamp(res.tibia, 0.0, 2.6); // full IK in stance to ensure contact
+      leg.femurPivot.rotation.z = femur;
+      leg.tibiaPivot.rotation.z = tibia;
+    } else {
+      // During swing, keep tibia near neutral and use femur to lift/place for stability
+      const TIBIA_NEUTRAL = 0.8;
+      const L1 = FEMUR_LENGTH, L2 = TIBIA_LENGTH;
+      const Dfixed = Math.sqrt(L1*L1 + L2*L2 + 2*L1*L2*Math.cos(TIBIA_NEUTRAL));
+      const r = Math.hypot(xLeg, yLeg) || 1e-6;
+      const scale = Dfixed / r;
+      const xFixed = xLeg * scale;
+      const yFixed = yLeg * scale;
+      const phi = Math.atan2(yFixed, xFixed);
+      const Aangle = Math.atan2(L2*Math.sin(TIBIA_NEUTRAL), L1 + L2*Math.cos(TIBIA_NEUTRAL));
+      let femur = phi - Aangle;
+      femur = THREE.MathUtils.clamp(femur, -1.6, 0.2);
+      leg.femurPivot.rotation.z = femur;
+      leg.tibiaPivot.rotation.z = TIBIA_NEUTRAL;
+    }
+
+    // Update marker to show actual foot tip (FK) to verify contact
+    thorax.updateMatrixWorld(true);
+    const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0);
+    const tipWorld = tipLocal.clone();
+    legs[i].tibiaPivot.localToWorld(tipWorld);
+    footMarkers[i].position.copy(tipWorld);
+
+    // Optional stance logging (throttled)
+    if (LOG_WALK && inStance && (FRAME_NO % LOG_EVERY === 0)) {
+      // Compute coxa-local z for planted to verify in-plane
+      const pC = st.current.clone().applyMatrix4(new THREE.Matrix4().copy(leg.coxaPivot.matrixWorld).invert());
+      const axisZErr = pC.z; // ~0 if in plane
+      const delta = tipWorld.clone().sub(st.current);
+      const rn = rowName(leg.legRoot.position.z);
+      console.log(JSON.stringify({
+        frame: FRAME_NO,
+        legIndex: i, side: leg.side, row: rn,
+        planted: { x: +st.current.x.toFixed(4), y: +st.current.y.toFixed(4), z: +st.current.z.toFixed(4) },
+        tipWorld: { x: +tipWorld.x.toFixed(4), y: +tipWorld.y.toFixed(4), z: +tipWorld.z.toFixed(4) },
+        delta: { x: +delta.x.toFixed(4), y: +delta.y.toFixed(4), z: +delta.z.toFixed(4) },
+        planeNormalDot: +axisZErr.toFixed(4),
+      }));
+    }
+  });
+
+  // Center camera on ant
+  controls.target.copy(antGroup.position);
+  controls.update();
+  renderer.render(scene, camera);
+  
+  // Debug leg positions on first frame only
+  if (FRAME_NO === 1) {
+    console.log('=== Leg positions at frame 1 ===');
+    legs.forEach((leg, i) => {
+      const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0);
+      const tipWorld = tipLocal.clone();
+      leg.tibiaPivot.localToWorld(tipWorld);
+      console.log(`Leg ${i}: side=${leg.side}, world pos:`, tipWorld);
+    });
+  }
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// Debug utilities: log feet and targets once when frozen
+function fmt(v) { return `(${v.x.toFixed(3)}, ${v.y.toFixed(3)}, ${v.z.toFixed(3)})`; }
+function rowName(z) { return z > 0.001 ? 'front' : (z < -0.001 ? 'rear' : 'middle'); }
+
+function logFeet() {
+  thorax.updateMatrixWorld(true);
+  for (let i=0;i<legs.length;i++) {
+    const leg = legs[i];
+    // Desired target on Klein bottle surface at home pose
+    const tThorax = home[i].clone();
+    const tWorld = tThorax.applyMatrix4(thorax.matrixWorld);
+    // Approximate Klein bottle surface height
+    const approxPoint = kleinBottlePoint(currentU, currentV);
+    tWorld.y = approxPoint.y;
+    // Actual tibia tip
+    const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0);
+    const tipWorld = tipLocal.clone();
+    leg.tibiaPivot.localToWorld(tipWorld);
+    // Also log the femur root and basis-projected target (for sanity)
+    const femurRootWorld = new THREE.Vector3(COXA_LENGTH, 0, 0);
+    leg.coxaPivot.localToWorld(femurRootWorld);
+    const coxaQuatW = new THREE.Quaternion();
+    leg.coxaPivot.getWorldQuaternion(coxaQuatW);
+    const axisX = new THREE.Vector3(1,0,0).applyQuaternion(coxaQuatW).normalize();
+    const axisY = new THREE.Vector3(0,1,0).applyQuaternion(coxaQuatW).normalize();
+    const targetRelW = new THREE.Vector3().subVectors(tWorld, femurRootWorld);
+    const xLeg = targetRelW.dot(axisX);
+    const yLeg = targetRelW.dot(axisY);
+    const delta = tipWorld.clone().sub(tWorld);
+    const rn = rowName(leg.legRoot.position.z);
+    console.log(JSON.stringify({
+      legIndex: i, side: leg.side, row: rn,
+      targetWorld: { x: +tWorld.x.toFixed(4), y: +tWorld.y.toFixed(4), z: +tWorld.z.toFixed(4) },
+      tipWorld:    { x: +tipWorld.x.toFixed(4), y: +tipWorld.y.toFixed(4), z: +tipWorld.z.toFixed(4) },
+      femurRoot:   { x: +femurRootWorld.x.toFixed(4), y: +femurRootWorld.y.toFixed(4), z: +femurRootWorld.z.toFixed(4) },
+      legPlaneXY:  { x: +xLeg.toFixed(4), y: +yLeg.toFixed(4) },
+      delta:       { x: +delta.x.toFixed(4), y: +delta.y.toFixed(4), z: +delta.z.toFixed(4) },
+    }));
+  }
+}
+
+animate();
+</script>
+</body>
+</html>

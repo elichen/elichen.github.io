@@ -7,6 +7,23 @@ export class AudioProcessor {
         this.dataArray = null;
         this.isProcessing = false;
         
+        // TTS mode properties
+        this.mode = 'microphone'; // 'microphone' or 'tts'
+        this.speechSynthesis = window.speechSynthesis;
+        this.currentUtterance = null;
+        this.ttsCharacterMap = null;
+        this.currentText = '';
+        this.ttsIsActive = false;
+        
+        // Word animation tracking
+        this.currentWordData = {
+            text: '',
+            visemes: [],
+            startTime: 0,
+            charIndex: 0,
+            duration: 0
+        };
+        
         // Advanced audio analysis parameters
         this.sampleRate = 16000;
         this.fftSize = 2048;
@@ -35,33 +52,21 @@ export class AudioProcessor {
     }
     
     async initialize() {
-        try {
-            // Request microphone with optimal settings
-            this.mediaStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    channelCount: 1,
-                    sampleRate: this.sampleRate,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
-            });
-            
-            // Create audio context
-            this.audioContext = new AudioContext({ 
-                sampleRate: this.sampleRate 
-            });
-            
-            // Set up audio analysis
-            this.setupAudioAnalysis();
-            
-            console.log('AudioProcessor initialized successfully');
-            return true;
-            
-        } catch (error) {
-            console.error('Failed to initialize AudioProcessor:', error);
-            throw error;
-        }
+        this.mediaStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                channelCount: 1,
+                sampleRate: this.sampleRate,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
+        });
+        
+        this.audioContext = new AudioContext({ 
+            sampleRate: this.sampleRate 
+        });
+        
+        this.setupAudioAnalysis();
     }
     
     setupAudioAnalysis() {
@@ -85,13 +90,8 @@ export class AudioProcessor {
     }
     
     start() {
-        if (!this.analyser) {
-            throw new Error('AudioProcessor not initialized');
-        }
-        
         this.isProcessing = true;
         this.processAudio();
-        console.log('Audio processing started');
     }
     
     stop() {
@@ -235,20 +235,9 @@ export class AudioProcessor {
         } else if (normHigh > 0.3) {
             // High frequency content - likely consonants or 'E'
             return 'E';
-        } else {
-            // Default classification
-            const maxBand = Object.keys(bandEnergies).reduce((a, b) => 
-                bandEnergies[a] > bandEnergies[b] ? a : b
-            );
-            
-            switch (maxBand) {
-                case 'low': return 'A';
-                case 'lowMid': return 'O';
-                case 'mid': return 'I';
-                case 'high': return 'E';
-                default: return 'A';
-            }
         }
+        
+        return 'REST';
     }
     
     smoothViseme(detectedViseme) {
@@ -276,9 +265,192 @@ export class AudioProcessor {
         return mostCommon;
     }
     
+    // TTS Mode Methods
+    async initializeTTS() {
+        this.ttsTimingData = null;
+        this.ttsStartTime = 0;
+        this.ttsIsActive = false;
+    }
+    
+    setMode(mode) {
+        if (mode === this.mode) return;
+        
+        // Stop current processing
+        this.stop();
+        
+        this.mode = mode;
+        console.log(`Audio processor mode set to: ${mode}`);
+    }
+    
+    async speakText(text, voice = null, rate = 1, pitch = 1) {
+        this.speechSynthesis.cancel();
+        
+        this.ttsCharacterMap = this.generateCharacterMap(text);
+        this.currentText = text;
+        
+        this.currentUtterance = new SpeechSynthesisUtterance(text);
+        
+        if (voice) this.currentUtterance.voice = voice;
+        this.currentUtterance.rate = rate;
+        this.currentUtterance.pitch = pitch;
+        this.currentUtterance.volume = 1.0;
+        
+        this.currentUtterance.onstart = () => {
+            this.ttsIsActive = true;
+            this.isProcessing = true;
+            console.log('TTS speech started - real-time sync active');
+        };
+        
+        this.currentUtterance.onend = () => {
+            this.stopTTSRealTimeSync();
+            console.log('TTS speech ended');
+        };
+        
+        this.currentUtterance.onerror = (event) => {
+            this.stopTTSRealTimeSync();
+        };
+        
+        // Real-time viseme sync using boundary events
+        this.currentUtterance.onboundary = (event) => {
+            if (event.name === 'word') {
+                const word = this.extractWordAt(this.currentText, event.charIndex);
+                
+                // Generate viseme sequence for entire word
+                this.currentWordData = {
+                    text: word,
+                    visemes: word.split('').map(c => this.getVisemeForChar(c)),
+                    startTime: performance.now(),
+                    charIndex: event.charIndex,
+                    duration: word.length * 60 // Roughly 60ms per character
+                };
+                
+                console.log(`Word boundary: "${word}" → visemes: [${this.currentWordData.visemes.join(', ')}]`);
+                
+                // Start animating through the word
+                this.animateWord();
+            }
+        };
+        
+        // Start speaking
+        this.speechSynthesis.speak(this.currentUtterance);
+    }
+    
+    getVisemeForChar(char) {
+        const c = char.toLowerCase();
+        
+        // Vowels - clear mappings
+        if ('aáàâä'.includes(c)) return 'A';
+        if ('eéèêë'.includes(c)) return 'E'; 
+        if ('iíìîï'.includes(c)) return 'I';
+        if ('oóòôö'.includes(c)) return 'O';
+        if ('uúùûü'.includes(c)) return 'U';
+        
+        // Consonants with distinct mouth shapes
+        if ('pbm'.includes(c)) return 'A';  // Bilabial - lips together then open
+        if ('w'.includes(c)) return 'O';     // Rounded lips like 'oo'
+        if ('fv'.includes(c)) return 'U';    // Labiodental - teeth on lower lip
+        if ('tdnl'.includes(c)) return 'I';  // Alveolar - tongue to roof
+        if ('sz'.includes(c)) return 'E';    // Sibilant - teeth showing
+        if ('kgq'.includes(c)) return 'I';   // Velar - back of tongue
+        if ('r'.includes(c)) return 'O';     // Retroflex - rounded
+        if ('ch'.includes(c)) return 'E';    // Affricate - teeth
+        if ('sh'.includes(c)) return 'U';    // Fricative - pursed
+        if ('th'.includes(c)) return 'I';    // Dental - tongue between teeth
+        if ('y'.includes(c)) return 'E';     // Palatal - like 'ee'
+        if ('h'.includes(c)) return 'A';     // Glottal - open
+        if ('j'.includes(c)) return 'E';     // Like 'dzh'
+        if ('x'.includes(c)) return 'I';     // Like 'ks'
+        if ('c'.includes(c)) return 'I';     // Can be 'k' or 's'
+        
+        // Default neutral position
+        return 'I';
+    }
+    
+    generateCharacterMap(text) {
+        const characterMap = [];
+        
+        for (let i = 0; i < text.length; i++) {
+            characterMap[i] = this.getVisemeForChar(text[i]);
+        }
+        
+        console.log('Generated character-to-viseme map:', characterMap.length, 'characters');
+        return characterMap;
+    }
+    
+    
+    extractWordAt(text, charIndex) {
+        // Find word boundaries
+        let start = charIndex;
+        let end = charIndex;
+        
+        // Find start of word
+        while (start > 0 && !/\s/.test(text[start - 1])) {
+            start--;
+        }
+        
+        // Find end of word
+        while (end < text.length && !/\s/.test(text[end])) {
+            end++;
+        }
+        
+        return text.substring(start, end);
+    }
+    
+    animateWord() {
+        if (!this.ttsIsActive || !this.currentWordData.visemes.length) return;
+        
+        const elapsed = performance.now() - this.currentWordData.startTime;
+        const progress = Math.min(elapsed / this.currentWordData.duration, 1);
+        const charPos = Math.floor(progress * this.currentWordData.visemes.length);
+        
+        const viseme = this.currentWordData.visemes[charPos] || this.currentWordData.visemes[this.currentWordData.visemes.length - 1];
+        
+        if (viseme !== this.currentViseme) {
+            this.currentViseme = viseme;
+            if (this.onVisemeChange) {
+                this.onVisemeChange(viseme, performance.now());
+            }
+        }
+        
+        // Continue animating if word is not complete
+        if (progress < 1) {
+            requestAnimationFrame(() => this.animateWord());
+        }
+    }
+    
+    stopTTSRealTimeSync() {
+        this.ttsIsActive = false;
+        this.isProcessing = false;
+        
+        // Reset to rest state
+        this.currentViseme = 'REST';
+        if (this.onVisemeChange) {
+            this.onVisemeChange('REST', performance.now());
+        }
+        
+        console.log('TTS real-time sync stopped');
+    }
+    
+    
+    stopTTS() {
+        if (this.speechSynthesis) {
+            this.speechSynthesis.cancel();
+        }
+        this.stopTTSRealTimeSync();
+    }
+    
+    getAvailableVoices() {
+        return this.speechSynthesis.getVoices();
+    }
+    
     // Utility methods
     getLatency() {
-        return this.audioContext ? this.audioContext.baseLatency * 1000 : 0;
+        if (this.mode === 'tts') {
+            // TTS latency is primarily the browser's speech synthesis latency
+            return 50; // Estimated TTS latency
+        } else {
+            return this.audioContext ? this.audioContext.baseLatency * 1000 : 0;
+        }
     }
     
     getSampleRate() {

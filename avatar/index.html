@@ -150,8 +150,33 @@
         
         <div id="controls">
             <div class="control-group">
-                <label>Avatar Lip Sync</label>
+                <label>Input Mode</label>
+                <button id="mode-toggle">Switch to TTS Mode</button>
+            </div>
+            
+            <div class="control-group" id="mic-controls">
+                <label>Microphone Input</label>
                 <button id="start-btn">Start Microphone</button>
+            </div>
+            
+            <div class="control-group" id="tts-controls" style="display: none;">
+                <label>Text-to-Speech</label>
+                <select id="sample-text">
+                    <option value="">Select sample text...</option>
+                    <option value="demo">Technology Demo</option>
+                    <option value="story">Short Story</option>
+                    <option value="technical">Technical Explanation</option>
+                    <option value="custom">Custom Text</option>
+                </select>
+                <textarea id="custom-text" placeholder="Enter your own text to speak..." style="width: 100%; margin-top: 5px; padding: 8px; background: #2a2a2a; color: white; border: 1px solid #555; border-radius: 4px; display: none;"></textarea>
+                <div style="margin-top: 10px;">
+                    <select id="voice-select" style="margin-right: 10px; padding: 5px; background: #2a2a2a; color: white; border: 1px solid #555;">
+                        <option>Loading voices...</option>
+                    </select>
+                    <label style="display: inline; margin-right: 10px;">Rate: <input type="range" id="speech-rate" min="0.5" max="2" value="1" step="0.1" style="width: 60px;"></label>
+                    <label style="display: inline;">Pitch: <input type="range" id="speech-pitch" min="0" max="2" value="1" step="0.1" style="width: 60px;"></label>
+                </div>
+                <button id="speak-btn" style="margin-top: 10px;">Speak Text</button>
             </div>
             
             <div class="status" id="status">
@@ -164,10 +189,6 @@
         </div>
         
         <div class="debug-info" id="debug">
-            <div class="debug-item">
-                <span>WebGPU:</span>
-                <span id="webgpu-status">Checking...</span>
-            </div>
             <div class="debug-item">
                 <span>Audio:</span>
                 <span id="audio-status">Ready</span>
@@ -192,7 +213,6 @@
     </div>
 
     <!-- Three.js and dependencies -->
-    <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
     <script type="importmap">
     {
         "imports": {
