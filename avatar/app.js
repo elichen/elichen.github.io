@@ -33,6 +33,8 @@ class AvatarLipSync {
         this.currentExpressions = new Map();
         this.targetExpressions = new Map();
         this.currentActiveViseme = 'REST';
+        this.previousViseme = 'REST';
+        this.transitionProgress = 1.0; // 0 = start of transition, 1 = complete
         this.expressionSmoothingFactor = 0.35; // Fast enough for phoneme changes
         
         // Mode management
@@ -436,6 +438,12 @@ class AvatarLipSync {
     
     
     setViseme(viseme) {
+        // Track transition
+        if (viseme !== this.currentActiveViseme) {
+            this.previousViseme = this.currentActiveViseme;
+            this.transitionProgress = 0; // Start new transition
+        }
+        
         // Reset ALL expressions to prevent additive blending
         this.targetExpressions.forEach((_, name) => {
             this.targetExpressions.set(name, 0);
@@ -572,15 +580,42 @@ class AvatarLipSync {
     }
     
     updateExpressions() {
+        // Update transition progress
+        if (this.transitionProgress < 1.0) {
+            this.transitionProgress = Math.min(1.0, this.transitionProgress + this.expressionSmoothingFactor);
+        }
+        
+        // For cross-fade: during transition, scale expressions to prevent additive blending
+        const isTransitioning = this.transitionProgress < 0.95;
+        
         this.currentExpressions.forEach((current, viseme) => {
             const target = this.targetExpressions.get(viseme);
             if (target !== undefined) {
-                const smooth = current + (target - current) * this.expressionSmoothingFactor;
-                this.currentExpressions.set(viseme, smooth);
+                let finalValue = current + (target - current) * this.expressionSmoothingFactor;
+                
+                // During transitions between different visemes, apply cross-fade scaling
+                if (isTransitioning && this.previousViseme !== 'REST' && this.currentActiveViseme !== 'REST' 
+                    && this.previousViseme !== this.currentActiveViseme) {
+                    
+                    // If this is the outgoing viseme, fade it out faster
+                    if (viseme === this.previousViseme) {
+                        finalValue *= (1.0 - this.transitionProgress);
+                    }
+                    // If this is the incoming viseme, fade it in gradually
+                    else if (viseme === this.currentActiveViseme) {
+                        finalValue *= this.transitionProgress;
+                    }
+                    // All other visemes should be at 0
+                    else {
+                        finalValue *= 0.1; // Quick fade to prevent interference
+                    }
+                }
+                
+                this.currentExpressions.set(viseme, finalValue);
                 
                 const expressionName = this.expressionMapping.get(viseme);
                 if (expressionName) {
-                    this.vrm.expressionManager.setValue(expressionName, Math.max(0, smooth));
+                    this.vrm.expressionManager.setValue(expressionName, Math.max(0, finalValue));
                 }
             }
         });
