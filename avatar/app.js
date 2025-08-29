@@ -46,11 +46,6 @@ class AvatarLipSync {
         this.speakBtn = document.getElementById('speak-btn');
         this.cycleExpressionBtn = document.getElementById('cycle-expression-btn');
         this.statusEl = document.getElementById('status');
-        this.audioStatusEl = document.getElementById('audio-status');
-        this.rhubarbStatusEl = document.getElementById('rhubarb-status');
-        this.avatarStatusEl = document.getElementById('avatar-status');
-        this.latencyEl = document.getElementById('latency');
-        this.fpsEl = document.getElementById('fps');
         this.visemeEl = document.getElementById('viseme');
         
         this.init();
@@ -138,7 +133,7 @@ class AvatarLipSync {
         this.vrm.scene.position.y = 0.6;
         this.vrm.scene.rotation.y = 0;
         
-        this.avatarStatusEl.textContent = 'Loaded';
+        console.log('Avatar loaded successfully');
     }
     
     initExpressions() {
@@ -342,23 +337,12 @@ class AvatarLipSync {
             const audioLatency = this.audioProcessor.getLatency();
             const processingTime = performance.now() - processingStart;
             const totalLatency = audioLatency + processingTime;
-            
-            this.latencyEl.textContent = `${Math.round(totalLatency)} ms`;
-            
-            const latencyEl = this.latencyEl.parentElement;
-            if (totalLatency < 80) {
-                latencyEl.style.color = '#4CAF50';
-            } else if (totalLatency < 120) {
-                latencyEl.style.color = '#ff9800';
-            } else {
-                latencyEl.style.color = '#f44336';
-            }
         };
         
         this.audioProcessor.onVolumeChange = (volume) => {
         };
         
-        this.rhubarbStatusEl.textContent = 'Advanced Audio Ready';
+        console.log('Audio processor initialized');
     }
     
     setupEventListeners() {
@@ -420,7 +404,6 @@ class AvatarLipSync {
         this.speakBtn.textContent = 'Speaking...';
         this.speakBtn.disabled = true;
         this.updateStatus('Speaking text with lip sync...', 'active');
-        this.audioStatusEl.textContent = 'TTS Active';
         
         await this.audioProcessor.speakText(textToSpeak, voice, 1, 1);
         
@@ -428,7 +411,6 @@ class AvatarLipSync {
             this.speakBtn.textContent = 'Speak Text';
             this.speakBtn.disabled = false;
             this.updateStatus('TTS speech completed', 'ready');
-            this.audioStatusEl.textContent = 'Ready';
             this.visemeEl.textContent = 'REST';
         };
     }
@@ -499,7 +481,7 @@ class AvatarLipSync {
         this.frameCount++;
         if (now - this.lastFrameTime >= 1000) {
             const fps = Math.round((this.frameCount * 1000) / (now - this.lastFrameTime));
-            this.fpsEl.textContent = fps;
+            console.log(`FPS: ${fps}`);
             this.frameCount = 0;
             this.lastFrameTime = now;
         }

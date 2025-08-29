@@ -170,25 +170,11 @@
         </div>
         
         <div class="debug-info" id="debug">
-            <div class="debug-item">
-                <span>Audio:</span>
-                <span id="audio-status">Ready</span>
-            </div>
-            <div class="debug-item">
-                <span>Audio Processor:</span>
-                <span id="rhubarb-status">Loading...</span>
-            </div>
-            <div class="debug-item">
-                <span>Avatar:</span>
-                <span id="avatar-status">Loading...</span>
-            </div>
-            <div class="debug-item">
-                <span>Latency:</span>
-                <span id="latency">-- ms</span>
-            </div>
-            <div class="debug-item">
-                <span>FPS:</span>
-                <span id="fps">--</span>
+            <div style="margin-bottom: 8px; font-weight: bold;">Lip Sync Technology</div>
+            <div style="font-size: 11px; line-height: 1.3;">
+                <strong>Audio Processing:</strong> Web Speech API generates speech with onboundary events marking word boundaries. Each character maps to visemes (A,E,I,O,U) representing mouth shapes.<br><br>
+                <strong>Sync Method:</strong> Real-time word boundary events trigger viseme sequences. Characters animate over ~60ms intervals with smooth interpolation between expressions.<br><br>
+                <strong>Avatar Tech:</strong> VRM model with Three.js WebGL rendering. Expression morphs blend using weighted targets with 35ms smoothing for natural transitions.
             </div>
         </div>
     </div>
