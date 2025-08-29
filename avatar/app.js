@@ -38,26 +38,13 @@ class AvatarLipSync {
         this.expressionSmoothingFactor = 0.35; // Fast enough for phoneme changes
         
         // Mode management
-        this.currentMode = 'microphone'; // 'microphone' or 'tts'
+        this.currentMode = 'tts'; // Always TTS mode now
         
-        // Sample texts for TTS demonstration
-        this.sampleTexts = {
-            demo: "Welcome to the future of avatar technology! This real-time lip sync system uses advanced audio processing and three-dimensional rendering to create lifelike facial animations. Experience the seamless integration of artificial intelligence and interactive media.",
-            story: "Once upon a time, in a digital realm where pixels danced and code came alive, there lived a virtual avatar who could speak with the voice of anyone who gave her words. She existed between ones and zeros, yet felt as real as any breathing soul.",
-            technical: "This system leverages the Web Speech API for text-to-speech synthesis, combined with real-time frequency analysis using Fast Fourier Transform algorithms. The audio pipeline processes spectral data to classify vowel sounds into visemes, which are then mapped to facial expression morphs in the VRM avatar format."
-        };
         
         // UI elements
-        this.startBtn = document.getElementById('start-btn');
-        this.modeToggleBtn = document.getElementById('mode-toggle');
-        this.micControls = document.getElementById('mic-controls');
-        this.ttsControls = document.getElementById('tts-controls');
-        this.sampleTextSelect = document.getElementById('sample-text');
-        this.customTextArea = document.getElementById('custom-text');
-        this.voiceSelect = document.getElementById('voice-select');
-        this.speechRateSlider = document.getElementById('speech-rate');
-        this.speechPitchSlider = document.getElementById('speech-pitch');
+        this.ttsTextArea = document.getElementById('tts-text');
         this.speakBtn = document.getElementById('speak-btn');
+        this.cycleExpressionBtn = document.getElementById('cycle-expression-btn');
         this.statusEl = document.getElementById('status');
         this.audioStatusEl = document.getElementById('audio-status');
         this.rhubarbStatusEl = document.getElementById('rhubarb-status');
@@ -77,13 +64,9 @@ class AvatarLipSync {
         this.animate();
         this.isInitialized = true;
         
-        if (this.debugMode) {
-            this.updateStatus('DEBUG MODE: Press spacebar to cycle through expressions', 'ready');
-            setTimeout(() => this.nextDebugExpression(), 1000);
-        } else {
-            this.updateStatus('Ready to start', 'ready');
-        }
+        this.updateStatus('Ready to speak text', 'ready');
     }
+    
     
     
     async initThreeJS() {
@@ -350,6 +333,7 @@ class AvatarLipSync {
     
     async initAudioProcessor() {
         this.audioProcessor = new AudioProcessor();
+        this.audioProcessor.setMode('tts');
         
         this.audioProcessor.onVisemeChange = (viseme, timestamp) => {
             const processingStart = performance.now();
@@ -378,34 +362,14 @@ class AvatarLipSync {
     }
     
     setupEventListeners() {
-        this.startBtn.addEventListener('click', () => {
-            if (this.isRecording) {
-                this.stopRecording();
-            } else {
-                this.startRecording();
-            }
-        });
-        
-        // Mode toggle button
-        this.modeToggleBtn.addEventListener('click', () => {
-            this.toggleMode();
-        });
-        
-        // TTS controls
-        this.sampleTextSelect.addEventListener('change', (e) => {
-            if (e.target.value === 'custom') {
-                this.customTextArea.style.display = 'block';
-            } else {
-                this.customTextArea.style.display = 'none';
-                if (e.target.value && this.sampleTexts[e.target.value]) {
-                    this.customTextArea.value = this.sampleTexts[e.target.value];
-                }
-            }
-        });
-        
         this.speakBtn.addEventListener('click', () => {
             this.handleTTSSpeak();
         });
+        
+        this.cycleExpressionBtn.addEventListener('click', () => {
+            this.nextDebugExpression();
+        });
+        
         
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -413,28 +377,9 @@ class AvatarLipSync {
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
         
-        // Debug: Spacebar to cycle through expressions
-        window.addEventListener('keydown', (event) => {
-            if (event.code === 'Space') {
-                event.preventDefault();
-                this.nextDebugExpression();
-            }
-        });
         
-        // Initialize TTS voices
-        this.initializeTTSVoices();
     }
     
-    async startRecording() {
-        await this.audioProcessor.initialize();
-        this.audioProcessor.start();
-        
-        this.isRecording = true;
-        this.startBtn.textContent = 'Stop Microphone';
-        this.startBtn.classList.add('stop');
-        this.updateStatus('Recording and analyzing speech...', 'active');
-        this.audioStatusEl.textContent = 'Recording';
-    }
     
     
     setViseme(viseme) {
@@ -458,104 +403,26 @@ class AvatarLipSync {
         this.visemeEl.textContent = viseme;
     }
     
-    stopRecording() {
-        this.isRecording = false;
-        
-        if (this.audioProcessor) {
-            this.audioProcessor.stop();
-        }
-        
-        this.startBtn.textContent = 'Start Microphone';
-        this.startBtn.classList.remove('stop');
-        this.updateStatus('Ready to start', 'ready');
-        this.audioStatusEl.textContent = 'Ready';
-        this.visemeEl.textContent = 'REST';
-        this.latencyEl.textContent = '-- ms';
-        
-        // Reset expressions
-        this.targetExpressions.forEach((_, name) => {
-            this.targetExpressions.set(name, 0);
-        });
-        
-        console.log('Recording stopped');
-    }
     
-    toggleMode() {
-        if (this.currentMode === 'microphone') {
-            this.currentMode = 'tts';
-            this.audioProcessor.setMode('tts');
-            this.modeToggleBtn.textContent = 'Switch to Microphone';
-            this.micControls.style.display = 'none';
-            this.ttsControls.style.display = 'block';
-            this.updateStatus('TTS mode active - select text to speak', 'ready');
-        } else {
-            this.currentMode = 'microphone';
-            this.audioProcessor.setMode('microphone');
-            this.modeToggleBtn.textContent = 'Switch to TTS Mode';
-            this.micControls.style.display = 'block';
-            this.ttsControls.style.display = 'none';
-            this.updateStatus('Microphone mode active', 'ready');
-        }
-    }
     
-    initializeTTSVoices() {
-        const updateVoices = () => {
-            const voices = this.audioProcessor.getAvailableVoices();
-            this.voiceSelect.innerHTML = '';
-            
-            if (voices.length === 0) {
-                this.voiceSelect.innerHTML = '<option>No voices available</option>';
-                return;
-            }
-            
-            // Add default option
-            this.voiceSelect.innerHTML = '<option value="">Default Voice</option>';
-            
-            // Add available voices
-            voices.forEach((voice, index) => {
-                const option = document.createElement('option');
-                option.value = index;
-                option.textContent = `${voice.name} (${voice.lang})`;
-                if (voice.default) {
-                    option.textContent += ' - Default';
-                    option.selected = true;
-                }
-                this.voiceSelect.appendChild(option);
-            });
-        };
-        
-        // Initial load
-        updateVoices();
-        
-        // Some browsers need to wait for voices to load
-        if (window.speechSynthesis.onvoiceschanged !== undefined) {
-            window.speechSynthesis.onvoiceschanged = updateVoices;
-        }
-    }
     
     async handleTTSSpeak() {
-        let textToSpeak = '';
-        const selectedSample = this.sampleTextSelect.value;
+        const textToSpeak = this.ttsTextArea.value.trim();
         
-        if (selectedSample === 'custom') {
-            textToSpeak = this.customTextArea.value.trim();
-        } else if (selectedSample && this.sampleTexts[selectedSample]) {
-            textToSpeak = this.sampleTexts[selectedSample];
+        if (!textToSpeak) {
+            this.updateStatus('Please enter text to speak', 'error');
+            return;
         }
         
         const voices = this.audioProcessor.getAvailableVoices();
-        const selectedVoiceIndex = this.voiceSelect.value;
-        const voice = selectedVoiceIndex ? voices[parseInt(selectedVoiceIndex)] : null;
-        
-        const rate = parseFloat(this.speechRateSlider.value);
-        const pitch = parseFloat(this.speechPitchSlider.value);
+        const voice = voices.find(v => v.name === 'Arthur' && v.lang === 'en-GB');
         
         this.speakBtn.textContent = 'Speaking...';
         this.speakBtn.disabled = true;
         this.updateStatus('Speaking text with lip sync...', 'active');
         this.audioStatusEl.textContent = 'TTS Active';
         
-        await this.audioProcessor.speakText(textToSpeak, voice, rate, pitch);
+        await this.audioProcessor.speakText(textToSpeak, voice, 1, 1);
         
         this.audioProcessor.currentUtterance.onend = () => {
             this.speakBtn.textContent = 'Speak Text';
@@ -576,7 +443,7 @@ class AvatarLipSync {
         this.setViseme(expression);
         
         // Update UI
-        this.statusEl.textContent = `DEBUG MODE: ${expression} (Press spacebar to cycle)`;
+        this.updateStatus(`Expression: ${expression}`, 'ready');
     }
     
     updateExpressions() {
