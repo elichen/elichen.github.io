@@ -299,6 +299,7 @@ export class AudioProcessor {
             this.ttsIsActive = true;
             this.isProcessing = true;
             console.log('TTS speech started - real-time sync active');
+            console.log('Voice used:', voice ? voice.name : 'default');
         };
         
         this.currentUtterance.onend = () => {
@@ -312,6 +313,7 @@ export class AudioProcessor {
         
         // Real-time viseme sync using boundary events
         this.currentUtterance.onboundary = (event) => {
+            console.log('Boundary event:', event.name, 'at char', event.charIndex, 'elapsed:', event.elapsedTime);
             if (event.name === 'word') {
                 const word = this.extractWordAt(this.currentText, event.charIndex);
                 

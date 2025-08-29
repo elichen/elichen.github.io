@@ -150,37 +150,18 @@
         
         <div id="controls">
             <div class="control-group">
-                <label>Input Mode</label>
-                <button id="mode-toggle">Switch to TTS Mode</button>
+                <label>Text to Speak</label>
+                <textarea id="tts-text" style="width: 100%; height: 80px; margin-bottom: 10px; padding: 8px; background: #2a2a2a; color: white; border: 1px solid #555; border-radius: 4px; font-family: inherit; resize: vertical;">Hello there! I'm a speedy little hedgehog who loves to curl up into a ball and roll around the garden. My spikes might look scary, but I'm actually quite friendly. I spend my days foraging for insects and berries, and my nights exploring under the moonlight. Care to join me on an adventure through the undergrowth?</textarea>
+                <button id="speak-btn">Speak Text</button>
             </div>
             
-            <div class="control-group" id="mic-controls">
-                <label>Microphone Input</label>
-                <button id="start-btn">Start Microphone</button>
-            </div>
-            
-            <div class="control-group" id="tts-controls" style="display: none;">
-                <label>Text-to-Speech</label>
-                <select id="sample-text">
-                    <option value="">Select sample text...</option>
-                    <option value="demo">Technology Demo</option>
-                    <option value="story">Short Story</option>
-                    <option value="technical">Technical Explanation</option>
-                    <option value="custom">Custom Text</option>
-                </select>
-                <textarea id="custom-text" placeholder="Enter your own text to speak..." style="width: 100%; margin-top: 5px; padding: 8px; background: #2a2a2a; color: white; border: 1px solid #555; border-radius: 4px; display: none;"></textarea>
-                <div style="margin-top: 10px;">
-                    <select id="voice-select" style="margin-right: 10px; padding: 5px; background: #2a2a2a; color: white; border: 1px solid #555;">
-                        <option>Loading voices...</option>
-                    </select>
-                    <label style="display: inline; margin-right: 10px;">Rate: <input type="range" id="speech-rate" min="0.5" max="2" value="1" step="0.1" style="width: 60px;"></label>
-                    <label style="display: inline;">Pitch: <input type="range" id="speech-pitch" min="0" max="2" value="1" step="0.1" style="width: 60px;"></label>
-                </div>
-                <button id="speak-btn" style="margin-top: 10px;">Speak Text</button>
+            <div class="control-group">
+                <label>Expression Controls</label>
+                <button id="cycle-expression-btn">Cycle Expression</button>
             </div>
             
             <div class="status" id="status">
-                Click "Start Microphone" to begin real-time lip sync
+                Click "Speak Text" to begin text-to-speech with lip sync
             </div>
             
             <div class="viseme-display" id="viseme">
