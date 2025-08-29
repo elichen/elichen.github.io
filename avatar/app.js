@@ -267,23 +267,54 @@ class AvatarLipSync {
             return;
         }
         
-        // 4-second breathing cycle like VRoid Hub
+        // Debug: Comprehensive bone analysis
+        console.log('🔍 VRM Humanoid bone analysis:');
+        const allBoneNames = [
+            'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
+            'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand',
+            'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand',
+            'leftUpperLeg', 'leftLowerLeg', 'leftFoot',
+            'rightUpperLeg', 'rightLowerLeg', 'rightFoot'
+        ];
+        
+        const foundBones = [];
+        allBoneNames.forEach(boneName => {
+            const bone = humanoid.getNormalizedBoneNode(boneName);
+            if (bone) {
+                foundBones.push({ name: boneName, bone });
+                console.log(`  ✅ ${boneName}: "${bone.name}" (uuid: ${bone.uuid.substring(0,8)}...)`);
+            } else {
+                console.log(`  ❌ ${boneName}: Not found`);
+            }
+        });
+        
+        console.log(`📊 Found ${foundBones.length}/${allBoneNames.length} bones`);
+        
+        // Debug: Show raw humanoid structure
+        console.log('🦴 Raw humanoid mapping:', humanoid.humanBones);
+        console.log('🎯 Normalized bones available:', Object.keys(humanoid.normalizedHumanBones || {}));
+        
+        // 4-second breathing cycle with seamless looping
         const times = [0, 1, 2, 3, 4];
         const tracks = [];
+        
+        // Fixed smooth loop function for true seamless looping
+        const createSmoothLoop = (amplitude, frequency = 1, phase = 0) => {
+            return times.map(t => amplitude * Math.sin((t * frequency * 2 * Math.PI / 4) + phase));
+        };
         
         // Chest breathing animation (subtle expansion)
         const chestBone = humanoid.getNormalizedBoneNode('chest');
         if (chestBone) {
-            console.log('🫁 Adding chest breathing');
             
-            // Breathing scale animation (1.0 -> 1.01 -> 1.0)
-            const chestScale = [
-                1.0, 1.0, 1.0,    // t=0: rest
-                1.007, 1.003, 1.0, // t=1: inhale start
-                1.01, 1.005, 1.0,  // t=2: peak inhale  
-                1.005, 1.002, 1.0, // t=3: exhale
-                1.0, 1.0, 1.0      // t=4: rest
-            ];
+            // Smooth breathing with perfect loop using sine wave
+            const breathingCurve = createSmoothLoop(0.015, 1, 0); // 1.5% amplitude
+            const chestScale = [];
+            
+            for (let i = 0; i < times.length; i++) {
+                const scale = 1.0 + Math.abs(breathingCurve[i]); // Always positive for expansion
+                chestScale.push(scale, 1.0 + Math.abs(breathingCurve[i]) * 0.5, 1.0);
+            }
             
             const chestTrack = new THREE.VectorKeyframeTrack(
                 chestBone.name + '.scale',
@@ -296,17 +327,15 @@ class AvatarLipSync {
         // Spine/torso gentle sway
         const spineBone = humanoid.getNormalizedBoneNode('spine');
         if (spineBone) {
-            console.log('🦴 Adding spine sway');
             
-            // Subtle rotation for natural sway
+            // Synchronized spine sway for perfect loop
             const spineQuaternions = [];
+            const swayX = createSmoothLoop(0.01, 1, 0);           // Forward/back - base frequency
+            const swayY = createSmoothLoop(0.008, 1, Math.PI/3);  // Side sway - SAME frequency
+            const swayZ = createSmoothLoop(0.005, 1, Math.PI/6);  // Twist - SAME frequency
+            
             for (let i = 0; i < times.length; i++) {
-                const t = times[i];
-                const rotX = Math.sin(t * Math.PI * 0.5) * 0.005; // Very subtle forward/back
-                const rotY = Math.cos(t * Math.PI * 0.7) * 0.003; // Slight side sway
-                const rotZ = Math.sin(t * Math.PI * 0.3) * 0.002; // Minimal twist
-                
-                const euler = new THREE.Euler(rotX, rotY, rotZ);
+                const euler = new THREE.Euler(swayX[i], swayY[i], swayZ[i]);
                 const quat = new THREE.Quaternion().setFromEuler(euler);
                 spineQuaternions.push(quat.x, quat.y, quat.z, quat.w);
             }
@@ -319,19 +348,17 @@ class AvatarLipSync {
             tracks.push(spineTrack);
         }
         
-        // Head gentle movement
+        // Simple head breathing movement (single track to avoid conflicts)
         const headBone = humanoid.getNormalizedBoneNode('head');
         if (headBone) {
-            console.log('🗣️ Adding head movement');
             
-            // Subtle head position changes
-            const headPositions = [
-                0, 0, 0,           // t=0: center
-                0, 0.002, 0,       // t=1: slight up
-                0.001, 0.003, 0,   // t=2: peak + slight right
-                -0.001, 0.002, 0,  // t=3: slight left
-                0, 0, 0            // t=4: back to center
-            ];
+            // Use only position-based movement for smooth breathing
+            const headPosY = createSmoothLoop(0.01, 1, 0); // Simple up/down breathing movement
+            const headPositions = [];
+            
+            for (let i = 0; i < times.length; i++) {
+                headPositions.push(0, headPosY[i], 0); // Only Y movement
+            }
             
             const headPosTrack = new THREE.VectorKeyframeTrack(
                 headBone.name + '.position',
@@ -339,25 +366,102 @@ class AvatarLipSync {
                 headPositions
             );
             tracks.push(headPosTrack);
+        }
+        
+        // Add shoulder movement for more lifelike animation
+        const leftShoulder = humanoid.getNormalizedBoneNode('leftShoulder');
+        const rightShoulder = humanoid.getNormalizedBoneNode('rightShoulder');
+        
+        if (leftShoulder && rightShoulder) {
             
-            // Subtle head rotation
-            const headQuaternions = [];
+            // Left shoulder quaternions (slight rise and fall)
+            const leftShoulderQuats = [];
+            const rightShoulderQuats = [];
+            
             for (let i = 0; i < times.length; i++) {
                 const t = times[i];
-                const rotX = Math.sin(t * Math.PI * 0.6) * 0.003; // Gentle nod
-                const rotY = Math.cos(t * Math.PI * 0.4) * 0.002; // Slight turn
+                // Shoulders move opposite to each other for natural asymmetry
+                const leftRotZ = Math.sin(t * Math.PI * 0.5 + Math.PI * 0.2) * 0.01; // Slight roll
+                const rightRotZ = Math.sin(t * Math.PI * 0.5 - Math.PI * 0.2) * 0.01; // Opposite
                 
-                const euler = new THREE.Euler(rotX, rotY, 0);
-                const quat = new THREE.Quaternion().setFromEuler(euler);
-                headQuaternions.push(quat.x, quat.y, quat.z, quat.w);
+                const leftEuler = new THREE.Euler(0, 0, leftRotZ);
+                const rightEuler = new THREE.Euler(0, 0, rightRotZ);
+                
+                const leftQuat = new THREE.Quaternion().setFromEuler(leftEuler);
+                const rightQuat = new THREE.Quaternion().setFromEuler(rightEuler);
+                
+                leftShoulderQuats.push(leftQuat.x, leftQuat.y, leftQuat.z, leftQuat.w);
+                rightShoulderQuats.push(rightQuat.x, rightQuat.y, rightQuat.z, rightQuat.w);
             }
             
-            const headRotTrack = new THREE.QuaternionKeyframeTrack(
-                headBone.name + '.quaternion',
+            const leftShoulderTrack = new THREE.QuaternionKeyframeTrack(
+                leftShoulder.name + '.quaternion',
                 times,
-                headQuaternions
+                leftShoulderQuats
             );
-            tracks.push(headRotTrack);
+            
+            const rightShoulderTrack = new THREE.QuaternionKeyframeTrack(
+                rightShoulder.name + '.quaternion',
+                times,
+                rightShoulderQuats
+            );
+            
+            tracks.push(leftShoulderTrack, rightShoulderTrack);
+        }
+        
+        // Natural arm positioning (fix T-pose)
+        const leftUpperArm = humanoid.getNormalizedBoneNode('leftUpperArm');
+        const rightUpperArm = humanoid.getNormalizedBoneNode('rightUpperArm');
+        
+        if (leftUpperArm && rightUpperArm) {
+            
+            // Arms hang naturally at sides with slight breathing movement
+            const leftArmQuats = [];
+            const rightArmQuats = [];
+            
+            for (let i = 0; i < times.length; i++) {
+                const t = times[i];
+                
+                // Base pose: arms hanging straight down  
+                const baseRotX = 0.3; // More forward rotation 
+                const baseRotZ_left = 1.2; // Much stronger downward rotation for left arm
+                const baseRotZ_right = -1.2; // Much stronger downward rotation for right arm
+                
+                // Add subtle breathing movement
+                const breathingOffset = Math.sin(t * Math.PI * 0.5) * 0.02;
+                
+                const leftEuler = new THREE.Euler(
+                    baseRotX + breathingOffset * 0.5,
+                    0, 
+                    baseRotZ_left + breathingOffset
+                );
+                
+                const rightEuler = new THREE.Euler(
+                    baseRotX + breathingOffset * 0.5,
+                    0,
+                    baseRotZ_right - breathingOffset
+                );
+                
+                const leftQuat = new THREE.Quaternion().setFromEuler(leftEuler);
+                const rightQuat = new THREE.Quaternion().setFromEuler(rightEuler);
+                
+                leftArmQuats.push(leftQuat.x, leftQuat.y, leftQuat.z, leftQuat.w);
+                rightArmQuats.push(rightQuat.x, rightQuat.y, rightQuat.z, rightQuat.w);
+            }
+            
+            const leftArmTrack = new THREE.QuaternionKeyframeTrack(
+                leftUpperArm.name + '.quaternion',
+                times,
+                leftArmQuats
+            );
+            
+            const rightArmTrack = new THREE.QuaternionKeyframeTrack(
+                rightUpperArm.name + '.quaternion',
+                times,
+                rightArmQuats
+            );
+            
+            tracks.push(leftArmTrack, rightArmTrack);
         }
         
         if (tracks.length > 0) {
@@ -366,7 +470,8 @@ class AvatarLipSync {
             action.loop = THREE.LoopRepeat;
             action.play();
             
-            console.log(`✅ Idle animation created with ${tracks.length} tracks`);
+            console.log('Idle animation started');
+            
         } else {
             console.log('❌ No suitable bones found for idle animation');
         }
@@ -462,8 +567,6 @@ class AvatarLipSync {
     
     
     setViseme(viseme) {
-        console.log(`Setting viseme: ${viseme}`);
-        
         // Reset all expressions
         this.targetExpressions.forEach((_, name) => {
             this.targetExpressions.set(name, 0);
@@ -472,14 +575,7 @@ class AvatarLipSync {
         // Set target expression based on viseme using our mapped system
         if (viseme !== 'REST') {
             this.targetExpressions.set(viseme, 2.0); // Amplify for more visible expression
-            console.log(`Set target for ${viseme} to 2.0 (amplified)`);
         }
-        
-        // Debug: Show current target state
-        console.log('Current target expressions:');
-        this.targetExpressions.forEach((value, key) => {
-            if (value > 0) console.log(`  ${key}: ${value}`);
-        });
         
         // Update UI
         this.visemeEl.textContent = viseme;
@@ -562,23 +658,11 @@ class AvatarLipSync {
                 this.vrm.expressionManager.setValue(expressionName, smooth);
                 hasActiveExpression = true;
                 
-                // Debug logging for active expressions (reduced verbosity)
-                if (smooth > 0.5 && this.debugFrameCounter % 10 === 0) {
-                    console.log(`👄 ${expressionName}: ${smooth.toFixed(2)}`);
-                }
             }
         });
         
         // Update expression manager
         this.vrm.expressionManager.update();
-        
-        // Debug frame counter to limit log spam
-        if (!this.debugFrameCounter) this.debugFrameCounter = 0;
-        this.debugFrameCounter++;
-        
-        if (hasActiveExpression && this.debugFrameCounter % 30 === 0) {
-            console.log('Expression update cycle complete');
-        }
     }
     
     animate() {
