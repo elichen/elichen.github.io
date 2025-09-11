@@ -1,8 +1,8 @@
-# Context Management: From Netflix Engineers to AI Agents
+# Context Management
 
 ## The Core Thesis
 
-After fifteen years in engineering management, I've discovered that the principles I learned managing humans at Netflix apply remarkably well to managing AI agents. The philosophy that made Netflix engineering culture legendary—"context, not control"—turns out to be exactly what's needed to unlock massive productivity gains from frontier AI models.
+After fifteen years in engineering management, I've discovered that the principles I learned managing humans at Netflix apply remarkably well to managing AI agents. The philosophy that made Netflix engineering culture influential—"context, not control"—turns out to be exactly what's needed to unlock massive productivity gains from frontier AI models.
 
 The goal here is simple: extract maximum productivity from AI. If you want maximum control, you can always write the code yourself. But if you want to compress weeks of work into hours, you need to master context management for these alien intelligences that think differently than we do.
 
@@ -50,7 +50,7 @@ Good AI agents, like good engineers, excel at "filling in the white space." They
 
 ## Alignment and Milestones
 
-The best agents—whether AI or human—can execute from initial context to completed implementation in a single shot when properly aligned. This single-shot execution is the holy grail of productivity: set context once, get working implementation without further intervention.
+The best agents—whether AI or human—can execute from initial context to completed implementation in a single shot when properly aligned. This single-shot execution is the goal of productivity: set context once, get working implementation without further intervention.
 
 But even great alignments sometimes hide issues that only become apparent during implementation. For larger projects, setting alignment milestones helps catch surprises early and provides natural realignment points.
 
