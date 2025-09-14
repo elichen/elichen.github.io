@@ -65,120 +65,138 @@
         camera.position.set(0, 3, 10); camera.lookAt(0, 0, 0);
 
         const createAnt = () => {
-            const antGroup = new THREE.Object3D();
-            const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x7A4426, shininess: 20 });
+            const antGroup = new THREE.Group();
+            const bodyMat = new THREE.MeshPhongMaterial({ color: 0x7A4426, shininess: 40 });
+            const legMat = new THREE.MeshPhongMaterial({ color: 0x5C3317, shininess: 20 });
             
-            // Scale down body parts by half
-            const thoraxGeometry = new THREE.SphereGeometry(0.04, 16, 12);
-            const thorax = new THREE.Mesh(thoraxGeometry, bodyMaterial);
-            thorax.scale.set(1, 0.8, 1.2); thorax.castShadow = true;
+            // Body - scaled down by half from sphere
+            const thorax = new THREE.Mesh(new THREE.SphereGeometry(0.04, 20, 16), bodyMat);
+            thorax.scale.set(1, 0.8, 1.2);
+            thorax.castShadow = true;
             antGroup.add(thorax);
 
-            const abdomenGeometry = new THREE.SphereGeometry(0.05, 16, 12);
-            const abdomen = new THREE.Mesh(abdomenGeometry, bodyMaterial);
-            abdomen.scale.set(1, 0.8, 1.4); abdomen.position.set(0, 0, -0.1); abdomen.castShadow = true;
+            const abdomen = new THREE.Mesh(new THREE.SphereGeometry(0.05, 20, 16), bodyMat);
+            abdomen.scale.set(1, 0.8, 1.4);
+            abdomen.position.set(0, 0, -0.1);
+            abdomen.castShadow = true;
             antGroup.add(abdomen);
 
-            const headGeometry = new THREE.SphereGeometry(0.03, 12, 10);
-            const head = new THREE.Mesh(headGeometry, bodyMaterial);
-            head.position.set(0, 0, 0.075); head.castShadow = true;
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), bodyMat);
+            head.position.set(0, 0, 0.075);
+            head.castShadow = true;
             antGroup.add(head);
             
-            // Scale down antennae by half
-            const antennaGeometry = new THREE.CylinderGeometry(0.0025, 0.001, 0.075, 6);
-            const antennaMaterial = new THREE.MeshPhongMaterial({ color: 0x5C3317 });
-            for (let i = 0; i < 2; i++) {
-                const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
-                const side = i === 0 ? -1 : 1;
-                antenna.position.set(side * 0.015, 0.0125, 0.05);
-                antenna.rotation.x = -Math.PI / 3;
-                antenna.rotation.z = side * Math.PI / 6;
-                antenna.castShadow = true;
-                head.add(antenna);
+            // Antennae (base pivot so attachment stays correct) - scaled down by half
+            const antennaLength = 0.075;
+            const antennaGeom = new THREE.CylinderGeometry(0.001, 0.0025, antennaLength, 8);
+            const antennaMat = new THREE.MeshPhongMaterial({ color: 0x5C3317 });
+            for (let i=0; i<2; i++) {
+                const side = i===0 ? -1 : 1; // -1 = left, +1 = right
+                const root = new THREE.Group();
+                root.position.set(side*0.015, 0.01, 0.0275);
+                root.rotation.x = Math.PI/3;        // tilt forward (+Z)
+                root.rotation.z = -side*Math.PI/6;  // splay outward
+                head.add(root);
+
+                const ant = new THREE.Mesh(antennaGeom, antennaMat);
+                ant.castShadow = true;
+                ant.position.y = antennaLength/2;   // extend from base
+                root.add(ant);
             }
             
+            // Leg rig (consistent axes):
+            // - legRoot: yaw around Y
+            // - coxaPivot: fixed outward splay around Y
+            // - femurPivot: rotate around Z in XY plane
+            // - tibiaPivot: rotate around Z in XY plane
             const legs = [];
-            const legMaterial = new THREE.MeshPhongMaterial({ color: 0x5C3317 });
-            // Scale down leg positions by half
             const legPositions = [
-                [ 0.03, 0.00,  0.025, 1, false], [ 0.03, 0.00,  0.00, 1, false], [ 0.03, 0.00, -0.025, 1, true],
-                [-0.03, 0.00,  0.025, -1, false],[-0.03, 0.00,  0.00, -1, false],[-0.03, 0.00, -0.025, -1, true]
+                [ 0.03, 0.00,  0.025,  1],
+                [ 0.03, 0.00,  0.00,   1],
+                [ 0.03, 0.00, -0.025,  1],
+                [-0.03, 0.00,  0.025, -1],
+                [-0.03, 0.00,  0.00,  -1],
+                [-0.03, 0.00, -0.025, -1],
             ];
-            
-            // Improved tripod gait phase offsets
-            const getTripodPhaseOffset = (index) => {
-                // Tripod A: legs 0, 2, 4 (right front, left middle, right back)
-                // Tripod B: legs 1, 3, 5 (right middle, left front, left back)
-                const tripodA = [0, 2, 4];
-                return tripodA.includes(index) ? 0 : 0.5;
-            };
 
-            legPositions.forEach((posData, index) => {
-                const legRootGroup = new THREE.Group(); 
-                legRootGroup.position.set(posData[0], posData[1], posData[2]);
-                thorax.add(legRootGroup);
+            legPositions.forEach((p, index) => {
+                const [px, py, pz, side] = p;
 
-                // Improved leg orientation
+                const legRoot = new THREE.Group();
+                legRoot.position.set(px, py, pz);
+                thorax.add(legRoot);
+
                 const coxaPivot = new THREE.Group();
-                // Angle legs outward naturally
-                coxaPivot.rotation.y = posData[3] > 0 ? -Math.PI/6 : Math.PI/6;
-                legRootGroup.add(coxaPivot);
+                // Orient by row: front forward, middle sideways, rear backward with slight outward splay
+                const splayMag = Math.PI/8;
+                const isFront = pz > 0.001;
+                const isBack  = pz < -0.001;
+                let baseYaw;
+                if (isFront) {
+                    baseYaw = -Math.PI/2 + side * splayMag; // face +Z
+                } else if (isBack) {
+                    baseYaw =  Math.PI/2 - side * splayMag; // face -Z
+                } else {
+                    baseYaw = side > 0 ? 0 : Math.PI;       // sideways outward
+                }
+                coxaPivot.rotation.y = baseYaw;
+                legRoot.add(coxaPivot);
 
-                // Scale down leg segment sizes by half
-                const coxaMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.005,COXA_LENGTH,8), legMaterial);
-                coxaMesh.castShadow = true;
-                coxaMesh.rotation.z = Math.PI/2; // Horizontal segment
-                coxaMesh.position.x = COXA_LENGTH/2;
-                coxaPivot.add(coxaMesh);
+                const coxa = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.005, COXA_LENGTH, 8), legMat);
+                coxa.rotation.z = -Math.PI/2; // along +X
+                coxa.position.x = COXA_LENGTH/2;
+                coxa.castShadow = true;
+                coxaPivot.add(coxa);
 
-                const femurPivotGroup = new THREE.Group();
-                femurPivotGroup.position.x = COXA_LENGTH;
-                // Initial downward angle for femur
-                femurPivotGroup.rotation.x = Math.PI * 0.2 * posData[3];
-                coxaPivot.add(femurPivotGroup);
+                const femurPivot = new THREE.Group();
+                femurPivot.position.x = COXA_LENGTH;
+                coxaPivot.add(femurPivot);
 
-                const femurMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.0045,0.0035,FEMUR_LENGTH,8), legMaterial);
-                femurMesh.castShadow = true;
-                femurMesh.position.y = -FEMUR_LENGTH/2;
-                femurPivotGroup.add(femurMesh);
+                const femur = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0035, FEMUR_LENGTH, 8), legMat);
+                femur.rotation.z = -Math.PI/2; // along +X
+                femur.position.x = FEMUR_LENGTH/2;
+                femur.castShadow = true;
+                femurPivot.add(femur);
 
-                const tibiaPivotGroup = new THREE.Group();
-                tibiaPivotGroup.position.y = -FEMUR_LENGTH;
-                // Initial angle for tibia
-                tibiaPivotGroup.rotation.x = Math.PI * 0.3 * posData[3];
-                femurPivotGroup.add(tibiaPivotGroup);
+                const tibiaPivot = new THREE.Group();
+                tibiaPivot.position.x = FEMUR_LENGTH;
+                femurPivot.add(tibiaPivot);
 
-                const tibiaMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.0035,0.002,TIBIA_LENGTH,8), legMaterial);
-                tibiaMesh.castShadow = true; 
-                tibiaMesh.position.y = -TIBIA_LENGTH/2;
-                tibiaPivotGroup.add(tibiaMesh);
-                
+                const tibia = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.002, TIBIA_LENGTH, 8), legMat);
+                tibia.rotation.z = -Math.PI/2; // along +X
+                tibia.position.x = TIBIA_LENGTH/2;
+                tibia.castShadow = true;
+                tibiaPivot.add(tibia);
+
+                // Neutral, comfortable pose to match static model
+                femurPivot.rotation.z = -0.9;
+                tibiaPivot.rotation.z = 0.8;
+                // Get tripod phase offset
+                const phaseOffset = tripodA.has(index) ? 0 : 0.5;
+
                 // Refined deltaU multipliers
                 let du_multiplier = 1.0; // Default for middle
-                if (posData[2] > 0) du_multiplier = 0.8; // Front legs less splayed
-                else if (posData[2] < 0) du_multiplier = 0.9; // Rear legs
+                if (pz > 0) du_multiplier = 0.8; // Front legs less splayed
+                else if (pz < 0) du_multiplier = 0.9; // Rear legs
 
                 legs.push({
-                    legRootGroup, femurPivotGroup, tibiaPivotGroup, 
-                    coxaMesh, femurMesh, tibiaMesh, 
-                    plantedT: new THREE.Vector3(), 
-                    phaseOffset: getTripodPhaseOffset(index),
-                    side: posData[3], 
-                    isRear: posData[4],
+                    index, side, legRoot, coxaPivot, femurPivot, tibiaPivot,
+                    plantedT: new THREE.Vector3(),
+                    phaseOffset: phaseOffset,
+                    isRear: pz < -0.001,
                     // Foot placement offsets relative to body
-                    deltaU: 0.035 * posData[3] * du_multiplier,
-                    deltaV: 0.03 * (posData[2] > 0 ? 1.0 : posData[2] < 0 ? -1.0 : (index % 2 === 0 ? 0.25 : -0.25)),
+                    deltaU: 0.035 * side * du_multiplier,
+                    deltaV: 0.03 * (pz > 0 ? 1.0 : pz < 0 ? -1.0 : (index % 2 === 0 ? 0.25 : -0.25)),
                     lastPhase: 0,
                     currentTarget: new THREE.Vector3(),
                     swingStartPos: new THREE.Vector3(),
                     initialized: false,
                 });
             });
-            
-            return { antGroup, thorax, abdomen, head, legs };
+            return { antGroup, thorax, legs };
         };
         
-        const { antGroup, thorax, abdomen, head, legs } = createAnt();
+        const { antGroup, thorax, legs } = createAnt();
         scene.add(antGroup);
 
         // Match sphere implementation timing
@@ -435,42 +453,10 @@
                         }
                     }
                 }
-                
-                // Smooth angle transitions
-                leg.lastFemurAngle = leg.lastFemurAngle || femurAngle;
-                leg.lastTibiaAngle = leg.lastTibiaAngle || tibiaAngle;
-                
-                const angleBlendFactor = 0.2;
-                femurAngle = leg.lastFemurAngle + (femurAngle - leg.lastFemurAngle) * angleBlendFactor;
-                tibiaAngle = leg.lastTibiaAngle + (tibiaAngle - leg.lastTibiaAngle) * angleBlendFactor;
-                
-                leg.lastFemurAngle = femurAngle;
-                leg.lastTibiaAngle = tibiaAngle;
-                
-                // Improved joint limits with proper mirroring
-                const smoothClamp = (value, min, max) => {
-                    if (value < min) return min + (value - min) * 0.1;
-                    if (value > max) return max + (value - max) * 0.1;
-                    return value;
-                };
-                
-                // Femur limits
-                const femur_abs_min = Math.PI * 0.1;
-                const femur_abs_max = Math.PI * 0.7;
-                const femur_min = leg.side > 0 ? -femur_abs_min : -femur_abs_max;
-                const femur_max = leg.side > 0 ? femur_abs_max : femur_abs_min;
-                const applied_femur = smoothClamp(femurAngle, femur_min, femur_max);
-                
-                // Tibia limits
-                const tibia_abs_min = 0;
-                const tibia_abs_max = Math.PI * 0.9;
-                const tibia_min = leg.side > 0 ? tibia_abs_min : -tibia_abs_max;
-                const tibia_max = leg.side > 0 ? tibia_abs_max : tibia_abs_min;
-                const applied_tibia = smoothClamp(tibiaAngle, tibia_min, tibia_max);
-                
-                // Apply rotations
-                leg.femurPivotGroup.rotation.x = applied_femur;
-                leg.tibiaPivotGroup.rotation.x = applied_tibia;
+
+                // Apply rotations directly (sphere doesn't do smoothing here)
+                leg.femurPivot.rotation.z = femurAngle;
+                leg.tibiaPivot.rotation.z = tibiaAngle;
 
                 // Log foot positions periodically
                 if (LOG_WALK && FRAME_NO === 1) {
