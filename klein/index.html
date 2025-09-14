@@ -64,6 +64,9 @@
 
         camera.position.set(0, 3, 10); camera.lookAt(0, 0, 0);
 
+        // Tripod gait groups (needed before createAnt)
+        const tripodA = new Set([0, 2, 4]); // Right front, right back, left middle
+
         const createAnt = () => {
             const antGroup = new THREE.Group();
             const bodyMat = new THREE.MeshPhongMaterial({ color: 0x7A4426, shininess: 40 });
@@ -193,10 +196,10 @@
                     initialized: false,
                 });
             });
-            return { antGroup, thorax, legs };
+            return { antGroup, thorax, abdomen, head, legs };
         };
         
-        const { antGroup, thorax, legs } = createAnt();
+        const { antGroup, thorax, abdomen, head, legs } = createAnt();
         scene.add(antGroup);
 
         // Match sphere implementation timing
@@ -246,9 +249,6 @@
         const LOG_WALK = true;
         const LOG_EVERY = 20; // Same as sphere
         let t0 = performance.now() / 1000; // Track actual time like sphere
-
-        // Tripod gait groups (same as sphere)
-        const tripodA = new Set([0, 2, 4]); // Right front, right back, left middle
         const tempMatrix = new THREE.Matrix4(); 
         const worldToLocalMatrix = new THREE.Matrix4();
         
@@ -294,12 +294,7 @@
             tempMatrix.lookAt(_vec.antOffsetPos, _vec.lookAtTarget, _vec.N);
             antGroup.quaternion.setFromRotationMatrix(tempMatrix);
             
-            const bob = Math.sin(time * 0.003) * 0.005;
-            thorax.position.y = bob; 
-            abdomen.position.y = bob * 0.8;
-            thorax.rotation.x = Math.sin(time*0.006)*0.04; 
-            abdomen.rotation.x = Math.sin(time*0.006+0.5)*0.05;
-            head.rotation.y = Math.sin(time*0.004)*0.1;
+            // No body animations - sphere implementation doesn't have these
 
             thorax.updateMatrixWorld(true);
             worldToLocalMatrix.copy(thorax.matrixWorld).invert();
@@ -461,10 +456,10 @@
                 // Log foot positions periodically
                 if (LOG_WALK && FRAME_NO === 1) {
                     // Calculate actual foot tip position
-                    leg.tibiaPivotGroup.updateMatrixWorld(true);
-                    const tipLocal = new THREE.Vector3(0, -TIBIA_LENGTH/2, 0);
+                    leg.tibiaPivot.updateMatrixWorld(true);
+                    const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0); // X-axis aligned
                     const tipWorld = tipLocal.clone();
-                    leg.tibiaPivotGroup.localToWorld(tipWorld);
+                    leg.tibiaPivot.localToWorld(tipWorld);
 
                     // Calculate distance from foot to surface
                     const footToSurface = tipWorld.distanceTo(_vec.footTargetSurface);
@@ -488,12 +483,12 @@
             // Periodic detailed logging during stance
             if (LOG_WALK && (FRAME_NO % LOG_EVERY === 0)) {
                 legs.forEach((leg, i) => {
-                    const phase = (time / period + leg.phaseOffset) % 1;
+                    const phase = ((t * 1000) / period + leg.phaseOffset) % 1;
                     if (phase < 0.5) { // Only log during stance
-                        leg.tibiaPivotGroup.updateMatrixWorld(true);
-                        const tipLocal = new THREE.Vector3(0, -TIBIA_LENGTH/2, 0);
+                        leg.tibiaPivot.updateMatrixWorld(true);
+                        const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0); // X-axis aligned
                         const tipWorld = tipLocal.clone();
-                        leg.tibiaPivotGroup.localToWorld(tipWorld);
+                        leg.tibiaPivot.localToWorld(tipWorld);
 
                         const delta = tipWorld.clone().sub(leg.plantedT);
                         console.log(JSON.stringify({
