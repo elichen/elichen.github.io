@@ -15,9 +15,10 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
     <script>
         // --- Constants ---
-        const COXA_LENGTH = 0.06;
-        const FEMUR_LENGTH = 0.12;
-        const TIBIA_LENGTH = 0.18;
+        // Scale down by half for better proportions on Klein bottle
+        const COXA_LENGTH = 0.03;
+        const FEMUR_LENGTH = 0.06;
+        const TIBIA_LENGTH = 0.09;
 
         // Scene setup
         const scene = new THREE.Scene();
@@ -67,28 +68,30 @@
             const antGroup = new THREE.Object3D();
             const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x7A4426, shininess: 20 });
             
-            const thoraxGeometry = new THREE.SphereGeometry(0.08, 16, 12);
+            // Scale down body parts by half
+            const thoraxGeometry = new THREE.SphereGeometry(0.04, 16, 12);
             const thorax = new THREE.Mesh(thoraxGeometry, bodyMaterial);
             thorax.scale.set(1, 0.8, 1.2); thorax.castShadow = true;
             antGroup.add(thorax);
-            
-            const abdomenGeometry = new THREE.SphereGeometry(0.1, 16, 12);
+
+            const abdomenGeometry = new THREE.SphereGeometry(0.05, 16, 12);
             const abdomen = new THREE.Mesh(abdomenGeometry, bodyMaterial);
-            abdomen.scale.set(1, 0.8, 1.4); abdomen.position.set(0, 0, -0.2); abdomen.castShadow = true;
+            abdomen.scale.set(1, 0.8, 1.4); abdomen.position.set(0, 0, -0.1); abdomen.castShadow = true;
             antGroup.add(abdomen);
-            
-            const headGeometry = new THREE.SphereGeometry(0.06, 12, 10);
+
+            const headGeometry = new THREE.SphereGeometry(0.03, 12, 10);
             const head = new THREE.Mesh(headGeometry, bodyMaterial);
-            head.position.set(0, 0, 0.15); head.castShadow = true;
+            head.position.set(0, 0, 0.075); head.castShadow = true;
             antGroup.add(head);
             
-            const antennaGeometry = new THREE.CylinderGeometry(0.005, 0.002, 0.15, 6);
+            // Scale down antennae by half
+            const antennaGeometry = new THREE.CylinderGeometry(0.0025, 0.001, 0.075, 6);
             const antennaMaterial = new THREE.MeshPhongMaterial({ color: 0x5C3317 });
             for (let i = 0; i < 2; i++) {
                 const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
                 const side = i === 0 ? -1 : 1;
-                antenna.position.set(side * 0.03, 0.025, 0.10); 
-                antenna.rotation.x = -Math.PI / 3; 
+                antenna.position.set(side * 0.015, 0.0125, 0.05);
+                antenna.rotation.x = -Math.PI / 3;
                 antenna.rotation.z = side * Math.PI / 6;
                 antenna.castShadow = true;
                 head.add(antenna);
@@ -96,9 +99,10 @@
             
             const legs = [];
             const legMaterial = new THREE.MeshPhongMaterial({ color: 0x5C3317 });
+            // Scale down leg positions by half
             const legPositions = [
-                [ 0.06, 0.00,  0.05, 1, false], [ 0.06, 0.00,  0.00, 1, false], [ 0.06, 0.00, -0.05, 1, true],
-                [-0.06, 0.00,  0.05, -1, false],[-0.06, 0.00,  0.00, -1, false],[-0.06, 0.00, -0.05, -1, true]
+                [ 0.03, 0.00,  0.025, 1, false], [ 0.03, 0.00,  0.00, 1, false], [ 0.03, 0.00, -0.025, 1, true],
+                [-0.03, 0.00,  0.025, -1, false],[-0.03, 0.00,  0.00, -1, false],[-0.03, 0.00, -0.025, -1, true]
             ];
             
             // Improved tripod gait phase offsets
@@ -120,8 +124,9 @@
                 coxaPivot.rotation.y = posData[3] > 0 ? -Math.PI/6 : Math.PI/6;
                 legRootGroup.add(coxaPivot);
 
-                const coxaMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.01,COXA_LENGTH,8), legMaterial);
-                coxaMesh.castShadow = true; 
+                // Scale down leg segment sizes by half
+                const coxaMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.005,COXA_LENGTH,8), legMaterial);
+                coxaMesh.castShadow = true;
                 coxaMesh.rotation.z = Math.PI/2; // Horizontal segment
                 coxaMesh.position.x = COXA_LENGTH/2;
                 coxaPivot.add(coxaMesh);
@@ -132,8 +137,8 @@
                 femurPivotGroup.rotation.x = Math.PI * 0.2 * posData[3];
                 coxaPivot.add(femurPivotGroup);
 
-                const femurMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.007,FEMUR_LENGTH,8), legMaterial);
-                femurMesh.castShadow = true; 
+                const femurMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.0045,0.0035,FEMUR_LENGTH,8), legMaterial);
+                femurMesh.castShadow = true;
                 femurMesh.position.y = -FEMUR_LENGTH/2;
                 femurPivotGroup.add(femurMesh);
 
@@ -143,7 +148,7 @@
                 tibiaPivotGroup.rotation.x = Math.PI * 0.3 * posData[3];
                 femurPivotGroup.add(tibiaPivotGroup);
 
-                const tibiaMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.004,TIBIA_LENGTH,8), legMaterial);
+                const tibiaMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.0035,0.002,TIBIA_LENGTH,8), legMaterial);
                 tibiaMesh.castShadow = true; 
                 tibiaMesh.position.y = -TIBIA_LENGTH/2;
                 tibiaPivotGroup.add(tibiaMesh);
@@ -160,8 +165,9 @@
                     phaseOffset: getTripodPhaseOffset(index),
                     side: posData[3], 
                     isRear: posData[4],
-                    deltaU: 0.045 * posData[3] * du_multiplier,
-                    deltaV: 0.04 * (posData[2] > 0 ? 1.0 : posData[2] < 0 ? -1.0 : (index % 2 === 0 ? 0.25 : -0.25)),
+                    // Foot placement offsets relative to body
+                    deltaU: 0.035 * posData[3] * du_multiplier,
+                    deltaV: 0.03 * (posData[2] > 0 ? 1.0 : posData[2] < 0 ? -1.0 : (index % 2 === 0 ? 0.25 : -0.25)),
                     lastPhase: 0,
                     currentTarget: new THREE.Vector3(),
                     swingStartPos: new THREE.Vector3(),
@@ -175,13 +181,30 @@
         const { antGroup, thorax, abdomen, head, legs } = createAnt();
         scene.add(antGroup);
 
-        const speed = 0.00009; 
-        const period = 3200; 
-        const h_max = 0.065; 
-        const epsilon = 0.0001; 
-        const BODY_HEIGHT = 0.20; 
-        const BODY_OFFSET = BODY_HEIGHT / 2;
-        const FOOT_SURFACE_OFFSET = 0.02; // Increased to prevent penetration
+        // Match sphere implementation timing
+        const bodySpeed = 0.04; // Same as sphere
+        const period = 2400; // Same as sphere (2.4 seconds)
+        const STEP_HEIGHT = 0.02; // Scaled down by half from sphere's 0.04
+        const STEP_LENGTH = 0.04; // Scaled down by half from sphere's 0.08
+        const epsilon = 0.0001;
+        // Calculate proper body clearance based on leg dimensions
+        // For the scaled-down ant, we need much less clearance
+        const FEMUR_ANGLE_NEUTRAL = -0.9; // Downward angle
+        const TIBIA_ANGLE_NEUTRAL = 0.8;  // Knee bend
+        // Calculate vertical reach when legs are in neutral position
+        const VERTICAL_REACH = FEMUR_LENGTH * Math.sin(FEMUR_ANGLE_NEUTRAL) +
+                              TIBIA_LENGTH * Math.sin(FEMUR_ANGLE_NEUTRAL + TIBIA_ANGLE_NEUTRAL);
+        // Body should be positioned so legs can reach the surface
+        const BODY_OFFSET = Math.abs(VERTICAL_REACH); // Use the actual vertical reach
+        const FOOT_SURFACE_OFFSET = 0.0; // Start with feet exactly on surface
+
+        // Debug: Log scaled dimensions
+        console.log('Scaled ant dimensions:');
+        console.log('  COXA_LENGTH:', COXA_LENGTH);
+        console.log('  FEMUR_LENGTH:', FEMUR_LENGTH);
+        console.log('  TIBIA_LENGTH:', TIBIA_LENGTH);
+        console.log('  Total reach:', COXA_LENGTH + FEMUR_LENGTH + TIBIA_LENGTH);
+        console.log('  Calculated BODY_OFFSET:', BODY_OFFSET);
         const PHASE_BLEND_DURATION = 0.1;
 
         const _vec = {
@@ -189,16 +212,25 @@
             du: new THREE.Vector3(), dv: new THREE.Vector3(), N: new THREE.Vector3(), F: new THREE.Vector3(),
             antOffsetPos: new THREE.Vector3(), lookAtTarget: new THREE.Vector3(),
             footTargetSurface: new THREE.Vector3(), normalAtFootTarget: new THREE.Vector3(),
-            correctedFootNormal: new THREE.Vector3(), 
+            correctedFootNormal: new THREE.Vector3(),
             swingStartWorld: new THREE.Vector3(),
             swingLerpBase: new THREE.Vector3(),
-            finalFootTargetWorld: new THREE.Vector3(), 
+            finalFootTargetWorld: new THREE.Vector3(),
             targetInThorax: new THREE.Vector3(), targetRelToLegRoot: new THREE.Vector3(),
             targetInYawedLegRoot: new THREE.Vector3(),
             Y_AXIS: new THREE.Vector3(0,1,0), Z_AXIS: new THREE.Vector3(0,0,1),
             tempQuat: new THREE.Quaternion(),
             temp1: new THREE.Vector3(), temp2: new THREE.Vector3()
         };
+
+        // Variables for logging
+        let FRAME_NO = 0;
+        const LOG_WALK = true;
+        const LOG_EVERY = 20; // Same as sphere
+        let t0 = performance.now() / 1000; // Track actual time like sphere
+
+        // Tripod gait groups (same as sphere)
+        const tripodA = new Set([0, 2, 4]); // Right front, right back, left middle
         const tempMatrix = new THREE.Matrix4(); 
         const worldToLocalMatrix = new THREE.Matrix4();
         
@@ -221,16 +253,23 @@
         function animate(time) {
             requestAnimationFrame(animate);
             controls.update();
+            FRAME_NO++;
 
-            const t = time * speed;
-            const u_body = t % (2 * Math.PI); 
-            const v_body = t % (2 * Math.PI);
+            // Use actual time like sphere implementation
+            const t = performance.now()/1000 - t0;
+
+            // Move body along Klein bottle surface
+            // Use time-based movement like sphere
+            const pathSpeed = bodySpeed * 0.5; // Adjust for Klein bottle scale
+            const u_body = (t * pathSpeed) % (2 * Math.PI);
+            const v_body = (t * pathSpeed * 0.3) % (2 * Math.PI); // Slower v movement for interesting path
             
             computeKleinBottlePoint(u_body, v_body, _vec.p);
-            computeSurfaceNormal(u_body, v_body, _vec.N); 
+            computeSurfaceNormal(u_body, v_body, _vec.N);
             computeKleinBottlePoint(u_body + epsilon * (2*Math.PI), v_body, _vec.p_du);
-            _vec.F.subVectors(_vec.p_du, _vec.p).normalize().multiplyScalar(-1); 
+            _vec.F.subVectors(_vec.p_du, _vec.p).normalize().multiplyScalar(-1);
 
+            // Position ant at correct height above surface for legs to reach
             _vec.antOffsetPos.copy(_vec.p).addScaledVector(_vec.N, BODY_OFFSET);
             antGroup.position.copy(_vec.antOffsetPos);
             _vec.lookAtTarget.copy(_vec.antOffsetPos).add(_vec.F);
@@ -248,10 +287,18 @@
             worldToLocalMatrix.copy(thorax.matrixWorld).invert();
 
             legs.forEach((leg) => {
-                const phase = (time / period + leg.phaseOffset) % 1;
+                // Use milliseconds and match sphere's period
+                const phase = ((t * 1000) / period + leg.phaseOffset) % 1;
+                // Calculate foot target position relative to body
+                // Add step offset for walking motion
+                const stepPhase = phase < 0.5 ? phase/0.5 : (phase-0.5)/0.5;
+                const stepOffset = phase < 0.5 ?
+                    -STEP_LENGTH/2 + STEP_LENGTH * stepPhase :
+                    STEP_LENGTH/2 - STEP_LENGTH * stepPhase;
+
                 const footSpreadFactor = leg.isRear ? 1.05 : 1.0;
-                const u_foot = (u_body + leg.deltaU * footSpreadFactor); 
-                const v_foot = (v_body + leg.deltaV * footSpreadFactor);
+                const u_foot = u_body + leg.deltaU * footSpreadFactor + stepOffset * 0.02;
+                const v_foot = v_body + leg.deltaV * footSpreadFactor;
                 
                 computeKleinBottlePoint(u_foot, v_foot, _vec.footTargetSurface);
                 computeSurfaceNormal(u_foot, v_foot, _vec.normalAtFootTarget);  
@@ -269,6 +316,7 @@
                 leg.lastNormal = leg.lastNormal || new THREE.Vector3();
                 leg.lastNormal.copy(_vec.correctedFootNormal);
 
+                // Ensure foot is exactly on the surface
                 const actualFootPlantTarget = _vec.footTargetSurface.clone().addScaledVector(_vec.correctedFootNormal, FOOT_SURFACE_OFFSET);
 
                 const wasPlanted = leg.lastPhase < 0.5;
@@ -299,7 +347,7 @@
                         ? 2 * swingNormalized * swingNormalized 
                         : 1 - Math.pow(-2 * swingNormalized + 2, 2) / 2;
                     
-                    const liftHeight = h_max * Math.sin(Math.PI * easedSwing);
+                    const liftHeight = STEP_HEIGHT * Math.sin(Math.PI * easedSwing);
                     
                     _vec.swingLerpBase.copy(leg.swingStartPos).lerp(actualFootPlantTarget, easedSwing);
                     _vec.finalFootTargetWorld.copy(_vec.swingLerpBase).addScaledVector(_vec.correctedFootNormal, liftHeight);
@@ -346,24 +394,46 @@
 
                 let femurAngle, tibiaAngle;
                 const D_EPSILON = 0.001;
-                const MAX_REACH = L1 + L2 - 0.01;
+                const MAX_REACH = L1 + L2 - 0.005; // Tighter tolerance for smaller ant
 
-                if (D > MAX_REACH) { 
-                    const baseAngle = Math.atan2(-ik_target_y, signed_horizontal);
-                    femurAngle = baseAngle;
-                    tibiaAngle = 0.1;
-                } else if (D < D_EPSILON ) { 
-                    femurAngle = Math.PI * 0.4; 
-                    tibiaAngle = Math.PI * 0.7; 
-                } else { 
-                    const cos_angle_at_knee = Math.max(-1.0, Math.min(1.0, (L1*L1 + L2*L2 - D*D) / (2*L1*L2) ));
-                    const angle_at_knee = Math.acos(cos_angle_at_knee); 
+                // Improved IK solver to ensure feet reach surface
+                if (D > MAX_REACH) {
+                    // Target is out of reach - extend as much as possible
+                    const scale = MAX_REACH / D;
+                    ik_target_x *= scale;
+                    ik_target_y *= scale;
+                    ik_target_z *= scale;
+                    D = MAX_REACH;
+                }
+
+                if (D < D_EPSILON) {
+                    femurAngle = Math.PI * 0.4;
+                    tibiaAngle = Math.PI * 0.7;
+                } else {
+                    // Standard IK solution
+                    const cos_angle_at_knee = Math.max(-1.0, Math.min(1.0, (L1*L1 + L2*L2 - D*D) / (2*L1*L2)));
+                    const angle_at_knee = Math.acos(cos_angle_at_knee);
                     tibiaAngle = Math.PI - angle_at_knee;
 
-                    const cos_alpha = Math.max(-1.0, Math.min(1.0, (L1*L1 + D*D - L2*L2) / (2*L1*D) ));
-                    const alpha = Math.acos(cos_alpha); 
+                    const cos_alpha = Math.max(-1.0, Math.min(1.0, (L1*L1 + D*D - L2*L2) / (2*L1*D)));
+                    const alpha = Math.acos(cos_alpha);
                     const target_angle = Math.atan2(-ik_target_y, Math.abs(signed_horizontal));
-                    femurAngle = target_angle + (signed_horizontal >= 0 ? alpha : -alpha); 
+                    femurAngle = target_angle + (signed_horizontal >= 0 ? alpha : -alpha);
+
+                    // For stance phase, ensure foot reaches surface exactly
+                    if (phase < 0.5) {
+                        // Verify the IK solution reaches the target
+                        const reachX = L1 * Math.cos(femurAngle) + L2 * Math.cos(femurAngle + tibiaAngle);
+                        const reachY = L1 * Math.sin(femurAngle) + L2 * Math.sin(femurAngle + tibiaAngle);
+                        const error = Math.sqrt((reachX - signed_horizontal) * (reachX - signed_horizontal) +
+                                              (reachY - ik_target_y) * (reachY - ik_target_y));
+
+                        // If error is too large, adjust angles
+                        if (error > 0.005) {
+                            // Try to stretch more to reach surface
+                            tibiaAngle = Math.max(0.1, tibiaAngle - 0.1);
+                        }
+                    }
                 }
                 
                 // Smooth angle transitions
@@ -401,7 +471,56 @@
                 // Apply rotations
                 leg.femurPivotGroup.rotation.x = applied_femur;
                 leg.tibiaPivotGroup.rotation.x = applied_tibia;
+
+                // Log foot positions periodically
+                if (LOG_WALK && FRAME_NO === 1) {
+                    // Calculate actual foot tip position
+                    leg.tibiaPivotGroup.updateMatrixWorld(true);
+                    const tipLocal = new THREE.Vector3(0, -TIBIA_LENGTH/2, 0);
+                    const tipWorld = tipLocal.clone();
+                    leg.tibiaPivotGroup.localToWorld(tipWorld);
+
+                    // Calculate distance from foot to surface
+                    const footToSurface = tipWorld.distanceTo(_vec.footTargetSurface);
+
+                    console.log(`Leg ${legs.indexOf(leg)}: side=${leg.side}`);
+                    console.log(`  Target surface:`, _vec.footTargetSurface.clone());
+                    console.log(`  Actual foot pos:`, tipWorld.clone());
+                    console.log(`  Distance to surface:`, footToSurface);
+                }
             });
+
+            // Log body distance on first frame
+            if (FRAME_NO === 1) {
+                console.log('=== Body Position at frame 1 ===');
+                console.log('Body position:', antGroup.position.clone());
+                console.log('Surface point:', _vec.p.clone());
+                console.log('Surface normal:', _vec.N.clone());
+                console.log('Distance from surface:', BODY_OFFSET);
+            }
+
+            // Periodic detailed logging during stance
+            if (LOG_WALK && (FRAME_NO % LOG_EVERY === 0)) {
+                legs.forEach((leg, i) => {
+                    const phase = (time / period + leg.phaseOffset) % 1;
+                    if (phase < 0.5) { // Only log during stance
+                        leg.tibiaPivotGroup.updateMatrixWorld(true);
+                        const tipLocal = new THREE.Vector3(0, -TIBIA_LENGTH/2, 0);
+                        const tipWorld = tipLocal.clone();
+                        leg.tibiaPivotGroup.localToWorld(tipWorld);
+
+                        const delta = tipWorld.clone().sub(leg.plantedT);
+                        console.log(JSON.stringify({
+                            frame: FRAME_NO,
+                            legIndex: i,
+                            side: leg.side,
+                            planted: { x: +leg.plantedT.x.toFixed(4), y: +leg.plantedT.y.toFixed(4), z: +leg.plantedT.z.toFixed(4) },
+                            tipWorld: { x: +tipWorld.x.toFixed(4), y: +tipWorld.y.toFixed(4), z: +tipWorld.z.toFixed(4) },
+                            delta: { x: +delta.x.toFixed(4), y: +delta.y.toFixed(4), z: +delta.z.toFixed(4) }
+                        }));
+                    }
+                });
+            }
 
             renderer.render(scene, camera);
         }
