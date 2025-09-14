@@ -202,6 +202,25 @@
         const { antGroup, thorax, abdomen, head, legs } = createAnt();
         scene.add(antGroup);
 
+        // Debug markers (scaled down by half from sphere's 0.01)
+        const footMarkers = [];
+        for (let i=0; i<legs.length; i++) {
+            const s = new THREE.Mesh(
+                new THREE.SphereGeometry(0.005, 10, 8),
+                new THREE.MeshBasicMaterial({ color: tripodA.has(i) ? 0x33ffaa : 0xffaa33 })
+            );
+            scene.add(s);
+            footMarkers.push(s);
+        }
+
+        // State per leg (from sphere)
+        const state = legs.map((leg, i) => ({
+            planted: new THREE.Vector3(),
+            current: new THREE.Vector3(),
+            initialized: false,
+            inStancePrev: false,
+        }));
+
         // Match sphere implementation timing
         const bodySpeed = 0.04; // Same as sphere
         const period = 2400; // Same as sphere (2.4 seconds)
@@ -374,6 +393,9 @@
                     leg.currentTarget.copy(_vec.finalFootTargetWorld);
                 }
                 leg.currentTarget.lerp(_vec.finalFootTargetWorld, 0.25);
+
+                // Place debug marker at current target
+                footMarkers[legs.indexOf(leg)].position.copy(leg.currentTarget);
                 
                 leg.lastPhase = phase;
                 
@@ -442,6 +464,13 @@
                 // Apply rotations directly (sphere doesn't do smoothing here)
                 leg.femurPivot.rotation.z = femurAngle;
                 leg.tibiaPivot.rotation.z = tibiaAngle;
+
+                // Update marker to show actual foot tip (FK) to verify contact
+                thorax.updateMatrixWorld(true);
+                const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0);
+                const tipWorld = tipLocal.clone();
+                leg.tibiaPivot.localToWorld(tipWorld);
+                footMarkers[legs.indexOf(leg)].position.copy(tipWorld);
 
                 // Log foot positions periodically
                 if (LOG_WALK && FRAME_NO === 1) {
