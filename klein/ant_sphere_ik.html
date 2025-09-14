@@ -253,7 +253,22 @@ scene.add(antGroup);
 // Body placement calibrated to neutral pose: foot tips touch the ground
 const FEMUR_NEUTRAL = -0.9;
 const TIBIA_NEUTRAL = 0.8;
-const CLEARANCE = -(FEMUR_LENGTH*Math.sin(FEMUR_NEUTRAL) + TIBIA_LENGTH*Math.sin(FEMUR_NEUTRAL + TIBIA_NEUTRAL));
+// Calculate clearance for sphere surface - needs to account for leg reach
+// The original calculation was for flat ground
+const FEMUR_ANGLE_NEUTRAL = -0.9;
+const TIBIA_ANGLE_NEUTRAL = 0.8;
+const CLEARANCE_FLAT = -(FEMUR_LENGTH*Math.sin(FEMUR_ANGLE_NEUTRAL) + TIBIA_LENGTH*Math.sin(FEMUR_ANGLE_NEUTRAL + TIBIA_ANGLE_NEUTRAL));
+
+// For sphere surface, we need less clearance since we're positioning along the normal
+// Use the flat ground clearance as a starting point
+const CLEARANCE = CLEARANCE_FLAT;
+
+console.log('Leg dimensions:');
+console.log('  COXA_LENGTH:', COXA_LENGTH);
+console.log('  FEMUR_LENGTH:', FEMUR_LENGTH);
+console.log('  TIBIA_LENGTH:', TIBIA_LENGTH);
+console.log('  Total reach:', COXA_LENGTH + FEMUR_LENGTH + TIBIA_LENGTH);
+console.log('  Calculated CLEARANCE:', CLEARANCE);
 
 // Orient ant body to match sphere surface at starting position
 // Start at a point on the sphere
@@ -264,12 +279,20 @@ const initialZ = pathRadius * Math.cos(initialTheta);
 const surfaceY = getSurfacePoint(initialX, initialZ);
 const surfaceNormal = getSurfaceNormal(initialX, initialZ);
 
-// Project clearance along surface normal
-const clearanceVec = new THREE.Vector3().copy(surfaceNormal).multiplyScalar(CLEARANCE);
+// Position ant at the correct height above sphere surface
+// We want the ant's belly to be CLEARANCE distance from the sphere surface
+// Since we're on a sphere, we position the ant at radius = SPHERE_RADIUS + CLEARANCE from center
+const antRadius = SPHERE_RADIUS + CLEARANCE;
+const antPosOnSphere = new THREE.Vector3(
+  initialX - SPHERE_CENTER.x,
+  surfaceY - SPHERE_CENTER.y,
+  initialZ - SPHERE_CENTER.z
+).normalize().multiplyScalar(antRadius);
+
 antGroup.position.set(
-  initialX + clearanceVec.x, 
-  surfaceY + clearanceVec.y, 
-  initialZ + clearanceVec.z
+  SPHERE_CENTER.x + antPosOnSphere.x,
+  SPHERE_CENTER.y + antPosOnSphere.y,
+  SPHERE_CENTER.z + antPosOnSphere.z
 );
 
 // Align ant to surface normal and face along path
@@ -297,6 +320,17 @@ console.log('Clearance:', CLEARANCE);
 console.log('Ant rotation (euler):', antGroup.rotation);
 console.log('Ant quaternion:', antGroup.quaternion);
 
+// Calculate and log distance from ant belly to sphere surface
+const antBellyWorld = antGroup.position.clone();
+const distanceToSphereCenter = antBellyWorld.distanceTo(SPHERE_CENTER);
+const distanceToSphereSurface = distanceToSphereCenter - SPHERE_RADIUS;
+console.log('=== Ant-to-Sphere Distance ===');
+console.log('Ant belly position (world):', antBellyWorld);
+console.log('Distance to sphere center:', distanceToSphereCenter);
+console.log('Distance to sphere surface:', distanceToSphereSurface);
+console.log('Expected clearance:', CLEARANCE);
+console.log('Difference (actual - expected):', distanceToSphereSurface - CLEARANCE);
+
 // Tripod gait
 const tripodA = new Set([0,2,4]);
 const period = 2.4; // seconds for full cycle
@@ -315,7 +349,10 @@ const home = (() => {
     const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0);
     const tipWorld = tipLocal.clone();
     leg.tibiaPivot.localToWorld(tipWorld);
-    // convert to thorax local
+
+    // For home positions, we want feet to naturally rest on the sphere
+    // Don't force projection here, let IK handle reaching the surface
+    // Just convert to thorax local space
     return tipWorld.applyMatrix4(worldToThoraxMat);
   });
 })();
@@ -379,21 +416,28 @@ function animate() {
   // Use spherical coordinates for movement
   const angularSpeed = bodySpeed / SPHERE_RADIUS; // Convert linear to angular speed
   const theta = t * angularSpeed; // Angle around sphere
-  
+
   // Path around sphere at constant latitude (near top)
   const pathRadius = SPHERE_RADIUS * 0.8; // Circle radius on sphere
   const bodyX = pathRadius * Math.sin(theta);
   const bodyZ = pathRadius * Math.cos(theta);
-  
+
   const surfaceY = getSurfacePoint(bodyX, bodyZ);
   const surfaceNormal = getSurfaceNormal(bodyX, bodyZ);
-  
-  // Project clearance along surface normal
-  const clearanceVec = new THREE.Vector3().copy(surfaceNormal).multiplyScalar(CLEARANCE);
+
+  // Position ant at the correct height above sphere surface
+  // The ant should be at radius = SPHERE_RADIUS + CLEARANCE from center
+  const antRadius = SPHERE_RADIUS + CLEARANCE;
+  const antPosOnSphere = new THREE.Vector3(
+    bodyX - SPHERE_CENTER.x,
+    surfaceY - SPHERE_CENTER.y,
+    bodyZ - SPHERE_CENTER.z
+  ).normalize().multiplyScalar(antRadius);
+
   antGroup.position.set(
-    bodyX + clearanceVec.x, 
-    surfaceY + clearanceVec.y, 
-    bodyZ + clearanceVec.z
+    SPHERE_CENTER.x + antPosOnSphere.x,
+    SPHERE_CENTER.y + antPosOnSphere.y,
+    SPHERE_CENTER.z + antPosOnSphere.z
   );
   
   // Maintain orientation: aligned to surface normal
@@ -428,9 +472,33 @@ function animate() {
 
     // Transform to world
     tmp.targetWorld.copy(tmp.targetThorax).applyMatrix4(thorax.matrixWorld);
-    // Constrain to curved surface, with optional swing lift
-    const surfaceY = getSurfacePoint(tmp.targetWorld.x, tmp.targetWorld.z);
-    tmp.targetWorld.y = surfaceY + (inStance ? 0 : STEP_HEIGHT*Math.sin(Math.PI*((phase-0.5)/0.5)));
+
+    // Project foot target onto sphere surface properly
+    // Calculate the vector from sphere center to the target point
+    const toTarget = new THREE.Vector3(
+      tmp.targetWorld.x - SPHERE_CENTER.x,
+      tmp.targetWorld.y - SPHERE_CENTER.y,
+      tmp.targetWorld.z - SPHERE_CENTER.z
+    );
+
+    // Project this point onto the sphere surface
+    const targetDist = toTarget.length();
+    if (targetDist > 0.001) {
+      // Normalize and scale to sphere radius to get surface point
+      toTarget.normalize().multiplyScalar(SPHERE_RADIUS);
+      tmp.targetWorld.x = SPHERE_CENTER.x + toTarget.x;
+      tmp.targetWorld.y = SPHERE_CENTER.y + toTarget.y;
+      tmp.targetWorld.z = SPHERE_CENTER.z + toTarget.z;
+    }
+
+    // Add swing height above surface
+    if (!inStance) {
+      const swingHeight = STEP_HEIGHT * Math.sin(Math.PI * ((phase - 0.5) / 0.5));
+      const normal = getSurfaceNormal(tmp.targetWorld.x, tmp.targetWorld.z);
+      tmp.targetWorld.x += normal.x * swingHeight;
+      tmp.targetWorld.y += normal.y * swingHeight;
+      tmp.targetWorld.z += normal.z * swingHeight;
+    }
 
     const st = state[i];
     if (!st.initialized) {
@@ -484,8 +552,31 @@ function animate() {
     if (inStance) {
       // Exact IK in stance so the tibia tip touches ground at st.current
       const res = solvePlanarIK(xLeg, yLeg);
-      const femur = THREE.MathUtils.clamp(res.femur, -1.6, 0.2);
-      const tibia = THREE.MathUtils.clamp(res.tibia, 0.0, 2.6); // full IK in stance to ensure contact
+      let femur = res.femur;
+      let tibia = res.tibia;
+
+      // Verify the IK solution actually reaches the target
+      const reachX = FEMUR_LENGTH * Math.cos(femur) + TIBIA_LENGTH * Math.cos(femur + tibia);
+      const reachY = FEMUR_LENGTH * Math.sin(femur) + TIBIA_LENGTH * Math.sin(femur + tibia);
+      const error = Math.hypot(reachX - xLeg, reachY - yLeg);
+
+      // If error is too large, adjust to get closer to surface
+      if (error > 0.01) {
+        // Try to extend leg more to reach surface
+        const targetDist = Math.hypot(xLeg, yLeg);
+        const maxReach = FEMUR_LENGTH + TIBIA_LENGTH - 0.001;
+        if (targetDist < maxReach) {
+          // Re-solve with adjusted target
+          const scale = Math.min(1.0, maxReach / targetDist);
+          const adjRes = solvePlanarIK(xLeg * scale, yLeg * scale);
+          femur = adjRes.femur;
+          tibia = adjRes.tibia;
+        }
+      }
+
+      // Apply joint limits
+      femur = THREE.MathUtils.clamp(femur, -1.6, 0.2);
+      tibia = THREE.MathUtils.clamp(tibia, 0.0, 2.6);
       leg.femurPivot.rotation.z = femur;
       leg.tibiaPivot.rotation.z = tibia;
     } else {
@@ -540,8 +631,27 @@ function animate() {
       const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0);
       const tipWorld = tipLocal.clone();
       leg.tibiaPivot.localToWorld(tipWorld);
-      console.log(`Leg ${i}: side=${leg.side}, world pos:`, tipWorld);
+
+      // Calculate distance from foot to sphere surface
+      const footDistToCenter = tipWorld.distanceTo(SPHERE_CENTER);
+      const footDistToSurface = footDistToCenter - SPHERE_RADIUS;
+
+      console.log(`Leg ${i}: side=${leg.side}`);
+      console.log(`  World pos:`, tipWorld);
+      console.log(`  Distance to sphere center:`, footDistToCenter);
+      console.log(`  Distance to sphere surface:`, footDistToSurface);
+      console.log(`  Foot marker pos:`, footMarkers[i].position);
     });
+
+    // Also log body distance on first frame
+    const bodyPos = antGroup.position.clone();
+    const bodyDistToCenter = bodyPos.distanceTo(SPHERE_CENTER);
+    const bodyDistToSurface = bodyDistToCenter - SPHERE_RADIUS;
+    console.log('=== Body Distance at frame 1 ===');
+    console.log('Body position:', bodyPos);
+    console.log('Distance to sphere center:', bodyDistToCenter);
+    console.log('Distance to sphere surface:', bodyDistToSurface);
+    console.log('Clearance value:', CLEARANCE);
   }
 }
 
