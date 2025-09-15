@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ant on Klein Bottle - Improved Leg Implementation</title>
+    <title>Ant on Klein Bottle - Improved Leg Implementation v2</title>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { width: 100%; height: 100vh; }
@@ -53,6 +53,9 @@
         const kleinMesh = new THREE.Mesh(geometry, material);
         kleinMesh.receiveShadow = true;
         scene.add(kleinMesh);
+
+        // Raycaster for finding surface points
+        const raycaster = new THREE.Raycaster();
 
         scene.add(new THREE.AmbientLight(0x707070));
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -234,8 +237,9 @@
         // Calculate vertical reach when legs are in neutral position
         const VERTICAL_REACH = FEMUR_LENGTH * Math.sin(FEMUR_ANGLE_NEUTRAL) +
                               TIBIA_LENGTH * Math.sin(FEMUR_ANGLE_NEUTRAL + TIBIA_ANGLE_NEUTRAL);
+        const CLEARANCE_FROM_LEGS = Math.abs(VERTICAL_REACH);
         // Body should be positioned so legs can reach the surface
-        const BODY_OFFSET = Math.abs(VERTICAL_REACH); // Use the actual vertical reach
+        const BODY_OFFSET = CLEARANCE_FROM_LEGS; // Use the actual vertical reach
         const FOOT_SURFACE_OFFSET = 0.0; // Start with feet exactly on surface
 
         // Debug: Log scaled dimensions
@@ -258,6 +262,7 @@
             finalFootTargetWorld: new THREE.Vector3(),
             targetInThorax: new THREE.Vector3(), targetRelToLegRoot: new THREE.Vector3(),
             targetInYawedLegRoot: new THREE.Vector3(),
+            targetWorld: new THREE.Vector3(), // Added for world space foot targeting
             Y_AXIS: new THREE.Vector3(0,1,0), Z_AXIS: new THREE.Vector3(0,0,1),
             tempQuat: new THREE.Quaternion(),
             temp1: new THREE.Vector3(), temp2: new THREE.Vector3()
@@ -318,20 +323,41 @@
             thorax.updateMatrixWorld(true);
             worldToLocalMatrix.copy(thorax.matrixWorld).invert();
 
-            legs.forEach((leg) => {
+            legs.forEach((leg, legIndex) => {
                 // Use milliseconds and match sphere's period
                 const phase = ((t * 1000) / period + leg.phaseOffset) % 1;
-                // Calculate foot target position relative to body
+                const inStance = phase < 0.5;
+
+                // Start with home position in thorax space (like sphere)
+                _vec.targetInThorax.copy(state[legIndex].initialized ?
+                    new THREE.Vector3(
+                        leg.deltaU * COXA_LENGTH * 2,
+                        -CLEARANCE_FROM_LEGS,
+                        leg.deltaV * COXA_LENGTH * 2
+                    ) : new THREE.Vector3(0, -CLEARANCE_FROM_LEGS, 0));
+
                 // Add step offset for walking motion
+                const stepOffsetThorax = (inStance ? -1 : 1) * (STEP_LENGTH *
+                    (inStance ? (phase/0.5) : ((phase-0.5)/0.5)) - STEP_LENGTH/2);
+                _vec.targetInThorax.z += stepOffsetThorax;
+
+                // Transform to world space
+                _vec.targetWorld = _vec.targetInThorax.clone();
+                _vec.targetWorld.applyMatrix4(thorax.matrixWorld);
+
+                // For Klein bottle, just use parametric calculation
+                // Raycasting is too complex due to self-intersecting geometry
+                const footSpreadFactor = leg.isRear ? 1.05 : 1.0;
+
+                // Calculate foot position in parameter space relative to body
                 const stepPhase = phase < 0.5 ? phase/0.5 : (phase-0.5)/0.5;
                 const stepOffset = phase < 0.5 ?
                     -STEP_LENGTH/2 + STEP_LENGTH * stepPhase :
                     STEP_LENGTH/2 - STEP_LENGTH * stepPhase;
 
-                const footSpreadFactor = leg.isRear ? 1.05 : 1.0;
                 const u_foot = u_body + leg.deltaU * footSpreadFactor + stepOffset * 0.02;
                 const v_foot = v_body + leg.deltaV * footSpreadFactor;
-                
+
                 computeKleinBottlePoint(u_foot, v_foot, _vec.footTargetSurface);
                 computeSurfaceNormal(u_foot, v_foot, _vec.normalAtFootTarget);  
 
@@ -365,9 +391,7 @@
                     leg.swingStartPos.copy(actualFootPlantTarget);
                     leg.initialized = true;
                     
-                    // Initialize leg angles for standing position
-                    leg.femurPivotGroup.rotation.x = Math.PI * 0.2 * leg.side;
-                    leg.tibiaPivotGroup.rotation.x = Math.PI * 0.3 * leg.side;
+                    // Initialize leg angles for standing position - removed as sphere doesn't have this
                 }
 
                 if (phase < 0.5) { 
@@ -395,7 +419,7 @@
                 leg.currentTarget.lerp(_vec.finalFootTargetWorld, 0.25);
 
                 // Place debug marker at current target
-                footMarkers[legs.indexOf(leg)].position.copy(leg.currentTarget);
+                footMarkers[legIndex].position.copy(leg.currentTarget);
                 
                 leg.lastPhase = phase;
                 
@@ -429,7 +453,7 @@
                 }
 
                 // If stance target is barely reachable, trigger swing early to avoid sliding
-                const inStance = phase < 0.5;
+                // inStance already declared above
                 if (inStance) {
                     const L1 = FEMUR_LENGTH, L2 = TIBIA_LENGTH;
                     const D = Math.hypot(xLeg, yLeg);
@@ -470,7 +494,7 @@
                 const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0);
                 const tipWorld = tipLocal.clone();
                 leg.tibiaPivot.localToWorld(tipWorld);
-                footMarkers[legs.indexOf(leg)].position.copy(tipWorld);
+                footMarkers[legIndex].position.copy(tipWorld);
 
                 // Log foot positions periodically
                 if (LOG_WALK && FRAME_NO === 1) {
