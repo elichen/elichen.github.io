@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Four</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <main class="page">
+        <header class="intro">
+            <div class="intro__text">
+                <h1 class="intro__title">Connect Four</h1>
+                <p class="intro__subtitle">A minimalist take on the classic strategy duel. Drop discs, read the board, outsmart the AI.</p>
+            </div>
+            <button id="reset-button" class="ghost-button" type="button">New Game</button>
+        </header>
+
+        <section class="panel">
+            <div class="panel__section">
+                <span class="label">Difficulty</span>
+                <div class="difficulty" role="radiogroup" aria-label="AI difficulty">
+                    <button class="difficulty__option is-active" type="button" data-level="0" aria-pressed="true">Casual</button>
+                    <button class="difficulty__option" type="button" data-level="1" aria-pressed="false">Challenger</button>
+                    <button class="difficulty__option" type="button" data-level="2" aria-pressed="false">Grandmaster</button>
+                </div>
+            </div>
+            <div class="panel__section">
+                <span class="label">Status</span>
+                <p id="status" class="status">Your move.</p>
+            </div>
+        </section>
+
+        <section class="board-area">
+            <div class="board-shadow">
+                <div class="board" id="board" role="grid" aria-label="Connect Four board">
+                    <div class="slot-grid" id="slot-grid" aria-hidden="true"></div>
+                    <div class="disc-layer" id="disc-layer"></div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="tips">
+            <p>Tip: Center control is everything. Stack threats, watch the diagonals, and pressure the AI into mistakes.</p>
+        </footer>
+    </main>
+    <script src="script.js" type="module"></script>
+</body>
+</html>
