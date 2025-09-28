@@ -1,61 +1,23 @@
-# Intentional Retrieval
+# intentional_retrieval
 
-Transformers have fixed context windows where attention scales quadratically and information outside disappears. These constraints shape how we build with LLMs, yet the default answer—vector databases—isn't always right. Different problems need different retrieval strategies.
+When you work with large language models, retrieval is the hard part. The models are flexible, but the information you need has to fit inside a context window that was never meant to hold a whole product catalog or an internal wiki.
 
-## Context Limits
+Context windows are small by computer standards. Self-attention scales quadratically, so doubling the window more than doubles the compute bill. Models can juggle tens of thousands of tokens, not millions, and once a fact falls out of the prompt it might as well not exist.
 
-Self-attention costs *O(n²)*, so doubling context quadruples compute. Models handle tens of thousands of tokens, not millions, with no persistent memory—once it's out of context, it's gone.
+To cope, we bolt on memory. People build paging systems like MemGPT, extract key facts the way Mem0 does, and layer agents with buffers, scratchpads, and tool loops. The model stays frozen while the scaffolding around it works to keep the right facts in view.
 
-The response has been to bolt on virtual memory. MemGPT pages data like swap space, Mem0 extracts facts for later, and agent frameworks add buffers, stores, and tool loops. The model stays fixed while the system supplies memory.
+All this overhead exists because an LLM is a probabilistic compute unit, not a fixed algorithm. It samples from distributions learned during training. We schedule it, feed it inputs, and guard its outputs the way operating systems once treated CPUs.
 
-## New Primitive
+Retrieval-augmented generation was the first pattern that shipped. API models were closed to fine-tuning, open models were costly to retrain, and RAG let teams ground answers in their own data without touching the weights. Chunk documents, embed them, index, retrieve, stuff the results back into the prompt—good enough to launch.
 
-LLMs are probabilistic compute units with no fixed algorithm, just distributions from training. This is why research focuses on orchestration rather than weights.
+Vector search became the default because it does fuzzy matching well. Phrase the question one way and it can find passages written in another. That makes it great for discovery, exploration, and the kind of support queries where "close" is usually good enough.
 
-Teams explore alternatives like state-space models, attention variants, and MoE routing, while memory hierarchies decide what to keep, compress, or forget. LLMs have become the new CPU—scheduled, fed inputs, and wrapped in guardrails.
+Precision is a different story. Vectors cannot tell whether a passage contains the exact SKU, legal clause, or API parameter you need. Similarity is not accuracy, and the model will happily fill the gaps with something that sounds right.
 
-## Why RAG Won
+Chunking makes this worse. If you slice narrowly you split facts across boundaries and miss the answer. If you slice wide you drag along unrelated text that muddies the retrieval score. A tweak in chunk size alone can swing recall by large margins, and the model still hallucinates when the prompt looks plausible but lacks the missing fact.
 
-API models couldn't be fine-tuned and open models were expensive to retrain. RAG offered a solution: keep the model frozen, retrieve passages, and stuff them in the prompt for domain grounding without touching weights. It shipped fast.
+Structure beats vectors whenever you already have it. Sales records belong in SQL where joins and aggregations come for free. Security policies live comfortably in ontologies that enforce relationships. Engineering wikis often benefit from tree-shaped layouts that keep related context together without embedding every paragraph. Use the structure first, then fall back to embeddings.
 
-The pipeline chunks documents, embeds them, indexes, queries, retrieves top-k, re-ranks, and assembles prompts. While fine-tuning degraded reasoning, RAG sidestepped the problem with stable models, fresh knowledge, and runtime patches.
+Choosing retrieval is a design problem. Start with the shape of the data: structured, semi-structured, or unstructured. Ask how precise the answer must be; legal workflows care more than triaging support tickets. Mix methods in layers—SQL first then embeddings, or the other way around. Instrument the pipeline so you know hit rates, chunk overlap, and when humans override the output. Plan for memory the way you would for caches: short-term context, longer-term stores, and refresh cycles that keep things current.
 
-## Vector Search Reality
-
-Vector search excels at fuzzy matching—ask one way and find documents written another. It's great for discovery, exploration, and support queries.
-
-But it fails at precision. Vectors don't know if a passage contains the exact SKU, legal clause, or API parameter you need. Similarity isn't accuracy.
-
-## Chunking Problems
-
-Chunk too small and facts split across boundaries—miss one and the model guesses. Chunk too large and unrelated content hitchhikes along, diluting relevance. Chunk size alone can swing recall by nine percentage points.
-
-When chunks are missing, models hallucinate. "I don't know" prompts help but aren't enough—if context looks plausible, the model fills gaps.
-
-## When Structure Beats Vectors
-
-Sales records belong in SQL, security policies in ontologies, and engineering wikis in hierarchies.
-
-- **SQL** provides exact answers with joins and aggregations, no hallucination
-- **Graphs** let you walk edges instead of embeddings, achieving 93% vs 89% precision
-- **Trees** preserve document structure and keep related context together
-
-Use structure when you have it and embeddings when you don't.
-
-## Choosing Retrieval
-
-1. **Check your data**: Is it structured, semi-structured, or unstructured?
-2. **Check precision needs**: Legal workflows need exactness while support can tolerate fuzziness
-3. **Mix methods**: Try SQL first then embeddings, or embeddings then filters
-4. **Measure retrieval**: Track hit rates, chunk overlap, and user overrides
-5. **Design memory**: Plan short-term caches, long-term stores, and refresh cycles
-
-Match retrieval to task instead of defaulting to vectors.
-
-## Building with LLMs
-
-LLMs are compute primitives with memory problems, and vector databases aren't always the answer.
-
-When you need precision, use the structures you already have. When you need fuzzy matching, use embeddings but chunk carefully.
-
-The question isn't "RAG or not" but rather "which retrieval for which problem." Choose intentionally.
+Intentional retrieval means matching the method to the problem instead of defaulting to the trend. Use vectors when you need fuzziness, structure when you have certainty, and accept that the orchestration matters as much as the model you chose.
