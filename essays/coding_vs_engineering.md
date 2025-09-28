@@ -1,4 +1,4 @@
-# Why AI Makes Coding Free But Engineering More Valuable
+# Coding vs Eengineering
 
 AI is making the cost of coding drop rapidly toward zero, and the effort required approaching nothing. This transformation is happening faster than most people realize. Looking back over my last two years, coding a software project has compressed from two weeks to two days to two hours, driven by both its increasing coding skill and AI's expanding agentic capabilities for long-horizon tasks.
 
