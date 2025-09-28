@@ -1,4 +1,4 @@
-# intentional_retrieval
+# Intentional Retrieval
 
 When you work with large language models, retrieval is the hard part. The models are flexible, but the information you need has to fit inside a context window that was never meant to hold a whole product catalog or an internal wiki.
 
