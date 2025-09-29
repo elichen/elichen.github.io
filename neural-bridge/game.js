@@ -9,19 +9,13 @@ class AntBridgeSimulation {
 
         this.ants = [];
         this.pheromones = [];
-        this.bridgeLinks = [];
+        this.bridgeLeft = [];
+        this.bridgeRight = [];
         this.linkLength = 42;
         this.maxSag = 110;
         this.bridgeProgress = 0;
         this.bridgeComplete = false;
-
-        this.debug = false;
-        this.debugEvents = [];
-        this.debugLastFrame = null;
-        this.debugFrame = null;
-        this.lastLoggedProgress = 0;
-        this.startTime = performance.now();
-        this.nextAntId = 0;
+        this.bridgeTipGap = 0;
 
         this.groundY = 420;
         this.chasm = { start: 360, end: 600 };
@@ -38,6 +32,14 @@ class AntBridgeSimulation {
             crossing: document.getElementById('crossing'),
             status: document.getElementById('status')
         };
+
+        this.debug = false;
+        this.debugEvents = [];
+        this.debugFrame = null;
+        this.debugLastFrame = null;
+        this.lastLoggedProgress = 0;
+        this.startTime = performance.now();
+        this.nextAntId = 0;
 
         document.getElementById('resetBtn').addEventListener('click', () => this.reset());
         document.getElementById('shuffleBtn').addEventListener('click', () => this.shuffleTerrain());
@@ -65,20 +67,23 @@ class AntBridgeSimulation {
     reset() {
         this.ants = [];
         this.pheromones = [];
-        this.bridgeLinks = [];
+        this.bridgeLeft = [];
+        this.bridgeRight = [];
         this.bridgeProgress = 0;
         this.bridgeComplete = false;
+        this.bridgeTipGap = this.gapDistance;
         this.statusMessage = 'Scouting the edge...';
         this.nextAntId = 0;
         this.startTime = performance.now();
         this.debugEvents = [];
+        this.debugFrame = null;
         this.debugLastFrame = null;
         this.lastLoggedProgress = 0;
 
         for (let i = 0; i < 70; i++) {
             this.ants.push(this.createAnt('left'));
         }
-        for (let i = 0; i < 40; i++) {
+        for (let i = 0; i < 70; i++) {
             this.ants.push(this.createAnt('right'));
         }
         this.updateHud();
@@ -117,7 +122,9 @@ class AntBridgeSimulation {
             side,
             heading: Math.random() * Math.PI * 2,
             bridgeIndex: -1,
-            crossingT: 0
+            chain: null,
+            crossingT: 0,
+            crossingDirection: 'leftToRight'
         };
     }
 
@@ -130,18 +137,24 @@ class AntBridgeSimulation {
     }
 
     update(dt) {
-        this.updateBridgeTargets();
         let crossingCount = 0;
 
         if (this.debug) {
-            const tailPoint = this.getAttachmentPoint();
+            const leftTail = this.getTailPosition('left');
+            const rightTail = this.getTailPosition('right');
             this.debugFrame = {
-                nearTail: 0,
+                nearTailLeft: 0,
+                nearTailRight: 0,
                 leftEdgeClamp: 0,
-                tailX: parseFloat(tailPoint.x.toFixed(1)),
-                tailY: parseFloat(tailPoint.y.toFixed(1)),
-                tailToFarCliff: parseFloat(this.distance(tailPoint, this.anchors[1]).toFixed(1)),
-                links: this.bridgeLinks.length
+                rightEdgeClamp: 0,
+                leftTailX: parseFloat(leftTail.x.toFixed(1)),
+                leftTailY: parseFloat(leftTail.y.toFixed(1)),
+                rightTailX: parseFloat(rightTail.x.toFixed(1)),
+                rightTailY: parseFloat(rightTail.y.toFixed(1)),
+                tipGap: parseFloat(this.distance(leftTail, rightTail).toFixed(1)),
+                leftLinks: this.bridgeLeft.length,
+                rightLinks: this.bridgeRight.length,
+                links: this.getTotalLinks()
             };
         }
 
@@ -161,10 +174,12 @@ class AntBridgeSimulation {
             return p.life > 0;
         });
 
+        this.updateBridgeMetrics();
         this.updateHud(crossingCount);
 
         if (this.debug) {
             this.debugFrame.runtime = parseFloat(((performance.now() - this.startTime) / 1000).toFixed(2));
+            this.debugFrame.progress = parseFloat((this.bridgeProgress * 100).toFixed(1));
             this.debugLastFrame = this.debugFrame;
         } else {
             this.debugLastFrame = null;
@@ -192,6 +207,9 @@ class AntBridgeSimulation {
         if (!isLeft && ant.x < this.chasm.end + 8) {
             ant.x = this.chasm.end + 8;
             ant.vx *= -0.2;
+            if (this.debugFrame) {
+                this.debugFrame.rightEdgeClamp++;
+            }
         }
 
         const pheromoneChance = this.bridgeProgress > 0.2 ? 0.15 : 0.3;
@@ -205,22 +223,34 @@ class AntBridgeSimulation {
         }
 
         if (!this.bridgeComplete) {
-            const attachmentPoint = this.getAttachmentPoint();
+            const attachmentPoint = this.getTailPosition(ant.side);
             const distToTail = this.distance({ x: ant.x, y: ant.y }, attachmentPoint);
-            if (this.debugFrame && isLeft) {
-                if (distToTail < 45) {
-                    this.debugFrame.nearTail++;
+            if (this.debugFrame) {
+                if (isLeft && distToTail < 45) {
+                    this.debugFrame.nearTailLeft++;
                 }
-                this.debugFrame.tailToFarCliff = parseFloat(this.distance(attachmentPoint, this.anchors[1]).toFixed(1));
+                if (!isLeft && distToTail < 45) {
+                    this.debugFrame.nearTailRight++;
+                }
             }
-            if (isLeft && distToTail < 26 && this.bridgeLinks.length < 60) {
-                this.attachAntToBridge(ant);
+
+            const ownChain = isLeft ? this.bridgeLeft : this.bridgeRight;
+            const otherChain = isLeft ? this.bridgeRight : this.bridgeLeft;
+            const chainBalanceOK = ownChain.length <= otherChain.length + 2;
+
+            if (chainBalanceOK && distToTail < 26 && ownChain.length < 80) {
+                this.attachAntToBridge(ant, ant.side);
                 return;
             }
-        } else if (isLeft && Math.abs(ant.x - this.anchors[0].x) < 12 && Math.random() < 0.4) {
-            ant.state = 'crossing';
-            ant.crossingT = 0;
-            this.logDebug('Ant entering crossing flow', { antId: ant.id });
+        } else {
+            const anchor = isLeft ? this.anchors[0] : this.anchors[1];
+            if (Math.abs(ant.x - anchor.x) < 12 && Math.random() < 0.4) {
+                ant.state = 'crossing';
+                ant.crossingT = 0;
+                ant.crossingDirection = isLeft ? 'leftToRight' : 'rightToLeft';
+                this.logDebug('Ant entering crossing flow', { antId: ant.id, side: ant.side });
+                return;
+            }
         }
 
         const floorMin = isLeft ? 70 : this.chasm.end + 40;
@@ -237,39 +267,44 @@ class AntBridgeSimulation {
         ant.y = this.groundY - 4 + Math.sin((ant.x + ant.heading) * 0.08) * 1.5;
     }
 
-    attachAntToBridge(ant) {
+    attachAntToBridge(ant, side) {
+        const chain = side === 'left' ? this.bridgeLeft : this.bridgeRight;
         ant.state = 'bridge';
-        ant.bridgeIndex = this.bridgeLinks.length;
+        ant.chain = side;
+        ant.bridgeIndex = chain.length;
         ant.vx = 0;
         ant.vy = 0;
-        const count = this.bridgeLinks.push({ ant });
-        this.statusMessage = 'Chain extending...';
+        chain.push({ ant });
+        this.statusMessage = 'Chains extending...';
         this.logDebug('Ant attached to bridge', {
             antId: ant.id,
+            side,
             bridgeIndex: ant.bridgeIndex,
-            totalLinks: count
+            leftLinks: this.bridgeLeft.length,
+            rightLinks: this.bridgeRight.length
         });
     }
 
     updateBridgeAnt(ant, dt) {
-        if (!this.bridgeLinks.length) {
+        const totalLinks = this.getTotalLinks();
+        if (!totalLinks) {
             ant.state = 'foraging';
+            ant.chain = null;
+            ant.bridgeIndex = -1;
             return;
         }
-        const progress = this.bridgeProgress;
-        const links = this.bridgeLinks.length;
-        const segments = links + 1;
+        const segments = totalLinks + 1;
         const dirX = (this.anchors[1].x - this.anchors[0].x) / this.gapDistance;
         const dirY = (this.anchors[1].y - this.anchors[0].y) / this.gapDistance;
-        const totalReach = this.linkLength * links;
-        const normalizedIndex = links ? (ant.bridgeIndex + 1) / links : 1;
-        let targetDist = this.bridgeComplete
-            ? this.gapDistance * ((ant.bridgeIndex + 1) / segments)
-            : totalReach * normalizedIndex;
-        targetDist = Math.min(targetDist, this.gapDistance * 0.98);
-        const sag = (1 - progress) * this.maxSag * Math.sin(Math.PI * (ant.bridgeIndex + 1) / segments);
-        const targetX = this.anchors[0].x + dirX * targetDist;
-        const targetY = this.anchors[0].y + dirY * targetDist + sag;
+        const globalIndex = ant.chain === 'left'
+            ? ant.bridgeIndex + 1
+            : segments - ant.bridgeIndex - 1;
+        const t = globalIndex / segments;
+        const spanX = this.anchors[0].x + dirX * this.gapDistance * t;
+        const spanY = this.anchors[0].y + dirY * this.gapDistance * t;
+        const sag = (1 - this.bridgeProgress) * this.maxSag * Math.sin(Math.PI * t);
+        const targetX = spanX;
+        const targetY = spanY + sag;
         const dx = targetX - ant.x;
         const dy = targetY - ant.y;
         ant.x += dx * this.clamp(8 * dt, 0, 0.3);
@@ -281,72 +316,97 @@ class AntBridgeSimulation {
         const path = this.getBridgeNodes();
         if (path.length < 2) {
             ant.state = 'foraging';
+            ant.crossingDirection = 'leftToRight';
             return;
         }
         ant.crossingT += dt * 0.25;
         if (ant.crossingT >= 1) {
-            ant.side = 'right';
+            const direction = ant.crossingDirection;
+            if (direction === 'leftToRight') {
+                ant.side = 'right';
+                ant.x = this.anchors[1].x + 24 + Math.random() * 10;
+            } else {
+                ant.side = 'left';
+                ant.x = this.anchors[0].x - 24 - Math.random() * 10;
+            }
             ant.state = 'foraging';
-            ant.x = this.chasm.end + 24 + Math.random() * 10;
+            ant.crossingDirection = 'leftToRight';
             ant.y = this.groundY - 4;
             ant.vx = 0;
-            ant.heading = 0;
-            this.logDebug('Ant finished crossing', { antId: ant.id });
+            ant.heading = direction === 'leftToRight' ? 0 : Math.PI;
+            this.logDebug('Ant finished crossing', { antId: ant.id, direction });
             return;
         }
-        const pos = this.interpolatePath(path, ant.crossingT);
+        const direction = ant.crossingDirection;
+        const travelT = direction === 'leftToRight' ? ant.crossingT : 1 - ant.crossingT;
+        const pos = this.interpolatePath(path, travelT);
         ant.x = pos.x;
         ant.y = pos.y - 6;
-        ant.heading = pos.heading;
+        ant.heading = direction === 'leftToRight' ? pos.heading : pos.heading + Math.PI;
     }
 
-    updateBridgeTargets() {
-        const links = this.bridgeLinks.length;
-        if (!links) {
-            this.lastLoggedProgress = 0;
-        }
-        const prevProgress = this.bridgeProgress;
-        const spanCapacity = links * this.linkLength;
-        const progress = links ? this.clamp(spanCapacity / this.gapDistance, 0, 1) : 0;
-        if (progress > this.bridgeProgress) {
-            this.bridgeProgress = progress;
-            if (progress >= 1 && !this.bridgeComplete) {
+    updateBridgeMetrics() {
+        const leftTail = this.getTailPosition('left');
+        const rightTail = this.getTailPosition('right');
+        const tipGap = this.distance(leftTail, rightTail);
+        const coverage = this.gapDistance - tipGap;
+        const progress = this.clamp(coverage / this.gapDistance, 0, 1);
+        this.bridgeProgress = progress;
+        this.bridgeTipGap = tipGap;
+
+        if (!this.bridgeComplete) {
+            if (this.bridgeLeft.length > 0 && this.bridgeRight.length > 0 && tipGap <= this.linkLength * 1.25) {
                 this.bridgeComplete = true;
                 this.statusMessage = 'Bridge locked - colony crossing!';
                 this.logDebug('Bridge span completed', {
-                    links,
-                    totalLength: parseFloat((links * this.linkLength).toFixed(1))
+                    tipGap: parseFloat(tipGap.toFixed(1)),
+                    leftLinks: this.bridgeLeft.length,
+                    rightLinks: this.bridgeRight.length
                 });
             }
-        } else {
-            this.bridgeProgress = links ? Math.max(this.bridgeProgress * 0.995, progress) : 0;
         }
 
-        if (this.bridgeProgress > prevProgress && this.bridgeProgress - this.lastLoggedProgress >= 0.05) {
-            this.lastLoggedProgress = this.bridgeProgress;
+        if (!this.bridgeComplete && progress - this.lastLoggedProgress >= 0.05) {
+            this.lastLoggedProgress = progress;
             this.logDebug('Bridge progress increased', {
-                progressPercent: parseFloat((this.bridgeProgress * 100).toFixed(1)),
-                links
+                progressPercent: parseFloat((progress * 100).toFixed(1)),
+                tipGap: parseFloat(tipGap.toFixed(1)),
+                leftLinks: this.bridgeLeft.length,
+                rightLinks: this.bridgeRight.length
             });
         }
     }
 
-    getAttachmentPoint() {
-        if (!this.bridgeLinks.length) {
-            return this.anchors[0];
+    getTailPosition(side) {
+        if (side === 'left') {
+            if (!this.bridgeLeft.length) {
+                return { x: this.anchors[0].x, y: this.anchors[0].y };
+            }
+            const ant = this.bridgeLeft[this.bridgeLeft.length - 1].ant;
+            return { x: ant.x, y: ant.y };
         }
-        const lastAnt = this.bridgeLinks[this.bridgeLinks.length - 1].ant;
-        return { x: lastAnt.x, y: lastAnt.y };
+        if (!this.bridgeRight.length) {
+            return { x: this.anchors[1].x, y: this.anchors[1].y };
+        }
+        const ant = this.bridgeRight[this.bridgeRight.length - 1].ant;
+        return { x: ant.x, y: ant.y };
     }
 
     getBridgeNodes() {
+        if (!this.bridgeComplete) {
+            return [];
+        }
         const nodes = [this.anchors[0]];
-        for (const link of this.bridgeLinks) {
+        for (const link of this.bridgeLeft) {
             nodes.push({ x: link.ant.x, y: link.ant.y });
         }
-        if (this.bridgeProgress >= 1) {
-            nodes.push(this.anchors[1]);
+        const rightNodes = [];
+        for (const link of this.bridgeRight) {
+            rightNodes.push({ x: link.ant.x, y: link.ant.y });
         }
+        rightNodes.reverse();
+        nodes.push(...rightNodes);
+        nodes.push(this.anchors[1]);
         return nodes;
     }
 
@@ -382,7 +442,7 @@ class AntBridgeSimulation {
 
     updateHud(crossingCount = 0) {
         this.stats.coverage.textContent = Math.round(this.bridgeProgress * 100) + '%';
-        this.stats.attached.textContent = this.bridgeLinks.length.toString();
+        this.stats.attached.textContent = this.getTotalLinks().toString();
         const foragers = this.ants.filter((a) => a.state === 'foraging').length;
         this.stats.foragers.textContent = foragers.toString();
         this.stats.crossing.textContent = crossingCount.toString();
@@ -461,30 +521,65 @@ class AntBridgeSimulation {
     }
 
     drawBridge() {
-        const nodes = this.getBridgeNodes();
-        if (nodes.length < 2) {
-            return;
+        const leftNodes = [this.anchors[0]];
+        for (const link of this.bridgeLeft) {
+            leftNodes.push({ x: link.ant.x, y: link.ant.y });
         }
-        this.ctx.lineWidth = 8;
-        const color = this.bridgeComplete ? '#c8883e' : '#8c5527';
-        this.ctx.strokeStyle = color;
-        this.ctx.lineCap = 'round';
-        this.ctx.beginPath();
-        this.ctx.moveTo(nodes[0].x, nodes[0].y);
-        for (let i = 1; i < nodes.length; i++) {
-            this.ctx.lineTo(nodes[i].x, nodes[i].y);
+        const rightNodes = [this.anchors[1]];
+        for (const link of this.bridgeRight) {
+            rightNodes.push({ x: link.ant.x, y: link.ant.y });
         }
-        this.ctx.stroke();
 
-        this.ctx.lineWidth = 3;
-        this.ctx.strokeStyle = 'rgba(255, 204, 128, 0.25)';
-        this.ctx.beginPath();
-        this.ctx.moveTo(nodes[0].x, nodes[0].y - 4);
-        for (let i = 1; i < nodes.length; i++) {
-            const wobble = Math.sin((performance.now() * 0.002) + i) * 4 * (1 - this.bridgeProgress);
-            this.ctx.lineTo(nodes[i].x, nodes[i].y - 4 + wobble);
+        const drawPath = (nodes) => {
+            if (nodes.length < 2) {
+                return;
+            }
+            this.ctx.beginPath();
+            this.ctx.moveTo(nodes[0].x, nodes[0].y);
+            for (let i = 1; i < nodes.length; i++) {
+                this.ctx.lineTo(nodes[i].x, nodes[i].y);
+            }
+            this.ctx.stroke();
+        };
+
+        this.ctx.lineCap = 'round';
+        this.ctx.lineWidth = 8;
+        this.ctx.strokeStyle = '#8c5527';
+        drawPath(leftNodes);
+        this.ctx.strokeStyle = '#8c5527';
+        drawPath(rightNodes);
+
+        if (!this.bridgeComplete && leftNodes.length > 1 && rightNodes.length > 1) {
+            const leftTip = leftNodes[leftNodes.length - 1];
+            const rightTip = rightNodes[rightNodes.length - 1];
+            this.ctx.setLineDash([6, 6]);
+            this.ctx.lineWidth = 2.5;
+            this.ctx.strokeStyle = 'rgba(255, 204, 128, 0.35)';
+            this.ctx.beginPath();
+            this.ctx.moveTo(leftTip.x, leftTip.y);
+            this.ctx.lineTo(rightTip.x, rightTip.y);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
         }
-        this.ctx.stroke();
+
+        if (this.bridgeComplete) {
+            const nodes = this.getBridgeNodes();
+            if (nodes.length >= 2) {
+                this.ctx.lineWidth = 10;
+                this.ctx.strokeStyle = '#c8883e';
+                drawPath(nodes);
+
+                this.ctx.lineWidth = 3;
+                this.ctx.strokeStyle = 'rgba(255, 204, 128, 0.25)';
+                this.ctx.beginPath();
+                this.ctx.moveTo(nodes[0].x, nodes[0].y - 4);
+                for (let i = 1; i < nodes.length; i++) {
+                    const wobble = Math.sin((performance.now() * 0.002) + i) * 2;
+                    this.ctx.lineTo(nodes[i].x, nodes[i].y - 4 + wobble);
+                }
+                this.ctx.stroke();
+            }
+        }
     }
 
     drawAnts() {
@@ -542,11 +637,15 @@ class AntBridgeSimulation {
         const lines = [
             'DEBUG MODE (press D to toggle)',
             `runtime: ${runtime}s`,
-            `links: ${frame.links !== undefined ? frame.links : this.bridgeLinks.length}`,
+            `left links: ${frame.leftLinks !== undefined ? frame.leftLinks : this.bridgeLeft.length}`,
+            `right links: ${frame.rightLinks !== undefined ? frame.rightLinks : this.bridgeRight.length}`,
+            `total links: ${frame.links !== undefined ? frame.links : this.getTotalLinks()}`,
             `progress: ${(this.bridgeProgress * 100).toFixed(1)}%`,
-            `tail->far cliff: ${frame.tailToFarCliff !== undefined ? frame.tailToFarCliff : parseFloat(this.distance(this.getAttachmentPoint(), this.anchors[1]).toFixed(1))}`,
-            `near-tail this frame: ${frame.nearTail || 0}`,
-            `edge clamp hits: ${frame.leftEdgeClamp || 0}`,
+            `tip gap: ${frame.tipGap !== undefined ? frame.tipGap : parseFloat(this.bridgeTipGap.toFixed(1))}`,
+            `near-tail left: ${frame.nearTailLeft || 0}`,
+            `near-tail right: ${frame.nearTailRight || 0}`,
+            `edge clamp left: ${frame.leftEdgeClamp || 0}`,
+            `edge clamp right: ${frame.rightEdgeClamp || 0}`,
             `bridgeComplete: ${this.bridgeComplete}`
         ];
 
@@ -632,6 +731,10 @@ class AntBridgeSimulation {
 
     clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    getTotalLinks() {
+        return this.bridgeLeft.length + this.bridgeRight.length;
     }
 }
 
