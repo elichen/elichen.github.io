@@ -283,14 +283,53 @@
         
         const computeSurfaceNormal = (u,v,target) => {
             const un=u/(2*Math.PI), vn=v/(2*Math.PI), epsNorm=0.00001;
-            computeKleinBottlePoint(u,v,_vec.p); 
-            computeKleinBottlePoint(u+epsNorm*(2*Math.PI),v,_vec.p_du); 
-            computeKleinBottlePoint(u,v+epsNorm*(2*Math.PI),_vec.p_dv); 
-            _vec.du.subVectors(_vec.p_du,_vec.p).normalize(); 
+            computeKleinBottlePoint(u,v,_vec.p);
+            computeKleinBottlePoint(u+epsNorm*(2*Math.PI),v,_vec.p_du);
+            computeKleinBottlePoint(u,v+epsNorm*(2*Math.PI),_vec.p_dv);
+            _vec.du.subVectors(_vec.p_du,_vec.p).normalize();
             _vec.dv.subVectors(_vec.p_dv,_vec.p).normalize();
-            target.crossVectors(_vec.du,_vec.dv).normalize(); 
+            target.crossVectors(_vec.du,_vec.dv).normalize();
             return target;
         };
+
+        // Initialize ant position and compute home positions (like sphere implementation)
+        // Start at initial parameters
+        const u_init = 0;
+        const v_init = 0;
+        computeKleinBottlePoint(u_init, v_init, _vec.p);
+        computeSurfaceNormal(u_init, v_init, _vec.N);
+        computeKleinBottlePoint(u_init + epsilon * (2*Math.PI), v_init, _vec.p_du);
+        _vec.F.subVectors(_vec.p_du, _vec.p).normalize().multiplyScalar(-1);
+
+        // Position ant
+        _vec.antOffsetPos.copy(_vec.p).addScaledVector(_vec.N, BODY_OFFSET);
+        antGroup.position.copy(_vec.antOffsetPos);
+        _vec.lookAtTarget.copy(_vec.antOffsetPos).add(_vec.F);
+        tempMatrix.lookAt(_vec.antOffsetPos, _vec.lookAtTarget, _vec.N);
+        antGroup.quaternion.setFromRotationMatrix(tempMatrix);
+
+        // Update matrices so FK works correctly
+        antGroup.updateMatrixWorld(true);
+        thorax.updateMatrixWorld(true);
+
+        // Calculate home positions from neutral FK (like sphere)
+        const home = (() => {
+            const worldToThoraxMat = new THREE.Matrix4().copy(thorax.matrixWorld).invert();
+            return legs.map((leg) => {
+                // Get tibia tip in world at current neutral rotations
+                const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0);
+                const tipWorld = tipLocal.clone();
+                leg.tibiaPivot.localToWorld(tipWorld);
+
+                // Convert to thorax local space
+                return tipWorld.applyMatrix4(worldToThoraxMat);
+            });
+        })();
+
+        console.log('=== Home Positions (thorax space) ===');
+        home.forEach((h, i) => {
+            console.log(`Leg ${i}:`, h.clone());
+        });
 
         function animate(time) {
             requestAnimationFrame(animate);
@@ -329,14 +368,9 @@
                 const inStance = phase < 0.5;
 
                 // Start with home position in thorax space (like sphere)
-                _vec.targetInThorax.copy(state[legIndex].initialized ?
-                    new THREE.Vector3(
-                        leg.deltaU * COXA_LENGTH * 2,
-                        -CLEARANCE_FROM_LEGS,
-                        leg.deltaV * COXA_LENGTH * 2
-                    ) : new THREE.Vector3(0, -CLEARANCE_FROM_LEGS, 0));
+                _vec.targetInThorax.copy(home[legIndex]);
 
-                // Add step offset for walking motion
+                // Add step offset for walking motion along body +Z
                 const stepOffsetThorax = (inStance ? -1 : 1) * (STEP_LENGTH *
                     (inStance ? (phase/0.5) : ((phase-0.5)/0.5)) - STEP_LENGTH/2);
                 _vec.targetInThorax.z += stepOffsetThorax;
@@ -345,19 +379,45 @@
                 _vec.targetWorld = _vec.targetInThorax.clone();
                 _vec.targetWorld.applyMatrix4(thorax.matrixWorld);
 
-                // For Klein bottle, just use parametric calculation
-                // Raycasting is too complex due to self-intersecting geometry
-                const footSpreadFactor = leg.isRear ? 1.05 : 1.0;
+                // Project target onto Klein bottle surface using tangent-space approximation
+                // This respects the IK-calculated foot target position
+                const eps_u = 0.01; // Parameter space step for numerical derivative
+                const eps_v = 0.01;
+                computeKleinBottlePoint(u_body, v_body, _vec.p); // Body position on surface
+                computeKleinBottlePoint(u_body + eps_u, v_body, _vec.p_du);
+                computeKleinBottlePoint(u_body, v_body + eps_v, _vec.p_dv);
 
-                // Calculate foot position in parameter space relative to body
-                const stepPhase = phase < 0.5 ? phase/0.5 : (phase-0.5)/0.5;
-                const stepOffset = phase < 0.5 ?
-                    -STEP_LENGTH/2 + STEP_LENGTH * stepPhase :
-                    STEP_LENGTH/2 - STEP_LENGTH * stepPhase;
+                // Tangent vectors: world space displacement per unit parameter change
+                _vec.du.subVectors(_vec.p_du, _vec.p); // du/dε_u
+                _vec.dv.subVectors(_vec.p_dv, _vec.p); // dv/dε_v
 
-                const u_foot = u_body + leg.deltaU * footSpreadFactor + stepOffset * 0.02;
-                const v_foot = v_body + leg.deltaV * footSpreadFactor;
+                // World space offset from body to desired foot target
+                _vec.temp1.subVectors(_vec.targetWorld, _vec.p);
 
+                // Project onto tangent basis: find (α, β) such that target ≈ p + α·du + β·dv
+                // This gives α and β in units of the epsilon steps
+                const alpha = _vec.temp1.dot(_vec.du) / _vec.du.lengthSq();
+                const beta = _vec.temp1.dot(_vec.dv) / _vec.dv.lengthSq();
+
+                // Calculate foot position in parameter space
+                const u_foot = u_body + alpha * eps_u;
+                const v_foot = v_body + beta * eps_v;
+
+                // Debug on first frame
+                if (FRAME_NO === 1 && legIndex === 0) {
+                    console.log('=== Tangent Space Projection Debug (Leg 0) ===');
+                    console.log('Body (u,v):', u_body, v_body);
+                    console.log('Body surface pos:', _vec.p.clone());
+                    console.log('Target world pos:', _vec.targetWorld.clone());
+                    console.log('Offset (target - body):', _vec.temp1.clone());
+                    console.log('Tangent du:', _vec.du.clone(), 'length:', _vec.du.length());
+                    console.log('Tangent dv:', _vec.dv.clone(), 'length:', _vec.dv.length());
+                    console.log('Projection (alpha, beta):', alpha, beta);
+                    console.log('Foot (u,v):', u_foot, v_foot);
+                    console.log('Foot surface pos:', _vec.footTargetSurface.clone());
+                }
+
+                // Get actual surface point and normal
                 computeKleinBottlePoint(u_foot, v_foot, _vec.footTargetSurface);
                 computeSurfaceNormal(u_foot, v_foot, _vec.normalAtFootTarget);  
 
