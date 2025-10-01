@@ -1,270 +1,351 @@
-class AntBridgeSimulation {
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+class AntModel {
     constructor() {
-        this.canvas = document.getElementById('simulation');
-        this.ctx = this.canvas.getContext('2d');
-        this.pixelRatio = window.devicePixelRatio || 1;
-        this.worldWidth = 960;
-        this.worldHeight = 540;
-        this.resizeCanvas();
+        this.group = new THREE.Group();
 
-        this.ants = [];
-        this.pheromones = [];
-        this.bridgeLeft = [];
-        this.bridgeRight = [];
-        this.linkLength = 42;
-        this.maxSag = 110;
-        this.bridgeProgress = 0;
-        this.bridgeComplete = false;
-        this.bridgeTipGap = 0;
-
-        this.groundY = 420;
-        this.chasm = { start: 360, end: 600 };
-        this.anchors = [
-            { x: this.chasm.start, y: this.groundY },
-            { x: this.chasm.end, y: this.groundY }
-        ];
-        this.gapDistance = this.distance(this.anchors[0], this.anchors[1]);
-
-        this.stats = {
-            coverage: document.getElementById('coverage'),
-            attached: document.getElementById('attached'),
-            foragers: document.getElementById('foragers'),
-            crossing: document.getElementById('crossing'),
-            status: document.getElementById('status')
-        };
-
-        this.debug = false;
-        this.debugEvents = [];
-        this.debugFrame = null;
-        this.debugLastFrame = null;
-        this.lastLoggedProgress = 0;
-        this.startTime = performance.now();
-        this.nextAntId = 0;
-
-        document.getElementById('resetBtn').addEventListener('click', () => this.reset());
-        document.getElementById('shuffleBtn').addEventListener('click', () => this.shuffleTerrain());
-        window.addEventListener('resize', () => this.resizeCanvas());
-        window.addEventListener('keydown', (event) => {
-            if (event.key && event.key.toLowerCase() === 'd') {
-                this.toggleDebug();
-            }
+        // Ant color - reddish brown
+        const antMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8b4513,
+            roughness: 0.8,
+            metalness: 0.2
         });
 
-        this.reset();
-        this.lastTime = performance.now();
-        requestAnimationFrame((t) => this.loop(t));
+        const darkAntMaterial = new THREE.MeshStandardMaterial({
+            color: 0x5c2e0f,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+
+        // Head (front)
+        const headGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+        const head = new THREE.Mesh(headGeometry, antMaterial);
+        head.position.set(0.25, 0, 0);
+        head.scale.set(1, 0.8, 0.8);
+        this.group.add(head);
+
+        // Thorax (middle)
+        const thoraxGeometry = new THREE.SphereGeometry(0.12, 8, 8);
+        const thorax = new THREE.Mesh(thoraxGeometry, antMaterial);
+        thorax.scale.set(1.2, 1, 1);
+        this.group.add(thorax);
+
+        // Abdomen (back)
+        const abdomenGeometry = new THREE.SphereGeometry(0.18, 8, 8);
+        const abdomen = new THREE.Mesh(abdomenGeometry, darkAntMaterial);
+        abdomen.position.set(-0.25, 0, 0);
+        abdomen.scale.set(1.3, 0.9, 0.9);
+        this.group.add(abdomen);
+
+        // Legs (simplified)
+        const legGeometry = new THREE.CylinderGeometry(0.015, 0.015, 0.15, 4);
+        const legMaterial = new THREE.MeshStandardMaterial({
+            color: 0x5c2e0f,
+            roughness: 0.9
+        });
+
+        // 6 legs total (3 per side)
+        for (let side = 0; side < 2; side++) {
+            const sideSign = side === 0 ? 1 : -1;
+            for (let i = 0; i < 3; i++) {
+                const leg = new THREE.Mesh(legGeometry, legMaterial);
+                leg.position.set(
+                    (i - 1) * 0.15,
+                    -0.075,
+                    sideSign * 0.12
+                );
+                leg.rotation.z = sideSign * Math.PI / 6;
+                leg.rotation.x = 0.3;
+                this.group.add(leg);
+            }
+        }
+
+        // Antennae
+        const antennaGeometry = new THREE.CylinderGeometry(0.008, 0.008, 0.2, 4);
+        for (let side = 0; side < 2; side++) {
+            const sideSign = side === 0 ? 1 : -1;
+            const antenna = new THREE.Mesh(antennaGeometry, legMaterial);
+            antenna.position.set(0.35, 0.08, sideSign * 0.08);
+            antenna.rotation.z = sideSign * Math.PI / 4;
+            antenna.rotation.y = sideSign * Math.PI / 6;
+            this.group.add(antenna);
+        }
     }
 
-    resizeCanvas() {
-        const ratio = this.pixelRatio;
-        this.canvas.width = this.worldWidth * ratio;
-        this.canvas.height = this.worldHeight * ratio;
-        this.canvas.style.width = this.worldWidth + 'px';
-        this.canvas.style.height = this.worldHeight + 'px';
-        this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    getMesh() {
+        return this.group;
+    }
+}
+
+class AntBridgeSimulation3D {
+    constructor() {
+        this.container = document.getElementById('container');
+        this.scene = new THREE.Scene();
+
+        // Camera setup - positioned to view the bridge formation
+        this.camera = new THREE.PerspectiveCamera(
+            60,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        this.camera.position.set(8, 6, 12);
+        this.camera.lookAt(0, 2, 0);
+
+        // Renderer
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.container.appendChild(this.renderer.domElement);
+
+        // Orbit controls
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.05;
+        this.controls.target.set(0, 2, 0);
+        this.controls.minDistance = 5;
+        this.controls.maxDistance = 30;
+
+        // Lighting
+        this.setupLighting();
+
+        // Simulation state
+        this.ants = [];
+        this.bridgeLeft = [];
+        this.bridgeRight = [];
+        this.bridgeComplete = false;
+        this.linkLength = 0.6;
+        this.maxSag = 1.5;
+
+        // Cliff positions in 3D space
+        this.leftCliff = { x: -4, y: 2, z: 0 };
+        this.rightCliff = { x: 4, y: 2, z: 0 };
+        this.gapDistance = this.distance3D(this.leftCliff, this.rightCliff);
+
+        // Environment
+        this.createEnvironment();
+
+        // Create ants
+        this.reset();
+
+        // Handle window resize
+        window.addEventListener('resize', () => this.onWindowResize());
+
+        // Start animation loop
+        this.lastTime = performance.now();
+        this.animate();
+    }
+
+    setupLighting() {
+        // Ambient light
+        const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+        this.scene.add(ambient);
+
+        // Main directional light
+        const sun = new THREE.DirectionalLight(0xfff5e6, 1.2);
+        sun.position.set(10, 15, 8);
+        sun.castShadow = true;
+        sun.shadow.camera.left = -15;
+        sun.shadow.camera.right = 15;
+        sun.shadow.camera.top = 15;
+        sun.shadow.camera.bottom = -15;
+        sun.shadow.mapSize.width = 2048;
+        sun.shadow.mapSize.height = 2048;
+        this.scene.add(sun);
+
+        // Fill light
+        const fill = new THREE.DirectionalLight(0x8ba7c9, 0.5);
+        fill.position.set(-8, 8, -5);
+        this.scene.add(fill);
+
+        // Rim light
+        const rim = new THREE.DirectionalLight(0xffffff, 0.6);
+        rim.position.set(0, 5, -10);
+        this.scene.add(rim);
+    }
+
+    createEnvironment() {
+        // Sky color
+        this.scene.background = new THREE.Color(0x87ceeb);
+        this.scene.fog = new THREE.Fog(0x87ceeb, 15, 50);
+
+        // Left cliff platform
+        const cliffGeometry = new THREE.BoxGeometry(3, 0.5, 2);
+        const cliffMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8b7355,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+
+        this.leftPlatform = new THREE.Mesh(cliffGeometry, cliffMaterial);
+        this.leftPlatform.position.set(this.leftCliff.x, this.leftCliff.y - 0.25, 0);
+        this.leftPlatform.castShadow = true;
+        this.leftPlatform.receiveShadow = true;
+        this.scene.add(this.leftPlatform);
+
+        // Right cliff platform
+        this.rightPlatform = new THREE.Mesh(cliffGeometry, cliffMaterial);
+        this.rightPlatform.position.set(this.rightCliff.x, this.rightCliff.y - 0.25, 0);
+        this.rightPlatform.castShadow = true;
+        this.rightPlatform.receiveShadow = true;
+        this.scene.add(this.rightPlatform);
+
+        // Chasm/void below
+        const waterGeometry = new THREE.PlaneGeometry(20, 20);
+        const waterMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2c5a7a,
+            roughness: 0.3,
+            metalness: 0.6
+        });
+        const water = new THREE.Mesh(waterGeometry, waterMaterial);
+        water.rotation.x = -Math.PI / 2;
+        water.position.y = -2;
+        water.receiveShadow = true;
+        this.scene.add(water);
+
+        // Support pillars for cliffs to show they're elevated
+        const pillarGeometry = new THREE.CylinderGeometry(0.3, 0.4, 4, 8);
+        const pillarMaterial = new THREE.MeshStandardMaterial({
+            color: 0x6b5b4a,
+            roughness: 0.95
+        });
+
+        const leftPillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
+        leftPillar.position.set(this.leftCliff.x, 0, 0);
+        leftPillar.castShadow = true;
+        this.scene.add(leftPillar);
+
+        const rightPillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
+        rightPillar.position.set(this.rightCliff.x, 0, 0);
+        rightPillar.castShadow = true;
+        this.scene.add(rightPillar);
     }
 
     reset() {
+        // Clear existing ants
+        for (const ant of this.ants) {
+            this.scene.remove(ant.mesh);
+        }
+
         this.ants = [];
-        this.pheromones = [];
         this.bridgeLeft = [];
         this.bridgeRight = [];
-        this.bridgeProgress = 0;
         this.bridgeComplete = false;
-        this.bridgeTipGap = this.gapDistance;
-        this.statusMessage = 'Scouting the edge...';
-        this.nextAntId = 0;
-        this.startTime = performance.now();
-        this.debugEvents = [];
-        this.debugFrame = null;
-        this.debugLastFrame = null;
-        this.lastLoggedProgress = 0;
 
-        for (let i = 0; i < 70; i++) {
-            this.ants.push(this.createAnt('left'));
+        // Create new ants on both platforms
+        for (let i = 0; i < 50; i++) {
+            this.createAnt('left');
         }
-        for (let i = 0; i < 70; i++) {
-            this.ants.push(this.createAnt('right'));
+        for (let i = 0; i < 50; i++) {
+            this.createAnt('right');
         }
-        this.updateHud();
-        this.logDebug('Swarm reset', {
-            gapDistance: parseFloat(this.gapDistance.toFixed(1)),
-            totalAnts: this.ants.length
-        });
-    }
-
-    shuffleTerrain() {
-        const gapWidth = this.randomRange(210, 320);
-        const gapCenter = this.randomRange(0.42, 0.58) * this.worldWidth;
-        this.chasm.start = Math.max(220, gapCenter - gapWidth / 2);
-        this.chasm.end = Math.min(this.worldWidth - 220, gapCenter + gapWidth / 2);
-        this.anchors[0].x = this.chasm.start;
-        this.anchors[1].x = this.chasm.end;
-        this.gapDistance = this.distance(this.anchors[0], this.anchors[1]);
-        this.reset();
-        this.logDebug('Terrain shuffled', {
-            newGapDistance: parseFloat(this.gapDistance.toFixed(1))
-        });
     }
 
     createAnt(side) {
-        const margin = 80;
-        const x = side === 'left'
-            ? this.randomRange(margin, this.chasm.start - 60)
-            : this.randomRange(this.chasm.end + 60, this.worldWidth - margin);
-        return {
-            id: this.nextAntId++,
-            x,
-            y: this.groundY - 4 + Math.random() * 4,
-            vx: 0,
-            vy: 0,
+        const model = new AntModel();
+        const mesh = model.getMesh();
+        mesh.castShadow = true;
+
+        // Position on appropriate platform
+        const platform = side === 'left' ? this.leftCliff : this.rightCliff;
+        const x = platform.x + (Math.random() - 0.5) * 2;
+        const z = (Math.random() - 0.5) * 1.5;
+
+        mesh.position.set(x, platform.y, z);
+        mesh.rotation.y = Math.random() * Math.PI * 2;
+
+        this.scene.add(mesh);
+
+        const ant = {
+            mesh,
             state: 'foraging',
             side,
-            heading: Math.random() * Math.PI * 2,
+            velocity: new THREE.Vector3(),
+            targetRotation: mesh.rotation.y,
             bridgeIndex: -1,
-            chain: null,
-            crossingT: 0,
-            crossingDirection: 'leftToRight'
+            chain: null
         };
+
+        this.ants.push(ant);
+        return ant;
     }
 
-    loop(timestamp) {
-        const dt = Math.min((timestamp - this.lastTime) / 1000, 0.033);
-        this.lastTime = timestamp;
+    animate() {
+        requestAnimationFrame(() => this.animate());
+
+        const now = performance.now();
+        const dt = Math.min((now - this.lastTime) / 1000, 0.033);
+        this.lastTime = now;
+
         this.update(dt);
-        this.draw();
-        requestAnimationFrame((t) => this.loop(t));
+        this.controls.update();
+        this.renderer.render(this.scene, this.camera);
     }
 
     update(dt) {
-        let crossingCount = 0;
-
-        if (this.debug) {
-            const leftTail = this.getTailPosition('left');
-            const rightTail = this.getTailPosition('right');
-            this.debugFrame = {
-                nearTailLeft: 0,
-                nearTailRight: 0,
-                leftEdgeClamp: 0,
-                rightEdgeClamp: 0,
-                leftTailX: parseFloat(leftTail.x.toFixed(1)),
-                leftTailY: parseFloat(leftTail.y.toFixed(1)),
-                rightTailX: parseFloat(rightTail.x.toFixed(1)),
-                rightTailY: parseFloat(rightTail.y.toFixed(1)),
-                tipGap: parseFloat(this.distance(leftTail, rightTail).toFixed(1)),
-                leftLinks: this.bridgeLeft.length,
-                rightLinks: this.bridgeRight.length,
-                links: this.getTotalLinks()
-            };
-        }
-
         for (const ant of this.ants) {
             if (ant.state === 'foraging') {
                 this.updateForagingAnt(ant, dt);
             } else if (ant.state === 'bridge') {
                 this.updateBridgeAnt(ant, dt);
             } else if (ant.state === 'crossing') {
-                crossingCount++;
                 this.updateCrossingAnt(ant, dt);
             }
         }
 
-        this.pheromones = this.pheromones.filter((p) => {
-            p.life -= dt;
-            return p.life > 0;
-        });
-
         this.updateBridgeMetrics();
-        this.updateHud(crossingCount);
-
-        if (this.debug) {
-            this.debugFrame.runtime = parseFloat(((performance.now() - this.startTime) / 1000).toFixed(2));
-            this.debugFrame.progress = parseFloat((this.bridgeProgress * 100).toFixed(1));
-            this.debugLastFrame = this.debugFrame;
-        } else {
-            this.debugLastFrame = null;
-            this.debugFrame = null;
-        }
     }
 
     updateForagingAnt(ant, dt) {
-        const isLeft = ant.side === 'left';
-        const edgeTarget = isLeft ? this.chasm.start - 16 : this.chasm.end + 16;
-        const dir = Math.sign(edgeTarget - ant.x) || (isLeft ? 1 : -1);
-        ant.vx += dir * 18 * dt;
-        ant.vx += (Math.random() - 0.5) * 70 * dt;
-        ant.vx = this.clamp(ant.vx, -60, 60);
-        ant.x += ant.vx * dt;
-        ant.heading = Math.atan2(0, ant.vx || dir);
+        const platform = ant.side === 'left' ? this.leftCliff : this.rightCliff;
+        const edgeX = ant.side === 'left' ? platform.x + 1.2 : platform.x - 1.2;
 
-        if (isLeft && ant.x > this.chasm.start - 8) {
-            ant.x = this.chasm.start - 8;
-            ant.vx *= -0.2;
-            if (this.debugFrame) {
-                this.debugFrame.leftEdgeClamp++;
-            }
-        }
-        if (!isLeft && ant.x < this.chasm.end + 8) {
-            ant.x = this.chasm.end + 8;
-            ant.vx *= -0.2;
-            if (this.debugFrame) {
-                this.debugFrame.rightEdgeClamp++;
-            }
-        }
+        // Move towards edge
+        const toEdgeX = edgeX - ant.mesh.position.x;
+        ant.velocity.x = toEdgeX * 1.5 + (Math.random() - 0.5) * 2;
+        ant.velocity.z = (Math.random() - 0.5) * 1.5;
 
-        const pheromoneChance = this.bridgeProgress > 0.2 ? 0.15 : 0.3;
-        if (Math.random() < pheromoneChance * dt) {
-            this.pheromones.push({
-                x: ant.x + this.randomRange(-6, 6),
-                y: ant.y + this.randomRange(-10, 6),
-                life: this.randomRange(0.8, 1.6),
-                strength: this.randomRange(0.4, 1)
-            });
-        }
+        // Clamp to platform
+        ant.mesh.position.x += ant.velocity.x * dt;
+        ant.mesh.position.z += ant.velocity.z * dt;
 
+        // Keep on platform
+        const platformLeft = platform.x - 1.5;
+        const platformRight = platform.x + 1.5;
+        ant.mesh.position.x = this.clamp(ant.mesh.position.x, platformLeft, platformRight);
+        ant.mesh.position.z = this.clamp(ant.mesh.position.z, -0.8, 0.8);
+        ant.mesh.position.y = platform.y;
+
+        // Update rotation based on movement
+        if (Math.abs(ant.velocity.x) > 0.1 || Math.abs(ant.velocity.z) > 0.1) {
+            ant.targetRotation = Math.atan2(ant.velocity.x, ant.velocity.z);
+        }
+        ant.mesh.rotation.y += (ant.targetRotation - ant.mesh.rotation.y) * 5 * dt;
+
+        // Try to attach to bridge
         if (!this.bridgeComplete) {
             const attachmentPoint = this.getTailPosition(ant.side);
-            const distToTail = this.distance({ x: ant.x, y: ant.y }, attachmentPoint);
-            if (this.debugFrame) {
-                if (isLeft && distToTail < 45) {
-                    this.debugFrame.nearTailLeft++;
-                }
-                if (!isLeft && distToTail < 45) {
-                    this.debugFrame.nearTailRight++;
-                }
-            }
+            const distToTail = this.distance3D(ant.mesh.position, attachmentPoint);
 
-            const ownChain = isLeft ? this.bridgeLeft : this.bridgeRight;
-            const otherChain = isLeft ? this.bridgeRight : this.bridgeLeft;
+            const ownChain = ant.side === 'left' ? this.bridgeLeft : this.bridgeRight;
+            const otherChain = ant.side === 'left' ? this.bridgeRight : this.bridgeLeft;
             const chainBalanceOK = ownChain.length <= otherChain.length + 2;
 
-            if (chainBalanceOK && distToTail < 26 && ownChain.length < 80) {
+            if (chainBalanceOK && distToTail < 0.4 && ownChain.length < 30) {
                 this.attachAntToBridge(ant, ant.side);
-                return;
             }
         } else {
-            const anchor = isLeft ? this.anchors[0] : this.anchors[1];
-            if (Math.abs(ant.x - anchor.x) < 12 && Math.random() < 0.4) {
+            // Bridge is complete, start crossing
+            const distToPlatformEdge = Math.abs(ant.mesh.position.x - edgeX);
+            if (distToPlatformEdge < 0.3 && Math.random() < 0.3 * dt) {
                 ant.state = 'crossing';
                 ant.crossingT = 0;
-                ant.crossingDirection = isLeft ? 'leftToRight' : 'rightToLeft';
-                this.logDebug('Ant entering crossing flow', { antId: ant.id, side: ant.side });
-                return;
+                ant.crossingDirection = ant.side;
             }
         }
-
-        const floorMin = isLeft ? 70 : this.chasm.end + 40;
-        const floorMax = isLeft ? this.chasm.start - 8 : this.worldWidth - 70;
-        if (ant.x < floorMin) {
-            ant.x = floorMin;
-            ant.vx *= -0.3;
-        }
-        if (ant.x > floorMax) {
-            ant.x = floorMax;
-            ant.vx *= -0.3;
-        }
-
-        ant.y = this.groundY - 4 + Math.sin((ant.x + ant.heading) * 0.08) * 1.5;
     }
 
     attachAntToBridge(ant, side) {
@@ -272,472 +353,187 @@ class AntBridgeSimulation {
         ant.state = 'bridge';
         ant.chain = side;
         ant.bridgeIndex = chain.length;
-        ant.vx = 0;
-        ant.vy = 0;
-        chain.push({ ant });
-        this.statusMessage = 'Chains extending...';
-        this.logDebug('Ant attached to bridge', {
-            antId: ant.id,
-            side,
-            bridgeIndex: ant.bridgeIndex,
-            leftLinks: this.bridgeLeft.length,
-            rightLinks: this.bridgeRight.length
-        });
+        ant.velocity.set(0, 0, 0);
+        chain.push(ant);
     }
 
     updateBridgeAnt(ant, dt) {
-        const totalLinks = this.getTotalLinks();
-        if (!totalLinks) {
-            ant.state = 'foraging';
-            ant.chain = null;
-            ant.bridgeIndex = -1;
-            return;
-        }
+        const totalLinks = this.bridgeLeft.length + this.bridgeRight.length;
+        if (!totalLinks) return;
+
         const segments = totalLinks + 1;
-        const dirX = (this.anchors[1].x - this.anchors[0].x) / this.gapDistance;
-        const dirY = (this.anchors[1].y - this.anchors[0].y) / this.gapDistance;
+        const dir = new THREE.Vector3()
+            .subVectors(this.rightCliff, this.leftCliff)
+            .normalize();
+
         const globalIndex = ant.chain === 'left'
             ? ant.bridgeIndex + 1
             : segments - ant.bridgeIndex - 1;
+
         const t = globalIndex / segments;
-        const spanX = this.anchors[0].x + dirX * this.gapDistance * t;
-        const spanY = this.anchors[0].y + dirY * this.gapDistance * t;
-        const sag = (1 - this.bridgeProgress) * this.maxSag * Math.sin(Math.PI * t);
-        const targetX = spanX;
-        const targetY = spanY + sag;
-        const dx = targetX - ant.x;
-        const dy = targetY - ant.y;
-        ant.x += dx * this.clamp(8 * dt, 0, 0.3);
-        ant.y += dy * this.clamp(10 * dt, 0, 0.38);
-        ant.heading = Math.atan2(dy, dx);
+
+        // Calculate position along bridge span
+        const spanPos = new THREE.Vector3().lerpVectors(
+            new THREE.Vector3(this.leftCliff.x, this.leftCliff.y, this.leftCliff.z),
+            new THREE.Vector3(this.rightCliff.x, this.rightCliff.y, this.rightCliff.z),
+            t
+        );
+
+        // Add sag (gravity effect)
+        const bridgeProgress = this.getBridgeProgress();
+        const sag = (1 - bridgeProgress) * this.maxSag * Math.sin(Math.PI * t);
+        spanPos.y -= sag;
+
+        // Move ant towards target position
+        ant.mesh.position.lerp(spanPos, 5 * dt);
+
+        // Update rotation to face along bridge
+        ant.mesh.lookAt(
+            ant.mesh.position.x + dir.x,
+            ant.mesh.position.y,
+            ant.mesh.position.z + dir.z
+        );
+        ant.mesh.rotation.y += Math.PI / 2;
     }
 
     updateCrossingAnt(ant, dt) {
-        const path = this.getBridgeNodes();
-        if (path.length < 2) {
+        if (!this.bridgeComplete) {
             ant.state = 'foraging';
-            ant.crossingDirection = 'leftToRight';
             return;
         }
-        ant.crossingT += dt * 0.25;
+
+        ant.crossingT = ant.crossingT || 0;
+        ant.crossingT += dt * 0.4;
+
         if (ant.crossingT >= 1) {
-            const direction = ant.crossingDirection;
-            if (direction === 'leftToRight') {
-                ant.side = 'right';
-                ant.x = this.anchors[1].x + 24 + Math.random() * 10;
-            } else {
-                ant.side = 'left';
-                ant.x = this.anchors[0].x - 24 - Math.random() * 10;
-            }
+            // Finished crossing
+            ant.side = ant.crossingDirection === 'left' ? 'right' : 'left';
             ant.state = 'foraging';
-            ant.crossingDirection = 'leftToRight';
-            ant.y = this.groundY - 4;
-            ant.vx = 0;
-            ant.heading = direction === 'leftToRight' ? 0 : Math.PI;
-            this.logDebug('Ant finished crossing', { antId: ant.id, direction });
+            ant.crossingT = 0;
+
+            const newPlatform = ant.side === 'left' ? this.leftCliff : this.rightCliff;
+            ant.mesh.position.set(
+                newPlatform.x + (Math.random() - 0.5) * 2,
+                newPlatform.y,
+                (Math.random() - 0.5) * 1.5
+            );
             return;
         }
-        const direction = ant.crossingDirection;
-        const travelT = direction === 'leftToRight' ? ant.crossingT : 1 - ant.crossingT;
-        const pos = this.interpolatePath(path, travelT);
-        ant.x = pos.x;
-        ant.y = pos.y - 6;
-        ant.heading = direction === 'leftToRight' ? pos.heading : pos.heading + Math.PI;
+
+        // Interpolate along bridge
+        const t = ant.crossingDirection === 'left' ? ant.crossingT : 1 - ant.crossingT;
+        const bridgePath = this.getBridgeNodes();
+        const pos = this.interpolateBridgePath(bridgePath, t);
+
+        ant.mesh.position.copy(pos);
+        ant.mesh.position.y += 0.08; // Slightly above bridge
+
+        // Face direction of travel
+        const dir = ant.crossingDirection === 'left' ? 1 : -1;
+        ant.mesh.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
     }
 
     updateBridgeMetrics() {
         const leftTail = this.getTailPosition('left');
         const rightTail = this.getTailPosition('right');
-        const tipGap = this.distance(leftTail, rightTail);
-        const coverage = this.gapDistance - tipGap;
-        const progress = this.clamp(coverage / this.gapDistance, 0, 1);
-        this.bridgeProgress = progress;
-        this.bridgeTipGap = tipGap;
+        const tipGap = this.distance3D(leftTail, rightTail);
 
-        if (!this.bridgeComplete) {
-            if (this.bridgeLeft.length > 0 && this.bridgeRight.length > 0 && tipGap <= this.linkLength * 1.25) {
-                this.bridgeComplete = true;
-                this.statusMessage = 'Bridge locked - colony crossing!';
-                this.logDebug('Bridge span completed', {
-                    tipGap: parseFloat(tipGap.toFixed(1)),
-                    leftLinks: this.bridgeLeft.length,
-                    rightLinks: this.bridgeRight.length
-                });
-            }
-        }
-
-        if (!this.bridgeComplete && progress - this.lastLoggedProgress >= 0.05) {
-            this.lastLoggedProgress = progress;
-            this.logDebug('Bridge progress increased', {
-                progressPercent: parseFloat((progress * 100).toFixed(1)),
-                tipGap: parseFloat(tipGap.toFixed(1)),
-                leftLinks: this.bridgeLeft.length,
-                rightLinks: this.bridgeRight.length
-            });
+        if (!this.bridgeComplete &&
+            this.bridgeLeft.length > 0 &&
+            this.bridgeRight.length > 0 &&
+            tipGap <= this.linkLength * 1.3) {
+            this.bridgeComplete = true;
         }
     }
 
     getTailPosition(side) {
         if (side === 'left') {
             if (!this.bridgeLeft.length) {
-                return { x: this.anchors[0].x, y: this.anchors[0].y };
+                return new THREE.Vector3(this.leftCliff.x, this.leftCliff.y, this.leftCliff.z);
             }
-            const ant = this.bridgeLeft[this.bridgeLeft.length - 1].ant;
-            return { x: ant.x, y: ant.y };
+            return this.bridgeLeft[this.bridgeLeft.length - 1].mesh.position.clone();
+        } else {
+            if (!this.bridgeRight.length) {
+                return new THREE.Vector3(this.rightCliff.x, this.rightCliff.y, this.rightCliff.z);
+            }
+            return this.bridgeRight[this.bridgeRight.length - 1].mesh.position.clone();
         }
-        if (!this.bridgeRight.length) {
-            return { x: this.anchors[1].x, y: this.anchors[1].y };
-        }
-        const ant = this.bridgeRight[this.bridgeRight.length - 1].ant;
-        return { x: ant.x, y: ant.y };
+    }
+
+    getBridgeProgress() {
+        const leftTail = this.getTailPosition('left');
+        const rightTail = this.getTailPosition('right');
+        const tipGap = this.distance3D(leftTail, rightTail);
+        const coverage = this.gapDistance - tipGap;
+        return this.clamp(coverage / this.gapDistance, 0, 1);
     }
 
     getBridgeNodes() {
-        if (!this.bridgeComplete) {
-            return [];
+        if (!this.bridgeComplete) return [];
+
+        const nodes = [new THREE.Vector3(this.leftCliff.x, this.leftCliff.y, this.leftCliff.z)];
+
+        for (const ant of this.bridgeLeft) {
+            nodes.push(ant.mesh.position.clone());
         }
-        const nodes = [this.anchors[0]];
-        for (const link of this.bridgeLeft) {
-            nodes.push({ x: link.ant.x, y: link.ant.y });
+
+        for (let i = this.bridgeRight.length - 1; i >= 0; i--) {
+            nodes.push(this.bridgeRight[i].mesh.position.clone());
         }
-        const rightNodes = [];
-        for (const link of this.bridgeRight) {
-            rightNodes.push({ x: link.ant.x, y: link.ant.y });
-        }
-        rightNodes.reverse();
-        nodes.push(...rightNodes);
-        nodes.push(this.anchors[1]);
+
+        nodes.push(new THREE.Vector3(this.rightCliff.x, this.rightCliff.y, this.rightCliff.z));
+
         return nodes;
     }
 
-    interpolatePath(nodes, t) {
-        let total = 0;
+    interpolateBridgePath(nodes, t) {
+        if (nodes.length < 2) return new THREE.Vector3();
+
+        let totalDist = 0;
         const segments = [];
+
         for (let i = 0; i < nodes.length - 1; i++) {
-            const a = nodes[i];
-            const b = nodes[i + 1];
-            const d = this.distance(a, b);
-            segments.push({ a, b, d });
-            total += d;
+            const dist = nodes[i].distanceTo(nodes[i + 1]);
+            segments.push({ start: nodes[i], end: nodes[i + 1], dist });
+            totalDist += dist;
         }
-        const targetDist = t * total;
+
+        const targetDist = t * totalDist;
         let accum = 0;
+
         for (const seg of segments) {
-            if (accum + seg.d >= targetDist) {
-                const localT = (targetDist - accum) / seg.d;
-                const x = seg.a.x + (seg.b.x - seg.a.x) * localT;
-                const y = seg.a.y + (seg.b.y - seg.a.y) * localT;
-                const heading = Math.atan2(seg.b.y - seg.a.y, seg.b.x - seg.a.x);
-                return { x, y, heading };
+            if (accum + seg.dist >= targetDist) {
+                const localT = (targetDist - accum) / seg.dist;
+                return new THREE.Vector3().lerpVectors(seg.start, seg.end, localT);
             }
-            accum += seg.d;
-        }
-        const lastSeg = segments[segments.length - 1];
-        return {
-            x: lastSeg.b.x,
-            y: lastSeg.b.y,
-            heading: Math.atan2(lastSeg.b.y - lastSeg.a.y, lastSeg.b.x - lastSeg.a.x)
-        };
-    }
-
-    updateHud(crossingCount = 0) {
-        this.stats.coverage.textContent = Math.round(this.bridgeProgress * 100) + '%';
-        this.stats.attached.textContent = this.getTotalLinks().toString();
-        const foragers = this.ants.filter((a) => a.state === 'foraging').length;
-        this.stats.foragers.textContent = foragers.toString();
-        this.stats.crossing.textContent = crossingCount.toString();
-        this.stats.status.textContent = this.statusMessage;
-    }
-
-    draw() {
-        this.ctx.clearRect(0, 0, this.worldWidth, this.worldHeight);
-        this.drawBackground();
-        this.drawPheromones();
-        this.drawTerrain();
-        this.drawBridge();
-        this.drawAnts();
-        this.drawDebugOverlay();
-    }
-
-    drawBackground() {
-        const grd = this.ctx.createLinearGradient(0, 0, 0, this.worldHeight);
-        grd.addColorStop(0, '#0e1621');
-        grd.addColorStop(0.5, '#0a1015');
-        grd.addColorStop(1, '#050608');
-        this.ctx.fillStyle = grd;
-        this.ctx.fillRect(0, 0, this.worldWidth, this.worldHeight);
-    }
-
-    drawTerrain() {
-        this.ctx.fillStyle = '#090c11';
-        this.ctx.fillRect(0, this.groundY, this.worldWidth, this.worldHeight - this.groundY);
-
-        const cliffGradient = this.ctx.createLinearGradient(0, this.groundY - 160, 0, this.worldHeight);
-        cliffGradient.addColorStop(0, '#1d272f');
-        cliffGradient.addColorStop(1, '#080b0e');
-        this.ctx.fillStyle = cliffGradient;
-        this.ctx.fillRect(0, this.groundY - 160, this.chasm.start, this.worldHeight - (this.groundY - 160));
-        this.ctx.fillRect(this.chasm.end, this.groundY - 160, this.worldWidth - this.chasm.end, this.worldHeight - (this.groundY - 160));
-
-        const depth = 120;
-        const waterGradient = this.ctx.createLinearGradient(0, this.groundY, 0, this.groundY + depth);
-        waterGradient.addColorStop(0, 'rgba(30, 60, 90, 0.45)');
-        waterGradient.addColorStop(1, 'rgba(10, 15, 20, 0.9)');
-        this.ctx.fillStyle = waterGradient;
-        this.ctx.beginPath();
-        this.ctx.moveTo(this.chasm.start, this.groundY);
-        this.ctx.lineTo(this.chasm.end, this.groundY);
-        this.ctx.lineTo(this.chasm.end - 30, this.groundY + depth);
-        this.ctx.lineTo(this.chasm.start + 30, this.groundY + depth);
-        this.ctx.closePath();
-        this.ctx.fill();
-
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-        this.ctx.lineWidth = 2;
-        for (let i = 0; i < 8; i++) {
-            const y = this.groundY + i * 14;
-            const alpha = 0.25 - i * 0.02;
-            this.ctx.strokeStyle = `rgba(110, 160, 210, ${alpha})`;
-            this.ctx.beginPath();
-            this.ctx.moveTo(this.chasm.start + 20, y);
-            this.ctx.lineTo(this.chasm.end - 20, y + 6);
-            this.ctx.stroke();
+            accum += seg.dist;
         }
 
-        this.ctx.fillStyle = '#364450';
-        this.ctx.beginPath();
-        this.ctx.arc(this.chasm.start, this.groundY, 7, 0, Math.PI * 2);
-        this.ctx.arc(this.chasm.end, this.groundY, 7, 0, Math.PI * 2);
-        this.ctx.fill();
+        return nodes[nodes.length - 1].clone();
     }
 
-    drawPheromones() {
-        for (const p of this.pheromones) {
-            this.ctx.fillStyle = `rgba(77, 209, 161, ${p.life * 0.15})`;
-            this.ctx.beginPath();
-            this.ctx.arc(p.x, p.y, 12 * p.strength, 0, Math.PI * 2);
-            this.ctx.fill();
+    distance3D(a, b) {
+        if (a.x !== undefined && b.x !== undefined) {
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            const dz = a.z - b.z;
+            return Math.sqrt(dx * dx + dy * dy + dz * dz);
         }
-    }
-
-    drawBridge() {
-        const leftNodes = [this.anchors[0]];
-        for (const link of this.bridgeLeft) {
-            leftNodes.push({ x: link.ant.x, y: link.ant.y });
-        }
-        const rightNodes = [this.anchors[1]];
-        for (const link of this.bridgeRight) {
-            rightNodes.push({ x: link.ant.x, y: link.ant.y });
-        }
-
-        const drawPath = (nodes) => {
-            if (nodes.length < 2) {
-                return;
-            }
-            this.ctx.beginPath();
-            this.ctx.moveTo(nodes[0].x, nodes[0].y);
-            for (let i = 1; i < nodes.length; i++) {
-                this.ctx.lineTo(nodes[i].x, nodes[i].y);
-            }
-            this.ctx.stroke();
-        };
-
-        this.ctx.lineCap = 'round';
-        this.ctx.lineWidth = 8;
-        this.ctx.strokeStyle = '#8c5527';
-        drawPath(leftNodes);
-        this.ctx.strokeStyle = '#8c5527';
-        drawPath(rightNodes);
-
-        if (!this.bridgeComplete && leftNodes.length > 1 && rightNodes.length > 1) {
-            const leftTip = leftNodes[leftNodes.length - 1];
-            const rightTip = rightNodes[rightNodes.length - 1];
-            this.ctx.setLineDash([6, 6]);
-            this.ctx.lineWidth = 2.5;
-            this.ctx.strokeStyle = 'rgba(255, 204, 128, 0.35)';
-            this.ctx.beginPath();
-            this.ctx.moveTo(leftTip.x, leftTip.y);
-            this.ctx.lineTo(rightTip.x, rightTip.y);
-            this.ctx.stroke();
-            this.ctx.setLineDash([]);
-        }
-
-        if (this.bridgeComplete) {
-            const nodes = this.getBridgeNodes();
-            if (nodes.length >= 2) {
-                this.ctx.lineWidth = 10;
-                this.ctx.strokeStyle = '#c8883e';
-                drawPath(nodes);
-
-                this.ctx.lineWidth = 3;
-                this.ctx.strokeStyle = 'rgba(255, 204, 128, 0.25)';
-                this.ctx.beginPath();
-                this.ctx.moveTo(nodes[0].x, nodes[0].y - 4);
-                for (let i = 1; i < nodes.length; i++) {
-                    const wobble = Math.sin((performance.now() * 0.002) + i) * 2;
-                    this.ctx.lineTo(nodes[i].x, nodes[i].y - 4 + wobble);
-                }
-                this.ctx.stroke();
-            }
-        }
-    }
-
-    drawAnts() {
-        for (const ant of this.ants) {
-            this.drawAnt(ant);
-        }
-    }
-
-    drawAnt(ant) {
-        this.ctx.save();
-        this.ctx.translate(ant.x, ant.y);
-        this.ctx.rotate(ant.heading);
-        const bodyColor = ant.state === 'bridge' ? '#2f1d14' : '#3a2617';
-        const headColor = ant.state === 'bridge' ? '#5f3a22' : '#7a4b2a';
-
-        this.ctx.fillStyle = bodyColor;
-        this.ctx.beginPath();
-        this.ctx.ellipse(-4, 0, 6, 4, 0, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        this.ctx.fillStyle = headColor;
-        this.ctx.beginPath();
-        this.ctx.ellipse(4, 0, 4.5, 3.4, 0, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
-        this.ctx.lineWidth = 1;
-        this.ctx.beginPath();
-        this.ctx.moveTo(-2, -3);
-        this.ctx.lineTo(-7, -6);
-        this.ctx.moveTo(-1, 3);
-        this.ctx.lineTo(-7, 6);
-        this.ctx.stroke();
-
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-        this.ctx.beginPath();
-        this.ctx.moveTo(7, -1);
-        this.ctx.lineTo(10, -5);
-        this.ctx.moveTo(7, 1);
-        this.ctx.lineTo(10, 5);
-        this.ctx.stroke();
-
-        this.ctx.restore();
-    }
-
-    drawDebugOverlay() {
-        if (!this.debug) {
-            return;
-        }
-
-        const frame = this.debugLastFrame || {};
-        const runtime = frame.runtime !== undefined
-            ? frame.runtime
-            : parseFloat(((performance.now() - this.startTime) / 1000).toFixed(2));
-        const lines = [
-            'DEBUG MODE (press D to toggle)',
-            `runtime: ${runtime}s`,
-            `left links: ${frame.leftLinks !== undefined ? frame.leftLinks : this.bridgeLeft.length}`,
-            `right links: ${frame.rightLinks !== undefined ? frame.rightLinks : this.bridgeRight.length}`,
-            `total links: ${frame.links !== undefined ? frame.links : this.getTotalLinks()}`,
-            `progress: ${(this.bridgeProgress * 100).toFixed(1)}%`,
-            `tip gap: ${frame.tipGap !== undefined ? frame.tipGap : parseFloat(this.bridgeTipGap.toFixed(1))}`,
-            `near-tail left: ${frame.nearTailLeft || 0}`,
-            `near-tail right: ${frame.nearTailRight || 0}`,
-            `edge clamp left: ${frame.leftEdgeClamp || 0}`,
-            `edge clamp right: ${frame.rightEdgeClamp || 0}`,
-            `bridgeComplete: ${this.bridgeComplete}`
-        ];
-
-        if (this.debugEvents.length) {
-            lines.push('recent events:');
-            const recent = this.debugEvents.slice(-4).reverse();
-            for (const entry of recent) {
-                lines.push(`[${entry.timestamp}s] ${entry.message}`);
-            }
-        }
-
-        this.ctx.save();
-        this.ctx.font = '12px "Source Code Pro", monospace';
-        this.ctx.textBaseline = 'top';
-        this.ctx.textAlign = 'left';
-        const padding = 10;
-        const lineHeight = 16;
-        let boxWidth = 0;
-        for (const line of lines) {
-            const width = this.ctx.measureText(line).width;
-            if (width > boxWidth) {
-                boxWidth = width;
-            }
-        }
-        const boxHeight = lineHeight * lines.length + padding * 2;
-        const x = 16;
-        const y = 16;
-
-        this.ctx.fillStyle = 'rgba(6, 10, 14, 0.74)';
-        this.ctx.fillRect(x, y, boxWidth + padding * 2, boxHeight);
-        this.ctx.strokeStyle = 'rgba(245, 175, 25, 0.45)';
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(x, y, boxWidth + padding * 2, boxHeight);
-
-        lines.forEach((line, index) => {
-            let color;
-            if (index === 0) {
-                color = '#4dd1a1';
-            } else if (line === 'recent events:') {
-                color = '#9aa5b1';
-            } else if (line.startsWith('[')) {
-                color = '#f5af19';
-            } else {
-                color = '#f3f3f5';
-            }
-            this.ctx.fillStyle = color;
-            this.ctx.fillText(line, x + padding, y + padding + index * lineHeight);
-        });
-
-        this.ctx.restore();
-    }
-
-    logDebug(message, data = {}, forceConsole = false) {
-        const timestamp = parseFloat(((performance.now() - this.startTime) / 1000).toFixed(2));
-        const entry = { timestamp, message, data };
-        this.debugEvents.push(entry);
-        if (this.debugEvents.length > 12) {
-            this.debugEvents.shift();
-        }
-        if (this.debug || forceConsole) {
-            if (data && Object.keys(data).length) {
-                console.log(`[AntBridge ${timestamp}s] ${message}`, data);
-            } else {
-                console.log(`[AntBridge ${timestamp}s] ${message}`);
-            }
-        }
-    }
-
-    toggleDebug() {
-        this.debug = !this.debug;
-        this.logDebug(this.debug ? 'Debug overlay enabled (press D to hide)' : 'Debug overlay disabled', {}, true);
-    }
-
-    randomRange(min, max) {
-        return min + Math.random() * (max - min);
-    }
-
-    distance(a, b) {
-        const dx = a.x - b.x;
-        const dy = a.y - b.y;
-        return Math.sqrt(dx * dx + dy * dy);
+        return a.distanceTo(b);
     }
 
     clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
     }
 
-    getTotalLinks() {
-        return this.bridgeLeft.length + this.bridgeRight.length;
+    onWindowResize() {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
 }
 
+// Start simulation when page loads
 window.addEventListener('DOMContentLoaded', () => {
-    new AntBridgeSimulation();
+    new AntBridgeSimulation3D();
 });
