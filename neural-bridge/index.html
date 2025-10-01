@@ -7,62 +7,17 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="layout">
-        <header class="hero">
-            <div>
-                <h1>Ant Bridge Collective</h1>
-                <p class="subtitle">Watch a swarm of ants self-organize into a living bridge across the void.</p>
-            </div>
-            <div class="controls">
-                <button id="resetBtn" class="btn">Reset Swarm</button>
-                <button id="shuffleBtn" class="btn ghost">Shuffle Terrain</button>
-            </div>
-        </header>
+    <div id="container"></div>
+    <div id="controls-hint">Drag to rotate • Scroll to zoom</div>
 
-        <main class="main-area">
-            <canvas id="simulation" width="960" height="540" aria-label="Ant bridge simulation"></canvas>
-            <aside class="sidebar">
-                <section>
-                    <h2>Swarm Telemetry</h2>
-                    <div class="stat-grid">
-                        <div class="stat">
-                            <span class="label">Bridge coverage</span>
-                            <span id="coverage" class="value">0%</span>
-                        </div>
-                        <div class="stat">
-                            <span class="label">Attached ants</span>
-                            <span id="attached" class="value">0</span>
-                        </div>
-                        <div class="stat">
-                            <span class="label">Ground crew</span>
-                            <span id="foragers" class="value">0</span>
-                        </div>
-                        <div class="stat">
-                            <span class="label">Crossing</span>
-                            <span id="crossing" class="value">0</span>
-                        </div>
-                    </div>
-                    <p id="status" class="status">Scouting the edge...</p>
-                </section>
-
-                <section>
-                    <h2>How It Works</h2>
-                    <p>Ants explore both cliffs, reinforce pheromone trails toward the gap, and link together when they reach the attachment zone. Each new body extends the living chain until it can lock onto the far side, allowing the colony to cross.</p>
-                    <ul>
-                        <li>Foragers wander the ledges and call others with pheromones.</li>
-                        <li>Attachment-ready ants latch onto the last segment of the bridge.</li>
-                        <li>The bridge sags under its own weight until the span is complete.</li>
-                        <li>Once stable, traffic begins streaming over the living structure.</li>
-                    </ul>
-                </section>
-            </aside>
-        </main>
-
-        <footer class="footer">
-            <p>Inspired by real army-ant bridge formation. Built with canvas rendering and simple swarm heuristics.</p>
-        </footer>
-    </div>
-
-    <script src="game.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="game.js"></script>
 </body>
 </html>
