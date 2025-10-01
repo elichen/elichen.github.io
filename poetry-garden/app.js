@@ -1,636 +1,549 @@
-class PoetryGarden {
-    constructor() {
-        this.canvas = document.getElementById('garden-canvas');
-        this.ctx = this.canvas.getContext('2d');
-        this.plantedSeeds = new Map();
-        this.growingPoems = new Set();
-        this.harvestedPoems = [];
-        this.draggedSeed = null;
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// Poetry word database
+const POETRY_WORDS = {
+    moonlight: { color: 0xc8b7ff, words: ['silver', 'gentle', 'whispers', 'shadows', 'dreams'] },
+    ocean: { color: 0x4fb3ff, words: ['waves', 'endless', 'deep', 'horizon', 'blue'] },
+    forest: { color: 0x4dff88, words: ['ancient', 'green', 'silence', 'trees', 'mystery'] },
+    starlight: { color: 0xffffaa, words: ['distant', 'bright', 'guide', 'eternal', 'cosmos'] },
+    wind: { color: 0xb8e6ff, words: ['gentle', 'carries', 'stories', 'freedom', 'touch'] },
+    sunrise: { color: 0xffd700, words: ['golden', 'hope', 'awakening', 'warmth', 'light'] },
+    longing: { color: 0xff9bce, words: ['distant', 'heart', 'yearning', 'memory', 'reach'] },
+    joy: { color: 0xffeb3b, words: ['laughter', 'bright', 'dancing', 'celebration', 'light'] },
+    melancholy: { color: 0x9c88aa, words: ['autumn', 'rain', 'quiet', 'thoughtful', 'solitude'] },
+    wonder: { color: 0x80d8ff, words: ['curious', 'magic', 'questions', 'amazement', 'awe'] },
+    peace: { color: 0xc5e1a5, words: ['calm', 'stillness', 'harmony', 'breath', 'centered'] },
+    hope: { color: 0xffcc80, words: ['tomorrow', 'rising', 'possibility', 'faith', 'bloom'] },
+    time: { color: 0xb39ddb, words: ['flowing', 'endless', 'moments', 'eternal', 'passing'] },
+    memory: { color: 0xf48fb1, words: ['fading', 'precious', 'golden', 'whispers', 'treasured'] },
+    dream: { color: 0xce93d8, words: ['floating', 'colors', 'impossible', 'flight', 'wonder'] },
+    silence: { color: 0x90a4ae, words: ['profound', 'speaks', 'empty', 'listening', 'space'] },
+    infinity: { color: 0x7986cb, words: ['endless', 'circle', 'beyond', 'limitless', 'vast'] },
+    shadow: { color: 0x616161, words: ['dancing', 'following', 'mystery', 'depth', 'contrast'] }
+};
+
+const WORD_KEYS = Object.keys(POETRY_WORDS);
+
+class Flower {
+    constructor(word, position, color) {
+        this.word = word;
+        this.position = position;
+        this.color = color;
+        this.group = new THREE.Group();
+        this.group.position.copy(position);
+
+        this.bloomProgress = 0;
+        this.targetBloom = 1;
+        this.isFullyBloomed = false;
+
+        this.createFlower();
+        this.createParticles();
+        this.poem = this.generatePoem();
+        this.poemMesh = null;
+    }
+
+    createFlower() {
+        const stemGeometry = new THREE.CylinderGeometry(0.02, 0.03, 0.8, 8);
+        const stemMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4a7c59,
+            roughness: 0.8
+        });
+        const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+        stem.position.y = 0.4;
+        this.group.add(stem);
+
+        // Flower head (multiple petals)
+        this.petalGroup = new THREE.Group();
+        this.petalGroup.position.y = 0.8;
+
+        const petalCount = 8;
+        this.petals = [];
+
+        for (let i = 0; i < petalCount; i++) {
+            const angle = (i / petalCount) * Math.PI * 2;
+            const petal = this.createPetal(angle);
+            this.petals.push(petal);
+            this.petalGroup.add(petal);
+        }
+
+        // Center of flower
+        const centerGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+        const centerMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffeb3b,
+            emissive: 0xffeb3b,
+            emissiveIntensity: 0.3
+        });
+        const center = new THREE.Mesh(centerGeometry, centerMaterial);
+        this.petalGroup.add(center);
+
+        this.group.add(this.petalGroup);
+
+        // Start fully closed
+        this.petalGroup.scale.set(0.01, 0.01, 0.01);
+    }
+
+    createPetal(angle) {
+        const petalGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+        petalGeometry.scale(1, 0.3, 0.6);
+
+        const petalMaterial = new THREE.MeshStandardMaterial({
+            color: this.color,
+            emissive: this.color,
+            emissiveIntensity: 0.2,
+            roughness: 0.4,
+            metalness: 0.1
+        });
+
+        const petal = new THREE.Mesh(petalGeometry, petalMaterial);
+        petal.position.x = Math.cos(angle) * 0.15;
+        petal.position.z = Math.sin(angle) * 0.15;
+        petal.rotation.y = angle;
+        petal.rotation.x = Math.PI / 6;
+
+        return petal;
+    }
+
+    createParticles() {
         this.particles = [];
-        
-        this.initializeCanvas();
-        this.setupEventListeners();
-        this.startAnimationLoop();
-        
-        // Poetry generation templates and patterns
-        this.poetryTemplates = {
-            haiku: {
-                syllables: [5, 7, 5],
-                structure: 3
-            },
-            'free-verse': {
-                lines: [2, 4],
-                structure: 'flowing'
-            },
-            'rhyming': {
-                structure: 'AABB',
-                lines: 4
-            },
-            'minimalist': {
-                lines: [1, 3],
-                structure: 'sparse'
-            }
-        };
-        
-        this.poetryWords = {
-            nature: {
-                moonlight: ['silver', 'gentle', 'whispers', 'shadows', 'dreams', 'night'],
-                ocean: ['waves', 'endless', 'deep', 'salt', 'horizon', 'blue'],
-                forest: ['ancient', 'green', 'silence', 'trees', 'mystery', 'paths'],
-                starlight: ['distant', 'bright', 'guide', 'eternal', 'dance', 'cosmos'],
-                wind: ['gentle', 'carries', 'stories', 'freedom', 'touch', 'movement'],
-                sunrise: ['golden', 'hope', 'awakening', 'warmth', 'new', 'light']
-            },
-            emotions: {
-                longing: ['distant', 'heart', 'yearning', 'memory', 'reach', 'empty'],
-                joy: ['laughter', 'bright', 'dancing', 'celebration', 'light', 'singing'],
-                melancholy: ['autumn', 'rain', 'quiet', 'thoughtful', 'gray', 'solitude'],
-                wonder: ['curious', 'magic', 'questions', 'amazement', 'discovery', 'awe'],
-                peace: ['calm', 'stillness', 'harmony', 'breath', 'centered', 'quiet'],
-                hope: ['tomorrow', 'rising', 'possibility', 'faith', 'growing', 'bloom']
-            },
-            abstract: {
-                time: ['flowing', 'endless', 'moments', 'eternal', 'passing', 'memory'],
-                memory: ['fading', 'precious', 'golden', 'whispers', 'holds', 'treasured'],
-                dream: ['floating', 'colors', 'impossible', 'flight', 'wonder', 'magic'],
-                silence: ['profound', 'speaks', 'empty', 'full', 'listening', 'space'],
-                infinity: ['endless', 'circle', 'beyond', 'limitless', 'eternal', 'vast'],
-                shadow: ['dancing', 'following', 'mystery', 'depth', 'contrast', 'hidden']
-            }
-        };
-    }
-
-    initializeCanvas() {
-        const resizeCanvas = () => {
-            const rect = this.canvas.parentElement.getBoundingClientRect();
-            this.canvas.width = rect.width;
-            this.canvas.height = rect.height;
-        };
-        
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-        
-        // Draw subtle background pattern
-        this.drawBackground();
-    }
-
-    drawBackground() {
-        const ctx = this.ctx;
-        const width = this.canvas.width;
-        const height = this.canvas.height;
-        
-        // Create a subtle grid pattern
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-        ctx.lineWidth = 1;
-        
-        for (let x = 0; x < width; x += 40) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-            ctx.stroke();
-        }
-        
-        for (let y = 0; y < height; y += 40) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-            ctx.stroke();
-        }
-    }
-
-    setupEventListeners() {
-        // Only setup drag and drop
-        this.setupDragAndDrop();
-
-        // Custom seed input
-        document.getElementById('add-custom').addEventListener('click', () => this.addCustomSeed());
-        document.getElementById('custom-word').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.addCustomSeed();
+        const particleGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+        const particleMaterial = new THREE.MeshBasicMaterial({
+            color: this.color,
+            transparent: true,
+            opacity: 0.6
         });
 
-        // Controls
-        document.getElementById('clear-garden').addEventListener('click', () => this.clearGarden());
-        document.getElementById('harvest-poems').addEventListener('click', () => this.harvestAllPoems());
-    }
-
-
-    setupDragAndDrop() {
-        // Make all current seeds draggable
-        this.makeSeedsDraggable();
-
-        // Garden drop zone
-        const gardenPlot = document.querySelector('.garden-plot');
-        
-        gardenPlot.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'copy';
-            gardenPlot.classList.add('drag-over');
-        });
-        
-        gardenPlot.addEventListener('dragenter', (e) => {
-            e.preventDefault();
-        });
-        
-        gardenPlot.addEventListener('dragleave', (e) => {
-            gardenPlot.classList.remove('drag-over');
-        });
-        
-        gardenPlot.addEventListener('drop', (e) => {
-            e.preventDefault();
-            gardenPlot.classList.remove('drag-over');
-            
-            const word = e.dataTransfer.getData('text/plain');
-            if (word) {
-                const rect = gardenPlot.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                this.plantSeed(word, x, y);
-            }
-        });
-        
-        // Fallback: mouse-based drag implementation
-        this.setupMouseDrag();
-    }
-
-    makeSeedsDraggable() {
-        const seeds = document.querySelectorAll('.seed');
-        
-        seeds.forEach((seed, index) => {
-            if (seed.hasAttribute('data-drag-setup')) {
-                return; // Already set up
-            }
-            
-            seed.draggable = true;
-            seed.style.cursor = 'grab';
-            seed.setAttribute('data-drag-setup', 'true');
-            
-            seed.addEventListener('dragstart', (e) => {
-                const word = e.target.dataset.word || e.target.textContent;
-                e.dataTransfer.setData('text/plain', word);
-                e.dataTransfer.setData('text', word);
-                e.dataTransfer.effectAllowed = 'all';
-                e.target.classList.add('dragging');
-            });
-            
-            seed.addEventListener('dragend', (e) => {
-                e.target.classList.remove('dragging');
-            });
-        });
-    }
-
-    setupMouseDrag() {
-        let isDragging = false;
-        let draggedWord = null;
-        let dragElement = null;
-        
-        document.addEventListener('mousedown', (e) => {
-            if (e.target.classList.contains('seed')) {
-                isDragging = true;
-                draggedWord = e.target.dataset.word || e.target.textContent;
-                
-                // Create visual drag element
-                dragElement = e.target.cloneNode(true);
-                dragElement.style.cssText = `
-                    position: fixed;
-                    pointer-events: none;
-                    z-index: 1000;
-                    opacity: 0.8;
-                    transform: translate(${e.clientX - 20}px, ${e.clientY - 10}px) scale(0.9);
-                    transition: none !important;
-                    animation: none !important;
-                    left: 0;
-                    top: 0;
-                `;
-                document.body.appendChild(dragElement);
-                
-                e.preventDefault();
-            }
-        });
-        
-        document.addEventListener('mousemove', (e) => {
-            if (isDragging && dragElement) {
-                // Use transform for better performance
-                dragElement.style.transform = `translate(${e.clientX - 20}px, ${e.clientY - 10}px) scale(0.9)`;
-            }
-        });
-        
-        document.addEventListener('mouseup', (e) => {
-            if (isDragging && draggedWord) {
-                // Check if we're over the garden
-                const gardenPlot = document.querySelector('.garden-plot');
-                const rect = gardenPlot.getBoundingClientRect();
-                
-                if (e.clientX >= rect.left && e.clientX <= rect.right &&
-                    e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
-                    this.plantSeed(draggedWord, x, y);
-                    this.createMagicalSparkles(x, y);
-                }
-                
-                // Cleanup
-                if (dragElement) {
-                    document.body.removeChild(dragElement);
-                    dragElement = null;
-                }
-                
-                isDragging = false;
-                draggedWord = null;
-            }
-        });
-    }
-
-    addCustomSeed() {
-        const input = document.getElementById('custom-word');
-        const word = input.value.trim();
-        
-        if (word) {
-            // Create temporary seed element
-            const tempSeed = document.createElement('span');
-            tempSeed.className = 'seed';
-            tempSeed.textContent = word;
-            tempSeed.dataset.word = word;
-            
-            // Add to custom seeds area - find a better place to append
-            const customArea = document.querySelector('.custom-seed');
-            customArea.parentNode.insertBefore(tempSeed, customArea);
-            
-            // Make it draggable using our helper function
-            this.makeSeedsDraggable();
-            
-            input.value = '';
-            
-            // Auto-remove after some time to keep UI clean
-            setTimeout(() => {
-                if (tempSeed.parentNode) {
-                    tempSeed.parentNode.removeChild(tempSeed);
-                }
-            }, 60000);
-        }
-    }
-
-    plantSeed(word, x, y) {
-        const seedId = `seed-${Date.now()}-${Math.random()}`;
-        
-        // Create planted seed element
-        const plantedSeed = document.createElement('div');
-        plantedSeed.className = 'planted-seed';
-        plantedSeed.textContent = word;
-        plantedSeed.style.left = `${x - 30}px`;
-        plantedSeed.style.top = `${y - 15}px`;
-        plantedSeed.addEventListener('click', () => this.growPoetryFromSeed(seedId));
-        
-        document.querySelector('.planted-seeds').appendChild(plantedSeed);
-        
-        // Store seed data
-        this.plantedSeeds.set(seedId, {
-            word,
-            x: x - 30,
-            y: y - 15,
-            element: plantedSeed,
-            hasGrown: false
-        });
-
-        // Create planting particles
-        this.createPlantingParticles(x, y);
-        
-        // Add hover suggestions for planted seeds
-        this.addSeedSuggestions(plantedSeed, word);
-        
-        // Auto-grow after a delay
-        setTimeout(() => {
-            if (!this.plantedSeeds.get(seedId)?.hasGrown) {
-                this.growPoetryFromSeed(seedId);
-            }
-        }, 2000 + Math.random() * 3000);
-    }
-
-    createPlantingParticles(x, y) {
-        for (let i = 0; i < 8; i++) {
-            const particle = {
-                x: x + (Math.random() - 0.5) * 20,
-                y: y + (Math.random() - 0.5) * 20,
-                vx: (Math.random() - 0.5) * 4,
-                vy: (Math.random() - 0.5) * 4,
-                life: 1,
-                decay: 0.02
+        for (let i = 0; i < 20; i++) {
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial.clone());
+            particle.position.set(
+                (Math.random() - 0.5) * 0.3,
+                Math.random() * 0.5,
+                (Math.random() - 0.5) * 0.3
+            );
+            particle.userData = {
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.02,
+                    Math.random() * 0.03 + 0.01,
+                    (Math.random() - 0.5) * 0.02
+                ),
+                lifetime: Math.random() * 2 + 1
             };
             this.particles.push(particle);
+            this.group.add(particle);
         }
     }
 
-    growPoetryFromSeed(seedId) {
-        const seed = this.plantedSeeds.get(seedId);
-        if (!seed || seed.hasGrown) return;
+    generatePoem() {
+        const wordData = POETRY_WORDS[this.word];
+        const words = wordData ? wordData.words : ['beauty', 'wonder', 'magic', 'light', 'dream'];
 
-        seed.hasGrown = true;
-        seed.element.style.animation = 'none';
-
-        const poem = this.generatePoetry(seed.word);
-        this.displayGrowingPoem(poem, seed.x + 60, seed.y, seedId);
-    }
-
-    generatePoetry(seedWord) {
-        const style = document.getElementById('poetry-style').value;
-        const template = this.poetryTemplates[style];
-        
-        // Find word category and related words
-        let relatedWords = [];
-        let category = 'abstract';
-        
-        for (const [cat, words] of Object.entries(this.poetryWords)) {
-            if (words[seedWord]) {
-                relatedWords = words[seedWord];
-                category = cat;
-                break;
-            }
-        }
-        
-        // If not found, create generic related words
-        if (relatedWords.length === 0) {
-            relatedWords = ['gentle', 'mysterious', 'flowing', 'eternal', 'whispers', 'dreams'];
-        }
-
-        return this.createPoetryByStyle(style, seedWord, relatedWords, category);
-    }
-
-    createPoetryByStyle(style, seedWord, relatedWords, category) {
-        const poems = {
-            haiku: () => {
-                const lines = [
-                    `${this.capitalize(seedWord)} ${this.randomChoice(relatedWords)}`,
-                    `${this.randomChoice(relatedWords)} ${this.randomChoice(relatedWords)} through the ${this.randomChoice(['night', 'day', 'moment', 'space'])}`,
-                    `${this.randomChoice(relatedWords)} ${this.randomChoice(['remains', 'echoes', 'flows', 'whispers'])}`
-                ];
-                return lines;
-            },
-            'free-verse': () => {
-                const lines = [
-                    `In the ${seedWord} I find`,
-                    `${this.randomChoice(relatedWords)} moments`,
-                    `that ${this.randomChoice(relatedWords)} and ${this.randomChoice(relatedWords)}`,
-                    `like ${this.randomChoice(['memories', 'dreams', 'whispers', 'shadows'])}`
-                ];
-                return lines;
-            },
-            'rhyming': () => {
-                const rhymePairs = this.generateRhymingPairs();
-                const lines = [
-                    `${this.capitalize(seedWord)} ${this.randomChoice(relatedWords)} in the ${rhymePairs[0][0]}`,
-                    `Bringing ${this.randomChoice(relatedWords)} to the ${rhymePairs[0][1]}`,
-                    `Where ${this.randomChoice(relatedWords)} ${this.randomChoice(['dance', 'flow', 'whisper'])} ${rhymePairs[1][0]}`,
-                    `And ${this.randomChoice(relatedWords)} ${this.randomChoice(['shine', 'glow', 'shimmer'])} ${rhymePairs[1][1]}`
-                ];
-                return lines;
-            },
-            'minimalist': () => {
-                const lines = [
-                    `${seedWord}.`,
-                    `${this.randomChoice(relatedWords)}.`,
-                    `${this.randomChoice(['silence', 'space', 'breath'])}.`
-                ];
-                return lines.slice(0, Math.random() > 0.5 ? 2 : 3);
-            }
-        };
-
-        return poems[style] ? poems[style]() : poems['free-verse']();
-    }
-
-    generateRhymingPairs() {
-        const rhymes = [
-            ['night', 'light'], ['day', 'way'], ['sea', 'free'], ['sky', 'high'],
-            ['dream', 'stream'], ['heart', 'start'], ['soul', 'whole'], ['mind', 'find']
+        const templates = [
+            [
+                `${this.capitalize(this.word)} ${this.pick(words)}`,
+                `${this.pick(words)} ${this.pick(words)} through the ${this.pick(['night', 'day', 'moment'])}`,
+                `${this.pick(words)} ${this.pick(['remains', 'echoes', 'flows'])}`
+            ],
+            [
+                `In the ${this.word}`,
+                `${this.pick(words)} moments`,
+                `that ${this.pick(words)} and ${this.pick(words)}`,
+                `like ${this.pick(['memories', 'dreams', 'whispers'])}`
+            ],
+            [
+                `${this.capitalize(this.word)}.`,
+                `${this.pick(words)}.`,
+                `${this.pick(['silence', 'space', 'breath'])}.`
+            ]
         ];
-        return [this.randomChoice(rhymes), this.randomChoice(rhymes)];
-    }
 
-    randomChoice(array) {
-        return array[Math.floor(Math.random() * array.length)];
+        return this.pick(templates);
     }
 
     capitalize(word) {
         return word.charAt(0).toUpperCase() + word.slice(1);
     }
 
-    displayGrowingPoem(lines, x, y, seedId) {
-        const poemElement = document.createElement('div');
-        poemElement.className = 'growing-poem';
-        poemElement.style.left = `${Math.min(x, this.canvas.width - 250)}px`;
-        poemElement.style.top = `${Math.min(y, this.canvas.height - 100)}px`;
-        
-        // Add lines with staggered animation
-        lines.forEach((line, index) => {
-            const lineElement = document.createElement('span');
-            lineElement.className = 'poem-line';
-            lineElement.textContent = line;
-            lineElement.style.animationDelay = `${index * 0.5}s`;
-            poemElement.appendChild(lineElement);
-        });
+    pick(array) {
+        return array[Math.floor(Math.random() * array.length)];
+    }
 
-        // Add harvest button
-        const harvestBtn = document.createElement('button');
-        harvestBtn.textContent = '🌸 Harvest';
-        harvestBtn.style.cssText = `
-            margin-top: 10px;
-            padding: 5px 10px;
-            border: none;
-            border-radius: 5px;
-            background: linear-gradient(45deg, #4facfe, #00f2fe);
-            color: white;
-            cursor: pointer;
-            font-size: 0.8rem;
-        `;
-        harvestBtn.addEventListener('click', () => this.harvestPoem(lines, seedId, poemElement));
-        poemElement.appendChild(harvestBtn);
+    update(dt) {
+        // Bloom animation
+        if (this.bloomProgress < this.targetBloom) {
+            this.bloomProgress = Math.min(this.targetBloom, this.bloomProgress + dt * 0.5);
+            const scale = this.bloomProgress;
+            this.petalGroup.scale.set(scale, scale, scale);
 
-        document.querySelector('.growing-poems').appendChild(poemElement);
-        this.growingPoems.add(poemElement);
-
-        // Auto-harvest after some time
-        setTimeout(() => {
-            if (document.body.contains(poemElement)) {
-                this.harvestPoem(lines, seedId, poemElement);
+            if (this.bloomProgress >= 0.99 && !this.isFullyBloomed) {
+                this.isFullyBloomed = true;
             }
-        }, 15000);
-    }
+        }
 
-    harvestPoem(lines, seedId, poemElement) {
-        const poem = {
-            text: lines.join('\n'),
-            timestamp: new Date().toLocaleString(),
-            seedWord: this.plantedSeeds.get(seedId)?.word || 'unknown',
-            style: document.getElementById('poetry-style').value
-        };
+        // Gentle swaying
+        const time = performance.now() * 0.001;
+        this.group.rotation.z = Math.sin(time + this.position.x) * 0.1;
+        this.petalGroup.rotation.y = time * 0.2;
 
-        this.harvestedPoems.push(poem);
-        this.displayHarvestedPoem(poem);
-        
-        // Remove from garden with animation
-        poemElement.style.animation = 'poem-grow 0.5s ease-in reverse';
-        setTimeout(() => {
-            if (poemElement.parentNode) {
-                poemElement.parentNode.removeChild(poemElement);
-            }
-            this.growingPoems.delete(poemElement);
-        }, 500);
-    }
-
-    displayHarvestedPoem(poem) {
-        const harvestedContainer = document.getElementById('harvested-poems');
-        const poemElement = document.createElement('div');
-        poemElement.className = 'harvested-poem';
-        
-        poemElement.innerHTML = `
-            <div class="poem-meta">
-                ${poem.style} • from "${poem.seedWord}" • ${poem.timestamp}
-            </div>
-            <div class="poem-text">${poem.text.replace(/\n/g, '<br>')}</div>
-        `;
-        
-        harvestedContainer.insertBefore(poemElement, harvestedContainer.firstChild);
-    }
-
-    harvestAllPoems() {
-        const growingPoems = Array.from(this.growingPoems);
-        growingPoems.forEach(poemElement => {
-            const harvestBtn = poemElement.querySelector('button');
-            if (harvestBtn) {
-                harvestBtn.click();
-            }
-        });
-    }
-
-    clearGarden() {
-        // Clear planted seeds
-        document.querySelector('.planted-seeds').innerHTML = '';
-        this.plantedSeeds.clear();
-        
-        // Clear growing poems
-        document.querySelector('.growing-poems').innerHTML = '';
-        this.growingPoems.clear();
-        
-        // Clear particles
-        this.particles = [];
-        
-        // Redraw background
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.drawBackground();
-    }
-
-    startAnimationLoop() {
-        const animate = () => {
-            this.updateParticles();
-            requestAnimationFrame(animate);
-        };
-        animate();
-    }
-
-    updateParticles() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.drawBackground();
-        
-        // Update and draw particles
+        // Update particles
         for (let i = this.particles.length - 1; i >= 0; i--) {
             const particle = this.particles[i];
-            
-            particle.x += particle.vx;
-            particle.y += particle.vy;
-            particle.life -= particle.decay;
-            
-            if (particle.life <= 0) {
-                this.particles.splice(i, 1);
-                continue;
+            particle.position.add(particle.userData.velocity);
+            particle.userData.lifetime -= dt;
+
+            particle.material.opacity = Math.max(0, particle.userData.lifetime * 0.3);
+
+            if (particle.userData.lifetime <= 0) {
+                particle.position.set(
+                    (Math.random() - 0.5) * 0.3,
+                    0.5,
+                    (Math.random() - 0.5) * 0.3
+                );
+                particle.userData.lifetime = Math.random() * 2 + 1;
+                particle.material.opacity = 0.6;
             }
-            
-            // Draw particle
-            this.ctx.save();
-            this.ctx.globalAlpha = particle.life;
-            this.ctx.fillStyle = particle.color || '#4facfe';
-            this.ctx.beginPath();
-            this.ctx.arc(particle.x, particle.y, particle.size || 2, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.restore();
         }
     }
 
-    createMagicalSparkles(x, y) {
-        const colors = ['#f093fb', '#4facfe', '#00f2fe', '#f5576c', '#ffd700'];
-        for (let i = 0; i < 12; i++) {
-            const particle = {
-                x: x + (Math.random() - 0.5) * 30,
-                y: y + (Math.random() - 0.5) * 30,
-                vx: (Math.random() - 0.5) * 6,
-                vy: (Math.random() - 0.5) * 6,
-                life: 1,
-                decay: 0.015,
-                color: colors[Math.floor(Math.random() * colors.length)],
-                size: Math.random() * 3 + 1
-            };
-            this.particles.push(particle);
+    createPoemText(scene) {
+        if (this.poemMesh) return;
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 512;
+        canvas.height = 512;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = 'white';
+        ctx.font = 'italic 32px Georgia';
+        ctx.textAlign = 'center';
+
+        let y = 180;
+        for (const line of this.poem) {
+            ctx.fillText(line, canvas.width / 2, y);
+            y += 50;
         }
-    }
 
-    addSeedSuggestions(plantedSeed, word) {
-        let suggestionTooltip = null;
-        
-        // Find complementary words
-        const suggestions = this.getComplementaryWords(word);
-        
-        plantedSeed.addEventListener('mouseenter', () => {
-            suggestionTooltip = document.createElement('div');
-            suggestionTooltip.className = 'suggestion-tooltip';
-            suggestionTooltip.innerHTML = `
-                <div class="suggestion-header">✨ Try pairing with:</div>
-                <div class="suggestion-words">
-                    ${suggestions.map(w => `<span class="suggestion-word">${w}</span>`).join('')}
-                </div>
-            `;
-            
-            const rect = plantedSeed.getBoundingClientRect();
-            const gardenRect = document.querySelector('.garden-plot').getBoundingClientRect();
-            
-            suggestionTooltip.style.position = 'absolute';
-            suggestionTooltip.style.left = `${rect.left - gardenRect.left + 50}px`;
-            suggestionTooltip.style.top = `${rect.top - gardenRect.top - 10}px`;
-            
-            document.querySelector('.garden-plot').appendChild(suggestionTooltip);
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            opacity: 0,
+            side: THREE.DoubleSide
         });
-        
-        plantedSeed.addEventListener('mouseleave', () => {
-            if (suggestionTooltip) {
-                suggestionTooltip.remove();
-                suggestionTooltip = null;
+
+        const geometry = new THREE.PlaneGeometry(1.5, 1.5);
+        this.poemMesh = new THREE.Mesh(geometry, material);
+        this.poemMesh.position.copy(this.group.position);
+        this.poemMesh.position.y += 1.5;
+
+        scene.add(this.poemMesh);
+
+        // Fade in
+        let opacity = 0;
+        const fadeIn = () => {
+            opacity += 0.02;
+            if (opacity < 1) {
+                this.poemMesh.material.opacity = opacity;
+                requestAnimationFrame(fadeIn);
             }
-        });
-    }
-
-    getComplementaryWords(word) {
-        const complementaryPairs = {
-            moonlight: ['shadows', 'whispers', 'silver'],
-            ocean: ['waves', 'horizon', 'depths'],
-            forest: ['whispers', 'ancient', 'green'],
-            starlight: ['cosmos', 'eternal', 'guide'],
-            wind: ['freedom', 'stories', 'gentle'],
-            sunrise: ['golden', 'hope', 'warmth'],
-            longing: ['distance', 'heart', 'yearning'],
-            joy: ['laughter', 'bright', 'celebration'],
-            melancholy: ['rain', 'autumn', 'solitude'],
-            wonder: ['magic', 'discovery', 'awe'],
-            peace: ['stillness', 'harmony', 'calm'],
-            hope: ['tomorrow', 'rising', 'bloom'],
-            time: ['flowing', 'eternal', 'moments'],
-            memory: ['precious', 'golden', 'treasured'],
-            dream: ['floating', 'impossible', 'colors'],
-            silence: ['profound', 'listening', 'space'],
-            infinity: ['endless', 'limitless', 'vast'],
-            shadow: ['mystery', 'contrast', 'hidden']
         };
-        
-        return complementaryPairs[word] || ['beauty', 'wonder', 'magic'];
+        setTimeout(fadeIn, 1000);
+    }
+
+    updatePoemFacing(camera) {
+        if (this.poemMesh) {
+            this.poemMesh.lookAt(camera.position);
+        }
+    }
+
+    getMesh() {
+        return this.group;
     }
 }
 
-// Initialize the garden when the page loads
-document.addEventListener('DOMContentLoaded', () => {
-    new PoetryGarden();
+class PoetryGarden3D {
+    constructor() {
+        this.container = document.getElementById('container');
+        this.scene = new THREE.Scene();
+
+        // Camera
+        this.camera = new THREE.PerspectiveCamera(
+            60,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        this.camera.position.set(0, 3, 8);
+        this.camera.lookAt(0, 0, 0);
+
+        // Renderer
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.container.appendChild(this.renderer.domElement);
+
+        // Controls
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.05;
+        this.controls.minDistance = 3;
+        this.controls.maxDistance = 20;
+        this.controls.maxPolarAngle = Math.PI / 2.2;
+
+        // Setup scene
+        this.setupLighting();
+        this.createEnvironment();
+
+        // Flowers
+        this.flowers = [];
+
+        // Raycaster for clicking
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+
+        // Event listeners
+        window.addEventListener('resize', () => this.onWindowResize());
+        this.renderer.domElement.addEventListener('click', (e) => this.onMouseClick(e));
+
+        // Ambient particles
+        this.createAmbientParticles();
+
+        // Start animation
+        this.lastTime = performance.now();
+        this.animate();
+    }
+
+    setupLighting() {
+        // Ambient light
+        const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+        this.scene.add(ambient);
+
+        // Main sun light
+        const sun = new THREE.DirectionalLight(0xfff5e1, 1.5);
+        sun.position.set(10, 20, 5);
+        sun.castShadow = true;
+        sun.shadow.camera.left = -15;
+        sun.shadow.camera.right = 15;
+        sun.shadow.camera.top = 15;
+        sun.shadow.camera.bottom = -15;
+        sun.shadow.mapSize.width = 2048;
+        sun.shadow.mapSize.height = 2048;
+        this.scene.add(sun);
+
+        // Colored accent lights
+        const light1 = new THREE.PointLight(0xff6ec7, 0.5, 10);
+        light1.position.set(-5, 2, 5);
+        this.scene.add(light1);
+
+        const light2 = new THREE.PointLight(0x6ea8ff, 0.5, 10);
+        light2.position.set(5, 2, -5);
+        this.scene.add(light2);
+
+        // Atmospheric fog
+        this.scene.fog = new THREE.Fog(0x1a1a2e, 10, 30);
+        this.scene.background = new THREE.Color(0x1a1a2e);
+    }
+
+    createEnvironment() {
+        // Ground
+        const groundGeometry = new THREE.CircleGeometry(12, 64);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2d4a3e,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        this.scene.add(ground);
+        this.ground = ground;
+
+        // Add grass texture with simple geometry
+        const grassGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.15, 4);
+        const grassMaterial = new THREE.MeshStandardMaterial({
+            color: 0x3d6b4a,
+            roughness: 1
+        });
+
+        for (let i = 0; i < 200; i++) {
+            const grass = new THREE.Mesh(grassGeometry, grassMaterial);
+            const angle = Math.random() * Math.PI * 2;
+            const radius = Math.random() * 11;
+            grass.position.x = Math.cos(angle) * radius;
+            grass.position.z = Math.sin(angle) * radius;
+            grass.position.y = 0.075;
+            grass.rotation.y = Math.random() * Math.PI;
+            grass.rotation.z = (Math.random() - 0.5) * 0.3;
+            this.scene.add(grass);
+        }
+    }
+
+    createAmbientParticles() {
+        this.ambientParticles = [];
+        const particleGeometry = new THREE.SphereGeometry(0.03, 8, 8);
+
+        for (let i = 0; i < 50; i++) {
+            const color = new THREE.Color().setHSL(Math.random(), 0.7, 0.7);
+            const material = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.4
+            });
+
+            const particle = new THREE.Mesh(particleGeometry, material);
+            particle.position.set(
+                (Math.random() - 0.5) * 20,
+                Math.random() * 5 + 0.5,
+                (Math.random() - 0.5) * 20
+            );
+
+            particle.userData = {
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.02,
+                    (Math.random() - 0.5) * 0.01,
+                    (Math.random() - 0.5) * 0.02
+                ),
+                baseOpacity: 0.4
+            };
+
+            this.ambientParticles.push(particle);
+            this.scene.add(particle);
+        }
+    }
+
+    onMouseClick(event) {
+        this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+        const intersects = this.raycaster.intersectObject(this.ground);
+
+        if (intersects.length > 0) {
+            const point = intersects[0].point;
+            this.plantFlower(point);
+        }
+    }
+
+    plantFlower(position) {
+        const word = WORD_KEYS[Math.floor(Math.random() * WORD_KEYS.length)];
+        const color = POETRY_WORDS[word].color;
+
+        const flower = new Flower(word, position, color);
+        this.flowers.push(flower);
+        this.scene.add(flower.getMesh());
+
+        // Create poem after bloom
+        setTimeout(() => {
+            flower.createPoemText(this.scene);
+        }, 2000);
+
+        // Sparkle effect at plant location
+        this.createSparkles(position);
+    }
+
+    createSparkles(position) {
+        const sparkleCount = 20;
+        const sparkles = [];
+
+        for (let i = 0; i < sparkleCount; i++) {
+            const geometry = new THREE.SphereGeometry(0.05, 8, 8);
+            const material = new THREE.MeshBasicMaterial({
+                color: new THREE.Color().setHSL(Math.random(), 1, 0.7),
+                transparent: true,
+                opacity: 1
+            });
+
+            const sparkle = new THREE.Mesh(geometry, material);
+            sparkle.position.copy(position);
+            sparkle.position.y = 0.1;
+
+            sparkle.userData = {
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.1,
+                    Math.random() * 0.15,
+                    (Math.random() - 0.5) * 0.1
+                ),
+                lifetime: 1
+            };
+
+            sparkles.push(sparkle);
+            this.scene.add(sparkle);
+        }
+
+        // Animate and remove sparkles
+        const animateSparkles = () => {
+            let allDone = true;
+
+            for (const sparkle of sparkles) {
+                sparkle.userData.lifetime -= 0.016;
+                if (sparkle.userData.lifetime > 0) {
+                    allDone = false;
+                    sparkle.position.add(sparkle.userData.velocity);
+                    sparkle.userData.velocity.y -= 0.005;
+                    sparkle.material.opacity = sparkle.userData.lifetime;
+                }
+            }
+
+            if (!allDone) {
+                requestAnimationFrame(animateSparkles);
+            } else {
+                sparkles.forEach(s => this.scene.remove(s));
+            }
+        };
+
+        animateSparkles();
+    }
+
+    animate() {
+        requestAnimationFrame(() => this.animate());
+
+        const now = performance.now();
+        const dt = Math.min((now - this.lastTime) / 1000, 0.033);
+        this.lastTime = now;
+
+        // Update flowers
+        for (const flower of this.flowers) {
+            flower.update(dt);
+            flower.updatePoemFacing(this.camera);
+        }
+
+        // Update ambient particles
+        for (const particle of this.ambientParticles) {
+            particle.position.add(particle.userData.velocity);
+
+            // Bounds check and respawn
+            if (Math.abs(particle.position.x) > 10 ||
+                Math.abs(particle.position.z) > 10 ||
+                particle.position.y > 6 ||
+                particle.position.y < 0.5) {
+                particle.position.set(
+                    (Math.random() - 0.5) * 20,
+                    Math.random() * 5 + 0.5,
+                    (Math.random() - 0.5) * 20
+                );
+            }
+
+            // Gentle pulsing
+            const pulse = Math.sin(now * 0.002 + particle.position.x) * 0.2 + 0.8;
+            particle.material.opacity = particle.userData.baseOpacity * pulse;
+        }
+
+        this.controls.update();
+        this.renderer.render(this.scene, this.camera);
+    }
+
+    onWindowResize() {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+}
+
+// Start the garden
+window.addEventListener('DOMContentLoaded', () => {
+    new PoetryGarden3D();
 });
