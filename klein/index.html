@@ -6,10 +6,30 @@
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { width: 100%; height: 100vh; }
+        #controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 14px;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 1s ease-out;
+            z-index: 100;
+        }
+        #controls-hint.fade-out {
+            opacity: 0;
+        }
     </style>
 </head>
 <body>
     <canvas id="canvas"></canvas>
+    <div id="controls-hint">Drag to rotate • Scroll to zoom</div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/geometries/ParametricGeometry.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
@@ -612,10 +632,22 @@
         }
 
         window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth/window.innerHeight; 
+            camera.aspect = window.innerWidth/window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+        // Fade out controls hint after 4 seconds or on first interaction
+        const hint = document.getElementById('controls-hint');
+        const fadeOutHint = () => {
+            hint.classList.add('fade-out');
+            setTimeout(() => hint.remove(), 1000);
+        };
+        setTimeout(fadeOutHint, 4000);
+        ['mousedown', 'wheel', 'touchstart'].forEach(evt => {
+            document.addEventListener(evt, fadeOutHint, { once: true });
+        });
+
         animate(0);
     </script>
 </body>
