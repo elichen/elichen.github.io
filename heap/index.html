@@ -307,22 +307,158 @@ heapPermutationFixedSpace(arr, perm => {
             </div>
         </section>
 
+        <section id="iterative-explained">
+            <h2>Understanding the Iterative Version</h2>
+
+            <p>
+                The iterative implementation might seem mysterious at first, but it's actually simulating
+                what the recursive version does - it's just using a counter array instead of the call stack.
+                Let's break it down step by step.
+            </p>
+
+            <div class="analogy-box">
+                <h3>💡 The Key Insight</h3>
+                <p>
+                    Think of the counter array <code>c</code> as a set of <strong>nested loop counters</strong>.
+                    In the recursive version, each recursion level is like a loop. The iterative version
+                    replaces the recursion stack with explicit counters:
+                </p>
+                <div class="analogy-comparison">
+                    <div class="analogy-side">
+                        <h4>Recursive (implicit)</h4>
+                        <pre><code>for each at level 3:
+  for each at level 2:
+    for each at level 1:
+      output</code></pre>
+                    </div>
+                    <div class="analogy-side">
+                        <h4>Iterative (explicit)</h4>
+                        <pre><code>c[3] = 0, c[2] = 0, c[1] = 0
+// c[i] tells us: "how many times
+// have we looped at level i?"</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="iterative-simulator">
+                <h3>Interactive Iterative Algorithm Simulator</h3>
+                <p>
+                    Watch how the counter array <code>c</code> and position <code>i</code> change as
+                    the algorithm generates permutations for [A, B, C]:
+                </p>
+
+                <div class="sim-controls">
+                    <button id="iter-step" class="control-btn">Step Forward →</button>
+                    <button id="iter-reset" class="control-btn">↺ Reset</button>
+                </div>
+
+                <div class="sim-state">
+                    <div class="sim-display">
+                        <div class="sim-row">
+                            <strong>Current Array:</strong>
+                            <span id="iter-array" class="code-display">['A', 'B', 'C']</span>
+                        </div>
+                        <div class="sim-row">
+                            <strong>Counter Array c:</strong>
+                            <span id="iter-counter" class="code-display">[0, 0, 0]</span>
+                        </div>
+                        <div class="sim-row">
+                            <strong>Current i:</strong>
+                            <span id="iter-i" class="code-highlight">0</span>
+                        </div>
+                        <div class="sim-row">
+                            <strong>Condition:</strong>
+                            <span id="iter-condition">c[0] < 0? Start loop...</span>
+                        </div>
+                        <div class="sim-row highlight-action">
+                            <strong>Action:</strong>
+                            <span id="iter-action">Starting...</span>
+                        </div>
+                    </div>
+
+                    <div class="sim-explanation">
+                        <h4>What's Happening?</h4>
+                        <div id="iter-explain">
+                            <p>We start with i=0 and check if c[0] < 0. Since 0 is not less than 0,
+                            we skip the swap and move to i=1.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sim-legend">
+                    <h4>The Algorithm Logic:</h4>
+                    <div class="legend-grid">
+                        <div class="legend-item">
+                            <span class="legend-code">if (c[i] < i)</span>
+                            <span>"Have we done all i swaps at this position yet?"</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-code">perform swap</span>
+                            <span>"No - do the next swap (even/odd rule)"</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-code">c[i]++</span>
+                            <span>"Mark that we did one more swap at position i"</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-code">i = 0</span>
+                            <span>"Reset to start - like going back down the recursion"</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-code">else { c[i] = 0; i++ }</span>
+                            <span>"Yes - reset this counter and move to next position"</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="why-reset-i">
+                <h3>Why Reset i = 0 After Each Swap?</h3>
+                <p>
+                    This is the most confusing part! Here's why: in the recursive version, after doing
+                    a swap at level k, we recursively call <code>generate(k-1)</code>. This means we
+                    need to do ALL the permutations for the smaller problem again.
+                </p>
+                <p>
+                    Setting <code>i = 0</code> simulates "going back down the recursion tree". It means:
+                    <em>"I just did a swap at a high level, now let me go back and do all the
+                    low-level swaps again for this new arrangement."</em>
+                </p>
+                <div class="visual-comparison">
+                    <div class="comparison-side">
+                        <h4>Recursive Flow</h4>
+                        <pre><code>generate(3):
+  generate(2)  ← do all of these
+  swap at 3
+  generate(2)  ← do all again!</code></pre>
+                    </div>
+                    <div class="comparison-side">
+                        <h4>Iterative Flow</h4>
+                        <pre><code>i=0, do swaps...
+i=1, do swaps...
+i=2, swap, i=0! ← restart
+i=0, do swaps again...</code></pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section id="fixed-space-explanation">
             <h2>The Fixed-Space Implementation</h2>
-            
+
             <p>
-                One of the most elegant aspects of Heap's algorithm is that it can be implemented 
-                non-recursively using only O(n) auxiliary space. This fixed-space version is 
+                One of the most elegant aspects of Heap's algorithm is that it can be implemented
+                non-recursively using only O(n) auxiliary space. This fixed-space version is
                 particularly valuable for embedded systems or when dealing with very large permutations.
             </p>
 
             <div class="algorithm-explanation">
                 <h3>How the Counter Array Works</h3>
                 <p>
-                    The magic lies in the counter array <code>c</code>. Think of it as tracking "where we are" 
+                    The magic lies in the counter array <code>c</code>. Think of it as tracking "where we are"
                     in each recursive level. For an array of size 4, the counter works like this:
                 </p>
-                
+
                 <div class="counter-example">
                     <code>c = [0, 0, 0, 0]</code> → At the beginning<br>
                     <code>c = [1, 0, 0, 0]</code> → Did 1st swap at position 1<br>
@@ -330,7 +466,7 @@ heapPermutationFixedSpace(arr, perm => {
                     <code>c = [1, 1, 0, 0]</code> → Did another swap at position 1<br>
                     ...and so on
                 </div>
-                
+
                 <div class="key-points">
                     <h4>The Pattern:</h4>
                     <ul>
@@ -342,8 +478,8 @@ heapPermutationFixedSpace(arr, perm => {
                 </div>
 
                 <p>
-                    This implementation is particularly useful when you need to process permutations 
-                    one at a time without storing them all in memory. The callback pattern allows 
+                    This implementation is particularly useful when you need to process permutations
+                    one at a time without storing them all in memory. The callback pattern allows
                     for streaming processing of permutations.
                 </p>
             </div>
