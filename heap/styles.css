@@ -674,8 +674,8 @@ footer p {
 
 /* Iterative Algorithm Simulator Styles */
 .analogy-box {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: var(--color-background-alt);
+    border: 2px solid var(--color-accent);
     border-radius: 12px;
     padding: calc(var(--spacing-unit) * 4);
     margin: calc(var(--spacing-unit) * 4) 0;
@@ -683,7 +683,7 @@ footer p {
 
 .analogy-box h3 {
     margin-top: 0;
-    color: white;
+    color: var(--color-accent);
 }
 
 .analogy-comparison {
@@ -694,7 +694,8 @@ footer p {
 }
 
 .analogy-side {
-    background: rgba(255, 255, 255, 0.15);
+    background: white;
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: calc(var(--spacing-unit) * 2);
 }
@@ -702,7 +703,7 @@ footer p {
 .analogy-side h4 {
     margin-top: 0;
     margin-bottom: calc(var(--spacing-unit) * 2);
-    color: white;
+    color: var(--color-accent);
 }
 
 .analogy-side pre {
@@ -710,8 +711,8 @@ footer p {
 }
 
 .analogy-side code {
-    background: rgba(0, 0, 0, 0.2);
-    color: white;
+    background: var(--color-code-bg);
+    color: var(--color-primary);
     font-size: 14px;
 }
 
