@@ -447,3 +447,119 @@ function drawPerformanceChart() {
     ctx.fillText('Number of Operations', 0, 0);
     ctx.restore();
 }
+
+// Iterative Algorithm Simulator
+let iterSimState = {
+    array: ['A', 'B', 'C'],
+    c: [0, 0, 0],
+    i: 0,
+    step: 0,
+    done: false,
+    perms: []
+};
+
+function resetIterSim() {
+    iterSimState = {
+        array: ['A', 'B', 'C'],
+        c: [0, 0, 0],
+        i: 0,
+        step: 0,
+        done: false,
+        perms: [['A', 'B', 'C']]
+    };
+    updateIterDisplay();
+}
+
+function stepIterSim() {
+    if (iterSimState.done) {
+        return;
+    }
+
+    const {array, c, i} = iterSimState;
+    const n = array.length;
+
+    if (i >= n) {
+        iterSimState.done = true;
+        updateIterDisplay();
+        document.getElementById('iter-explain').innerHTML = `
+            <p><strong>Done!</strong> We've generated all ${iterSimState.perms.length} permutations of [A, B, C].</p>
+            <p>The counter array reached its limit, meaning we've exhausted all possible swaps.</p>
+        `;
+        return;
+    }
+
+    if (c[i] < i) {
+        // Perform swap
+        let swapIdx;
+        if (i % 2 === 0) {
+            swapIdx = 0;
+            [array[0], array[i]] = [array[i], array[0]];
+        } else {
+            swapIdx = c[i];
+            [array[c[i]], array[i]] = [array[i], array[c[i]]];
+        }
+
+        iterSimState.perms.push([...array]);
+        iterSimState.c[i]++;
+        iterSimState.i = 0; // Reset!
+        iterSimState.step++;
+
+        updateIterDisplay();
+
+        document.getElementById('iter-explain').innerHTML = `
+            <p><strong>Step ${iterSimState.step}:</strong> c[${i}] (${c[i]-1}) was less than ${i}, so we performed a swap.</p>
+            <p>${i % 2 === 0 ? `Since ${i} is even, we swapped position 0 with position ${i}.` : `Since ${i} is odd, we swapped position ${swapIdx} with position ${i}.`}</p>
+            <p>After swapping, we incremented c[${i}] to ${c[i]} and <strong>reset i back to 0</strong> to process nested levels again.</p>
+        `;
+    } else {
+        // Reset counter and move to next position
+        const oldI = i;
+        iterSimState.c[i] = 0;
+        iterSimState.i++;
+        iterSimState.step++;
+
+        updateIterDisplay();
+
+        document.getElementById('iter-explain').innerHTML = `
+            <p><strong>Step ${iterSimState.step}:</strong> c[${oldI}] (${c[oldI]}) equals ${oldI}, so we've done all swaps at this position.</p>
+            <p>We reset c[${oldI}] to 0 and moved to i = ${iterSimState.i}.</p>
+            <p>${iterSimState.i < n ? `Now we'll check if c[${iterSimState.i}] < ${iterSimState.i}.` : 'We\'ve reached the end - algorithm complete!'}</p>
+        `;
+    }
+}
+
+function updateIterDisplay() {
+    const {array, c, i, done} = iterSimState;
+
+    document.getElementById('iter-array').textContent = `['${array.join("', '")}']`;
+    document.getElementById('iter-counter').textContent = `[${c.join(', ')}]`;
+    document.getElementById('iter-i').textContent = i;
+
+    if (done) {
+        document.getElementById('iter-condition').textContent = 'Algorithm complete!';
+        document.getElementById('iter-action').textContent = `Generated all ${iterSimState.perms.length} permutations`;
+    } else if (i >= array.length) {
+        document.getElementById('iter-condition').textContent = 'i >= array.length';
+        document.getElementById('iter-action').textContent = 'Done - exit loop';
+    } else {
+        const condResult = c[i] < i;
+        document.getElementById('iter-condition').textContent = `c[${i}] < ${i}? ${c[i]} < ${i} = ${condResult}`;
+        document.getElementById('iter-action').textContent = condResult ? `Swap and reset i to 0` : `Reset c[${i}] and increment i`;
+    }
+}
+
+// Setup iterative simulator
+document.addEventListener('DOMContentLoaded', () => {
+    const iterStepBtn = document.getElementById('iter-step');
+    const iterResetBtn = document.getElementById('iter-reset');
+
+    if (iterStepBtn) {
+        iterStepBtn.addEventListener('click', stepIterSim);
+    }
+
+    if (iterResetBtn) {
+        iterResetBtn.addEventListener('click', resetIterSim);
+    }
+
+    resetIterSim();
+});
