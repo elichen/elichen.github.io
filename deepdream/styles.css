@@ -5,50 +5,54 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, sans-serif;
+    background: #ffffff;
     min-height: 100vh;
-    padding: 20px;
-    color: #333;
+    color: rgba(0, 0, 0, 0.8);
+    font-size: 16px;
+    line-height: 1.6em;
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 768px;
     margin: 0 auto;
+    padding: 60px 20px;
 }
 
 header {
     text-align: center;
-    color: white;
-    margin-bottom: 40px;
+    margin-bottom: 60px;
+    padding-bottom: 30px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 header h1 {
-    font-size: 3em;
-    margin-bottom: 10px;
-    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3);
+    font-size: 2.5em;
+    margin-bottom: 12px;
+    font-weight: 700;
+    color: hsl(200, 60%, 15%);
+    letter-spacing: -0.02em;
 }
 
 .subtitle {
-    font-size: 1.2em;
-    opacity: 0.9;
+    font-size: 1.1em;
+    color: rgba(0, 0, 0, 0.6);
+    font-weight: 400;
 }
 
 .main-content {
     background: white;
-    border-radius: 20px;
-    padding: 40px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 section {
-    margin-bottom: 40px;
+    margin-bottom: 50px;
 }
 
 h2 {
-    color: #667eea;
-    margin-bottom: 15px;
-    font-size: 1.5em;
+    color: rgba(0, 0, 0, 0.8);
+    margin-bottom: 20px;
+    font-size: 1.4em;
+    font-weight: 600;
 }
 
 /* Input Section */
@@ -67,28 +71,36 @@ h2 {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 24px;
-    border: none;
-    border-radius: 8px;
+    padding: 10px 20px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
     font-size: 0.95em;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
+    background: white;
+    color: rgba(0, 0, 0, 0.8);
 }
 
 .btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    border-color: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.02);
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: hsl(200, 60%, 15%);
     color: white;
+    border-color: hsl(200, 60%, 15%);
+}
+
+.btn-primary:hover {
+    background: hsl(200, 60%, 20%);
+    border-color: hsl(200, 60%, 20%);
 }
 
 .btn-secondary {
-    background: #f0f0f0;
-    color: #333;
+    background: white;
+    color: rgba(0, 0, 0, 0.7);
 }
 
 .btn-large {
@@ -155,8 +167,9 @@ h2 {
 
 #inputCanvas {
     max-width: 100%;
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 /* Controls Section */
@@ -170,57 +183,62 @@ h2 {
 
 .control-group label {
     display: block;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: #555;
+    font-weight: 500;
+    margin-bottom: 10px;
+    color: rgba(0, 0, 0, 0.8);
     font-size: 0.95em;
 }
 
 .control-group select,
 .control-group input[type="range"] {
     width: 100%;
-    padding: 12px;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    font-size: 1em;
-    transition: border-color 0.3s;
+    padding: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    font-size: 0.95em;
+    transition: border-color 0.2s;
+    background: white;
 }
 
 .control-group select:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: hsl(200, 60%, 15%);
 }
 
 input[type="range"] {
-    height: 8px;
+    height: 6px;
     padding: 0;
-    background: #e0e0e0;
+    background: rgba(0, 0, 0, 0.1);
     -webkit-appearance: none;
+    border: none;
 }
 
 input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 24px;
-    height: 24px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    width: 18px;
+    height: 18px;
+    background: hsl(200, 60%, 15%);
     border-radius: 50%;
     cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 input[type="range"]::-moz-range-thumb {
-    width: 24px;
-    height: 24px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    width: 18px;
+    height: 18px;
+    background: hsl(200, 60%, 15%);
     border-radius: 50%;
     cursor: pointer;
-    border: none;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .help-text {
-    margin-top: 8px;
+    margin-top: 6px;
     font-size: 0.9em;
-    color: #777;
-    font-style: italic;
+    color: rgba(0, 0, 0, 0.5);
+    line-height: 1.5;
 }
 
 /* Progress Section */
@@ -234,24 +252,24 @@ input[type="range"]::-moz-range-thumb {
 
 .progress-bar {
     width: 100%;
-    height: 30px;
-    background: #e0e0e0;
-    border-radius: 15px;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 4px;
     overflow: hidden;
     margin: 20px 0;
 }
 
 .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    background: hsl(200, 60%, 15%);
     width: 0%;
     transition: width 0.3s ease;
 }
 
 #progressText {
-    font-size: 1.1em;
-    color: #555;
-    margin-top: 10px;
+    font-size: 0.95em;
+    color: rgba(0, 0, 0, 0.6);
+    margin-top: 12px;
 }
 
 /* Results Section */
@@ -271,8 +289,9 @@ input[type="range"]::-moz-range-thumb {
     max-width: 100%;
     width: auto;
     height: auto;
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    border-radius: 2px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .result-actions {
@@ -285,19 +304,20 @@ input[type="range"]::-moz-range-thumb {
 /* Footer */
 footer {
     text-align: center;
-    color: white;
-    margin-top: 40px;
-    padding: 20px;
+    color: rgba(0, 0, 0, 0.5);
+    margin-top: 80px;
+    padding: 30px 20px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 footer p {
-    margin: 5px 0;
-    opacity: 0.9;
+    margin: 6px 0;
+    font-size: 0.9em;
 }
 
 .note {
-    font-size: 0.9em;
-    font-style: italic;
+    font-size: 0.85em;
+    color: rgba(0, 0, 0, 0.4);
 }
 
 /* Responsive */
