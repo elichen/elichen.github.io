@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pop the Balloons - Hand Tracking Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Pop the Balloons</h1>
+            <div class="instructions">
+                Use your hands to pop balloons!<br>
+                <span class="red-text">Right hand</span> pops <span class="red-text">red balloons</span><br>
+                <span class="blue-text">Left hand</span> pops <span class="blue-text">blue balloons</span>
+            </div>
+            <div class="score">
+                <span>Red: <span id="redScore">0</span></span>
+                <span>Blue: <span id="blueScore">0</span></span>
+            </div>
+        </div>
+
+        <div class="game-container">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+            <div id="status">Loading hand tracking model...</div>
+        </div>
+    </div>
+
+    <!-- TensorFlow.js and Hand Pose Detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection"></script>
+
+    <script src="script.js"></script>
+</body>
+</html>
