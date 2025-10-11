@@ -1,6 +1,5 @@
 // Global state
 let mobilenet = null;
-let dreamModel = null;
 let inputImage = null;
 let stream = null;
 
@@ -25,6 +24,36 @@ const originalCanvas = document.getElementById('originalCanvas');
 const outputCanvas = document.getElementById('outputCanvas');
 const downloadBtn = document.getElementById('downloadBtn');
 const resetBtn = document.getElementById('resetBtn');
+const layerSelect = document.getElementById('layerSelect');
+
+// Deep Dream configuration inspired by Lucid feature visualization tricks
+const MOBILENET_INPUT_SIZE = 224;
+const LAYER_PRESETS = {
+    multi: [
+        { name: 'conv_pw_3_relu', weight: 0.2 },
+        { name: 'conv_pw_5_relu', weight: 0.25 },
+        { name: 'conv_pw_7_relu', weight: 0.25 },
+        { name: 'conv_pw_11_relu', weight: 0.2 },
+        { name: 'conv_pw_13_relu', weight: 0.1 }
+    ],
+    conv_pw_3_relu: [{ name: 'conv_pw_3_relu', weight: 1 }],
+    conv_pw_5_relu: [{ name: 'conv_pw_5_relu', weight: 1 }],
+    conv_pw_7_relu: [{ name: 'conv_pw_7_relu', weight: 1 }],
+    conv_pw_11_relu: [{ name: 'conv_pw_11_relu', weight: 1 }],
+    conv_pw_13_relu: [{ name: 'conv_pw_13_relu', weight: 1 }]
+};
+
+const DREAM_OPTIONS = {
+    stepSize: 0.12,
+    jitter: 6,
+    tvStrength: 0.002,
+    contentStrength: 1.5,
+    contentBlend: 0.06,
+    smoothing: 0.2
+};
+
+let activeLayerKey = 'multi';
+let activeLayers = LAYER_PRESETS[activeLayerKey];
 
 // Event Listeners
 cameraBtn.addEventListener('click', openCamera);
@@ -38,6 +67,13 @@ resetBtn.addEventListener('click', reset);
 iterationsSlider.addEventListener('input', (e) => {
     iterationsValue.textContent = e.target.value;
 });
+if (layerSelect) {
+    layerSelect.addEventListener('change', (e) => {
+        const key = e.target.value;
+        activeLayerKey = key;
+        activeLayers = LAYER_PRESETS[key] || LAYER_PRESETS.multi;
+    });
+}
 
 // Initialize
 async function init() {
@@ -134,130 +170,185 @@ async function loadModel() {
     return mobilenet;
 }
 
-// Create Dream Model for specific layer
-function createDreamModel(layerName) {
+// Mobilenet helper utilities inspired by Lucid's feature visualization stack
+function preprocessForMobilenet(image) {
+    return tf.tidy(() => {
+        const rank = image.shape.length;
+        const batched = rank === 4 ? image : tf.expandDims(image, 0);
+        const resized = tf.image.resizeBilinear(batched, [MOBILENET_INPUT_SIZE, MOBILENET_INPUT_SIZE], true);
+        const normalized = resized.mul(2).sub(1); // scale [0,1] -> [-1,1]
+        return normalized;
+    });
+}
+
+function computeLayerObjective(batchedImage, layers = activeLayers) {
+    return tf.tidy(() => {
+        const scores = layers.map(({ name, weight }) =>
+            tf.tidy(() => {
+                const activation = inferLayer(batchedImage, name);
+                const energy = tf.mean(tf.square(activation));
+                return energy.mul(weight);
+            })
+        );
+        return tf.addN(scores);
+    });
+}
+
+function inferLayer(batchedImage, layerName) {
     try {
-        // Get the base model
-        const model = mobilenet.modelUrl ? mobilenet : mobilenet;
-
-        // For TFHub models, we'll use a simpler approach
-        // Create a function that computes intermediate activations
-        dreamModel = {
-            predict: (input) => {
-                return tf.tidy(() => {
-                    const predictions = mobilenet.predict(input);
-                    return predictions;
-                });
-            }
-        };
-
-        return dreamModel;
-    } catch (error) {
-        console.error('Error creating dream model:', error);
-        throw error;
+        return mobilenet.infer(batchedImage, { layer: layerName });
+    } catch (err) {
+        return mobilenet.infer(batchedImage, layerName);
     }
 }
 
-// Deep Dream Core Algorithm
-async function deepDream(inputTensor, iterations, octaves) {
-    const octaveScale = 1.3;
-    let img = inputTensor;
-
-    // Multi-octave processing
-    for (let octave = 0; octave < octaves; octave++) {
-        updateProgress(
-            10 + (octave / octaves) * 10,
-            `Processing octave ${octave + 1}/${octaves}...`
-        );
-
-        // Resize for this octave
-        const scale = Math.pow(octaveScale, octaves - octave - 1);
-        const scaledSize = [
-            Math.round(inputTensor.shape[0] * scale),
-            Math.round(inputTensor.shape[1] * scale)
-        ];
-
-        img = tf.tidy(() => {
-            return tf.image.resizeBilinear(img, scaledSize);
-        });
-
-        // Run gradient ascent
-        img = await gradientAscent(img, iterations / octaves, octave, octaves);
-
-        // Resize back to original size
-        if (octave < octaves - 1) {
-            const oldImg = img;
-            img = tf.tidy(() => {
-                return tf.image.resizeBilinear(img, [inputTensor.shape[0], inputTensor.shape[1]]);
-            });
-            oldImg.dispose();
+function totalVariation(image) {
+    return tf.tidy(() => {
+        const [height, width, channels] = image.shape;
+        if (height < 2 || width < 2) {
+            return tf.scalar(0);
         }
 
-        await tf.nextFrame();
-    }
+        const yDiff = image
+            .slice([1, 0, 0], [height - 1, width, channels])
+            .sub(image.slice([0, 0, 0], [height - 1, width, channels]));
+        const xDiff = image
+            .slice([0, 1, 0], [height, width - 1, channels])
+            .sub(image.slice([0, 0, 0], [height, width - 1, channels]));
 
-    return img;
+        const yTerm = tf.mean(tf.abs(yDiff));
+        const xTerm = tf.mean(tf.abs(xDiff));
+
+        yDiff.dispose();
+        xDiff.dispose();
+
+        const result = yTerm.add(xTerm);
+        yTerm.dispose();
+        xTerm.dispose();
+        return result;
+    });
+}
+
+function rollImage(image, shiftY, shiftX) {
+    return tf.tidy(() => {
+        const [height, width, channels] = image.shape;
+        if (height === undefined || width === undefined || channels === undefined) {
+            throw new Error('rollImage expects a rank-3 tensor with known spatial dimensions.');
+        }
+
+        const yShift = ((shiftY % height) + height) % height;
+        const xShift = ((shiftX % width) + width) % width;
+
+        if (yShift === 0 && xShift === 0) {
+            return tf.clone(image);
+        }
+
+        let shifted = image;
+        if (yShift !== 0) {
+            const top = shifted.slice([height - yShift, 0, 0], [yShift, width, channels]);
+            const bottom = shifted.slice([0, 0, 0], [height - yShift, width, channels]);
+            shifted = tf.concat([top, bottom], 0);
+        }
+        if (xShift !== 0) {
+            const left = shifted.slice([0, width - xShift, 0], [height, xShift, channels]);
+            const right = shifted.slice([0, 0, 0], [height, width - xShift, channels]);
+            shifted = tf.concat([left, right], 1);
+        }
+        return shifted;
+    });
+}
+
+// Deep Dream Core Algorithm (single-scale, Lucid-inspired)
+async function deepDream(inputTensor, iterations, options = {}) {
+    const config = {
+        ...DREAM_OPTIONS,
+        ...options
+    };
+    config.layers = config.layers || activeLayers;
+
+    const baseImage = tf.tidy(() => tf.cast(inputTensor, 'float32').div(255));
+    const dreamed = await gradientAscent(baseImage, iterations, config);
+    baseImage.dispose();
+
+    updateProgress(85, 'Polishing details...');
+    return dreamed;
 }
 
 // Gradient Ascent
-async function gradientAscent(img, steps, currentOctave, totalOctaves) {
-    let dreamImg = tf.variable(img);
+async function gradientAscent(baseImage, steps, config) {
+    const dreamVar = tf.variable(baseImage.clone());
 
-    const learningRate = 1.5;  // Increased for stronger effect
+    const computeGrad = tf.grad(image => tf.tidy(() => {
+        const prepped = preprocessForMobilenet(image);
+        const featureLoss = computeLayerObjective(prepped, config.layers);
+
+        let loss = featureLoss;
+        if (config.tvStrength > 0) {
+            const tv = totalVariation(image);
+            loss = loss.sub(tv.mul(config.tvStrength));
+        }
+        if (config.contentStrength > 0) {
+            const content = tf.mean(tf.square(image.sub(baseImage)));
+            loss = loss.sub(content.mul(config.contentStrength));
+        }
+
+        return loss;
+    }));
 
     for (let step = 0; step < steps; step++) {
-        // Compute gradients
+        const shiftX = Math.floor(Math.random() * (config.jitter * 2 + 1)) - config.jitter;
+        const shiftY = Math.floor(Math.random() * (config.jitter * 2 + 1)) - config.jitter;
+
         const grads = tf.tidy(() => {
-            return tf.grad(image => {
-                // Ensure image is 224x224 for MobileNet
-                let resized = image;
-                if (image.shape[0] !== 224 || image.shape[1] !== 224) {
-                    resized = tf.image.resizeBilinear(image, [224, 224]);
-                }
-
-                const normalized = tf.div(resized, 255.0);
-                const batched = tf.expandDims(normalized, 0);
-
-                // Use infer() with embedding=true to get intermediate activations
-                // This returns rich convolutional features instead of final classification
-                const activations = mobilenet.infer(batched, true);
-
-                // Maximize the L2 norm (sum of squares) of activations
-                // This encourages strong feature responses
-                return tf.mean(tf.square(activations));
-            })(dreamImg);
+            const rolled = rollImage(dreamVar, shiftY, shiftX);
+            const gradTensor = computeGrad(rolled);
+            return rollImage(gradTensor, -shiftY, -shiftX);
         });
 
-        // Normalize gradients
-        const normalizedGrads = tf.tidy(() => {
-            const mean = tf.mean(tf.abs(grads));
-            return tf.div(grads, tf.add(mean, 1e-8));
+        const { stepUpdate, gradStd } = tf.tidy(() => {
+            const gradStd = tf.sqrt(tf.mean(tf.square(grads))).add(1e-8);
+            const normalized = grads.div(gradStd).mul(config.stepSize);
+            return { stepUpdate: normalized, gradStd };
         });
 
-        // Apply gradient ascent and clamp values to [0, 255]
-        tf.tidy(() => {
-            const updated = tf.add(dreamImg, tf.mul(normalizedGrads, learningRate));
-            const clamped = tf.clipByValue(updated, 0, 255);
-            dreamImg.assign(clamped);
-        });
+        dreamVar.assign(tf.tidy(() => tf.clipByValue(dreamVar.add(stepUpdate), 0, 1)));
+
+        if (config.smoothing > 0) {
+            const smoothed = tf.tidy(() => {
+                const expanded = dreamVar.expandDims(0);
+                const pooled = tf.avgPool(expanded, [3, 3], [1, 1], 'same');
+                return pooled.squeeze();
+            });
+            dreamVar.assign(tf.tidy(() =>
+                dreamVar.mul(1 - config.smoothing).add(smoothed.mul(config.smoothing))
+            ));
+            smoothed.dispose();
+        }
+
+        if (config.contentBlend > 0) {
+            dreamVar.assign(tf.tidy(() =>
+                dreamVar.mul(1 - config.contentBlend).add(baseImage.mul(config.contentBlend))
+            ));
+        }
 
         grads.dispose();
-        normalizedGrads.dispose();
+        stepUpdate.dispose();
+        gradStd.dispose();
 
-        // Update progress
-        const totalProgress = 20 +
-            ((currentOctave + (step / steps)) / totalOctaves) * 70;
-
-        if (step % 10 === 0) {
+        const progress = (step + 1) / steps;
+        if (step % 4 === 0 || step === steps - 1) {
             updateProgress(
-                totalProgress,
-                `Iteration ${Math.round((currentOctave * steps) + step)}/${Math.round(steps * totalOctaves)}...`
+                20 + progress * 60,
+                `Optimizing step ${step + 1}/${steps}`
             );
             await tf.nextFrame();
         }
     }
 
-    return dreamImg;
+    const result = dreamVar.clone();
+    dreamVar.dispose();
+
+    return result;
 }
 
 // Generate Dream
@@ -275,11 +366,19 @@ async function generateDream() {
 
         // Get settings
         const iterations = parseInt(iterationsSlider.value);
-        const octaves = 3; // Fixed at 3 octaves
+        const intensityFactor = Math.max(0.5, iterations / 80);
+        const dynamicOptions = {
+            ...DREAM_OPTIONS,
+            stepSize: DREAM_OPTIONS.stepSize * intensityFactor,
+            contentBlend: Math.max(0.015, DREAM_OPTIONS.contentBlend / (1 + Math.max(0, intensityFactor - 1) * 1.8)),
+            contentStrength: DREAM_OPTIONS.contentStrength / intensityFactor,
+            smoothing: Math.max(0.05, DREAM_OPTIONS.smoothing / intensityFactor),
+            layers: activeLayers.map(layer => ({ ...layer }))
+        };
 
         // Run deep dream
         updateProgress(20, 'Dreaming...');
-        const dreamedImage = await deepDream(inputImage, iterations, octaves);
+        const dreamedImage = await deepDream(inputImage, iterations, dynamicOptions);
 
         // Display results
         updateProgress(95, 'Finalizing...');
@@ -308,9 +407,9 @@ async function generateDream() {
 function displayResults(original, dreamed) {
     // Only show the dreamed result at full resolution
     const processed = tf.tidy(() => {
-        const clipped = tf.clipByValue(dreamed, 0, 255);
-        // Convert to uint8 for toPixels
-        return tf.cast(clipped, 'int32');
+        const clipped = tf.clipByValue(dreamed, 0, 1);
+        const scaled = clipped.mul(255);
+        return scaled.toInt();
     });
 
     outputCanvas.width = processed.shape[1];

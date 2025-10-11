@@ -59,6 +59,18 @@
                     <input type="range" id="iterationsSlider" min="20" max="200" value="100" step="10">
                 </div>
 
+                <div class="control-group">
+                    <label for="layerSelect">Feature Layer</label>
+                    <select id="layerSelect">
+                        <option value="multi" selected>Multi-layer blend (default)</option>
+                        <option value="conv_pw_3_relu">conv_pw_3_relu — edge strokes</option>
+                        <option value="conv_pw_5_relu">conv_pw_5_relu — textures</option>
+                        <option value="conv_pw_7_relu">conv_pw_7_relu — shapes</option>
+                        <option value="conv_pw_11_relu">conv_pw_11_relu — motifs</option>
+                        <option value="conv_pw_13_relu">conv_pw_13_relu — abstract</option>
+                    </select>
+                </div>
+
                 <button id="dreamBtn" class="btn btn-large btn-primary" disabled>
                     Generate Dream
                 </button>
