@@ -16,22 +16,21 @@
         <div class="main-content">
             <!-- Input Section -->
             <section class="input-section">
-                <h2>1. Choose Your Image</h2>
                 <div class="input-buttons">
                     <button id="cameraBtn" class="btn btn-primary">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                             <circle cx="12" cy="13" r="4"></circle>
                         </svg>
-                        Capture from Camera
+                        Camera
                     </button>
                     <button id="uploadBtn" class="btn btn-secondary">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="17 8 12 3 7 8"></polyline>
                             <line x1="12" y1="3" x2="12" y2="15"></line>
                         </svg>
-                        Upload Image
+                        Upload
                     </button>
                     <input type="file" id="fileInput" accept="image/*" style="display: none;">
                 </div>
@@ -41,7 +40,7 @@
                     <div class="modal-content">
                         <video id="video" autoplay playsinline></video>
                         <div class="camera-controls">
-                            <button id="captureBtn" class="btn btn-primary">Capture Photo</button>
+                            <button id="captureBtn" class="btn btn-primary">Capture</button>
                             <button id="closeCameraBtn" class="btn btn-secondary">Cancel</button>
                         </div>
                     </div>
@@ -55,38 +54,12 @@
 
             <!-- Controls Section -->
             <section class="controls-section">
-                <h2>2. Dream Settings</h2>
-
                 <div class="control-group">
-                    <label for="layerSelect">Dream Layer:</label>
-                    <select id="layerSelect">
-                        <option value="conv_pw_3_relu">Shallow - Edges & Colors</option>
-                        <option value="conv_pw_5_relu" selected>Medium - Textures</option>
-                        <option value="conv_pw_7_relu">Deep - Patterns</option>
-                        <option value="conv_pw_9_relu">Deeper - Complex Forms</option>
-                        <option value="conv_pw_11_relu">Deepest - Abstract Shapes</option>
-                    </select>
-                    <p class="help-text">Deeper layers create more abstract, complex patterns</p>
-                </div>
-
-                <div class="control-group">
-                    <label for="iterationsSlider">Iterations: <span id="iterationsValue">100</span></label>
+                    <label for="iterationsSlider">Intensity: <span id="iterationsValue">100</span></label>
                     <input type="range" id="iterationsSlider" min="20" max="200" value="100" step="10">
-                    <p class="help-text">More iterations = stronger effect (20-50s processing time)</p>
-                </div>
-
-                <div class="control-group">
-                    <label for="octavesSlider">Octaves: <span id="octavesValue">3</span></label>
-                    <input type="range" id="octavesSlider" min="1" max="4" value="3" step="1">
-                    <p class="help-text">Multi-scale processing for better quality</p>
                 </div>
 
                 <button id="dreamBtn" class="btn btn-large btn-primary" disabled>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <path d="M8 12h8"></path>
-                        <path d="M12 8v8"></path>
-                    </svg>
                     Generate Dream
                 </button>
             </section>
@@ -102,20 +75,12 @@
 
             <!-- Results Section -->
             <section id="resultsSection" class="results-section hidden">
-                <h2>Your Neural Dream</h2>
-                <div class="results-container">
-                    <div class="result-image">
-                        <h3>Original</h3>
-                        <canvas id="originalCanvas"></canvas>
-                    </div>
-                    <div class="result-image">
-                        <h3>Dreamed</h3>
-                        <canvas id="outputCanvas"></canvas>
-                    </div>
+                <div class="result-image">
+                    <canvas id="outputCanvas"></canvas>
                 </div>
                 <div class="result-actions">
-                    <button id="downloadBtn" class="btn btn-primary">Download Result</button>
-                    <button id="resetBtn" class="btn btn-secondary">Create Another</button>
+                    <button id="downloadBtn" class="btn btn-primary">Download</button>
+                    <button id="resetBtn" class="btn btn-secondary">New Image</button>
                 </div>
             </section>
         </div>
