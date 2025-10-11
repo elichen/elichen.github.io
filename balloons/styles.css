@@ -6,35 +6,42 @@
 
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #000;
 }
 
 .container {
     width: 100%;
-    max-width: 1200px;
+    height: 100vh;
+    position: relative;
 }
 
 .header {
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
     text-align: center;
     color: white;
-    margin-bottom: 20px;
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
 }
 
 .header h1 {
     font-size: 2.5em;
-    margin-bottom: 15px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    margin-bottom: 10px;
 }
 
 .instructions {
     font-size: 1.1em;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
     line-height: 1.6;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px 20px;
+    border-radius: 10px;
+    backdrop-filter: blur(5px);
 }
 
 .red-text {
@@ -48,27 +55,30 @@ body {
 }
 
 .score {
-    font-size: 1.5em;
+    font-size: 1.8em;
     font-weight: bold;
     display: flex;
     justify-content: center;
     gap: 40px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px 30px;
+    border-radius: 10px;
+    backdrop-filter: blur(5px);
 }
 
 .game-container {
-    position: relative;
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    max-width: 1000px;
-    margin: 0 auto;
+    height: 100%;
     background: #000;
-    border-radius: 15px;
-    overflow: hidden;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }
 
 #video {
     width: 100%;
-    height: auto;
+    height: 100%;
+    object-fit: cover;
     display: block;
     transform: scaleX(-1); /* Mirror the video */
 }
