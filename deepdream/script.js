@@ -14,11 +14,8 @@ const captureBtn = document.getElementById('captureBtn');
 const closeCameraBtn = document.getElementById('closeCameraBtn');
 const imagePreview = document.getElementById('imagePreview');
 const inputCanvas = document.getElementById('inputCanvas');
-const layerSelect = document.getElementById('layerSelect');
 const iterationsSlider = document.getElementById('iterationsSlider');
 const iterationsValue = document.getElementById('iterationsValue');
-const octavesSlider = document.getElementById('octavesSlider');
-const octavesValue = document.getElementById('octavesValue');
 const dreamBtn = document.getElementById('dreamBtn');
 const progressSection = document.getElementById('progressSection');
 const progressFill = document.getElementById('progressFill');
@@ -40,9 +37,6 @@ downloadBtn.addEventListener('click', downloadResult);
 resetBtn.addEventListener('click', reset);
 iterationsSlider.addEventListener('input', (e) => {
     iterationsValue.textContent = e.target.value;
-});
-octavesSlider.addEventListener('input', (e) => {
-    octavesValue.textContent = e.target.value;
 });
 
 // Initialize
@@ -98,20 +92,23 @@ function handleFileUpload(e) {
 function displayImage(blob) {
     const img = new Image();
     img.onload = () => {
-        // Resize to 224x224 for MobileNet
-        const size = 224;
+        // Use a larger size for better quality (512x512)
+        const maxSize = 512;
         const ctx = inputCanvas.getContext('2d');
-        inputCanvas.width = size;
-        inputCanvas.height = size;
 
-        // Draw image maintaining aspect ratio
-        const scale = Math.min(size / img.width, size / img.height);
-        const x = (size - img.width * scale) / 2;
-        const y = (size - img.height * scale) / 2;
+        // Calculate dimensions maintaining aspect ratio
+        let width = img.width;
+        let height = img.height;
 
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, size, size);
-        ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+        if (width > maxSize || height > maxSize) {
+            const scale = Math.min(maxSize / width, maxSize / height);
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+        }
+
+        inputCanvas.width = width;
+        inputCanvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
 
         imagePreview.classList.remove('hidden');
         dreamBtn.disabled = false;
@@ -128,10 +125,11 @@ async function loadModel() {
     if (mobilenet) return mobilenet;
 
     updateProgress(0, 'Loading MobileNet model...');
-    mobilenet = await tf.loadGraphModel(
-        'https://tfhub.dev/google/tfjs-model/imagenet/mobilenet_v2_100_224/classification/3/default/1',
-        { fromTFHub: true }
-    );
+    // Use @tensorflow-models/mobilenet which exposes intermediate layers
+    mobilenet = await window.mobilenet.load({
+        version: 2,
+        alpha: 1.0
+    });
     updateProgress(10, 'Model loaded!');
     return mobilenet;
 }
@@ -219,11 +217,14 @@ async function gradientAscent(img, steps, currentOctave, totalOctaves) {
 
                 const normalized = tf.div(resized, 255.0);
                 const batched = tf.expandDims(normalized, 0);
-                const predictions = mobilenet.predict(batched);
+
+                // Use infer() with embedding=true to get intermediate activations
+                // This returns rich convolutional features instead of final classification
+                const activations = mobilenet.infer(batched, true);
 
                 // Maximize the L2 norm (sum of squares) of activations
                 // This encourages strong feature responses
-                return tf.mean(tf.square(predictions));
+                return tf.mean(tf.square(activations));
             })(dreamImg);
         });
 
@@ -273,13 +274,8 @@ async function generateDream() {
         await loadModel();
 
         // Get settings
-        const layerName = layerSelect.value;
         const iterations = parseInt(iterationsSlider.value);
-        const octaves = parseInt(octavesSlider.value);
-
-        // Create dream model
-        updateProgress(15, 'Preparing dream model...');
-        createDreamModel(layerName);
+        const octaves = 3; // Fixed at 3 octaves
 
         // Run deep dream
         updateProgress(20, 'Dreaming...');
@@ -310,12 +306,7 @@ async function generateDream() {
 
 // Display Results
 function displayResults(original, dreamed) {
-    // Original
-    originalCanvas.width = original.shape[1];
-    originalCanvas.height = original.shape[0];
-    tf.browser.toPixels(original, originalCanvas);
-
-    // Dreamed - clip to [0, 255] and convert to uint8
+    // Only show the dreamed result at full resolution
     const processed = tf.tidy(() => {
         const clipped = tf.clipByValue(dreamed, 0, 255);
         // Convert to uint8 for toPixels

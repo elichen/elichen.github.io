@@ -47,29 +47,33 @@ section {
 
 h2 {
     color: #667eea;
-    margin-bottom: 20px;
-    font-size: 1.8em;
+    margin-bottom: 15px;
+    font-size: 1.5em;
 }
 
 /* Input Section */
+.input-section {
+    margin-bottom: 30px;
+}
+
 .input-buttons {
     display: flex;
-    gap: 15px;
-    margin-bottom: 30px;
+    gap: 10px;
+    margin-bottom: 20px;
     flex-wrap: wrap;
 }
 
 .btn {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
-    padding: 15px 30px;
+    gap: 8px;
+    padding: 12px 24px;
     border: none;
-    border-radius: 10px;
-    font-size: 1em;
+    border-radius: 8px;
+    font-size: 0.95em;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
 }
 
 .btn:hover {
@@ -156,15 +160,20 @@ h2 {
 }
 
 /* Controls Section */
+.controls-section {
+    margin-bottom: 30px;
+}
+
 .control-group {
-    margin-bottom: 25px;
+    margin-bottom: 20px;
 }
 
 .control-group label {
     display: block;
     font-weight: 600;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     color: #555;
+    font-size: 0.95em;
 }
 
 .control-group select,
@@ -246,29 +255,22 @@ input[type="range"]::-moz-range-thumb {
 }
 
 /* Results Section */
+.results-section {
+    text-align: center;
+}
+
 .results-section.hidden {
     display: none;
 }
 
-.results-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 30px;
-    margin-bottom: 30px;
-}
-
 .result-image {
-    text-align: center;
-}
-
-.result-image h3 {
-    color: #555;
-    margin-bottom: 15px;
-    font-size: 1.3em;
+    margin-bottom: 20px;
 }
 
 .result-image canvas {
     max-width: 100%;
+    width: auto;
+    height: auto;
     border-radius: 10px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
 }
