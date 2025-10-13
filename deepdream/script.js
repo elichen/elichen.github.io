@@ -1,5 +1,5 @@
 // Global state
-let mobilenet = null;
+let inceptionModel = null;
 let inputImage = null;
 let stream = null;
 
@@ -27,20 +27,20 @@ const resetBtn = document.getElementById('resetBtn');
 const layerSelect = document.getElementById('layerSelect');
 
 // Deep Dream configuration inspired by Lucid feature visualization tricks
-const MOBILENET_INPUT_SIZE = 224;
+const INCEPTION_INPUT_SIZE = 299;
 const LAYER_PRESETS = {
     multi: [
-        { name: 'conv_pw_3_relu', weight: 0.2 },
-        { name: 'conv_pw_5_relu', weight: 0.25 },
-        { name: 'conv_pw_7_relu', weight: 0.25 },
-        { name: 'conv_pw_11_relu', weight: 0.2 },
-        { name: 'conv_pw_13_relu', weight: 0.1 }
+        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5b/concat', weight: 0.15 },
+        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5d/concat', weight: 0.2 },
+        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_6b/concat', weight: 0.25 },
+        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_6d/concat', weight: 0.25 },
+        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_7b/concat', weight: 0.15 }
     ],
-    conv_pw_3_relu: [{ name: 'conv_pw_3_relu', weight: 1 }],
-    conv_pw_5_relu: [{ name: 'conv_pw_5_relu', weight: 1 }],
-    conv_pw_7_relu: [{ name: 'conv_pw_7_relu', weight: 1 }],
-    conv_pw_11_relu: [{ name: 'conv_pw_11_relu', weight: 1 }],
-    conv_pw_13_relu: [{ name: 'conv_pw_13_relu', weight: 1 }]
+    mixed5b: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5b/concat', weight: 1 }],
+    mixed5d: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5d/concat', weight: 1 }],
+    mixed6b: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_6b/concat', weight: 1 }],
+    mixed6d: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_6d/concat', weight: 1 }],
+    mixed7b: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_7b/concat', weight: 1 }]
 };
 
 const DREAM_OPTIONS = {
@@ -156,26 +156,26 @@ function displayImage(blob) {
     img.src = URL.createObjectURL(blob);
 }
 
-// Load MobileNet Model
+// Load InceptionV3 Model
 async function loadModel() {
-    if (mobilenet) return mobilenet;
+    if (inceptionModel) return inceptionModel;
 
-    updateProgress(0, 'Loading MobileNet model...');
-    // Use @tensorflow-models/mobilenet which exposes intermediate layers
-    mobilenet = await window.mobilenet.load({
-        version: 2,
-        alpha: 1.0
-    });
+    updateProgress(0, 'Loading InceptionV3 model...');
+    // Load InceptionV3 from TensorFlow Hub
+    inceptionModel = await tf.loadGraphModel(
+        'https://tfhub.dev/google/tfjs-model/imagenet/inception_v3/classification/3/default/1',
+        { fromTFHub: true }
+    );
     updateProgress(10, 'Model loaded!');
-    return mobilenet;
+    return inceptionModel;
 }
 
-// Mobilenet helper utilities inspired by Lucid's feature visualization stack
-function preprocessForMobilenet(image) {
+// InceptionV3 helper utilities inspired by Lucid's feature visualization stack
+function preprocessForInception(image) {
     return tf.tidy(() => {
         const rank = image.shape.length;
         const batched = rank === 4 ? image : tf.expandDims(image, 0);
-        const resized = tf.image.resizeBilinear(batched, [MOBILENET_INPUT_SIZE, MOBILENET_INPUT_SIZE], true);
+        const resized = tf.image.resizeBilinear(batched, [INCEPTION_INPUT_SIZE, INCEPTION_INPUT_SIZE], true);
         const normalized = resized.mul(2).sub(1); // scale [0,1] -> [-1,1]
         return normalized;
     });
@@ -195,11 +195,11 @@ function computeLayerObjective(batchedImage, layers = activeLayers) {
 }
 
 function inferLayer(batchedImage, layerName) {
-    try {
-        return mobilenet.infer(batchedImage, { layer: layerName });
-    } catch (err) {
-        return mobilenet.infer(batchedImage, layerName);
-    }
+    // InceptionV3 is a GraphModel, so we need to execute it and get intermediate outputs
+    return tf.tidy(() => {
+        const result = inceptionModel.execute(batchedImage, layerName);
+        return result;
+    });
 }
 
 function totalVariation(image) {
@@ -279,7 +279,7 @@ async function gradientAscent(baseImage, steps, config) {
     const dreamVar = tf.variable(baseImage.clone());
 
     const computeGrad = tf.grad(image => tf.tidy(() => {
-        const prepped = preprocessForMobilenet(image);
+        const prepped = preprocessForInception(image);
         const featureLoss = computeLayerObjective(prepped, config.layers);
 
         let loss = featureLoss;
