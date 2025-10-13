@@ -41,7 +41,7 @@ const LAYER_PRESETS = {
 };
 
 const DREAM_OPTIONS = {
-    stepSize: 0.01,
+    stepSize: 0.05,  // Increased from 0.01 for stronger effects
     jitter: 16,
     tvStrength: 0,
     contentStrength: 0,
