@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unicorn Survival 3D</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="hud">
+            <div class="stat-container">
+                <div class="stat">
+                    <span class="stat-label">Hunger:</span>
+                    <div class="bar-container">
+                        <div id="hungerBar" class="bar hunger-bar"></div>
+                    </div>
+                    <span id="hungerValue" class="stat-value">100</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Resources:</span>
+                    <div class="resources">
+                        <span>Wood: <span id="woodCount">0</span></span>
+                        <span>Stone: <span id="stoneCount">0</span></span>
+                    </div>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Selected:</span>
+                    <span id="selectedBlock" class="selected-block">Grass</span>
+                </div>
+            </div>
+            <div class="controls">
+                <div class="control-hint">WASD: Move | Mouse: Look | Left Click: Break Block | Right Click: Place Block | 1-5: Select Block | Space: Jump</div>
+            </div>
+        </div>
+        <div id="crosshair" class="crosshair"></div>
+        <div id="gameOver" class="game-over" style="display: none;">
+            <h1>Game Over</h1>
+            <p id="gameOverMessage">You starved!</p>
+            <button id="restartBtn">Restart</button>
+        </div>
+        <div id="clickPrompt" class="click-prompt">Click or press any key to lock the camera (Esc releases)</div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
