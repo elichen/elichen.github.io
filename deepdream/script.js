@@ -30,26 +30,23 @@ const layerSelect = document.getElementById('layerSelect');
 const INCEPTION_INPUT_SIZE = 299;
 const LAYER_PRESETS = {
     multi: [
-        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5b/concat', weight: 0.15 },
-        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5d/concat', weight: 0.2 },
-        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_6b/concat', weight: 0.25 },
-        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_6d/concat', weight: 0.25 },
-        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_7b/concat', weight: 0.15 }
+        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5b/concat', weight: 1.0 },
+        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5d/concat', weight: 1.0 }
     ],
-    mixed5b: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5b/concat', weight: 1 }],
-    mixed5d: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5d/concat', weight: 1 }],
-    mixed6b: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_6b/concat', weight: 1 }],
-    mixed6d: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_6d/concat', weight: 1 }],
-    mixed7b: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_7b/concat', weight: 1 }]
+    mixed3: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5b/concat', weight: 1 }],
+    mixed4: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5d/concat', weight: 1 }],
+    mixed5: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_6b/concat', weight: 1 }],
+    mixed6: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_6d/concat', weight: 1 }],
+    mixed7: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_7b/concat', weight: 1 }]
 };
 
 const DREAM_OPTIONS = {
-    stepSize: 0.12,
-    jitter: 6,
-    tvStrength: 0.002,
-    contentStrength: 1.5,
-    contentBlend: 0.06,
-    smoothing: 0.2
+    stepSize: 0.01,
+    jitter: 16,
+    tvStrength: 0,
+    contentStrength: 0,
+    contentBlend: 0,
+    smoothing: 0
 };
 
 let activeLayerKey = 'multi';
@@ -186,7 +183,8 @@ function computeLayerObjective(batchedImage, layers = activeLayers) {
         const scores = layers.map(({ name, weight }) =>
             tf.tidy(() => {
                 const activation = inferLayer(batchedImage, name);
-                const energy = tf.mean(tf.square(activation));
+                // Simple mean activation (matching TensorFlow tutorial)
+                const energy = tf.mean(activation);
                 return energy.mul(weight);
             })
         );
@@ -305,10 +303,13 @@ async function gradientAscent(baseImage, steps, config) {
             return rollImage(gradTensor, -shiftY, -shiftX);
         });
 
-        const { stepUpdate, gradStd } = tf.tidy(() => {
-            const gradStd = tf.sqrt(tf.mean(tf.square(grads))).add(1e-8);
-            const normalized = grads.div(gradStd).mul(config.stepSize);
-            return { stepUpdate: normalized, gradStd };
+        const stepUpdate = tf.tidy(() => {
+            // Normalize gradients using standard deviation (TensorFlow tutorial method)
+            const mean = tf.mean(grads);
+            const variance = tf.mean(tf.square(tf.sub(grads, mean)));
+            const std = tf.sqrt(variance).add(1e-8);
+            const normalized = grads.div(std).mul(config.stepSize);
+            return normalized;
         });
 
         dreamVar.assign(tf.tidy(() => tf.clipByValue(dreamVar.add(stepUpdate), 0, 1)));
@@ -333,7 +334,6 @@ async function gradientAscent(baseImage, steps, config) {
 
         grads.dispose();
         stepUpdate.dispose();
-        gradStd.dispose();
 
         const progress = (step + 1) / steps;
         if (step % 4 === 0 || step === steps - 1) {
