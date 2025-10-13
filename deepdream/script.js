@@ -256,6 +256,65 @@ function rollImage(image, shiftY, shiftX) {
     });
 }
 
+// Deep Dream with Octaves (multi-scale processing)
+async function deepDreamWithOctaves(inputTensor, stepsPerOctave, options = {}) {
+    const config = {
+        ...DREAM_OPTIONS,
+        ...options
+    };
+    config.layers = config.layers || activeLayers;
+
+    // Octave parameters from TensorFlow tutorial
+    const octaveScale = 1.3;
+    const octaves = [-2, -1, 0, 1, 2]; // 5 octaves total
+
+    const baseImage = tf.tidy(() => tf.cast(inputTensor, 'float32').div(255));
+    const [originalHeight, originalWidth] = [baseImage.shape[0], baseImage.shape[1]];
+
+    let img = baseImage.clone();
+
+    for (let i = 0; i < octaves.length; i++) {
+        const octave = octaves[i];
+
+        // Calculate new size for this octave
+        const newHeight = Math.round(originalHeight * Math.pow(octaveScale, octave));
+        const newWidth = Math.round(originalWidth * Math.pow(octaveScale, octave));
+
+        // Resize image for this octave
+        const resized = tf.tidy(() => {
+            const expanded = img.expandDims(0);
+            const resizedExpanded = tf.image.resizeBilinear(expanded, [newHeight, newWidth]);
+            return resizedExpanded.squeeze();
+        });
+
+        img.dispose();
+
+        // Run gradient ascent for this octave
+        updateProgress(
+            20 + (i / octaves.length) * 60,
+            `Processing octave ${i + 1}/${octaves.length} (${newWidth}x${newHeight})`
+        );
+
+        img = await gradientAscent(resized, stepsPerOctave, config);
+        resized.dispose();
+
+        await tf.nextFrame();
+    }
+
+    // Resize back to original dimensions
+    const final = tf.tidy(() => {
+        const expanded = img.expandDims(0);
+        const resizedExpanded = tf.image.resizeBilinear(expanded, [originalHeight, originalWidth]);
+        return resizedExpanded.squeeze();
+    });
+
+    img.dispose();
+    baseImage.dispose();
+
+    updateProgress(85, 'Polishing details...');
+    return final;
+}
+
 // Deep Dream Core Algorithm (single-scale, Lucid-inspired)
 async function deepDream(inputTensor, iterations, options = {}) {
     const config = {
@@ -335,12 +394,8 @@ async function gradientAscent(baseImage, steps, config) {
         grads.dispose();
         stepUpdate.dispose();
 
-        const progress = (step + 1) / steps;
-        if (step % 4 === 0 || step === steps - 1) {
-            updateProgress(
-                20 + progress * 60,
-                `Optimizing step ${step + 1}/${steps}`
-            );
+        // Only update UI occasionally to avoid slowdown
+        if (step % 10 === 0 || step === steps - 1) {
             await tf.nextFrame();
         }
     }
@@ -365,20 +420,15 @@ async function generateDream() {
         await loadModel();
 
         // Get settings
-        const iterations = parseInt(iterationsSlider.value);
-        const intensityFactor = Math.max(0.5, iterations / 80);
+        const stepsPerOctave = parseInt(iterationsSlider.value);
         const dynamicOptions = {
             ...DREAM_OPTIONS,
-            stepSize: DREAM_OPTIONS.stepSize * intensityFactor,
-            contentBlend: Math.max(0.015, DREAM_OPTIONS.contentBlend / (1 + Math.max(0, intensityFactor - 1) * 1.8)),
-            contentStrength: DREAM_OPTIONS.contentStrength / intensityFactor,
-            smoothing: Math.max(0.05, DREAM_OPTIONS.smoothing / intensityFactor),
             layers: activeLayers.map(layer => ({ ...layer }))
         };
 
-        // Run deep dream
-        updateProgress(20, 'Dreaming...');
-        const dreamedImage = await deepDream(inputImage, iterations, dynamicOptions);
+        // Run deep dream with octaves
+        updateProgress(20, 'Dreaming across octaves...');
+        const dreamedImage = await deepDreamWithOctaves(inputImage, stepsPerOctave, dynamicOptions);
 
         // Display results
         updateProgress(95, 'Finalizing...');
