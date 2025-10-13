@@ -63,11 +63,11 @@
                     <label for="layerSelect">Feature Layer</label>
                     <select id="layerSelect">
                         <option value="multi" selected>Multi-layer blend (default)</option>
-                        <option value="conv_pw_3_relu">conv_pw_3_relu — edge strokes</option>
-                        <option value="conv_pw_5_relu">conv_pw_5_relu — textures</option>
-                        <option value="conv_pw_7_relu">conv_pw_7_relu — shapes</option>
-                        <option value="conv_pw_11_relu">conv_pw_11_relu — motifs</option>
-                        <option value="conv_pw_13_relu">conv_pw_13_relu — abstract</option>
+                        <option value="mixed5b">Mixed 5b — edges & textures</option>
+                        <option value="mixed5d">Mixed 5d — patterns</option>
+                        <option value="mixed6b">Mixed 6b — shapes & motifs</option>
+                        <option value="mixed6d">Mixed 6d — complex forms</option>
+                        <option value="mixed7b">Mixed 7b — abstract features</option>
                     </select>
                 </div>
 
@@ -98,14 +98,13 @@
         </div>
 
         <footer>
-            <p>Powered by TensorFlow.js & MobileNet v2</p>
+            <p>Powered by TensorFlow.js & InceptionV3</p>
             <p class="note">All processing happens in your browser - no data is uploaded</p>
         </footer>
     </div>
 
     <!-- TensorFlow.js -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0"></script>
     <script src="script.js"></script>
 </body>
 </html>
