@@ -26,8 +26,7 @@ const downloadBtn = document.getElementById('downloadBtn');
 const resetBtn = document.getElementById('resetBtn');
 const layerSelect = document.getElementById('layerSelect');
 
-// Deep Dream configuration inspired by Lucid feature visualization tricks
-const INCEPTION_INPUT_SIZE = 299;
+// Deep Dream configuration
 const LAYER_PRESETS = {
     multi: [
         { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5b/concat', weight: 1.0 },
@@ -167,14 +166,12 @@ async function loadModel() {
     return inceptionModel;
 }
 
-// InceptionV3 helper utilities inspired by Lucid's feature visualization stack
+// InceptionV3 preprocessing - image is already in [-1, 1]
 function preprocessForInception(image) {
     return tf.tidy(() => {
         const rank = image.shape.length;
-        const batched = rank === 4 ? image : tf.expandDims(image, 0);
-        const resized = tf.image.resizeBilinear(batched, [INCEPTION_INPUT_SIZE, INCEPTION_INPUT_SIZE], true);
-        const normalized = resized.mul(2).sub(1); // scale [0,1] -> [-1,1]
-        return normalized;
+        // Just add batch dimension if needed - image is already in [-1,1]
+        return rank === 4 ? image : tf.expandDims(image, 0);
     });
 }
 
@@ -268,7 +265,11 @@ async function deepDreamWithOctaves(inputTensor, stepsPerOctave, options = {}) {
     const octaveScale = 1.3;
     const octaves = [-2, -1, 0, 1, 2]; // 5 octaves total
 
-    const baseImage = tf.tidy(() => tf.cast(inputTensor, 'float32').div(255));
+    // Preprocess to [-1, 1] range like the tutorial (do this ONCE)
+    const baseImage = tf.tidy(() => {
+        const normalized = tf.cast(inputTensor, 'float32').div(255);
+        return normalized.mul(2).sub(1); // [0,1] -> [-1,1]
+    });
     const [originalHeight, originalWidth] = [baseImage.shape[0], baseImage.shape[1]];
 
     let img = baseImage.clone();
@@ -305,7 +306,11 @@ async function deepDreamWithOctaves(inputTensor, stepsPerOctave, options = {}) {
     const final = tf.tidy(() => {
         const expanded = img.expandDims(0);
         const resizedExpanded = tf.image.resizeBilinear(expanded, [originalHeight, originalWidth]);
-        return resizedExpanded.squeeze();
+        const squeezed = resizedExpanded.squeeze();
+        // Convert back from [-1, 1] to [0, 1] for display
+        const converted = squeezed.add(1).div(2);
+        // Ensure values are in valid range
+        return tf.clipByValue(converted, 0, 1);
     });
 
     img.dispose();
@@ -315,7 +320,7 @@ async function deepDreamWithOctaves(inputTensor, stepsPerOctave, options = {}) {
     return final;
 }
 
-// Deep Dream Core Algorithm (single-scale, Lucid-inspired)
+// Deep Dream Core Algorithm (single-scale)
 async function deepDream(inputTensor, iterations, options = {}) {
     const config = {
         ...DREAM_OPTIONS,
@@ -323,12 +328,22 @@ async function deepDream(inputTensor, iterations, options = {}) {
     };
     config.layers = config.layers || activeLayers;
 
-    const baseImage = tf.tidy(() => tf.cast(inputTensor, 'float32').div(255));
+    const baseImage = tf.tidy(() => {
+        const normalized = tf.cast(inputTensor, 'float32').div(255);
+        return normalized.mul(2).sub(1); // [0,1] -> [-1,1]
+    });
     const dreamed = await gradientAscent(baseImage, iterations, config);
     baseImage.dispose();
 
+    // Convert back from [-1, 1] to [0, 1]
+    const result = tf.tidy(() => {
+        const converted = dreamed.add(1).div(2);
+        return tf.clipByValue(converted, 0, 1);
+    });
+    dreamed.dispose();
+
     updateProgress(85, 'Polishing details...');
-    return dreamed;
+    return result;
 }
 
 // Gradient Ascent
@@ -371,7 +386,7 @@ async function gradientAscent(baseImage, steps, config) {
             return normalized;
         });
 
-        dreamVar.assign(tf.tidy(() => tf.clipByValue(dreamVar.add(stepUpdate), 0, 1)));
+        dreamVar.assign(tf.tidy(() => tf.clipByValue(dreamVar.add(stepUpdate), -1, 1)));
 
         if (config.smoothing > 0) {
             const smoothed = tf.tidy(() => {
@@ -455,18 +470,12 @@ async function generateDream() {
 
 // Display Results
 function displayResults(original, dreamed) {
-    // Only show the dreamed result at full resolution
-    const processed = tf.tidy(() => {
-        const clipped = tf.clipByValue(dreamed, 0, 1);
-        const scaled = clipped.mul(255);
-        return scaled.toInt();
-    });
+    // Dreamed image is in [0, 1] range
+    outputCanvas.width = dreamed.shape[1];
+    outputCanvas.height = dreamed.shape[0];
 
-    outputCanvas.width = processed.shape[1];
-    outputCanvas.height = processed.shape[0];
-    tf.browser.toPixels(processed, outputCanvas);
-
-    processed.dispose();
+    // tf.browser.toPixels expects [0, 1] and handles conversion to [0, 255]
+    tf.browser.toPixels(dreamed, outputCanvas);
 }
 
 // Update Progress
