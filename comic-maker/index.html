@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Comic Maker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Simplified Header -->
+        <header class="app-header">
+            <h1>Comic Maker</h1>
+            <div class="quick-actions">
+                <button id="undoBtn" title="Undo">↶</button>
+                <button id="clearBtn" title="Clear">🗑️</button>
+                <button id="downloadBtn" class="primary-btn" title="Save Comic">💾 Save</button>
+            </div>
+        </header>
+
+        <div class="main-layout">
+            <!-- Simplified Sidebar -->
+            <aside class="tools-sidebar">
+                <!-- Layout selector at top -->
+                <div class="panel-selector">
+                    <button class="panel-btn active" data-layout="1">□</button>
+                    <button class="panel-btn" data-layout="2h">◫</button>
+                    <button class="panel-btn" data-layout="2v">⬛</button>
+                    <button class="panel-btn" data-layout="4">⊞</button>
+                </div>
+
+                <!-- Main tool: Add Characters -->
+                <section class="tool-group">
+                    <h3>Add Characters</h3>
+                    <div class="character-grid">
+                        <div class="char-card" data-pose="standing">
+                            <canvas class="char-preview" width="60" height="80"></canvas>
+                            <span>Stand</span>
+                        </div>
+                        <div class="char-card" data-pose="sitting">
+                            <canvas class="char-preview" width="60" height="80"></canvas>
+                            <span>Sit</span>
+                        </div>
+                        <div class="char-card" data-pose="walking">
+                            <canvas class="char-preview" width="60" height="80"></canvas>
+                            <span>Walk</span>
+                        </div>
+                        <div class="char-card" data-pose="waving">
+                            <canvas class="char-preview" width="60" height="80"></canvas>
+                            <span>Wave</span>
+                        </div>
+                        <div class="char-card" data-pose="pointing">
+                            <canvas class="char-preview" width="60" height="80"></canvas>
+                            <span>Point</span>
+                        </div>
+                        <div class="char-card" data-pose="happy">
+                            <canvas class="char-preview" width="60" height="80"></canvas>
+                            <span>Happy</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Add Speech -->
+                <section class="tool-group">
+                    <h3>Add Speech</h3>
+                    <div class="speech-options">
+                        <button class="speech-btn" data-type="speech">💬 Speech</button>
+                        <button class="speech-btn" data-type="thought">💭 Thought</button>
+                    </div>
+                    <div class="speech-hint">Click a bubble, then click in panel</div>
+                </section>
+
+                <!-- Drawing Tools (simplified) -->
+                <section class="tool-group collapsed">
+                    <h3>Drawing <span class="toggle">▼</span></h3>
+                    <div class="drawing-tools">
+                        <label class="tool-option">
+                            <input type="checkbox" id="penMode"> ✏️ Pen Mode
+                        </label>
+                        <input type="color" id="colorPicker" value="#000000">
+                        <input type="range" id="brushSize" min="1" max="10" value="2">
+                    </div>
+                </section>
+
+                <!-- Quick Templates -->
+                <section class="tool-group">
+                    <h3>Quick Start</h3>
+                    <div class="template-list">
+                        <button class="template-btn" data-template="blank">Blank</button>
+                        <button class="template-btn" data-template="conversation">Conversation</button>
+                        <button class="template-btn" data-template="joke">Joke</button>
+                    </div>
+                </section>
+            </aside>
+
+            <!-- Canvas Area -->
+            <main class="canvas-area">
+                <div id="comicCanvas" class="comic-canvas layout-1">
+                    <div class="panel active" data-panel="0">
+                        <canvas></canvas>
+                        <div class="panel-number">1</div>
+                    </div>
+                </div>
+
+                <!-- Floating help -->
+                <div class="floating-help">
+                    <span id="helpText">Click a character to add • Drag to move • Double-click text to edit</span>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Hidden export canvas -->
+    <canvas id="exportCanvas" style="display: none;"></canvas>
+
+    <!-- Inline text editor (hidden by default) -->
+    <div id="textEditor" class="text-editor" style="display: none;">
+        <input type="text" id="textInput" placeholder="Type here...">
+    </div>
+
+    <script src="stick-figures.js"></script>
+    <script src="simple-comic.js"></script>
+</body>
+</html>

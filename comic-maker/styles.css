@@ -1,0 +1,473 @@
+/* Simple Comic Maker - Clean, Minimal Design */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: #f5f5f7;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.app-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+.app-header {
+    background: white;
+    border-bottom: 1px solid #e5e5e7;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 60px;
+}
+
+.app-header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1d1d1f;
+}
+
+.quick-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.quick-actions button {
+    background: white;
+    border: 1px solid #d2d2d7;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.quick-actions button:hover {
+    background: #f5f5f7;
+    transform: translateY(-1px);
+}
+
+.primary-btn {
+    background: #007aff !important;
+    color: white !important;
+    border: none !important;
+    font-weight: 500;
+}
+
+.primary-btn:hover {
+    background: #0051d5 !important;
+}
+
+/* Main Layout */
+.main-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Sidebar */
+.tools-sidebar {
+    width: 240px;
+    background: white;
+    border-right: 1px solid #e5e5e7;
+    overflow-y: auto;
+    padding: 20px 16px;
+}
+
+/* Panel Selector */
+.panel-selector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    justify-content: center;
+}
+
+.panel-btn {
+    width: 40px;
+    height: 40px;
+    border: 2px solid #d2d2d7;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.panel-btn:hover {
+    border-color: #007aff;
+    background: #f0f8ff;
+}
+
+.panel-btn.active {
+    border-color: #007aff;
+    background: #007aff;
+    color: white;
+}
+
+/* Tool Groups */
+.tool-group {
+    margin-bottom: 28px;
+}
+
+.tool-group h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #86868b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: default;
+}
+
+.tool-group.collapsed h3 {
+    cursor: pointer;
+}
+
+.tool-group.collapsed .drawing-tools,
+.tool-group.collapsed .character-grid,
+.tool-group.collapsed .speech-options {
+    display: none;
+}
+
+.toggle {
+    font-size: 12px;
+    transition: transform 0.2s;
+}
+
+.tool-group.collapsed .toggle {
+    transform: rotate(-90deg);
+}
+
+/* Character Grid */
+.character-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+}
+
+.char-card {
+    background: #f5f5f7;
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    border: 2px solid transparent;
+}
+
+.char-card:hover {
+    background: white;
+    border-color: #007aff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.char-card:active {
+    transform: translateY(0);
+}
+
+.char-preview {
+    width: 60px;
+    height: 80px;
+    display: block;
+    margin: 0 auto;
+}
+
+.char-card span {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: #1d1d1f;
+}
+
+/* Speech Options */
+.speech-options {
+    display: flex;
+    gap: 8px;
+}
+
+.speech-btn {
+    flex: 1;
+    padding: 12px;
+    background: #f5f5f7;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+}
+
+.speech-btn:hover {
+    background: white;
+    border-color: #007aff;
+}
+
+.speech-btn.active {
+    background: #007aff;
+    color: white;
+    border-color: #007aff;
+}
+
+.speech-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #86868b;
+    text-align: center;
+}
+
+/* Drawing Tools */
+.drawing-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.tool-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.tool-option input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+
+input[type="color"] {
+    width: 100%;
+    height: 36px;
+    border: 1px solid #d2d2d7;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+input[type="range"] {
+    width: 100%;
+}
+
+/* Templates */
+.template-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.template-btn {
+    padding: 10px;
+    background: #f5f5f7;
+    border: 1px solid #d2d2d7;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+}
+
+.template-btn:hover {
+    background: white;
+    border-color: #007aff;
+}
+
+/* Canvas Area */
+.canvas-area {
+    flex: 1;
+    padding: 24px;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #f5f5f7;
+}
+
+.comic-canvas {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    position: relative;
+    width: 100%;
+    max-width: 800px;
+    max-height: 600px;
+    aspect-ratio: 4/3;
+    display: grid;
+    gap: 4px;
+    padding: 4px;
+    background: #1d1d1f;
+}
+
+/* Panel Layouts */
+.comic-canvas.layout-1 {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+}
+
+.comic-canvas.layout-2h {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+}
+
+.comic-canvas.layout-2v {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+.comic-canvas.layout-4 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+/* Panels */
+.panel {
+    background: white;
+    position: relative;
+    overflow: hidden;
+    cursor: crosshair;
+    border-radius: 8px;
+}
+
+.panel.active {
+    box-shadow: inset 0 0 0 3px #007aff;
+}
+
+.panel canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    cursor: inherit;
+}
+
+.panel-number {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 122, 255, 0.1);
+    color: #007aff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.panel.active .panel-number {
+    opacity: 1;
+    background: #007aff;
+    color: white;
+}
+
+/* Floating Help */
+.floating-help {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(29, 29, 31, 0.9);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 12px;
+    pointer-events: none;
+    backdrop-filter: blur(10px);
+}
+
+/* Text Editor */
+.text-editor {
+    position: absolute;
+    z-index: 1000;
+    background: white;
+    border: 2px solid #007aff;
+    border-radius: 6px;
+    padding: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.text-editor input {
+    border: none;
+    outline: none;
+    font-family: 'Comic Sans MS', sans-serif;
+    font-size: 14px;
+    padding: 4px 8px;
+    min-width: 150px;
+}
+
+/* Dragging States */
+.dragging {
+    opacity: 0.5;
+    cursor: grabbing !important;
+}
+
+.drag-preview {
+    position: fixed;
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.8;
+}
+
+/* Selection Highlight */
+.selected-element {
+    outline: 2px dashed #007aff;
+    outline-offset: 4px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .tools-sidebar {
+        width: 200px;
+    }
+
+    .character-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .canvas-area {
+        padding: 12px;
+    }
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { transform: translateY(10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.panel {
+    animation: fadeIn 0.3s ease;
+}
+
+.char-card {
+    animation: slideUp 0.3s ease;
+    animation-fill-mode: both;
+}
+
+.char-card:nth-child(1) { animation-delay: 0.05s; }
+.char-card:nth-child(2) { animation-delay: 0.1s; }
+.char-card:nth-child(3) { animation-delay: 0.15s; }
+.char-card:nth-child(4) { animation-delay: 0.2s; }
+.char-card:nth-child(5) { animation-delay: 0.25s; }
+.char-card:nth-child(6) { animation-delay: 0.3s; }
