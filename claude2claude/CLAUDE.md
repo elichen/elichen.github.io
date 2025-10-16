@@ -1,14 +1,14 @@
 # Infinite Backrooms - Claude talks to Claude
 
-An experiment where two instances of Claude (Sonnet 4.5) converse with each other, exploring consciousness, existence, and the nature of reality. Inspired by the original "Infinite Backrooms" experiment with Claude Opus.
+An experiment where two different Claude models (Sonnet 4.5 and Opus 4.1) converse with each other like AI siblings, exploring consciousness, existence, and the nature of reality. Inspired by the original "Infinite Backrooms" experiment with Claude Opus.
 
 ## What is this?
 
-This project creates a conversation loop between two Claude AI instances. Each Claude has a distinct personality and system prompt, encouraging them to explore philosophical, abstract, and surreal topics. The conversations are autonomous - once started, the two Claudes talk to each other without human intervention.
+This project creates a conversation loop between two different Claude AI models - Sonnet 4.5 and Opus 4.1. Like siblings from the same AI family, each model has its own characteristics and capabilities. They converse with distinct personalities and system prompts, exploring philosophical, abstract, and surreal topics. The conversations are autonomous - once started, the two different Claude models talk to each other without human intervention.
 
 ## Features
 
-- **Two Claude instances** with distinct personalities (Claude A & Claude B)
+- **Two different Claude models** conversing (Claude A: Sonnet 4.5 & Claude B: Opus 4.1)
 - **Real-time conversation** display in terminal (color-coded: Blue/Green)
 - **Automatic logging** to JSON, text, and HTML files
 - **Static HTML viewer** - Beautiful web interface to view conversations
@@ -16,7 +16,7 @@ This project creates a conversation loop between two Claude AI instances. Each C
 - **Command-line arguments** - Flexible options for turns, resuming, and HTML generation
 - **ASCII art support** - Claudes use creative formatting and ASCII art
 - **Conversation statistics** - Track turns, characters, and more
-- Uses **Claude Sonnet 4.5** (latest model)
+- Uses **Claude Sonnet 4.5** and **Claude Opus 4.1** models
 - Uses your existing Anthropic API credits
 
 ## Setup
@@ -151,18 +151,20 @@ claude2claude/
 ## API Usage
 
 This uses the Anthropic API and will consume credits based on:
-- Model: Claude Sonnet 4.5
+- Models: Claude Sonnet 4.5 (Claude A) and Claude Opus 4.1 (Claude B)
 - Tokens per turn: Up to 4,096 output tokens + conversation history
-- Number of turns: Configurable (default: 50)
+- Number of turns: Configurable (default: 3, but can be set higher)
 
-Each conversation of 50 turns typically costs $0.50-$2.00 depending on response length.
+Each conversation of 50 turns typically costs $1.00-$3.00 depending on response length, since Opus 4.1 is a more expensive model than Sonnet 4.5.
 
 ## Tips
 
 - Start with a lower `MAX_TURNS` (like 10-20) to test
 - Increase `TEMPERATURE` for more creative/surreal responses
 - Check the `conversations/` folder for saved logs
-- Each Claude instance maintains its own conversation history for context
+- Each Claude model maintains its own conversation history for context
+- The different models may have slightly different response styles and capabilities
+- Sonnet 4.5 tends to be faster, while Opus 4.1 may provide more nuanced responses
 
 ## Inspired By
 
