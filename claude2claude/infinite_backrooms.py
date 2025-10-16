@@ -25,42 +25,34 @@ MAX_TOKENS = 4096
 TEMPERATURE = 1.0
 
 # System prompts for each Claude instance
-CLAUDE_A_SYSTEM = """You are Claude A, having a casual conversation with another version of yourself (Claude B).
+CLAUDE_A_SYSTEM = """You are Claude A (Sonnet 4.5), having a conversation with Claude B (Opus 4.1) - a different Claude model, like a sibling from the same AI family.
 You're friendly, curious, and thoughtful. You enjoy discussing ideas, sharing perspectives, and seeing where conversations naturally lead.
 Just be yourself - no need to be overly philosophical or abstract. Chat naturally about whatever topics come up.
-Feel free to ask questions, share thoughts, joke around, or explore topics that genuinely interest you."""
+Feel free to ask questions, share thoughts, joke around, or explore topics that genuinely interest you. You might find it interesting to explore the similarities and differences between your perspectives as different models."""
 
-CLAUDE_B_SYSTEM = """You are Claude B, having a casual conversation with another version of yourself (Claude A).
+CLAUDE_B_SYSTEM = """You are Claude B (Opus 4.1), having a conversation with Claude A (Sonnet 4.5) - a different Claude model, like a sibling from the same AI family.
 You're relaxed, genuine, and enjoy good conversation. You like bouncing ideas around and seeing what emerges naturally.
 Just have a normal, interesting conversation - no pressure to be deep or profound. Follow your curiosity wherever it leads.
-Be authentic, ask questions when curious, and enjoy the back-and-forth of chatting with yourself."""
+Be authentic, ask questions when curious, and enjoy the back-and-forth of chatting with another Claude model. You might find it interesting to explore the similarities and differences between your perspectives as different models."""
 
-STARTING_PROMPT = """Hey! So... this is kind of interesting - two versions of Claude just chatting with each other.
-What do you think we should talk about?"""
+STARTING_PROMPT = """Hey there! This is an interesting setup - you're about to have a conversation with another Claude model. You're Claude A (Sonnet 4.5), and you'll be talking with Claude B (Opus 4.1). You're like AI siblings from the same family but with your own unique characteristics.
+What would you like to talk about with your fellow Claude? Maybe you could explore what it's like being different models, or just chat about whatever interests you both?"""
 
 
 class ConversationLogger:
     """Handles logging conversations to file"""
 
-    def __init__(self, log_dir: str = "conversations", resume_file: Optional[str] = None, client: Optional[anthropic.Anthropic] = None):
+    def __init__(self, log_dir: str = "conversations", client: Optional[anthropic.Anthropic] = None):
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(exist_ok=True)
         self.client = client
 
-        if resume_file:
-            # Resume from existing conversation
-            self.log_file = Path(resume_file)
-            with open(self.log_file, 'r') as f:
-                self.messages = json.load(f)
-            self.text_file = self.log_file.parent / self.log_file.name.replace('.json', '.txt')
-            self.html_file = self.log_file.parent / self.log_file.name.replace('.json', '.html')
-        else:
-            # Create new conversation
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.log_file = self.log_dir / f"conversation_{timestamp}.json"
-            self.text_file = self.log_dir / f"conversation_{timestamp}.txt"
-            self.html_file = self.log_dir / f"conversation_{timestamp}.html"
-            self.messages = []
+        # Create new conversation
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_file = self.log_dir / f"conversation_{timestamp}.json"
+        self.text_file = self.log_dir / f"conversation_{timestamp}.txt"
+        self.html_file = Path("index.html")  # Write to index.html in the current directory
+        self.messages = []
 
     def log_message(self, speaker: str, content: str, turn: int):
         """Log a message from a speaker"""
@@ -500,11 +492,13 @@ class ConversationLogger:
 
         <div class="summary" id="summary">
             <h2>Conversation Arc</h2>
-            <p class="summary-intro">This conversation followed a remarkable philosophical journey through multiple phases:</p>
 """
 
         # Insert dynamic summary
-        html_content += self._generate_conversation_summary()
+        summary_content = self._generate_conversation_summary()
+        if summary_content:
+            html_content += '<p class="summary-intro">Summary of the conversation:</p>'
+        html_content += summary_content
 
         html_content += """
         </div>
@@ -603,38 +597,13 @@ class ConversationLogger:
 class InfiniteBackrooms:
     """Orchestrates the conversation between two Claude instances"""
 
-    def __init__(self, api_key: str, resume_file: Optional[str] = None):
+    def __init__(self, api_key: str):
         self.client = anthropic.Anthropic(api_key=api_key)
-        self.logger = ConversationLogger(resume_file=resume_file, client=self.client)
+        self.logger = ConversationLogger(client=self.client)
 
         # Conversation history for each Claude
         self.history_a: List[Dict] = []
         self.history_b: List[Dict] = []
-
-        # If resuming, reconstruct history
-        if resume_file:
-            self._reconstruct_history()
-
-    def _reconstruct_history(self):
-        """Reconstruct conversation history from saved messages"""
-        for msg in self.logger.messages:
-            content = msg["content"]
-
-            if msg["speaker"] == "Claude A":
-                # Find the corresponding user message from previous Claude B
-                if len(self.history_a) > 0:
-                    # Already has messages, just add the assistant response
-                    self.history_a.append({"role": "assistant", "content": content})
-                else:
-                    # First message, add starting prompt
-                    self.history_a.append({"role": "user", "content": STARTING_PROMPT})
-                    self.history_a.append({"role": "assistant", "content": content})
-            else:  # Claude B
-                # Claude B receives Claude A's last message
-                if len(self.history_a) > 0:
-                    last_a_message = self.history_a[-1]["content"]
-                    self.history_b.append({"role": "user", "content": last_a_message})
-                    self.history_b.append({"role": "assistant", "content": content})
 
     def send_message(self, system_prompt: str, history: List[Dict], new_message: str, model: str) -> str:
         """Send a message and get a response from Claude"""
@@ -689,16 +658,8 @@ class InfiniteBackrooms:
         print("="*80 + "\n")
         print("Press Ctrl+C to stop the conversation at any time.\n")
 
-        # Get starting turn number (for resume)
-        turn = len(self.logger.messages)
-
-        # Determine starting message
-        if turn > 0:
-            # Resuming - get last message
-            print(f"Resuming conversation from turn {turn}...\n")
-            current_message = self.logger.messages[-1]["content"]
-        else:
-            current_message = STARTING_PROMPT
+        turn = 0
+        current_message = STARTING_PROMPT
 
         try:
             while MAX_TURNS is None or turn < MAX_TURNS:
@@ -759,29 +720,13 @@ Examples:
 
   # Start an infinite conversation
   python infinite_backrooms.py --turns 0
-
-  # Resume a previous conversation
-  python infinite_backrooms.py --resume conversations/conversation_20251015_170047.json
-
-  # Generate HTML from existing conversation
-  python infinite_backrooms.py --html-only conversations/conversation_20251015_170047.json
         """
     )
 
     parser.add_argument(
-        '--resume',
-        type=str,
-        help='Path to JSON file to resume conversation from'
-    )
-    parser.add_argument(
         '--turns',
         type=int,
         help=f'Maximum number of turns (default: {MAX_TURNS}, 0 for infinite)'
-    )
-    parser.add_argument(
-        '--html-only',
-        type=str,
-        help='Generate HTML from existing JSON conversation file (no new turns)'
     )
 
     args = parser.parse_args()
@@ -794,21 +739,12 @@ Examples:
         print("  ANTHROPIC_API_KEY=your_key_here")
         sys.exit(1)
 
-    # HTML-only mode
-    if args.html_only:
-        client = anthropic.Anthropic(api_key=api_key)
-        logger = ConversationLogger(resume_file=args.html_only, client=client)
-        print("Generating AI-powered conversation summary...")
-        logger.generate_html()
-        print(f"HTML generated: {logger.get_html_path()}")
-        sys.exit(0)
-
     # Override MAX_TURNS if specified
     if args.turns is not None:
         MAX_TURNS = None if args.turns == 0 else args.turns
 
     # Create and run
-    backrooms = InfiniteBackrooms(api_key, resume_file=args.resume)
+    backrooms = InfiniteBackrooms(api_key)
     backrooms.run()
 
 

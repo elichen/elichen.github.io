@@ -1,0 +1,30 @@
+# Environment and secrets
+.env
+*.key
+*.pem
+
+# Python virtual environment
+venv/
+env/
+ENV/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Conversation logs (can be regenerated)
+conversations/
+
+# Local configuration
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
