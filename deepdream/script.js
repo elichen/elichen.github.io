@@ -43,7 +43,7 @@ const LAYER_PRESETS = {
 
 const DREAM_OPTIONS = {
     stepSize: 0.01,
-    jitter: 16,
+    jitter: 0,
     tvStrength: 0,
     contentStrength: 0,
     contentBlend: 0,
@@ -196,8 +196,8 @@ function computeLayerObjective(batchedImage, layers = activeLayers) {
         const scores = layers.map(({ name, weight }) =>
             tf.tidy(() => {
                 const activation = inferLayer(batchedImage, name);
-                // Match TF tutorial: maximize mean squared activation per layer
-                const energy = tf.mean(tf.square(activation));
+                // Match TF tutorial: maximize mean activation per layer
+                const energy = tf.mean(activation);
                 return energy.mul(weight);
             })
         );
@@ -468,6 +468,9 @@ async function generateDream() {
 
         // Display results
         updateProgress(95, 'Finalizing...');
+        if (checkForNaNs(dreamedImage, 'dreamedImage')) {
+            throw new Error('Dream result contains invalid values.');
+        }
         displayResults(inputImage, dreamedImage);
 
         dreamedImage.dispose();
@@ -531,6 +534,14 @@ async function loadDefaultImage() {
     } catch (error) {
         console.error('Unable to load default image:', error);
     }
+}
+
+function checkForNaNs(tensor, label) {
+    const hasNaN = tf.tidy(() => tf.any(tf.isNaN(tensor)).dataSync()[0]);
+    if (hasNaN) {
+        console.warn(`NaNs detected in ${label}`);
+    }
+    return hasNaN;
 }
 
 // Initialize on load
