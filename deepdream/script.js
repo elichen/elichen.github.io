@@ -4,6 +4,7 @@ let inputImage = null;
 let stream = null;
 
 // DOM Elements
+const DEFAULT_IMAGE_PATH = 'doggy.png';
 const cameraBtn = document.getElementById('cameraBtn');
 const uploadBtn = document.getElementById('uploadBtn');
 const fileInput = document.getElementById('fileInput');
@@ -27,20 +28,21 @@ const resetBtn = document.getElementById('resetBtn');
 const layerSelect = document.getElementById('layerSelect');
 
 // Deep Dream configuration
+const INCEPTION_PREFIX = 'module_apply_default/InceptionV3/InceptionV3/';
 const LAYER_PRESETS = {
     multi: [
-        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5b/concat', weight: 1.0 },
-        { name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5d/concat', weight: 1.0 }
+        { name: `${INCEPTION_PREFIX}Mixed_6a/concat`, weight: 1.0 },
+        { name: `${INCEPTION_PREFIX}Mixed_6c/concat`, weight: 1.0 }
     ],
-    mixed3: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5b/concat', weight: 1 }],
-    mixed4: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_5d/concat', weight: 1 }],
-    mixed5: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_6b/concat', weight: 1 }],
-    mixed6: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_6d/concat', weight: 1 }],
-    mixed7: [{ name: 'module_apply_default/InceptionV3/InceptionV3/Mixed_7b/concat', weight: 1 }]
+    mixed3: [{ name: `${INCEPTION_PREFIX}Mixed_6a/concat`, weight: 1 }],
+    mixed4: [{ name: `${INCEPTION_PREFIX}Mixed_6b/concat`, weight: 1 }],
+    mixed5: [{ name: `${INCEPTION_PREFIX}Mixed_6c/concat`, weight: 1 }],
+    mixed6: [{ name: `${INCEPTION_PREFIX}Mixed_6d/concat`, weight: 1 }],
+    mixed7: [{ name: `${INCEPTION_PREFIX}Mixed_6e/concat`, weight: 1 }]
 };
 
 const DREAM_OPTIONS = {
-    stepSize: 0.05,  // Increased from 0.01 for stronger effects
+    stepSize: 0.01,
     jitter: 16,
     tvStrength: 0,
     contentStrength: 0,
@@ -76,6 +78,8 @@ async function init() {
     console.log('Initializing Deep Dream...');
     await tf.ready();
     console.log('TensorFlow.js backend:', tf.getBackend());
+    iterationsValue.textContent = iterationsSlider.value;
+    await loadDefaultImage();
 }
 
 // Camera Functions
@@ -121,8 +125,9 @@ function handleFileUpload(e) {
 }
 
 // Display Image
-function displayImage(blob) {
+function displayImage(source) {
     const img = new Image();
+    let objectURL = null;
     img.onload = () => {
         // Use a larger size for better quality (512x512)
         const maxSize = 512;
@@ -148,8 +153,19 @@ function displayImage(blob) {
         // Store the tensor
         if (inputImage) inputImage.dispose();
         inputImage = tf.browser.fromPixels(inputCanvas);
+
+        if (objectURL) {
+            URL.revokeObjectURL(objectURL);
+        }
     };
-    img.src = URL.createObjectURL(blob);
+    if (source instanceof Blob) {
+        objectURL = URL.createObjectURL(source);
+        img.src = objectURL;
+    } else if (typeof source === 'string') {
+        img.src = source;
+    } else {
+        throw new Error('Unsupported image source for displayImage');
+    }
 }
 
 // Load InceptionV3 Model
@@ -180,8 +196,8 @@ function computeLayerObjective(batchedImage, layers = activeLayers) {
         const scores = layers.map(({ name, weight }) =>
             tf.tidy(() => {
                 const activation = inferLayer(batchedImage, name);
-                // Simple mean activation (matching TensorFlow tutorial)
-                const energy = tf.mean(activation);
+                // Match TF tutorial: maximize mean squared activation per layer
+                const energy = tf.mean(tf.square(activation));
                 return energy.mul(weight);
             })
         );
@@ -239,16 +255,21 @@ function rollImage(image, shiftY, shiftX) {
         }
 
         let shifted = image;
+
         if (yShift !== 0) {
             const top = shifted.slice([height - yShift, 0, 0], [yShift, width, channels]);
             const bottom = shifted.slice([0, 0, 0], [height - yShift, width, channels]);
             shifted = tf.concat([top, bottom], 0);
+        } else {
+            shifted = tf.clone(shifted);
         }
+
         if (xShift !== 0) {
             const left = shifted.slice([0, width - xShift, 0], [height, xShift, channels]);
             const right = shifted.slice([0, 0, 0], [height, width - xShift, channels]);
             shifted = tf.concat([left, right], 1);
         }
+
         return shifted;
     });
 }
@@ -497,6 +518,19 @@ function reset() {
     resultsSection.classList.add('hidden');
     imagePreview.classList.remove('hidden');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function loadDefaultImage() {
+    try {
+        const response = await fetch(DEFAULT_IMAGE_PATH);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch default image: ${response.status}`);
+        }
+        const blob = await response.blob();
+        displayImage(blob);
+    } catch (error) {
+        console.error('Unable to load default image:', error);
+    }
 }
 
 // Initialize on load
