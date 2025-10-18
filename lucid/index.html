@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucid: Neural Network Feature Visualization</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Lucid Feature Visualization</h1>
+            <p class="subtitle">Explore what neurons see in InceptionV3's late layers</p>
+        </header>
+
+        <main>
+            <!-- Model Status -->
+            <div id="modelStatus" class="status-card">
+                <div class="status-indicator" id="statusIndicator">
+                    <span class="status-dot"></span>
+                    <span id="statusText">Loading model...</span>
+                </div>
+            </div>
+
+            <!-- Controls Section -->
+            <section class="controls-section">
+                <div class="control-group">
+                    <h3>Layer Selection</h3>
+                    <select id="layerSelect" class="layer-select" disabled>
+                        <option value="Mixed_6a">Mixed_6a (768 channels)</option>
+                        <option value="Mixed_6b">Mixed_6b (768 channels)</option>
+                        <option value="Mixed_6c">Mixed_6c (768 channels)</option>
+                        <option value="Mixed_6d">Mixed_6d (768 channels)</option>
+                        <option value="Mixed_6e" selected>Mixed_6e (1280 channels)</option>
+                    </select>
+                    <p class="control-description">Late layers capture high-level features</p>
+                </div>
+
+                <div class="control-group">
+                    <h3>Neuron/Channel</h3>
+                    <div class="channel-controls">
+                        <input type="number" id="channelIndex" class="channel-input"
+                               min="0" max="1279" value="0" disabled>
+                        <span id="channelMax" class="channel-max">/ 1280</span>
+                    </div>
+                    <input type="range" id="channelSlider" class="channel-slider"
+                           min="0" max="1279" value="0" disabled>
+                    <p class="control-description">Select which neuron to visualize</p>
+                </div>
+
+                <div class="control-group">
+                    <h3>Optimization Settings</h3>
+                    <div class="settings-grid">
+                        <div class="setting">
+                            <label for="steps">Steps</label>
+                            <input type="number" id="steps" value="500" min="100" max="2000" step="100">
+                        </div>
+                        <div class="setting">
+                            <label for="learningRate">Learning Rate</label>
+                            <input type="number" id="learningRate" value="0.05" min="0.001" max="0.5" step="0.001">
+                        </div>
+                        <div class="setting">
+                            <label for="l2Weight">L2 Weight</label>
+                            <input type="number" id="l2Weight" value="0.001" min="0" max="0.01" step="0.0001">
+                        </div>
+                        <div class="setting">
+                            <label for="tvWeight">TV Weight</label>
+                            <input type="number" id="tvWeight" value="0.001" min="0" max="0.01" step="0.0001">
+                        </div>
+                        <div class="setting">
+                            <label for="freqWeight">Frequency Penalty</label>
+                            <input type="number" id="freqWeight" value="0.1" min="0" max="1" step="0.01">
+                        </div>
+                        <div class="setting">
+                            <label for="transformStrength">Transform Robustness</label>
+                            <input type="number" id="transformStrength" value="0.5" min="0" max="1" step="0.1">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Advanced Options</h3>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="progressiveRes" checked>
+                            <span>Progressive Resolution</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="showProgress" checked>
+                            <span>Show Live Progress</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button id="visualizeBtn" class="visualize-btn" disabled>
+                    <span id="btnText">Visualize Neuron</span>
+                </button>
+            </section>
+
+            <!-- Visualization Section -->
+            <section class="visualization-section">
+                <div class="canvas-container">
+                    <canvas id="visualizationCanvas" width="512" height="512"></canvas>
+                    <div id="progressOverlay" class="progress-overlay hidden">
+                        <div class="progress-content">
+                            <div class="progress-bar">
+                                <div id="progressFill" class="progress-fill"></div>
+                            </div>
+                            <p id="progressText" class="progress-text">Initializing...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="resultControls" class="result-controls hidden">
+                    <button id="downloadBtn" class="btn-secondary">
+                        <span>Download Image</span>
+                    </button>
+                    <button id="shareBtn" class="btn-secondary">
+                        <span>Copy Settings</span>
+                    </button>
+                </div>
+
+                <div id="visualizationInfo" class="info-panel hidden">
+                    <h4>Visualization Details</h4>
+                    <dl class="info-list">
+                        <dt>Layer:</dt>
+                        <dd id="infoLayer">-</dd>
+                        <dt>Channel:</dt>
+                        <dd id="infoChannel">-</dd>
+                        <dt>Final Loss:</dt>
+                        <dd id="infoLoss">-</dd>
+                        <dt>Optimization Time:</dt>
+                        <dd id="infoTime">-</dd>
+                    </dl>
+                </div>
+            </section>
+
+            <!-- Gallery Section -->
+            <section id="gallery" class="gallery-section hidden">
+                <h3>Recent Visualizations</h3>
+                <div id="galleryGrid" class="gallery-grid"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p>
+                Inspired by <a href="https://github.com/tensorflow/lucid" target="_blank">Lucid</a>
+                and <a href="https://distill.pub/2017/feature-visualization/" target="_blank">Feature Visualization</a>
+            </p>
+            <p class="tech-note">
+                Running InceptionV3 with TensorFlow.js in your browser
+            </p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

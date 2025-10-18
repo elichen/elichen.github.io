@@ -10,24 +10,119 @@
     <div class="container">
         <div class="instructions">
             <h2>Mountain Car</h2>
-            <p>Use left and right arrow keys to control the car</p>
+            <p id="modeText">AI Training Mode Active - Watch it Learn!</p>
             <p>Goal: Reach the rightmost peak!</p>
+            <div class="agent-selector">
+                <div>
+                    <label>Agent Type:</label>
+                    <select id="agentSelect" onchange="updateConfig()">
+                        <option value="dqn" selected>DQN (Fast)</option>
+                        <option value="streamq">StreamQ (Original)</option>
+                    </select>
+                </div>
+                <div id="dqnOptions">
+                    <div>
+                        <label>Exploration:</label>
+                        <select id="explorationSelect" onchange="updateConfig()">
+                            <option value="epsilon">Epsilon-Greedy</option>
+                            <option value="ucb">UCB</option>
+                            <option value="boltzmann">Boltzmann</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>
+                            <input type="checkbox" id="priorityReplay" checked onchange="updateConfig()">
+                            Priority Replay
+                        </label>
+                        <label style="margin-left: 20px;">
+                            <input type="checkbox" id="doubleDQN" checked onchange="updateConfig()">
+                            Double DQN
+                        </label>
+                    </div>
+                </div>
+                <button onclick="resetTraining()">Apply & Reset</button>
+            </div>
         </div>
         <canvas id="gameCanvas"></canvas>
     </div>
     <script src="src/mountainCar.js"></script>
     <script src="src/mountainCarEnv.js"></script>
     <script src="src/agent.js"></script>
+    <script src="src/replayBuffer.js"></script>
+    <script src="src/dqnAgent.js"></script>
     <script src="src/network.js"></script>
     <script src="src/optimizer.js"></script>
     <script src="src/normalization.js"></script>
     <script src="src/utils.js"></script>
     <script src="src/game.js"></script>
     <script>
+        let game;
+        let configChanged = false;
+
         async function init() {
             await tf.setBackend('cpu');
-            new Game();
+
+            // Set UI from URL params
+            const urlParams = new URLSearchParams(window.location.search);
+            const agentType = urlParams.get('agent') || 'dqn';
+            document.getElementById('agentSelect').value = agentType;
+
+            if (agentType === 'dqn') {
+                document.getElementById('dqnOptions').style.display = 'block';
+                document.getElementById('explorationSelect').value =
+                    urlParams.get('exploration') || 'epsilon';
+                document.getElementById('priorityReplay').checked =
+                    urlParams.get('priority') !== 'false';
+                document.getElementById('doubleDQN').checked =
+                    urlParams.get('double') !== 'false';
+            } else {
+                document.getElementById('dqnOptions').style.display = 'none';
+            }
+
+            game = new Game();
         }
+
+        function updateConfig() {
+            const agentType = document.getElementById('agentSelect').value;
+
+            // Show/hide DQN options
+            if (agentType === 'dqn') {
+                document.getElementById('dqnOptions').style.display = 'block';
+            } else {
+                document.getElementById('dqnOptions').style.display = 'none';
+            }
+
+            configChanged = true;
+        }
+
+        function resetTraining() {
+            if (!configChanged) {
+                // Just reload if no config changes
+                window.location.reload();
+                return;
+            }
+
+            // Build new URL with config
+            const url = new URL(window.location);
+            const agentType = document.getElementById('agentSelect').value;
+
+            url.searchParams.set('agent', agentType);
+
+            if (agentType === 'dqn') {
+                url.searchParams.set('exploration',
+                    document.getElementById('explorationSelect').value);
+                url.searchParams.set('priority',
+                    document.getElementById('priorityReplay').checked);
+                url.searchParams.set('double',
+                    document.getElementById('doubleDQN').checked);
+            }
+
+            if (game) {
+                game.dispose();
+            }
+            window.location.href = url.toString();
+        }
+
         init();
     </script>
 </body>

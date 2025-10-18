@@ -7,11 +7,16 @@ class Game {
         this.env = new MountainCarEnv(this.mountainCar)
         
         // Initialize training components
-        this.isManualMode = true
+        this.isManualMode = false  // Default to training mode
         this.setupAgent()
         this.setupControls()
         this.setupTrainingControls()
-        
+
+        // Reset environment for training mode start
+        if (!this.isManualMode) {
+            this.env.reset()
+        }
+
         this.showSuccess = false
         this.successTimer = 0
         this.episodeRewards = new CircularBuffer(10)
@@ -30,19 +35,81 @@ class Game {
     }
 
     setupAgent() {
+        // Check URL parameter for agent type
+        const urlParams = new URLSearchParams(window.location.search);
+        const agentType = urlParams.get('agent') || 'dqn'; // Default to DQN for better sample efficiency
+
         // Wrap environment with normalization
         let env = this.env;
         env = new NormalizeObservation(env);
         env = new ScaleReward(env, 0.99); // Add reward scaling
 
-        const config = {
-            env: env, // Use wrapped environment
-            numActions: 3,
-            epsilonStart: 1.0,
-            epsilonTarget: 0.01,
-            totalSteps: 100000,
+        if (agentType === 'dqn') {
+            // Get DQN configuration from URL parameters
+            const explorationMode = urlParams.get('exploration') || 'epsilon';
+            const usePrioritizedReplay = urlParams.get('priority') !== 'false';
+            const useDoubleDQN = urlParams.get('double') !== 'false';
+
+            // Use new sample-efficient DQN agent
+            const config = {
+                // Network architecture
+                hiddenSizes: [64, 64],
+                activation: 'leakyReLU',
+                layerNorm: true,
+
+                // Q-learning parameters
+                gamma: 0.99,
+                learningRate: 0.0003,
+
+                // Experience replay
+                bufferSize: 50000,
+                batchSize: 32,
+                minBufferSize: 1000,
+                usePrioritizedReplay: usePrioritizedReplay,
+
+                // Target network
+                targetUpdateFreq: 100,
+                tau: 1.0,
+
+                // Exploration
+                explorationMode: explorationMode,
+                epsilonStart: 1.0,
+                epsilonEnd: 0.01,
+                epsilonDecaySteps: 30000, // Faster decay for better efficiency
+
+                // UCB parameters
+                ucbC: 2.0,
+
+                // Boltzmann parameters
+                boltzmannTemp: 1.0,
+                boltzmannTempEnd: 0.1,
+
+                // N-step returns
+                nSteps: 3,
+
+                // Double DQN
+                useDoubleDQN: useDoubleDQN,
+
+                // Training
+                updateFreq: 4,
+                gradientsPerStep: 1,
+            };
+            this.agent = new DQNAgent(env, config);
+            console.log(`Using DQN agent with ${explorationMode} exploration, ` +
+                       `priority replay: ${usePrioritizedReplay}, ` +
+                       `double DQN: ${useDoubleDQN}`);
+        } else {
+            // Use original StreamQ agent
+            const config = {
+                env: env,
+                numActions: 3,
+                epsilonStart: 1.0,
+                epsilonTarget: 0.01,
+                totalSteps: 100000,
+            };
+            this.agent = new StreamQ(config);
+            console.log('Using StreamQ agent');
         }
-        this.agent = new StreamQ(config)
     }
 
     setupTrainingControls() {
@@ -50,16 +117,23 @@ class Game {
         controls.className = 'controls'
         
         const toggleButton = document.createElement('button')
-        toggleButton.textContent = 'Switch to Training Mode'
+        toggleButton.textContent = 'Switch to Manual Mode'  // Start in training mode
         toggleButton.onclick = () => {
             this.isManualMode = !this.isManualMode
-            toggleButton.textContent = this.isManualMode ? 
-                'Switch to Training Mode' : 
+            toggleButton.textContent = this.isManualMode ?
+                'Switch to Training Mode' :
                 'Switch to Manual Mode'
-            
-            if (!this.isManualMode) {
-                this.env.reset()
+
+            // Update mode text
+            const modeText = document.getElementById('modeText')
+            if (modeText) {
+                modeText.textContent = this.isManualMode ?
+                    'Use left and right arrow keys to control the car' :
+                    'AI Training Mode Active - Watch it Learn!'
             }
+
+            // Reset environment when switching modes
+            this.env.reset()
         }
         
         controls.appendChild(toggleButton)
@@ -129,12 +203,37 @@ class Game {
         }
 
         const state = this.env.getState();
-        const { action } = await this.agent.sampleAction(state);
+
+        // Handle different agent interfaces
+        let action;
+        if (this.agent instanceof DQNAgent) {
+            action = this.agent.act(state, true); // training = true
+        } else {
+            const result = await this.agent.sampleAction(state);
+            action = result.action;
+        }
+
         const result = this.env.step(action);
-        
+
         this.currentEpisodeSteps++;
         this.stepCount++;
         this.currentEpisodeReturn += result.reward;
+
+        // Store transition and train for DQN agent
+        if (this.agent instanceof DQNAgent) {
+            this.agent.remember(state, action, result.reward, result.state, result.done);
+            this.agent.train(); // Will only train when buffer has enough samples
+        } else {
+            // Original StreamQ update
+            await this.agent.update(
+                state,
+                action,
+                result.reward,
+                result.state,
+                result.done,
+                false
+            );
+        }
 
         if (result.done) {
             this.episodeCount++;
@@ -144,24 +243,33 @@ class Game {
             this.currentEpisodeReturn = 0;
         }
 
-        await this.agent.update(
-            state, 
-            action,
-            result.reward,
-            result.state,
-            result.done,
-            false
-        );
-
         this.env.render();
     }
 
     logEpisodeStats(episodeReturn, steps, timeout) {
         this.episodeRewards.push(episodeReturn);
         const avgReward = this.episodeRewards.average();
-        
+
         const status = timeout ? "TIMEOUT" : (episodeReturn >= 100 ? "SUCCESS" : "FAILED");
-        
+
+        // Get agent-specific stats
+        let agentStats = '';
+        if (this.agent instanceof DQNAgent) {
+            const stats = this.agent.getStats();
+            agentStats = `
+                Agent: DQN (Sample-Efficient)<br>
+                Buffer Size: ${stats.bufferSize}<br>
+                Epsilon: ${stats.epsilon.toFixed(3)}<br>
+                Updates: ${stats.updateCount}<br>
+                Avg Loss: ${stats.avgLoss.toFixed(6)}
+            `;
+        } else {
+            agentStats = `
+                Agent: StreamQ<br>
+                Epsilon: ${this.agent.epsilon.toFixed(3)}
+            `;
+        }
+
         this.stats.innerHTML = `
             Episode: ${this.episodeCount}<br>
             Total Steps: ${this.stepCount}<br>
@@ -169,7 +277,7 @@ class Game {
             Status: ${status}<br>
             Last Return: ${episodeReturn.toFixed(1)}<br>
             Avg Return (${this.episodeRewards.size}): ${avgReward.toFixed(1)}<br>
-            Epsilon: ${this.agent.epsilon.toFixed(3)}<br>
+            ${agentStats}<br>
             Max Height: ${Math.sin(3 * this.env.mountainCar.position).toFixed(3)}
         `;
 

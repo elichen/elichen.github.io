@@ -53,6 +53,7 @@ class SampleMeanStd {
 class NormalizeObservation {
     constructor(env) {
         this.env = env;
+        this.numActions = env.numActions; // Pass through numActions
         const shape = [env.getState().length];
         this.normalizer = new SampleMeanStd(shape);
     }
@@ -96,6 +97,7 @@ class NormalizeObservation {
 class ScaleReward {
     constructor(env, gamma = 0.99, epsilon = 1e-8) {
         this.env = env;
+        this.numActions = env.numActions; // Pass through numActions
         this.gamma = gamma;
         this.epsilon = epsilon;
         this.rewardStats = new SampleMeanStd([1]);  // Shape for scalar reward
