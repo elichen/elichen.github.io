@@ -43,34 +43,58 @@ class LayerNorm extends tf.layers.Layer {
 tf.serialization.registerClass(LayerNorm);
 
 class StreamingNetwork {
-    constructor(inputSize = 4, hiddenSize = 32, numActions = 2) {
-        this.model = this.buildModel(inputSize, hiddenSize, numActions);
-        this.sparseInit();
+    constructor(inputSize = 4, hiddenSize = 32, numActions = 2, config = {}) {
+        // Support both scalar hiddenSize and array of sizes
+        if (Array.isArray(hiddenSize)) {
+            this.hiddenSizes = hiddenSize;
+        } else {
+            this.hiddenSizes = [hiddenSize, hiddenSize];
+        }
+
+        this.inputSize = inputSize;
+        this.numActions = numActions;
+        this.config = config;
+
+        this.model = this.buildModel(inputSize, this.hiddenSizes, numActions);
+
+        // Only apply sparse init if explicitly requested (default for old behavior)
+        if (config.sparseInit !== false && !Array.isArray(hiddenSize)) {
+            this.sparseInit();
+        } else if (config.sparseInit === true) {
+            this.sparseInit();
+        }
+
+        // Track gradients for manual backprop
+        this.gradients = {};
     }
 
-    buildModel(inputSize, hiddenSize, numActions) {
+    buildModel(inputSize, hiddenSizes, numActions) {
         const model = tf.sequential();
-        
-        // First layer with layer normalization
-        model.add(tf.layers.dense({
-            units: hiddenSize,
-            inputShape: [inputSize],
-            activation: 'linear',
-            name: 'fc1',
-            trainable: true
-        }));
-        model.add(new LayerNorm({name: 'norm1', normalizedShape: [hiddenSize]}));
-        model.add(tf.layers.leakyReLU({alpha: 0.01}));
 
-        // Hidden layer with layer normalization
-        model.add(tf.layers.dense({
-            units: hiddenSize,
-            activation: 'linear',
-            name: 'hidden',
-            trainable: true
-        }));
-        model.add(new LayerNorm({name: 'norm2', normalizedShape: [hiddenSize]}));
-        model.add(tf.layers.leakyReLU({alpha: 0.01}));
+        // Add hidden layers with layer normalization
+        for (let i = 0; i < hiddenSizes.length; i++) {
+            const hiddenSize = hiddenSizes[i];
+
+            model.add(tf.layers.dense({
+                units: hiddenSize,
+                inputShape: i === 0 ? [inputSize] : undefined,
+                activation: 'linear',
+                name: `fc${i + 1}`,
+                trainable: true
+            }));
+
+            // Add layer norm if enabled
+            if (this.config.layerNorm !== false) {
+                model.add(new LayerNorm({name: `norm${i + 1}`, normalizedShape: [hiddenSize]}));
+            }
+
+            // Add activation
+            if (this.config.activation === 'relu') {
+                model.add(tf.layers.reLU());
+            } else {
+                model.add(tf.layers.leakyReLU({alpha: 0.01}));
+            }
+        }
 
         // Output layer
         model.add(tf.layers.dense({
@@ -92,6 +116,71 @@ class StreamingNetwork {
         return tf.tidy(() => {
             const stateTensor = tf.tensor2d([state], [1, state.length]);
             return this.model.predict(stateTensor);
+        });
+    }
+
+    /**
+     * Forward pass - returns array of Q-values
+     */
+    forward(state) {
+        const result = tf.tidy(() => {
+            const stateTensor = tf.tensor2d([state], [1, state.length]);
+            const output = this.model.predict(stateTensor);
+            return output.arraySync()[0];
+        });
+        return result;
+    }
+
+    /**
+     * Backward pass - accumulate gradients (simplified for DQN)
+     */
+    backward(gradOutput) {
+        // Store gradients for optimizer to use
+        // This is a simplified implementation - real backprop would need more complexity
+        if (!this.gradients.output) {
+            this.gradients.output = [];
+        }
+        this.gradients.output.push(gradOutput);
+    }
+
+    /**
+     * Reset accumulated gradients
+     */
+    zeroGrad() {
+        this.gradients = {};
+    }
+
+    /**
+     * Get all network parameters as a dictionary
+     */
+    getParameters() {
+        const params = {};
+        const layers = this.model.layers.filter(layer => layer.getClassName() === 'Dense');
+
+        layers.forEach((layer, idx) => {
+            const weights = layer.getWeights();
+            params[`layer${idx}_weight`] = weights[0].arraySync();
+            params[`layer${idx}_bias`] = weights[1].arraySync();
+        });
+
+        return params;
+    }
+
+    /**
+     * Set network parameters from a dictionary
+     */
+    setParameters(params) {
+        const layers = this.model.layers.filter(layer => layer.getClassName() === 'Dense');
+
+        layers.forEach((layer, idx) => {
+            const weightKey = `layer${idx}_weight`;
+            const biasKey = `layer${idx}_bias`;
+
+            if (params[weightKey] && params[biasKey]) {
+                const weight = tf.tensor(params[weightKey]);
+                const bias = tf.tensor(params[biasKey]);
+                layer.setWeights([weight, bias]);
+            }
         });
     }
 

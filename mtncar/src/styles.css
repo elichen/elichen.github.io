@@ -67,4 +67,68 @@ button {
 
 button:hover {
     background: #45a049;
+}
+
+/* Agent selector styling */
+.agent-selector {
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(76, 175, 80, 0.1);
+    border: 2px solid #4CAF50;
+    border-radius: 5px;
+}
+
+.agent-selector div {
+    margin-bottom: 10px;
+}
+
+.agent-selector label {
+    font-size: 0.7em;
+    color: #4CAF50;
+    text-transform: uppercase;
+    margin-right: 10px;
+}
+
+select {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.6em;
+    padding: 5px 10px;
+    background: white;
+    border: 2px solid #4CAF50;
+    border-radius: 3px;
+    color: #333;
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+select:hover {
+    background: #f0f8f1;
+}
+
+select:focus {
+    outline: none;
+    box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+}
+
+/* Checkbox styling */
+input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0 5px;
+    accent-color: #4CAF50;
+    vertical-align: middle;
+    cursor: pointer;
+}
+
+/* DQN options panel */
+#dqnOptions {
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 3px;
+}
+
+.agent-selector button {
+    width: 100%;
+    font-size: 0.7em;
+    margin-top: 5px;
 } 
