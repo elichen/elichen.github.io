@@ -527,6 +527,17 @@ class DQNAgent {
         this.totalSteps = state.totalSteps;
         this.updateCount = state.updateCount;
     }
+
+    /**
+     * Clean up resources
+     */
+    dispose() {
+        if (this.optimizer) {
+            this.optimizer.dispose();
+        }
+        // Networks don't need explicit disposal in this implementation
+        // as they use plain JavaScript arrays/objects
+    }
 }
 
 /**
@@ -546,5 +557,11 @@ class AdamOptimizer {
     step() {
         this.t++;
         // Implementation would go here - integrating with network gradients
+    }
+
+    dispose() {
+        // Clear moment estimates to free memory
+        this.m = {};
+        this.v = {};
     }
 }
