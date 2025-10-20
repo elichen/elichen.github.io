@@ -8,7 +8,7 @@ let visualizationHistory = [];
 
 // Layer configuration for InceptionV3
 const INCEPTION_PREFIX = 'module_apply_default/InceptionV3/InceptionV3/';
-const INCEPTION_LAYERS = {
+let INCEPTION_LAYERS = {
     'Mixed_6a': {
         name: `${INCEPTION_PREFIX}Mixed_6a/concat`,
         channels: 768,
@@ -108,6 +108,9 @@ async function loadModel() {
             { fromTFHub: true }
         );
 
+        // Discover and populate all available layers
+        discoverAllLayers();
+
         updateStatus('Model ready', 'ready');
         enableControls(true);
 
@@ -116,6 +119,119 @@ async function loadModel() {
         console.error('Failed to load model:', error);
         updateStatus('Failed to load model', 'error');
     }
+}
+
+function discoverAllLayers() {
+    // Clear existing layer options
+    const layerSelect = elements.layerSelect;
+    layerSelect.innerHTML = '';
+
+    // InceptionV3 common layer names and their typical channel counts
+    // We'll try to detect and use all available layers
+    const allLayers = {};
+
+    // Standard InceptionV3 layers with known channel counts
+    const knownLayers = [
+        // Early layers
+        { pattern: 'Conv2d_1a_3x3', channels: 32, description: 'First convolution' },
+        { pattern: 'Conv2d_2a_3x3', channels: 32, description: 'Early features' },
+        { pattern: 'Conv2d_2b_3x3', channels: 64, description: 'Edge detection' },
+        { pattern: 'Conv2d_3b_1x1', channels: 80, description: 'Basic patterns' },
+        { pattern: 'Conv2d_4a_3x3', channels: 192, description: 'Texture features' },
+
+        // Mixed layers (Inception modules)
+        { pattern: 'Mixed_5b', channels: 256, description: 'Low-level combinations' },
+        { pattern: 'Mixed_5c', channels: 288, description: 'Pattern compositions' },
+        { pattern: 'Mixed_5d', channels: 288, description: 'Complex textures' },
+        { pattern: 'Mixed_6a', channels: 768, description: 'Mid-level features' },
+        { pattern: 'Mixed_6b', channels: 768, description: 'Object parts' },
+        { pattern: 'Mixed_6c', channels: 768, description: 'Complex patterns' },
+        { pattern: 'Mixed_6d', channels: 768, description: 'Higher abstractions' },
+        { pattern: 'Mixed_6e', channels: 768, description: 'Abstract features' },
+        { pattern: 'Mixed_7a', channels: 1280, description: 'High-level features' },
+        { pattern: 'Mixed_7b', channels: 2048, description: 'Complex objects' },
+        { pattern: 'Mixed_7c', channels: 2048, description: 'Final abstractions' },
+    ];
+
+    // Try to find these layers in the model - use a single test input
+    const testInput = tf.zeros([1, 299, 299, 3]);
+
+    knownLayers.forEach(layerInfo => {
+        // Common suffixes for layer outputs
+        const suffixes = ['/concat', '/Relu', '/add', ''];
+
+        for (const suffix of suffixes) {
+            const layerName = `${INCEPTION_PREFIX}${layerInfo.pattern}${suffix}`;
+
+            // Try to execute with this layer name to see if it exists
+            try {
+                const output = inceptionModel.execute(testInput, layerName);
+
+                if (output) {
+                    // Layer exists! Get its shape
+                    const shape = output.shape;
+                    const channels = shape[shape.length - 1]; // Last dimension is channels
+
+                    allLayers[layerInfo.pattern] = {
+                        name: layerName,
+                        channels: channels || layerInfo.channels,
+                        description: layerInfo.description
+                    };
+
+                    output.dispose();
+                    break; // Found this layer, move to next
+                }
+            } catch (e) {
+                // Layer doesn't exist with this suffix, try next
+            }
+        }
+    });
+
+    // Dispose of test input
+    testInput.dispose();
+
+    // Update the global INCEPTION_LAYERS
+    Object.assign(INCEPTION_LAYERS, allLayers);
+
+    // Populate the select dropdown
+    const groups = {
+        'Early Layers': ['Conv2d_1a_3x3', 'Conv2d_2a_3x3', 'Conv2d_2b_3x3', 'Conv2d_3b_1x1', 'Conv2d_4a_3x3'],
+        'Mid-Level Mixed': ['Mixed_5b', 'Mixed_5c', 'Mixed_5d', 'Mixed_6a', 'Mixed_6b', 'Mixed_6c', 'Mixed_6d', 'Mixed_6e'],
+        'High-Level Mixed': ['Mixed_7a', 'Mixed_7b', 'Mixed_7c']
+    };
+
+    // Add optgroups for better organization
+    Object.entries(groups).forEach(([groupName, layerNames]) => {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = groupName;
+
+        layerNames.forEach(layerName => {
+            if (allLayers[layerName]) {
+                const option = document.createElement('option');
+                option.value = layerName;
+                option.textContent = `${layerName} (${allLayers[layerName].channels} channels)`;
+                optgroup.appendChild(option);
+            }
+        });
+
+        if (optgroup.children.length > 0) {
+            layerSelect.appendChild(optgroup);
+        }
+    });
+
+    // Set default selection to Mixed_6b if available
+    if (allLayers['Mixed_6b']) {
+        layerSelect.value = 'Mixed_6b';
+    } else if (layerSelect.options.length > 0) {
+        layerSelect.selectedIndex = Math.floor(layerSelect.options.length / 2);
+    }
+
+    // Update channel slider based on selection
+    if (layerSelect.options.length > 0) {
+        updateChannelRange();
+    }
+
+    console.log(`Discovered ${Object.keys(allLayers).length} layers in InceptionV3`);
 }
 
 // ========== Fourier Basis Initialization ==========
@@ -234,51 +350,48 @@ function reverseTransform(gradient, params) {
 }
 
 function rollImage(image, shiftY, shiftX) {
-    const [height, width, channels] = image.shape;
-
-    // Ensure shifts are integers
-    shiftY = Math.floor(shiftY);
-    shiftX = Math.floor(shiftX);
-
-    // Normalize shifts to be within bounds
-    const yShift = ((shiftY % height) + height) % height;
-    const xShift = ((shiftX % width) + width) % width;
-
-    if (yShift === 0 && xShift === 0) {
+    // For zero shift, just return a clone
+    if (shiftY === 0 && shiftX === 0) {
         return tf.clone(image);
     }
 
-    // Use tf.gather for reliable shifting
-    let shifted = image;
+    return tf.tidy(() => {
+        const [height, width, channels] = image.shape;
 
-    if (yShift !== 0) {
-        // Use tf.gather for more reliable slicing
-        const indices = [];
-        for (let i = 0; i < height; i++) {
-            indices.push((i + height - yShift) % height);
+        // Ensure shifts are integers
+        shiftY = Math.floor(shiftY);
+        shiftX = Math.floor(shiftX);
+
+        // Normalize shifts to be within bounds
+        const yShift = ((shiftY % height) + height) % height;
+        const xShift = ((shiftX % width) + width) % width;
+
+        if (yShift === 0 && xShift === 0) {
+            return tf.clone(image);
         }
-        const gatheredY = tf.gather(shifted, indices, 0);
-        if (shifted !== image) shifted.dispose();
-        shifted = gatheredY;
-    }
 
-    if (xShift !== 0) {
-        // Use tf.gather for more reliable slicing
-        const indices = [];
-        for (let i = 0; i < width; i++) {
-            indices.push((i + width - xShift) % width);
+        // Use slice and concat for rolling instead of gather
+        let result = image;
+
+        if (yShift !== 0) {
+            const top = result.slice([0, 0, 0], [yShift, width, channels]);
+            const bottom = result.slice([yShift, 0, 0], [height - yShift, width, channels]);
+            result = tf.concat([bottom, top], 0);
         }
-        const gatheredX = tf.gather(shifted, indices, 1);
-        if (shifted !== image) shifted.dispose();
-        shifted = gatheredX;
-    }
 
-    // Final dimension check
-    if (shifted.shape[0] !== height || shifted.shape[1] !== width || shifted.shape[2] !== channels) {
-        throw new Error(`rollImage: output shape [${shifted.shape}] doesn't match input shape [${height},${width},${channels}]`);
-    }
+        if (xShift !== 0) {
+            const left = result.slice([0, 0, 0], [height, xShift, channels]);
+            const right = result.slice([0, xShift, 0], [height, width - xShift, channels]);
+            result = tf.concat([right, left], 1);
+        }
 
-    return shifted;
+        // Final dimension check
+        if (result.shape[0] !== height || result.shape[1] !== width || result.shape[2] !== channels) {
+            throw new Error(`rollImage: output shape [${result.shape}] doesn't match input shape [${height},${width},${channels}]`);
+        }
+
+        return result;
+    });
 }
 
 function rotateImage(image, angleDegrees) {
@@ -368,12 +481,22 @@ function totalVariation(image) {
     return tf.tidy(() => {
         const [height, width, channels] = image.shape;
 
-        const yDiff = image.slice([1, 0, 0], [height - 1, width, channels])
-            .sub(image.slice([0, 0, 0], [height - 1, width, channels]));
-        const xDiff = image.slice([0, 1, 0], [height, width - 1, channels])
-            .sub(image.slice([0, 0, 0], [height, width - 1, channels]));
+        // Calculate vertical differences (between rows)
+        // Compare row i with row i+1 for i in [0, height-2]
+        const yTop = image.slice([0, 0, 0], [height - 1, width, channels]);
+        const yBottom = image.slice([1, 0, 0], [height - 1, width, channels]);
+        const yDiff = tf.sub(yBottom, yTop);
+        const yVar = tf.mean(tf.abs(yDiff));
 
-        return tf.mean(tf.abs(yDiff)).add(tf.mean(tf.abs(xDiff)));
+        // Calculate horizontal differences (between columns)
+        // Compare column j with column j+1 for j in [0, width-2]
+        const xLeft = image.slice([0, 0, 0], [height, width - 1, channels]);
+        const xRight = image.slice([0, 1, 0], [height, width - 1, channels]);
+        const xDiff = tf.sub(xRight, xLeft);
+        const xVar = tf.mean(tf.abs(xDiff));
+
+        // Return sum of the two scalar values
+        return tf.add(yVar, xVar);
     });
 }
 
@@ -390,11 +513,13 @@ function frequencyPenalty(image, alpha = 1.5) {
         const [height, width, channels] = image.shape;
 
         // Compute gradients (approximates high-frequency content)
-        const dx = image.slice([0, 1, 0], [height, width - 1, channels])
-            .sub(image.slice([0, 0, 0], [height, width - 1, channels]));
-        const dy = image.slice([1, 0, 0], [height - 1, width, channels])
-            .sub(image.slice([0, 0, 0], [height - 1, width, channels]));
+        // We need to compute on the overlapping region only
+        const dx = image.slice([0, 1, 0], [height - 1, width - 1, channels])
+            .sub(image.slice([0, 0, 0], [height - 1, width - 1, channels]));
+        const dy = image.slice([1, 0, 0], [height - 1, width - 1, channels])
+            .sub(image.slice([0, 0, 0], [height - 1, width - 1, channels]));
 
+        // Now both dx and dy have shape [height-1, width-1, channels]
         // Gradient magnitude
         const gradMagnitude = tf.sqrt(dx.square().add(dy.square()));
 
@@ -474,25 +599,22 @@ async function optimizeNeuron(layerKey, channelIndex, config) {
 
             // Compute gradient
             const grad = tf.grad(img => {
-                // applyRandomTransform creates new tensors that need cleanup
-                const { transformed: trans } = applyRandomTransform(img, config.transformStrength);
-
+                // Compute gradient on the untransformed image
+                // We'll apply the transformation outside and reverse it on the gradient
                 const result = tf.tidy(() => {
-                    const batch = trans.expandDims(0);
+                    const batch = img.expandDims(0);
                     const obj = computeNeuronObjective(batch, layerInfo.name, channelIndex);
-                    const l2p = l2Penalty(trans).mul(config.l2Weight);
-                    const tvp = totalVariation(trans).mul(config.tvWeight);
-                    const freqp = frequencyPenalty(trans, 1.5).mul(config.freqWeight);
+                    const l2p = l2Penalty(img).mul(config.l2Weight);
+                    const tvp = totalVariation(img).mul(config.tvWeight);
+                    const freqp = frequencyPenalty(img, 1.5).mul(config.freqWeight);
                     return obj.sub(l2p).sub(tvp).sub(freqp);
                 });
-
-                // Clean up trans after we're done with it
-                trans.dispose();
 
                 return result;
             });
 
-            const gradient = grad(imageVar);
+            // Compute gradient on the transformed image
+            const gradient = grad(transformed);
 
             // Compute loss for monitoring (do this before disposing transformed)
             const loss = tf.tidy(() => {
@@ -507,19 +629,27 @@ async function optimizeNeuron(layerKey, channelIndex, config) {
             // Reverse transformation on gradient
             const reversedGrad = reverseTransform(gradient, params);
 
+            // Ensure gradient has the same shape as the image variable
+            if (!tf.util.arraysEqual(reversedGrad.shape, imageVar.shape)) {
+                console.error(`Shape mismatch: reversedGrad ${reversedGrad.shape} vs imageVar ${imageVar.shape}`);
+                throw new Error(`Gradient shape ${reversedGrad.shape} doesn't match image shape ${imageVar.shape}`);
+            }
+
             // Normalize gradient
             const normalizedGrad = tf.tidy(() => {
                 const gradStd = tf.moments(reversedGrad).variance.sqrt().add(1e-8);
                 return reversedGrad.div(gradStd);
             });
 
-            // Update image
-            imageVar.assign(
-                tf.clipByValue(
-                    imageVar.add(normalizedGrad.mul(config.learningRate)),
-                    -1, 1
-                )
-            );
+            // Update image - wrap in tidy to ensure proper tensor handling
+            const updateResult = tf.tidy(() => {
+                const scaled = normalizedGrad.mul(config.learningRate);
+                const added = imageVar.add(scaled);
+                return tf.clipByValue(added, -1, 1);
+            });
+
+            imageVar.assign(updateResult);
+            updateResult.dispose();
 
             // Clean up tensors
             transformed.dispose();
@@ -562,7 +692,7 @@ async function optimizeNeuron(layerKey, channelIndex, config) {
     updateVisualizationInfo(layerKey, channelIndex, finalLoss[0], elapsedTime);
 
     // Add to history
-    addToHistory(layerKey, channelIndex, image);
+    await addToHistory(layerKey, channelIndex, image);
 
     image.dispose();
 }
@@ -573,7 +703,8 @@ async function displayImage(imageTensor) {
     const canvas = elements.canvas;
     const ctx = canvas.getContext('2d');
 
-    await tf.tidy(async () => {
+    // Process the image outside of async tidy
+    const processedImage = tf.tidy(() => {
         // Convert from [-1, 1] to [0, 1]
         const normalized = imageTensor.add(1).div(2);
         const clipped = tf.clipByValue(normalized, 0, 1);
@@ -586,9 +717,14 @@ async function displayImage(imageTensor) {
             displayImage = resized.squeeze();
         }
 
-        // Draw to canvas
-        await tf.browser.toPixels(displayImage, canvas);
+        return displayImage;
     });
+
+    // Draw to canvas (async operation outside of tidy)
+    await tf.browser.toPixels(processedImage, canvas);
+
+    // Clean up
+    processedImage.dispose();
 }
 
 function updateProgress(percent, message) {
@@ -624,36 +760,41 @@ function enableControls(enabled) {
 
 // ========== Gallery Functions ==========
 
-function addToHistory(layerKey, channelIndex, imageTensor) {
+async function addToHistory(layerKey, channelIndex, imageTensor) {
     // Create thumbnail
     const thumbnailCanvas = document.createElement('canvas');
     thumbnailCanvas.width = 150;
     thumbnailCanvas.height = 150;
 
-    tf.tidy(async () => {
+    // Process the image for thumbnail
+    const thumbnailImage = tf.tidy(() => {
         const normalized = imageTensor.add(1).div(2);
         const clipped = tf.clipByValue(normalized, 0, 1);
         const batched = clipped.expandDims(0);
         const resized = tf.image.resizeBilinear(batched, [150, 150]);
-        const squeezed = resized.squeeze();
-
-        await tf.browser.toPixels(squeezed, thumbnailCanvas);
-
-        // Add to history
-        visualizationHistory.unshift({
-            layer: layerKey,
-            channel: channelIndex,
-            image: thumbnailCanvas.toDataURL(),
-            timestamp: Date.now()
-        });
-
-        // Keep only last 12 visualizations
-        if (visualizationHistory.length > 12) {
-            visualizationHistory = visualizationHistory.slice(0, 12);
-        }
-
-        updateGallery();
+        return resized.squeeze();
     });
+
+    // Draw to canvas (async operation)
+    await tf.browser.toPixels(thumbnailImage, thumbnailCanvas);
+
+    // Clean up
+    thumbnailImage.dispose();
+
+    // Add to history
+    visualizationHistory.unshift({
+        layer: layerKey,
+        channel: channelIndex,
+        image: thumbnailCanvas.toDataURL(),
+        timestamp: Date.now()
+    });
+
+    // Keep only last 12 visualizations
+    if (visualizationHistory.length > 12) {
+        visualizationHistory = visualizationHistory.slice(0, 12);
+    }
+
+    updateGallery();
 }
 
 function updateGallery() {
@@ -714,7 +855,11 @@ function setupEventListeners() {
 
 function updateChannelRange() {
     const layerKey = elements.layerSelect.value;
+    if (!layerKey) return; // Exit if no layer selected
+
     const layerInfo = INCEPTION_LAYERS[layerKey];
+    if (!layerInfo) return; // Exit if layer info not found
+
     const maxChannel = layerInfo.channels - 1;
 
     elements.channelIndex.max = maxChannel;
