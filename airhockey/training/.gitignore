@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary models
+temp_model.zip
+*checkpoint*.zip
+
+# Timestamped models
+*_20[0-9][0-9][0-9][0-9][0-9][0-9]_*.zip
+*.onnx.data
+
+# Keep only clean named files
+!ppo_selfplay_v3_final.zip
+!ppo_selfplay_v3_final.onnx

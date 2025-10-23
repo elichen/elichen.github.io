@@ -2,82 +2,11 @@
 <html>
 <head>
     <title>Air Hockey</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="game-container">
-        <canvas id="gameCanvas"></canvas>
-        <div class="controls">
-            <button class="toggle-button" onclick="toggleTrainingMode()">Toggle Training Mode</button>
-            <div class="training-info">
-                <span>Training Steps: </span>
-                <span id="trainingSteps">0</span>
-            </div>
-        </div>
-        <div class="explainer">
-            <h2>How It Works</h2>
-            
-            <h3>Proximal Policy Optimization (PPO)</h3>
-            <p>
-                This AI uses PPO, a deep reinforcement learning algorithm that learns through trial and error. 
-                PPO is more stable than traditional policy gradient methods because it limits how much the AI's policy 
-                can change in each training step, preventing catastrophic forgetting.
-            </p>
-
-            <h3>Self-Play Training</h3>
-            <p>
-                The AI learns by playing against itself. Both the top and bottom paddles are controlled by the same 
-                neural network, but they learn from different perspectives. This self-play approach allows the AI to 
-                discover and adapt to increasingly sophisticated strategies.
-            </p>
-
-            <h3>Training Curriculum</h3>
-            <p>
-                The AI learns in three stages:
-            </p>
-            <ol>
-                <li><strong>Hit Puck:</strong> First learns basic puck interaction (500 successful hits to advance)</li>
-                <li><strong>Score Goal:</strong> Learns to aim shots toward the goal (50 goals to advance)</li>
-                <li><strong>Strategy:</strong> Develops advanced offensive and defensive tactics</li>
-            </ol>
-
-            <h3>Reward System</h3>
-            <p>
-                The AI receives rewards for:
-            </p>
-            <ul>
-                <li>Getting closer to the puck</li>
-                <li>Successfully hitting the puck</li>
-                <li>Hitting the puck toward the opponent's goal</li>
-                <li>Scoring goals (+10 points)</li>
-                <li>Maintaining good defensive position</li>
-            </ul>
-            <p>
-                It receives penalties for:
-            </p>
-            <ul>
-                <li>Letting in goals (-10 points)</li>
-                <li>Moving away from the puck</li>
-                <li>Time passing without action (-0.001 per step)</li>
-            </ul>
-
-            <h3>Toggle Button</h3>
-            <p>
-                The toggle button switches between:
-            </p>
-            <ul>
-                <li><strong>Training Mode:</strong> Both paddles are AI-controlled, learning through self-play</li>
-                <li><strong>Play Mode:</strong> Top paddle is AI-controlled, bottom paddle follows your mouse</li>
-            </ul>
-
-            <h3>Learning Time</h3>
-            <p>
-                The AI typically needs about 20,000 training steps to develop basic gameplay skills. During this time, 
-                it progresses from random movements to purposeful hits, and eventually to strategic gameplay.
-            </p>
-        </div>
-    </div>
+    <canvas id="gameCanvas"></canvas>
     <script src="environment.js"></script>
     <script src="ppo_agent.js"></script>
     <script src="game.js"></script>
