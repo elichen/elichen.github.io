@@ -35,17 +35,13 @@
 
             <h4>How It Learned</h4>
             <p>
-                The agent learned using <strong>sparse rewards</strong> - the hardest type of reinforcement learning:
+                The agent learned through trial and error, discovering the optimal strategy through
+                120,000 environment interactions. It receives a small penalty for each time step,
+                incentivizing it to reach the goal quickly.
             </p>
-            <ul>
-                <li><strong>Each step:</strong> -1 point (penalty for time)</li>
-                <li><strong>Reaching the goal:</strong> 0 points (episode ends)</li>
-            </ul>
             <p>
-                That's it! No hints about height, velocity, or direction. Through pure trial and error over
-                120,000 environment interactions, it discovered the optimal strategy: build momentum by
-                rocking back and forth, then launch toward the goal. This demonstrates DQN's ability to learn
-                from delayed rewards without explicit guidance.
+                Through exploration and learning, it discovered that building momentum by
+                rocking back and forth is key to reaching the goal on the right peak.
             </p>
 
             <h4>Technical Implementation</h4>
