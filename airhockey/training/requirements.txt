@@ -1,0 +1,21 @@
+# Core dependencies (already installed in venv)
+gymnasium>=1.0.0
+stable-baselines3>=2.0.0
+torch>=2.0.0
+tensorflow>=2.15.0
+tensorflowjs>=3.18.0
+
+# Additional dependencies for model conversion
+onnx>=1.15.0
+onnxruntime>=1.17.0
+onnxscript>=0.1.0
+# Note: onnx-tf may have compatibility issues - use direct weight export instead
+
+# Utilities
+numpy>=1.24.0
+matplotlib>=3.8.0
+pandas>=2.2.0
+tqdm>=4.67.0
+
+# Optional: for rendering/visualization
+pygame>=2.5.0
