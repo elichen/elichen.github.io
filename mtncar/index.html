@@ -25,35 +25,35 @@
 
             <h4>Training Details</h4>
             <ul>
-                <li><strong>Algorithm:</strong> DQN (Deep Q-Network)</li>
-                <li><strong>Training Duration:</strong> 300,000 timesteps (~90 seconds on CPU)</li>
-                <li><strong>Network Architecture:</strong> 2 inputs → [64, 64] hidden → 3 actions</li>
-                <li><strong>Best Performance:</strong> Achieved at 75,000 steps with mean reward of 114</li>
-                <li><strong>Episode Length:</strong> Typically solves in 100-200 steps (vs 1000 max)</li>
-                <li><strong>Success Rate:</strong> ~100% after convergence</li>
+                <li><strong>Algorithm:</strong> DQN (Deep Q-Network) with sparse rewards</li>
+                <li><strong>Training Duration:</strong> 120,000 timesteps (~40 seconds on CPU)</li>
+                <li><strong>Network Architecture:</strong> 2 inputs → [256, 256] hidden → 3 actions</li>
+                <li><strong>Best Performance:</strong> Achieved at 60,000 steps (mean reward -148)</li>
+                <li><strong>Episode Length:</strong> Solves in exactly 136 steps consistently</li>
+                <li><strong>Success Rate:</strong> 100% after convergence</li>
             </ul>
 
             <h4>How It Learned</h4>
             <p>
-                The agent learned through trial and error, receiving rewards for:
+                The agent learned using <strong>sparse rewards</strong> - the hardest type of reinforcement learning:
             </p>
             <ul>
-                <li><strong>Height gain:</strong> +10 points per unit of elevation increase</li>
-                <li><strong>Velocity toward goal:</strong> +5 points for moving in the right direction</li>
-                <li><strong>Reaching the goal:</strong> +100 points (success!)</li>
-                <li><strong>Action efficiency:</strong> -0.1 points for using the engine</li>
+                <li><strong>Each step:</strong> -1 point (penalty for time)</li>
+                <li><strong>Reaching the goal:</strong> 0 points (episode ends)</li>
             </ul>
             <p>
-                Through millions of interactions, it discovered the optimal strategy: build momentum by
-                rocking back and forth, then use that energy to reach the goal.
+                That's it! No hints about height, velocity, or direction. Through pure trial and error over
+                120,000 environment interactions, it discovered the optimal strategy: build momentum by
+                rocking back and forth, then launch toward the goal. This demonstrates DQN's ability to learn
+                from delayed rewards without explicit guidance.
             </p>
 
             <h4>Technical Implementation</h4>
             <ul>
                 <li><strong>Training Framework:</strong> PyTorch + Stable Baselines3</li>
                 <li><strong>Inference Framework:</strong> TensorFlow.js (browser)</li>
-                <li><strong>Model Size:</strong> 143 KB (compressed weights)</li>
-                <li><strong>Conversion Accuracy:</strong> &lt;0.000002 error vs original model</li>
+                <li><strong>Model Size:</strong> 543 KB (256x256 network weights)</li>
+                <li><strong>Conversion Accuracy:</strong> &lt;0.000005 error vs original model</li>
             </ul>
 
             <p style="margin-top: 20px; font-size: 14px;">

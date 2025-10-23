@@ -41,28 +41,29 @@ def train_dqn(total_timesteps=100000, eval_freq=5000, save_freq=10000):
     train_env = DummyVecEnv([make_env])
     eval_env = DummyVecEnv([make_env])
 
-    # Configure DQN to match web app architecture
+    # Configure DQN with optimal hyperparameters for sparse reward Mountain Car
+    # Based on RL Baselines3 Zoo tuned parameters
     policy_kwargs = dict(
-        net_arch=[64, 64],  # Matching web app's [64, 64] hidden layers
+        net_arch=[256, 256],  # Larger network for better capacity
     )
 
     # Initialize DQN agent
-    # Hyperparameters tuned for Mountain Car
+    # Hyperparameters optimized for Mountain Car with sparse rewards
     model = DQN(
         policy="MlpPolicy",
         env=train_env,
-        learning_rate=0.001,  # Matching web app
-        buffer_size=100000,  # Matching web app
+        learning_rate=0.004,  # Higher learning rate for faster convergence
+        buffer_size=10000,  # Smaller buffer, more focused on recent experience
         learning_starts=1000,  # Start learning after collecting initial experience
-        batch_size=32,  # Matching web app
-        tau=1.0,  # Hard updates (matching web app's target network updates)
-        gamma=0.99,  # Discount factor
-        train_freq=4,  # Train every 4 steps
-        gradient_steps=1,  # Number of gradient steps per update
-        target_update_interval=100,  # Update target network every 100 steps
-        exploration_fraction=0.5,  # 50% of training for exploration decay
+        batch_size=128,  # Larger batch for more stable updates
+        tau=1.0,  # Hard updates
+        gamma=0.98,  # Slightly lower discount for sparse rewards
+        train_freq=16,  # Train less frequently but with more gradient steps
+        gradient_steps=8,  # Multiple gradient steps per update (important!)
+        target_update_interval=600,  # Less frequent target updates
+        exploration_fraction=0.2,  # Shorter exploration period
         exploration_initial_eps=1.0,  # Start with full exploration
-        exploration_final_eps=0.01,  # End with 1% random actions
+        exploration_final_eps=0.07,  # Higher final epsilon (more exploration)
         policy_kwargs=policy_kwargs,
         verbose=1,
         tensorboard_log="./logs/dqn_mtncar_tensorboard/"

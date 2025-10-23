@@ -82,35 +82,25 @@ class MountainCarEnv(gym.Env):
         if position <= self.min_position and velocity < 0:
             velocity = 0.0
 
-        # Calculate reward (matching mountainCarEnv.js)
+        # Standard Mountain Car sparse reward (Gymnasium MountainCar-v0 compatible)
         done = False
         truncated = False
 
         # Check if goal reached
         if position >= self.goal_position:
-            reward = 100.0
+            reward = 0.0  # Sparse reward: 0 for success
             done = True
         else:
-            # Reward for height gained (potential energy)
-            height_reward = np.sin(3 * position) - np.sin(3 * self.last_position)
-
-            # Reward for velocity in the right direction (kinetic energy)
-            velocity_reward = velocity * np.sign(self.goal_position - position)
-
-            # Small penalty for using the engine (encourage efficiency)
-            action_penalty = -0.1 if action != 1 else 0.0
-
-            # Combine rewards with appropriate scaling
-            reward = height_reward * 10 + velocity_reward * 5 + action_penalty
+            # Sparse reward: -1 for each step (encourages reaching goal quickly)
+            reward = -1.0
 
         # Update state
         self.last_position = position
         self.state = np.array([position, velocity], dtype=np.float32)
         self.steps += 1
 
-        # Check for failure (fell into left boundary)
-        if position <= self.min_position:
-            done = True
+        # Don't terminate on left boundary - this was the key bug!
+        # The car can bounce off the left wall, that's part of the strategy
 
         # Truncate after too many steps (prevent infinite episodes)
         if self.steps >= 1000:
