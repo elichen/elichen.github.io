@@ -131,4 +131,81 @@ input[type="checkbox"] {
     width: 100%;
     font-size: 0.7em;
     margin-top: 5px;
+}
+
+/* Training info section */
+.training-info {
+    max-width: 700px;
+    margin: 40px auto;
+    padding: 25px;
+    background: #f9f9f9;
+    border: 2px solid #4CAF50;
+    border-radius: 10px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    line-height: 1.6;
+}
+
+.training-info h3 {
+    color: #4CAF50;
+    font-size: 1.5em;
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-family: 'Press Start 2P', cursive;
+    text-transform: uppercase;
+}
+
+.training-info h4 {
+    color: #45a049;
+    font-size: 1.1em;
+    margin-top: 25px;
+    margin-bottom: 10px;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 5px;
+}
+
+.training-info p {
+    font-size: 1em;
+    color: #333;
+    margin: 10px 0;
+    text-transform: none;
+}
+
+.training-info ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 10px 0;
+}
+
+.training-info li {
+    font-size: 0.95em;
+    color: #555;
+    margin: 8px 0;
+    padding-left: 25px;
+    position: relative;
+}
+
+.training-info li:before {
+    content: "-";
+    position: absolute;
+    left: 5px;
+    color: #4CAF50;
+    font-weight: bold;
+    font-size: 1em;
+    font-family: monospace;
+}
+
+.training-info a {
+    color: #4CAF50;
+    text-decoration: none;
+    border-bottom: 1px dotted #4CAF50;
+}
+
+.training-info a:hover {
+    color: #45a049;
+    border-bottom: 1px solid #45a049;
+}
+
+.training-info strong {
+    color: #333;
+    font-weight: 600;
 } 

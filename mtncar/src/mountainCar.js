@@ -83,16 +83,16 @@ class MountainCar {
         const flagY = height - (Math.sin(3 * this.goalPosition) + 1) * (height/2 * this.mountainScale) + this.mountainOffset
         this.drawFlag(flagX, flagY)
         
-        // Draw car
+        // Draw car (bigger and more visible)
         const carX = ((this.position - this.minPosition) / (this.maxPosition - this.minPosition)) * width
         const carY = height - (Math.sin(3 * this.position) + 1) * (height/2 * this.mountainScale) + this.mountainOffset
-        
+
         ctx.beginPath()
-        ctx.arc(carX, carY - 10, 8, 0, Math.PI * 2)
+        ctx.arc(carX, carY - 15, 15, 0, Math.PI * 2)
         ctx.fillStyle = this.carColor
         ctx.fill()
         ctx.strokeStyle = '#fff'
-        ctx.lineWidth = 1
+        ctx.lineWidth = 2
         ctx.stroke()
     }
 
