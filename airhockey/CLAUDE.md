@@ -50,22 +50,22 @@ ppo_agent.js      - ONNX inference only
 styles.css        - Minimal styling
 ```
 
-### Training Scripts (NO DUPLICATES - Check before creating)
+### Training Scripts
 ```
-air_hockey_env_v3.py    - Gym environment, sparse rewards only
-train_selfplay_v3.py    - Training script with self-play (NO train_selfplay.py)
-export_to_onnx.py       - ONNX export (embeds weights, no external data)
-test_observation.py     - Test observation space
+air_hockey_env.py    - Gym environment (12 features: puck-focused, dense rewards)
+train_selfplay.py    - Training script with self-play + parallel envs
+export_to_onnx.py    - ONNX export (auto-detects obs dimension)
+evaluate_model.py    - CRITICAL: Validate model actually plays
 
 Shell scripts:
-run_training.sh         - Run training with parameters
-deploy_model.sh         - Export and deploy model
-quick_test.sh          - Quick training test
+run_training.sh      - Run training with parameters
+deploy_model.sh      - Export and deploy model
+quick_test.sh        - Quick training test
 ```
 
 ### Models (Single)
 ```
-model/ppo_selfplay_v3_final.onnx  - One model only (no timestamps)
+model/ppo_selfplay_final.onnx  - Current production model
 ```
 
 ## What to Remove
@@ -81,10 +81,45 @@ model/ppo_selfplay_v3_final.onnx  - One model only (no timestamps)
 - Helper functions that are used once
 
 ## Training Philosophy
-- Sparse rewards only (no reward shaping)
-- Single balanced strategy (2/3, -1, -1/3)
-- Self-play with fictitious opponents
-- No hyperparameter options in UI
+- Dense reward shaping REQUIRED to break defensive Nash equilibrium
+- Puck-focused observations (12 features, NO opponent tracking)
+- Self-play with 20-opponent frozen pool
+- Parallel training: batch_size scales with n_envs (160 for 10 envs)
+
+## CRITICAL: Model Validation
+**Training metrics LIE. ALWAYS validate with evaluate_model.py**
+
+After training, MUST run:
+```bash
+python evaluate_model.py --model models/ppo_selfplay_final.zip --episodes 100
+```
+
+Success criteria:
+- >70% win rate vs random (24% baseline with dense rewards)
+- >0.5 goals/game (0.24 baseline)
+- <50% timeout rate (75% baseline - still high)
+
+## Experimental Findings
+
+1. **Dense Rewards Break Defensive Deadlock**:
+   - Sparse rewards (2/3, -1, -1/3) create defensive Nash equilibrium
+   - Dense shaping needed: +0.001*puck_speed, +0.01 offensive positioning, -0.005*dist_to_puck
+   - Result: 3x improvement (8% → 24% win rate vs random)
+
+2. **Opponent Observations Harm Offensive Play**:
+   - WITH opponent tracking: Agent shadows opponent instead of attacking puck
+   - WITHOUT opponent: Forces puck engagement (testing in progress)
+   - 12-feature puck-focused > 16-feature with opponent velocity
+
+3. **Parallel Training Optimization**:
+   - batch_size MUST scale with n_envs: `int(64 * n_envs / 4)`
+   - Without scaling: 10 envs = 1.2x speedup (bottlenecked by training phase)
+   - With scaling: 10 envs = 1.95x speedup
+   - Optimal: 10 envs on 14-CPU system (~2,900 FPS)
+
+4. **Fictitious Self-Play REQUIRED**:
+   - 20-opponent frozen pool (checkpoints every 50k steps)
+   - Prevents overfitting to single strategy
 
 ## When Asked to Modify
 1. First remove before adding
