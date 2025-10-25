@@ -4,12 +4,16 @@ import torch
 import onnx
 from stable_baselines3 import PPO
 
-def export_to_onnx(model_path, output_path=None):
+def export_to_onnx(model_path, output_path=None, obs_dim=None):
     model = PPO.load(model_path)
     policy = model.policy
     policy.eval()
 
-    dummy_input = torch.randn(1, 14, dtype=torch.float32)
+    # Auto-detect observation dimension from model
+    if obs_dim is None:
+        obs_dim = model.observation_space.shape[0]
+
+    dummy_input = torch.randn(1, obs_dim, dtype=torch.float32)
 
     if output_path is None:
         os.makedirs("models/onnx", exist_ok=True)

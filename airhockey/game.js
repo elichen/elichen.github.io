@@ -45,7 +45,7 @@ async function gameLoop() {
 
 document.addEventListener('DOMContentLoaded', async () => {
     initializeGame();
-    agent = new PPOAgent(14, 2);
-    await agent.loadONNXModel('model/ppo_selfplay_v3_final.onnx');
+    agent = new PPOAgent(16, 2);
+    await agent.loadONNXModel('model/ppo_selfplay_final.onnx');
     gameLoop();
 });

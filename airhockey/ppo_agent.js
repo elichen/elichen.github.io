@@ -28,6 +28,7 @@ class PPOAgent {
         const oppY = isTopPlayer ? canvasHeight - oppPaddle.y : oppPaddle.y;
         const puckY = isTopPlayer ? canvasHeight - puck.y : puck.y;
         const puckDy = isTopPlayer ? -puck.dy : puck.dy;
+        const oppDy = isTopPlayer ? -(oppPaddle.dy || 0) : (oppPaddle.dy || 0);
 
         const normSpeed = 25;
 
@@ -38,6 +39,8 @@ class PPOAgent {
         const relativeDy = puckDy / normSpeed;
         const relativeOppX = (oppPaddle.x - ownPaddle.x) / canvasWidth;
         const relativeOppY = (oppY - ownY) / canvasHeight;
+        const oppDx = Math.max(-1, Math.min(1, (oppPaddle.dx || 0) / normSpeed));
+        const oppDyNorm = Math.max(-1, Math.min(1, oppDy / normSpeed));
 
         const distPixels = Math.sqrt(Math.pow(puck.x - ownPaddle.x, 2) + Math.pow(puckY - ownY, 2));
         const maxDist = Math.sqrt(canvasWidth * canvasWidth + canvasHeight * canvasHeight);
@@ -52,7 +55,9 @@ class PPOAgent {
         const ownDy = Math.max(-1, Math.min(1, (ownPaddle.dy || 0) / normSpeed));
         const puckSpeed = Math.sqrt(puck.dx * puck.dx + puck.dy * puck.dy) / normSpeed;
 
-        return [relativeX, relativeY, relativeDx, relativeDy, relativeOppX, relativeOppY,
-                distance, angle, isPuckBehind, distanceToGoal, puckToGoal, ownDx, ownDy, puckSpeed];
+        return [relativeX, relativeY, relativeDx, relativeDy,
+                relativeOppX, relativeOppY, oppDx, oppDyNorm,
+                distance, angle, isPuckBehind, distanceToGoal, puckToGoal,
+                ownDx, ownDy, puckSpeed];
     }
 }
