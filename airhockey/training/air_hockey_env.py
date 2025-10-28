@@ -19,11 +19,10 @@ class AirHockeyEnv(gym.Env):
         self.paddle2_vel = np.array([0.0, 0.0])
         self.frame_count = 0
         self.max_frames = 3000
-        # V5: 12 features - puck-focused (no opponent observations)
-        self.observation_space = spaces.Box(low=-1.0, high=1.0, shape=(12,), dtype=np.float32)
+        # 8 features: paddle pos, puck pos, paddle vel, puck vel (all in player's half-rink coords 0-1)
+        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(8,), dtype=np.float32)
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
         self.render_mode = render_mode
-        self.use_opponent_obs = False  # V5: No opponent tracking
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -47,58 +46,50 @@ class AirHockeyEnv(gym.Env):
 
         self._move_paddle(1, action_p1)
         self._move_paddle(2, action_p2)
-        self._update_puck()
+        p1_hit, p2_hit = self._update_puck()
         goal_scored_by = self._check_goals()
 
-        # Sparse rewards
-        reward = 0.0
-        if goal_scored_by == 1: reward = 0.67
-        elif goal_scored_by == 2: reward = -1.0
-        if self.frame_count >= self.max_frames: reward = -0.33
-
-        # DENSE REWARDS to break defensive deadlock
+        # Dense reward shaping to break defensive Nash equilibrium
         puck_speed = np.linalg.norm(self.puck_vel)
-        reward += 0.001 * puck_speed  # Reward fast puck
-
-        puck_in_opp_half = self.puck_pos[1] < self.height / 2
-        reward += 0.01 if puck_in_opp_half else -0.01  # Reward offensive positioning
-
-        puck_moving_to_goal = self.puck_vel[1] < -0.1  # Moving toward opponent goal
-        reward += 0.005 if puck_moving_to_goal else 0  # Reward offensive direction
-
         dist_to_puck = np.linalg.norm(self.puck_pos - self.paddle1_pos)
-        reward -= 0.005 * (dist_to_puck / np.sqrt(self.width**2 + self.height**2))  # Reward puck engagement
+        offensive_pos = max(0, (self.puck_pos[1] - self.paddle1_pos[1]) / self.height)
+
+        reward = -0.001  # Small penalty per timestep
+        reward += 0.001 * puck_speed  # Encourage puck movement
+        reward += 0.01 * offensive_pos  # Reward being behind puck (offensive)
+        reward -= 0.005 * (dist_to_puck / self.width)  # Stay near puck
+
+        if p1_hit: reward += 0.1  # Reward hitting puck
+        if goal_scored_by == 1: reward = 1.0
+        elif goal_scored_by == 2: reward = -1.0
 
         terminated = (goal_scored_by > 0) or (self.frame_count >= self.max_frames)
         return self._get_observation(1), reward, terminated, False, {"goal_scored_by": goal_scored_by}
 
     def _get_observation(self, player):
+        # 8 features: all normalized to full rink 0-1 from player's perspective
         if player == 1:
-            paddle_pos, paddle_vel = self.paddle1_pos, self.paddle1_vel
-            opponent_pos, opponent_vel = self.paddle2_pos, self.paddle2_vel
-            puck_pos, puck_vel = self.puck_pos, self.puck_vel
+            # P1: bottom, 0=P1 goal (y=height), 1=P2 goal (y=0)
+            paddle_x = self.paddle1_pos[0] / self.width
+            paddle_y = (self.height - self.paddle1_pos[1]) / self.height
+            puck_x = self.puck_pos[0] / self.width
+            puck_y = (self.height - self.puck_pos[1]) / self.height
+            paddle_dx = (self.paddle1_vel[0] / self.max_speed + 1) / 2
+            paddle_dy = (-self.paddle1_vel[1] / self.max_speed + 1) / 2
+            puck_dx = (self.puck_vel[0] / self.max_speed + 1) / 2
+            puck_dy = (-self.puck_vel[1] / self.max_speed + 1) / 2
         else:
-            paddle_pos = np.array([self.paddle2_pos[0], self.height - self.paddle2_pos[1]])
-            paddle_vel = np.array([self.paddle2_vel[0], -self.paddle2_vel[1]])
-            opponent_pos = np.array([self.paddle1_pos[0], self.height - self.paddle1_pos[1]])
-            opponent_vel = np.array([self.paddle1_vel[0], -self.paddle1_vel[1]])
-            puck_pos = np.array([self.puck_pos[0], self.height - self.puck_pos[1]])
-            puck_vel = np.array([self.puck_vel[0], -self.puck_vel[1]])
+            # P2: top, 0=P2 goal (y=0), 1=P1 goal (y=height)
+            paddle_x = self.paddle2_pos[0] / self.width
+            paddle_y = self.paddle2_pos[1] / self.height
+            puck_x = self.puck_pos[0] / self.width
+            puck_y = self.puck_pos[1] / self.height
+            paddle_dx = (self.paddle2_vel[0] / self.max_speed + 1) / 2
+            paddle_dy = (self.paddle2_vel[1] / self.max_speed + 1) / 2
+            puck_dx = (self.puck_vel[0] / self.max_speed + 1) / 2
+            puck_dy = (self.puck_vel[1] / self.max_speed + 1) / 2
 
-        puck_rel = (puck_pos - paddle_pos) / [self.width, self.height]
-        puck_v = puck_vel / self.max_speed
-        dist = np.linalg.norm(puck_pos - paddle_pos) / np.sqrt(self.width**2 + self.height**2)
-        angle = np.arctan2(puck_pos[1] - paddle_pos[1], puck_pos[0] - paddle_pos[0]) / np.pi
-        behind = 1.0 if puck_pos[1] > paddle_pos[1] else 0.0
-        goal_dist = (self.height - paddle_pos[1]) / self.height * 2 - 1
-        puck_goal_dist = (self.height - puck_pos[1]) / self.height * 2 - 1
-        paddle_v = np.clip(paddle_vel / self.max_speed, -1, 1)
-        puck_spd = np.linalg.norm(puck_vel) / self.max_speed
-
-        # V5: 12 features - puck-focused only (NO opponent observations)
-        return np.array([puck_rel[0], puck_rel[1], puck_v[0], puck_v[1],
-                        dist, angle, behind, goal_dist, puck_goal_dist,
-                        paddle_v[0], paddle_v[1], puck_spd], dtype=np.float32)
+        return np.clip([paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy], 0, 1).astype(np.float32)
 
     def get_observation_for_player(self, player):
         """Proper method for getting player observations (fixes evaluation bug)"""
@@ -129,14 +120,16 @@ class AirHockeyEnv(gym.Env):
                 self.puck_vel[1] *= -0.8
                 self.puck_pos[1] = np.clip(self.puck_pos[1], self.puck_radius, self.height - self.puck_radius)
 
-        # Paddle collisions
-        self._check_paddle_collision(self.paddle1_pos, self.paddle1_vel)
-        self._check_paddle_collision(self.paddle2_pos, self.paddle2_vel)
+        # Paddle collisions - track which paddle hit
+        p1_hit = self._check_paddle_collision(self.paddle1_pos, self.paddle1_vel)
+        p2_hit = self._check_paddle_collision(self.paddle2_pos, self.paddle2_vel)
 
         # Speed limit
         speed = np.linalg.norm(self.puck_vel)
         if speed > self.max_speed:
             self.puck_vel = self.puck_vel / speed * self.max_speed
+
+        return p1_hit, p2_hit
 
     def _check_paddle_collision(self, paddle_pos, paddle_vel):
         dist = np.linalg.norm(self.puck_pos - paddle_pos)
@@ -150,6 +143,8 @@ class AirHockeyEnv(gym.Env):
                 impulse = -2 * vel_along_normal * normal
                 self.puck_vel += impulse
                 self.puck_vel += paddle_vel * 0.3
+            return True
+        return False
 
     def _in_goal(self):
         goal_left, goal_right = (self.width - self.goal_width) / 2, (self.width + self.goal_width) / 2

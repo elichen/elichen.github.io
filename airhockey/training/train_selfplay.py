@@ -94,19 +94,19 @@ def train(args):
     # Scale batch size with envs to keep gradient steps constant
     batch_size = int(64 * (args.n_envs / 4))
 
-    # Increased network size for 16-feature observation space
+    # Reduced network size for 8-feature observation space
     model = PPO("MlpPolicy", env,
-                learning_rate=3e-4,
+                learning_rate=1e-4,  # Lower for stability
                 n_steps=2048,
                 batch_size=batch_size,
                 n_epochs=10,
                 gamma=0.99,
                 gae_lambda=0.95,
-                clip_range=0.2,
-                ent_coef=0.01,
+                clip_range=0.1,  # Tighter for stable updates
+                ent_coef=0.02,  # Higher for exploration
                 vf_coef=0.5,
                 max_grad_norm=0.5,
-                policy_kwargs=dict(net_arch=dict(pi=[256, 256, 256, 256], vf=[256, 256, 256, 256])),
+                policy_kwargs=dict(net_arch=dict(pi=[128, 128], vf=[128, 128])),
                 verbose=1,
                 device=args.device)
 

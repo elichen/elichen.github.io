@@ -45,7 +45,7 @@ async function gameLoop() {
 
 document.addEventListener('DOMContentLoaded', async () => {
     initializeGame();
-    agent = new PPOAgent(16, 2);
+    agent = new PPOAgent(8, 2);  // 8 features matching training environment
     await agent.loadONNXModel('model/ppo_selfplay_final.onnx');
     gameLoop();
 });
