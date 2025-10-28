@@ -1,4 +1,20 @@
-let env, agent, mouseX = 0, mouseY = 0;
+let env, agent, mouseX = 0, mouseY = 0, aiOnTop = true;
+
+function swapAI() {
+    aiOnTop = !aiOnTop;
+    env.state.playerScore = 0;
+    env.state.aiScore = 0;
+    env.resetPuck();
+
+    // Position based on ROLE, not object name
+    const aiPaddle = aiOnTop ? env.aiPaddle : env.playerPaddle;
+    const playerPaddle = aiOnTop ? env.playerPaddle : env.aiPaddle;
+
+    aiPaddle.x = env.canvas.width/2;
+    playerPaddle.x = env.canvas.width/2;
+    aiPaddle.y = aiOnTop ? 50 : env.canvas.height - 50;
+    playerPaddle.y = aiOnTop ? env.canvas.height - 50 : 50;
+}
 
 function initializeGame() {
     const canvas = document.getElementById('gameCanvas');
@@ -12,7 +28,7 @@ function initializeGame() {
 
 function moveAgentPaddle(paddle, action, isTopPlayer) {
     let dx = action[0] * paddle.speed;
-    let dy = action[1] * paddle.speed;
+    let dy = action[1] * paddle.speed * (isTopPlayer ? -1 : 1);
 
     paddle.dx = (paddle.dx || 0) * 0.6 + dx * 0.4;
     paddle.dy = (paddle.dy || 0) * 0.6 + dy * 0.4;
@@ -24,15 +40,21 @@ function moveAgentPaddle(paddle, action, isTopPlayer) {
 }
 
 async function moveAI() {
-    const state = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, true, env.canvas.width, env.canvas.height);
-    const result = await agent.act(state);
-    moveAgentPaddle(env.aiPaddle, result.action, true);
+    const aiPaddle = aiOnTop ? env.aiPaddle : env.playerPaddle;
+    const playerPaddle = aiOnTop ? env.playerPaddle : env.aiPaddle;
 
-    const prevX = env.playerPaddle.x, prevY = env.playerPaddle.y;
-    env.playerPaddle.x = Math.max(env.playerPaddle.radius, Math.min(env.canvas.width - env.playerPaddle.radius, mouseX));
-    env.playerPaddle.y = Math.max(env.canvas.height/2 + env.playerPaddle.radius, Math.min(env.canvas.height - env.playerPaddle.radius, mouseY));
-    env.playerPaddle.dx = env.playerPaddle.x - prevX;
-    env.playerPaddle.dy = env.playerPaddle.y - prevY;
+    const state = agent.getState(env.puck, env.playerPaddle, env.aiPaddle, aiOnTop, env.canvas.width, env.canvas.height);
+    const result = await agent.act(state);
+    moveAgentPaddle(aiPaddle, result.action, aiOnTop);
+
+    const prevX = playerPaddle.x, prevY = playerPaddle.y;
+    playerPaddle.x = Math.max(playerPaddle.radius, Math.min(env.canvas.width - playerPaddle.radius, mouseX));
+
+    const minY = aiOnTop ? env.canvas.height/2 + playerPaddle.radius : playerPaddle.radius;
+    const maxY = aiOnTop ? env.canvas.height - playerPaddle.radius : env.canvas.height/2 - playerPaddle.radius;
+    playerPaddle.y = Math.max(minY, Math.min(maxY, mouseY));
+    playerPaddle.dx = playerPaddle.x - prevX;
+    playerPaddle.dy = playerPaddle.y - prevY;
 
     env.update(mouseX, mouseY, false);
 }

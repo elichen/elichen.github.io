@@ -30,10 +30,10 @@ class PPOAgent {
             const paddle_y = ownPaddle.y / canvasHeight;
             const puck_x = puck.x / canvasWidth;
             const puck_y = puck.y / canvasHeight;
-            const paddle_dx = ((ownPaddle.dx || 0) / maxSpeed + 1) / 2;
-            const paddle_dy = ((ownPaddle.dy || 0) / maxSpeed + 1) / 2;
-            const puck_dx = (puck.dx / maxSpeed + 1) / 2;
-            const puck_dy = (puck.dy / maxSpeed + 1) / 2;
+            const paddle_dx = Math.max(-1, Math.min(1, (ownPaddle.dx || 0) / maxSpeed)) * 0.5 + 0.5;
+            const paddle_dy = Math.max(-1, Math.min(1, (ownPaddle.dy || 0) / maxSpeed)) * 0.5 + 0.5;
+            const puck_dx = Math.max(-1, Math.min(1, puck.dx / maxSpeed)) * 0.5 + 0.5;
+            const puck_dy = Math.max(-1, Math.min(1, puck.dy / maxSpeed)) * 0.5 + 0.5;
 
             return [paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy];
         } else {
@@ -42,10 +42,10 @@ class PPOAgent {
             const paddle_y = (canvasHeight - ownPaddle.y) / canvasHeight;
             const puck_x = puck.x / canvasWidth;
             const puck_y = (canvasHeight - puck.y) / canvasHeight;
-            const paddle_dx = ((ownPaddle.dx || 0) / maxSpeed + 1) / 2;
-            const paddle_dy = (-(ownPaddle.dy || 0) / maxSpeed + 1) / 2;
-            const puck_dx = (puck.dx / maxSpeed + 1) / 2;
-            const puck_dy = (-puck.dy / maxSpeed + 1) / 2;
+            const paddle_dx = Math.max(-1, Math.min(1, (ownPaddle.dx || 0) / maxSpeed)) * 0.5 + 0.5;
+            const paddle_dy = Math.max(-1, Math.min(1, -(ownPaddle.dy || 0) / maxSpeed)) * 0.5 + 0.5;
+            const puck_dx = Math.max(-1, Math.min(1, puck.dx / maxSpeed)) * 0.5 + 0.5;
+            const puck_dy = Math.max(-1, Math.min(1, -puck.dy / maxSpeed)) * 0.5 + 0.5;
 
             return [paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy];
         }
