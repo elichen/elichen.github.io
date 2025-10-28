@@ -49,21 +49,33 @@ class AirHockeyEnv(gym.Env):
         p1_hit, p2_hit = self._update_puck()
         goal_scored_by = self._check_goals()
 
-        # Dense reward shaping to break defensive Nash equilibrium
+        # Asymmetric rewards and stronger offensive incentives
         puck_speed = np.linalg.norm(self.puck_vel)
         dist_to_puck = np.linalg.norm(self.puck_pos - self.paddle1_pos)
         offensive_pos = max(0, (self.puck_pos[1] - self.paddle1_pos[1]) / self.height)
+        puck_toward_goal = max(0, -self.puck_vel[1] / self.max_speed)  # Puck moving toward opponent goal
 
-        reward = -0.001  # Small penalty per timestep
-        reward += 0.001 * puck_speed  # Encourage puck movement
-        reward += 0.01 * offensive_pos  # Reward being behind puck (offensive)
-        reward -= 0.005 * (dist_to_puck / self.width)  # Stay near puck
+        reward = -0.002  # Slightly higher timestep penalty
+        reward += 0.005 * puck_speed  # 5x: Encourage puck movement
+        reward += 0.05 * offensive_pos  # 5x: Reward being behind puck (offensive)
+        reward -= 0.01 * (dist_to_puck / self.width)  # 2x: Stay near puck
+        reward += 0.1 * puck_toward_goal  # NEW: Reward shots toward goal
 
-        if p1_hit: reward += 0.1  # Reward hitting puck
-        if goal_scored_by == 1: reward = 1.0
-        elif goal_scored_by == 2: reward = -1.0
+        if p1_hit:
+            reward += 0.1  # Reward hitting puck
+            if self.puck_vel[1] < -10:  # Strong forward hit
+                reward += 0.1  # Extra reward for aggressive shots
 
+        # Asymmetric goal rewards
+        if goal_scored_by == 1:
+            reward = 2.0  # Asymmetric: 2x reward for scoring
+        elif goal_scored_by == 2:
+            reward = -1.0  # Standard penalty for conceding
+
+        # Timeout penalty to discourage defensive play
         terminated = (goal_scored_by > 0) or (self.frame_count >= self.max_frames)
+        if self.frame_count >= self.max_frames:
+            reward -= 0.5  # Penalty for timeout
         return self._get_observation(1), reward, terminated, False, {"goal_scored_by": goal_scored_by}
 
     def _get_observation(self, player):
@@ -74,20 +86,22 @@ class AirHockeyEnv(gym.Env):
             paddle_y = (self.height - self.paddle1_pos[1]) / self.height
             puck_x = self.puck_pos[0] / self.width
             puck_y = (self.height - self.puck_pos[1]) / self.height
-            paddle_dx = (self.paddle1_vel[0] / self.max_speed + 1) / 2
-            paddle_dy = (-self.paddle1_vel[1] / self.max_speed + 1) / 2
-            puck_dx = (self.puck_vel[0] / self.max_speed + 1) / 2
-            puck_dy = (-self.puck_vel[1] / self.max_speed + 1) / 2
+            # Properly normalize velocities to [0, 1] range with clipping
+            paddle_dx = np.clip(self.paddle1_vel[0] / self.max_speed, -1, 1) * 0.5 + 0.5
+            paddle_dy = np.clip(-self.paddle1_vel[1] / self.max_speed, -1, 1) * 0.5 + 0.5
+            puck_dx = np.clip(self.puck_vel[0] / self.max_speed, -1, 1) * 0.5 + 0.5
+            puck_dy = np.clip(-self.puck_vel[1] / self.max_speed, -1, 1) * 0.5 + 0.5
         else:
             # P2: top, 0=P2 goal (y=0), 1=P1 goal (y=height)
             paddle_x = self.paddle2_pos[0] / self.width
             paddle_y = self.paddle2_pos[1] / self.height
             puck_x = self.puck_pos[0] / self.width
             puck_y = self.puck_pos[1] / self.height
-            paddle_dx = (self.paddle2_vel[0] / self.max_speed + 1) / 2
-            paddle_dy = (self.paddle2_vel[1] / self.max_speed + 1) / 2
-            puck_dx = (self.puck_vel[0] / self.max_speed + 1) / 2
-            puck_dy = (self.puck_vel[1] / self.max_speed + 1) / 2
+            # Properly normalize velocities to [0, 1] range with clipping
+            paddle_dx = np.clip(self.paddle2_vel[0] / self.max_speed, -1, 1) * 0.5 + 0.5
+            paddle_dy = np.clip(self.paddle2_vel[1] / self.max_speed, -1, 1) * 0.5 + 0.5
+            puck_dx = np.clip(self.puck_vel[0] / self.max_speed, -1, 1) * 0.5 + 0.5
+            puck_dy = np.clip(self.puck_vel[1] / self.max_speed, -1, 1) * 0.5 + 0.5
 
         return np.clip([paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy], 0, 1).astype(np.float32)
 

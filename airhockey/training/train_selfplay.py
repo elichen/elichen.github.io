@@ -7,6 +7,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.callbacks import BaseCallback
 import gymnasium as gym
 from air_hockey_env import AirHockeyEnv
+from gradient_monitor import GradientMonitorCallback
 
 class SelfPlayEnv(gym.Wrapper):
     def __init__(self, env, opponent_pool):
@@ -59,9 +60,9 @@ class OpponentPoolCallback(BaseCallback):
             if hasattr(self.training_env, 'envs'):
                 for env in self.training_env.envs:
                     if hasattr(env, 'opponent_pool'):
-                        env.opponent_pool = self.opponent_pool.copy()
+                        env.opponent_pool = self.opponent_pool[:]  # Use list slicing instead of copy
             else:
-                self.training_env.opponent_pool = self.opponent_pool.copy()
+                self.training_env.opponent_pool = self.opponent_pool[:]  # Use list slicing instead of copy
 
             if self.verbose > 0:
                 print(f"Added checkpoint to opponent pool. Pool size: {len(self.opponent_pool)}")
@@ -88,8 +89,11 @@ def train(args):
     else:
         env = DummyVecEnv([make_env(opponent_pool)])
 
-    # Create callback for updating opponent pool
-    callback = OpponentPoolCallback(save_freq=50000, max_pool_size=20, verbose=1)
+    # Create callbacks for updating opponent pool and monitoring gradients
+    callbacks = [
+        OpponentPoolCallback(save_freq=50000, max_pool_size=20, verbose=1),
+        GradientMonitorCallback(check_freq=1000, verbose=1)
+    ]
 
     # Scale batch size with envs to keep gradient steps constant
     batch_size = int(64 * (args.n_envs / 4))
@@ -118,7 +122,7 @@ def train(args):
     print(f"- Opponent pool updates every 50k timesteps")
     print(f"- Maximum pool size: 20 past versions")
 
-    model.learn(total_timesteps=args.timesteps, callback=callback, progress_bar=True)
+    model.learn(total_timesteps=args.timesteps, callback=callbacks, progress_bar=True)
 
     model.save(f"models/{model_name}_final")
     print(f"✓ Model saved: models/{model_name}_final.zip")

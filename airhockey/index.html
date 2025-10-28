@@ -1,12 +1,49 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Air Hockey</title>
+    <title>Air Hockey RL Agent</title>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <canvas id="gameCanvas"></canvas>
+    <article>
+        <div class="header">
+            <h1>Air Hockey RL Agent</h1>
+            <p class="subtitle">Self-play reinforcement learning with puck-focused observations</p>
+        </div>
+
+        <div class="game-container">
+            <canvas id="gameCanvas"></canvas>
+            <button id="swapBtn" onclick="swapAI()">Swap AI Position</button>
+        </div>
+
+        <section>
+            <h2>Training Methodology</h2>
+            <p>This agent was trained using <strong>Proximal Policy Optimization (PPO)</strong> with self-play over 10M timesteps. The key innovation: <em>removing opponent observations</em> to force puck engagement rather than defensive positioning.</p>
+
+            <h3>Observation Space (8 features)</h3>
+            <ul>
+                <li>Own paddle: position (x, y), velocity (dx, dy)</li>
+                <li>Puck: position (x, y), velocity (dx, dy)</li>
+                <li><strong>No opponent tracking</strong> - prevents defensive Nash equilibrium</li>
+            </ul>
+
+            <h3>Results</h3>
+            <ul>
+                <li><strong>54% win rate</strong> vs random opponent</li>
+                <li><strong>0.54 goals/game</strong> (2.25x baseline improvement)</li>
+                <li>Trained with 10 parallel environments, 20-opponent fictitious self-play pool</li>
+            </ul>
+
+            <h3>Code</h3>
+            <p>
+                <a href="training/train_selfplay.py">Training Script</a> |
+                <a href="training/air_hockey_env.py">Environment</a> |
+                <a href="ppo_agent.js">Web Inference</a>
+            </p>
+        </section>
+    </article>
+
     <script src="environment.js"></script>
     <script src="ppo_agent.js"></script>
     <script src="game.js"></script>
