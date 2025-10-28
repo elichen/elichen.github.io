@@ -21,43 +21,33 @@ class PPOAgent {
 
     getState(puck, playerPaddle, aiPaddle, isTopPlayer, canvasWidth, canvasHeight) {
         const ownPaddle = isTopPlayer ? aiPaddle : playerPaddle;
-        const oppPaddle = isTopPlayer ? playerPaddle : aiPaddle;
+        const maxSpeed = 25;
 
-        // Flip coordinates for top player to match training perspective
-        const ownY = isTopPlayer ? canvasHeight - ownPaddle.y : ownPaddle.y;
-        const oppY = isTopPlayer ? canvasHeight - oppPaddle.y : oppPaddle.y;
-        const puckY = isTopPlayer ? canvasHeight - puck.y : puck.y;
-        const puckDy = isTopPlayer ? -puck.dy : puck.dy;
-        const oppDy = isTopPlayer ? -(oppPaddle.dy || 0) : (oppPaddle.dy || 0);
+        // Match Python environment's 8-feature observation space exactly
+        if (isTopPlayer) {
+            // Player 2 (top): flip perspective to match training
+            const paddle_x = ownPaddle.x / canvasWidth;
+            const paddle_y = ownPaddle.y / canvasHeight;
+            const puck_x = puck.x / canvasWidth;
+            const puck_y = puck.y / canvasHeight;
+            const paddle_dx = ((ownPaddle.dx || 0) / maxSpeed + 1) / 2;
+            const paddle_dy = ((ownPaddle.dy || 0) / maxSpeed + 1) / 2;
+            const puck_dx = (puck.dx / maxSpeed + 1) / 2;
+            const puck_dy = (puck.dy / maxSpeed + 1) / 2;
 
-        const normSpeed = 25;
+            return [paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy];
+        } else {
+            // Player 1 (bottom): use coordinates as-is with flipped Y perspective
+            const paddle_x = ownPaddle.x / canvasWidth;
+            const paddle_y = (canvasHeight - ownPaddle.y) / canvasHeight;
+            const puck_x = puck.x / canvasWidth;
+            const puck_y = (canvasHeight - puck.y) / canvasHeight;
+            const paddle_dx = ((ownPaddle.dx || 0) / maxSpeed + 1) / 2;
+            const paddle_dy = (-(ownPaddle.dy || 0) / maxSpeed + 1) / 2;
+            const puck_dx = (puck.dx / maxSpeed + 1) / 2;
+            const puck_dy = (-puck.dy / maxSpeed + 1) / 2;
 
-        // Match Python observation space exactly
-        const relativeX = (puck.x - ownPaddle.x) / canvasWidth;
-        const relativeY = (puckY - ownY) / canvasHeight;
-        const relativeDx = puck.dx / normSpeed;
-        const relativeDy = puckDy / normSpeed;
-        const relativeOppX = (oppPaddle.x - ownPaddle.x) / canvasWidth;
-        const relativeOppY = (oppY - ownY) / canvasHeight;
-        const oppDx = Math.max(-1, Math.min(1, (oppPaddle.dx || 0) / normSpeed));
-        const oppDyNorm = Math.max(-1, Math.min(1, oppDy / normSpeed));
-
-        const distPixels = Math.sqrt(Math.pow(puck.x - ownPaddle.x, 2) + Math.pow(puckY - ownY, 2));
-        const maxDist = Math.sqrt(canvasWidth * canvasWidth + canvasHeight * canvasHeight);
-        const distance = distPixels / maxDist;
-
-        const angle = Math.atan2(puckY - ownY, puck.x - ownPaddle.x) / Math.PI;
-
-        const isPuckBehind = puckY > ownY ? 1.0 : 0.0;
-        const distanceToGoal = (canvasHeight - ownY) / canvasHeight * 2 - 1;
-        const puckToGoal = (canvasHeight - puckY) / canvasHeight * 2 - 1;
-        const ownDx = Math.max(-1, Math.min(1, (ownPaddle.dx || 0) / normSpeed));
-        const ownDy = Math.max(-1, Math.min(1, (ownPaddle.dy || 0) / normSpeed));
-        const puckSpeed = Math.sqrt(puck.dx * puck.dx + puck.dy * puck.dy) / normSpeed;
-
-        return [relativeX, relativeY, relativeDx, relativeDy,
-                relativeOppX, relativeOppY, oppDx, oppDyNorm,
-                distance, angle, isPuckBehind, distanceToGoal, puckToGoal,
-                ownDx, ownDy, puckSpeed];
+            return [paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy];
+        }
     }
 }
