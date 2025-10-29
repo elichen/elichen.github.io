@@ -1,20 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Racing Game</title>
+    <meta charset="UTF-8">
+    <title>Racing Game - AI Edition</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- TensorFlow.js for AI inference -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
     <div id="controls">
         <h3>Controls</h3>
-        <p>⬆️ Accelerate</p>
-        <p>⬇️ Brake/Reverse</p>
-        <p>⬅️ ➡️ Steer</p>
+        <p>Up Arrow - Accelerate</p>
+        <p>Down Arrow - Brake/Reverse</p>
+        <p>Left/Right Arrow - Steer</p>
+        <hr>
+        <h3>AI Controls</h3>
+        <p><strong>A</strong> - Toggle AI Mode</p>
+        <p><strong>R</strong> - Toggle Ray Sensors</p>
+        <hr>
+        <div id="aiPanel">
+            <button id="aiToggle" onclick="toggleAI()" disabled>Disable AI</button>
+            <button id="rayToggle" onclick="toggleRays()">Show Rays</button>
+            <p>Status: <span id="aiStatus">Loading AI...</span></p>
+        </div>
     </div>
+
+    <!-- Load scripts -->
     <script src="car.js"></script>
     <script src="track.js"></script>
     <script src="lapTimer.js"></script>
+    <script src="racer_agent.js"></script>
     <script src="game.js"></script>
 </body>
 </html> 
