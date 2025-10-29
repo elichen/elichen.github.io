@@ -32,7 +32,7 @@ class LapTimer {
     draw(ctx) {
         // Semi-transparent background for timer
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-        ctx.roundRect(10, 10, 200, 180, 10)
+        ctx.roundRect(10, 10, 200, 210, 10)
         ctx.fill()
 
         ctx.font = 'bold 20px Arial'

@@ -9,6 +9,7 @@ class Car {
         this.height = 40
         this.lastX = this.x
         this.lastY = this.y
+        this.angularVelocity = 0  // For AI observation
 
         // Physics constants
         this.maxSpeed = 10
@@ -25,6 +26,7 @@ class Car {
         // Store last position
         this.lastX = this.x
         this.lastY = this.y
+        const lastAngle = this.angle
 
         // Apply drag (air resistance)
         this.speed *= this.dragCoefficient
@@ -57,6 +59,9 @@ class Car {
 
         if (keys.ArrowLeft) this.angle -= effectiveTurnSpeed
         if (keys.ArrowRight) this.angle += effectiveTurnSpeed
+
+        // Calculate angular velocity for AI
+        this.angularVelocity = (this.angle - lastAngle) / 0.016  // Assuming ~60 FPS
 
         // Calculate new position
         const newX = this.x + Math.cos(this.angle) * this.speed
