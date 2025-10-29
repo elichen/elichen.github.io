@@ -52,15 +52,11 @@ styles.css        - Minimal styling
 
 ### Training Scripts
 ```
-air_hockey_env.py    - Gym environment (12 features: puck-focused, dense rewards)
+air_hockey_env.py    - Gym environment (8 features: puck-focused, dense rewards)
 train_selfplay.py    - Training script with self-play + parallel envs
 export_to_onnx.py    - ONNX export (auto-detects obs dimension)
 evaluate_model.py    - CRITICAL: Validate model actually plays
-
-Shell scripts:
-run_training.sh      - Run training with parameters
-deploy_model.sh      - Export and deploy model
-quick_test.sh        - Quick training test
+gradient_monitor.py  - Track gradient clipping during training
 ```
 
 ### Models (Single)
@@ -82,16 +78,23 @@ model/ppo_selfplay_final.onnx  - Current production model
 
 ## Training Philosophy
 - Dense reward shaping REQUIRED to break defensive Nash equilibrium
-- Puck-focused observations (12 features, NO opponent tracking)
+- Puck-focused observations (8 features: paddle pos/vel, puck pos/vel)
 - Self-play with 20-opponent frozen pool
 - Parallel training: batch_size scales with n_envs (160 for 10 envs)
 
-## CRITICAL: Model Validation
-**Training metrics LIE. ALWAYS validate with evaluate_model.py**
+## Training & Deployment
 
-After training, MUST run:
 ```bash
+# Train
+cd training
+python train_selfplay.py --timesteps 10000000 --n_envs 10
+
+# Evaluate (CRITICAL - training metrics LIE)
 python evaluate_model.py --model models/ppo_selfplay_final.zip --episodes 100
+
+# Deploy
+python export_to_onnx.py --model models/ppo_selfplay_final.zip
+cp models/onnx/ppo_selfplay_final.onnx ../model/
 ```
 
 Success criteria:
@@ -108,8 +111,8 @@ Success criteria:
 
 2. **Opponent Observations Harm Offensive Play**:
    - WITH opponent tracking: Agent shadows opponent instead of attacking puck
-   - WITHOUT opponent: Forces puck engagement (testing in progress)
-   - 12-feature puck-focused > 16-feature with opponent velocity
+   - WITHOUT opponent: Forces puck engagement
+   - 8-feature puck-focused > 16-feature with opponent velocity
 
 3. **Parallel Training Optimization**:
    - batch_size MUST scale with n_envs: `int(64 * n_envs / 4)`
