@@ -16,6 +16,24 @@ class GradientMonitorCallback(BaseCallback):
         """Called at the end of a rollout"""
         # Only check periodically to avoid overhead
         if self.num_timesteps % self.check_freq == 0:
+            # Check for NaN in parameters FIRST
+            has_nan = False
+            for name, p in self.model.policy.named_parameters():
+                if torch.isnan(p.data).any():
+                    print(f"\n❌ NaN DETECTED in parameter: {name}")
+                    has_nan = True
+                if p.grad is not None and torch.isnan(p.grad).any():
+                    print(f"\n❌ NaN DETECTED in gradient: {name}")
+                    has_nan = True
+
+            if has_nan:
+                print(f"❌ CRITICAL: NaN values at timestep {self.num_timesteps}")
+                print("Training will fail. Consider:")
+                print("- Lower learning rate (current: 3e-5)")
+                print("- Stricter gradient clipping (current: 0.3)")
+                print("- Check reward scaling")
+                raise ValueError("NaN detected in model parameters or gradients")
+
             # Get gradient norms from the model
             total_norm = 0.0
             for p in self.model.policy.parameters():

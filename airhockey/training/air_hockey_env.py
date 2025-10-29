@@ -26,13 +26,32 @@ class AirHockeyEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        self.puck_pos = np.array([self.width/2 + np.random.uniform(-50, 50),
-                                  self.height/2 + np.random.uniform(-50, 50)])
-        self.puck_vel = np.random.uniform(-2, 2, size=2)
-        self.paddle1_pos = np.array([self.width/2, self.height - 50.0])
+
+        # Much more diverse starting positions
+        # Puck can start anywhere in middle 60% of rink
+        self.puck_pos = np.array([
+            np.random.uniform(self.puck_radius + 50, self.width - self.puck_radius - 50),
+            np.random.uniform(self.height * 0.2, self.height * 0.8)
+        ])
+
+        # Random initial velocity (including stronger velocities)
+        self.puck_vel = np.random.uniform(-5, 5, size=2)
+
+        # Paddles start in random defensive positions
+        # P1 paddle: random position in defensive zone
+        self.paddle1_pos = np.array([
+            np.random.uniform(self.paddle_radius + 50, self.width - self.paddle_radius - 50),
+            np.random.uniform(self.height * 0.65, self.height - 50.0)
+        ])
         self.paddle1_vel = np.array([0.0, 0.0])
-        self.paddle2_pos = np.array([self.width/2, 50.0])
+
+        # P2 paddle: random position in defensive zone
+        self.paddle2_pos = np.array([
+            np.random.uniform(self.paddle_radius + 50, self.width - self.paddle_radius - 50),
+            np.random.uniform(50.0, self.height * 0.35)
+        ])
         self.paddle2_vel = np.array([0.0, 0.0])
+
         self.frame_count = 0
         return self._get_observation(1), {}
 
