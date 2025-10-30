@@ -20,48 +20,66 @@ class RacerEnv(gym.Env):
         self.current_step = 0
         self.render_mode = render_mode
 
-        # Track definition (matching JavaScript track.js)
+        # Track definition (matching JavaScript track.js - bean shape with upward arch)
         # Track centered at (0, 0) for simplicity
         self.outer_points = np.array([
             [-400, -250],  # Top left
             [400, -250],   # Top right
             [500, -150],   # Top right corner
-            [500, 150],    # Bottom right corner
-            [400, 250],    # Bottom right
-            [-400, 250],   # Bottom left
-            [-500, 150],   # Bottom left corner
+            [500, 50],     # Right side upper
+            [480, 150],    # Right side lower
+            [400, 230],    # Bottom right curve
+            [250, 260],    # Bottom right approaching arch
+            [100, 250],    # Bottom right side of arch
+            [0, 120],      # Bottom center (deep upward arch)
+            [-100, 250],   # Bottom left side of arch (symmetric)
+            [-250, 260],   # Bottom left approaching arch (symmetric)
+            [-400, 230],   # Bottom left curve (symmetric)
+            [-480, 150],   # Left side lower (symmetric)
+            [-500, 50],    # Left side upper (symmetric)
             [-500, -150]   # Top left corner
         ])
 
         self.inner_points = np.array([
-            [-300, -100],  # Top left
-            [300, -100],   # Top right
-            [350, -50],    # Top right corner
-            [350, 50],     # Bottom right corner
-            [300, 100],    # Bottom right
-            [-300, 100],   # Bottom left
-            [-350, 50],    # Bottom left corner
-            [-350, -50]    # Top left corner
+            [-350, -130],  # Top left
+            [-380, -100],  # Top left corner
+            [-380, 38],    # Left side upper
+            [-369, 91],    # Left side lower
+            [-341, 119],   # Bottom left curve
+            [-242, 139],   # Bottom left approaching arch
+            [-162, 134],   # Bottom left side of arch
+            [0, -77],      # Bottom center (upward arch)
+            [162, 134],    # Bottom right side of arch
+            [242, 139],    # Bottom right approaching arch
+            [341, 119],    # Bottom right curve
+            [369, 91],     # Right side lower
+            [380, 38],     # Right side upper
+            [380, -100],   # Top right corner
+            [350, -130]    # Top right
         ])
 
         # Finish line
         self.finish_line = {
             'x1': 0, 'y1': -250,
-            'x2': 0, 'y2': -100,
+            'x2': 0, 'y2': -130,  # Extended to new inner edge
             'startX': 0,
-            'startY': -175,
-            'startAngle': math.pi  # Pointing left
+            'startY': -190,       # Halfway between y1 and y2
+            'startAngle': math.pi  # Pointing left (perpendicular to finish line)
         }
 
         # Car physics constants (matching car.js)
-        self.max_speed = 10
-        self.max_reverse_speed = -3
-        self.acceleration = 0.3
-        self.brake_force = 0.3
+        self.max_speed = 50  # 5x original speed for extreme racing
+        self.max_reverse_speed = -5
+        self.acceleration = 0.3  # Moderate acceleration for control
+        self.brake_force = 1.0  # Much stronger braking needed at high speeds
         self.reverse_acceleration = 0.1
-        self.drag_coefficient = 0.98
-        self.turn_speed_base = 0.02
-        self.turn_speed_decrease = 0.8
+        # Drag removed - no air resistance
+
+        # Speed-dependent turning physics
+        self.min_turn_radius = 30  # Minimum turning radius at low speed (pixels)
+        self.max_turn_radius = 200  # Maximum turning radius at max speed (pixels)
+        self.turn_speed_base = 0.03  # Base turn rate at zero speed
+        self.turn_speed_min = 0.005  # Minimum turn rate at max speed
         self.car_width = 20
         self.car_height = 40
 
@@ -226,8 +244,7 @@ class RacerEnv(gym.Env):
         self.last_y = self.y
         last_angle = self.angle
 
-        # Apply drag
-        self.speed *= self.drag_coefficient
+        # No drag - removed air resistance
 
         # Apply throttle/brake
         if throttle > 0:
@@ -247,10 +264,19 @@ class RacerEnv(gym.Env):
                 # Braking from forward
                 self.speed = max(0, self.speed - abs(throttle) * self.brake_force)
 
-        # Apply steering (scaled by speed)
-        speed_factor = 1 - (abs(self.speed) / self.max_speed) * self.turn_speed_decrease
-        effective_turn_speed = self.turn_speed_base * (1 + abs(self.speed)) * speed_factor
-        self.angle += steering * effective_turn_speed * 2  # Scale steering input
+        # Speed-dependent turning - realistic physics
+        # At higher speeds, turning radius increases (less sharp turns)
+        abs_speed = abs(self.speed)
+        speed_ratio = abs_speed / self.max_speed  # 0 to 1
+
+        # Calculate effective turn speed based on current speed
+        # Interpolate between turn_speed_base (at 0 speed) and turn_speed_min (at max speed)
+        effective_turn_speed = self.turn_speed_base * (1 - speed_ratio) + self.turn_speed_min * speed_ratio
+
+        # Apply turning only if moving (slight turning allowed at very low speeds for maneuvering)
+        turn_multiplier = abs_speed * 2 if abs_speed < 0.5 else 1  # Gradual turn activation at very low speeds
+
+        self.angle += steering * effective_turn_speed * turn_multiplier
 
         # Calculate angular velocity for observation
         self.angular_velocity = (self.angle - last_angle) / 0.016  # Assuming 60 FPS

@@ -12,14 +12,17 @@ class Car {
         this.angularVelocity = 0  // For AI observation
 
         // Physics constants
-        this.maxSpeed = 10
-        this.maxReverseSpeed = -3
-        this.acceleration = 0.3
-        this.brakeForce = 0.3
+        this.maxSpeed = 50  // 5x original speed for extreme racing
+        this.maxReverseSpeed = -5
+        this.acceleration = 0.3  // Moderate acceleration for control
+        this.brakeForce = 1.0  // Much stronger braking needed at high speeds
         this.reverseAcceleration = 0.1
-        this.dragCoefficient = 0.98
-        this.turnSpeed = 0.02  // Base turn speed
-        this.turnSpeedDecrease = 0.8  // Turn less at high speeds
+
+        // Speed-dependent turning physics
+        this.minTurnRadius = 30  // Minimum turning radius at low speed (pixels)
+        this.maxTurnRadius = 200  // Maximum turning radius at max speed (pixels)
+        this.turnSpeedBase = 0.03  // Base turn rate at zero speed
+        this.turnSpeedMin = 0.005  // Minimum turn rate at max speed
     }
 
     update() {
@@ -29,7 +32,7 @@ class Car {
         const lastAngle = this.angle
 
         // Apply drag (air resistance)
-        this.speed *= this.dragCoefficient
+        // this.speed *= this.dragCoefficient
 
         // Accelerate
         if (keys.ArrowUp) {
@@ -53,12 +56,20 @@ class Car {
             }
         }
 
-        // Turning - reduced at higher speeds
-        const speedFactor = 1 - (Math.abs(this.speed) / this.maxSpeed) * this.turnSpeedDecrease
-        const effectiveTurnSpeed = this.turnSpeed * (1 + Math.abs(this.speed)) * speedFactor
+        // Speed-dependent turning - realistic physics
+        // At higher speeds, turning radius increases (less sharp turns)
+        const absSpeed = Math.abs(this.speed)
+        const speedRatio = absSpeed / this.maxSpeed  // 0 to 1
 
-        if (keys.ArrowLeft) this.angle -= effectiveTurnSpeed
-        if (keys.ArrowRight) this.angle += effectiveTurnSpeed
+        // Calculate effective turn speed based on current speed
+        // Interpolate between turnSpeedBase (at 0 speed) and turnSpeedMin (at max speed)
+        const effectiveTurnSpeed = this.turnSpeedBase * (1 - speedRatio) + this.turnSpeedMin * speedRatio
+
+        // Apply turning only if moving (slight turning allowed at very low speeds for maneuvering)
+        const turnMultiplier = absSpeed < 0.5 ? absSpeed * 2 : 1  // Gradual turn activation at very low speeds
+
+        if (keys.ArrowLeft) this.angle -= effectiveTurnSpeed * turnMultiplier
+        if (keys.ArrowRight) this.angle += effectiveTurnSpeed * turnMultiplier
 
         // Calculate angular velocity for AI
         this.angularVelocity = (this.angle - lastAngle) / 0.016  // Assuming ~60 FPS
