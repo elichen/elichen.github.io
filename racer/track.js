@@ -7,36 +7,51 @@ class Track {
         // Calculate center offset based on window size
         this.updateOffset()
 
-        // Convert track points to be relative to center - made wider and longer
+        // Convert track points to be relative to center - bean shape with upward arch
         this.outerPoints = [
             [-400, -250],  // Top left
             [400, -250],   // Top right
             [500, -150],   // Top right corner
-            [500, 150],    // Bottom right corner
-            [400, 250],    // Bottom right
-            [-400, 250],   // Bottom left
-            [-500, 150],   // Bottom left corner
+            [500, 50],     // Right side upper
+            [480, 150],    // Right side lower
+            [400, 230],    // Bottom right curve
+            [250, 260],    // Bottom right approaching arch
+            [100, 250],    // Bottom right side of arch
+            [0, 120],      // Bottom center (deep upward arch)
+            [-100, 250],   // Bottom left side of arch (symmetric)
+            [-250, 260],   // Bottom left approaching arch (symmetric)
+            [-400, 230],   // Bottom left curve (symmetric)
+            [-480, 150],   // Left side lower (symmetric)
+            [-500, 50],    // Left side upper (symmetric)
             [-500, -150]   // Top left corner
         ]
         
+        // Inner points generated with Shapely (constant 120px width)
         this.innerPoints = [
-            [-300, -100],  // Top left
-            [300, -100],   // Top right
-            [350, -50],    // Top right corner
-            [350, 50],     // Bottom right corner
-            [300, 100],    // Bottom right
-            [-300, 100],   // Bottom left
-            [-350, 50],    // Bottom left corner
-            [-350, -50]    // Top left corner
+            [-350, -130],  // Top left
+            [-380, -100],  // Top left corner
+            [-380, 38],    // Left side upper
+            [-369, 91],    // Left side lower
+            [-341, 119],   // Bottom left curve
+            [-242, 139],   // Bottom left approaching arch
+            [-162, 134],   // Bottom left side of arch
+            [0, -77],      // Bottom center (upward arch)
+            [162, 134],    // Bottom right side of arch
+            [242, 139],    // Bottom right approaching arch
+            [341, 119],    // Bottom right curve
+            [369, 91],     // Right side lower
+            [380, 38],     // Right side upper
+            [380, -100],   // Top right corner
+            [350, -130]    // Top right
         ]
 
         // Add finish line coordinates (relative to center)
         this.finishLine = {
             x1: 0, y1: -250,    // Top of track
-            x2: 0, y2: -100,    // Extended to new inner edge
+            x2: 0, y2: -130,    // Extended to new inner edge
             // Update starting angle to face right (0 radians = facing right)
             startX: 0,
-            startY: -175,       // Halfway between y1 and y2
+            startY: -190,       // Halfway between y1 and y2
             startAngle: Math.PI  // Pointing left (perpendicular to finish line)
         }
     }
@@ -88,6 +103,12 @@ class Track {
         ctx.fillStyle = '#666666'  // Medium gray
         ctx.fill()
 
+        // Draw inner field (infield grass)
+        ctx.beginPath()
+        this.drawPath(ctx, this.innerPoints)
+        ctx.fillStyle = '#2d5e1e'  // Same dark grass green as outer field
+        ctx.fill()
+
         // Draw track border lines
         ctx.strokeStyle = 'white'
         ctx.lineWidth = 5
@@ -101,23 +122,6 @@ class Track {
         ctx.beginPath()
         this.drawPath(ctx, this.innerPoints)
         ctx.stroke()
-
-        // Draw racing line markers (dashed center line)
-        ctx.strokeStyle = '#ffffff44'  // Semi-transparent white
-        ctx.lineWidth = 3
-        ctx.setLineDash([20, 20])  // Dashed line pattern
-        
-        // Approximate center line between inner and outer track
-        ctx.beginPath()
-        for(let i = 0; i < this.outerPoints.length; i++) {
-            const x = (this.outerPoints[i][0] + this.innerPoints[i][0]) / 2
-            const y = (this.outerPoints[i][1] + this.innerPoints[i][1]) / 2
-            if(i === 0) ctx.moveTo(x, y)
-            else ctx.lineTo(x, y)
-        }
-        ctx.closePath()
-        ctx.stroke()
-        ctx.setLineDash([])  // Reset line dash
 
         // Draw finish line with enhanced style
         const finishWidth = 20
