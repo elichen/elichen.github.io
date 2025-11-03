@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turing Patterns</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <canvas id="patternCanvas"></canvas>
+
+    <div class="title-overlay">
+        <h1>Turing Patterns</h1>
+        <p class="subtitle">Click to seed • Scroll for controls</p>
+    </div>
+
+    <div class="controls-container">
+        <div class="controls-inner">
+            <section class="intro">
+                <h2>Reaction-Diffusion System</h2>
+                <p>
+                    This simulation implements the Gray-Scott model, where two chemicals interact and diffuse to create
+                    self-organizing patterns. Alan Turing showed in 1952 that such systems could explain morphogenesis—how
+                    organisms develop their shapes and patterns.
+                </p>
+            </section>
+
+            <section class="parameters">
+                <h3>Parameters</h3>
+
+                <div class="parameter-group">
+                    <div class="param">
+                        <label for="feedRate">
+                            Feed Rate <span class="param-symbol">f</span>
+                            <span class="value" id="feedRateValue">0.055</span>
+                        </label>
+                        <input type="range" id="feedRate" min="0.01" max="0.1" step="0.001" value="0.055">
+                        <span class="param-description">Rate at which chemical A is replenished</span>
+                    </div>
+
+                    <div class="param">
+                        <label for="killRate">
+                            Kill Rate <span class="param-symbol">k</span>
+                            <span class="value" id="killRateValue">0.062</span>
+                        </label>
+                        <input type="range" id="killRate" min="0.045" max="0.07" step="0.001" value="0.062">
+                        <span class="param-description">Rate at which chemical B is removed</span>
+                    </div>
+                </div>
+
+                <div class="parameter-group">
+                    <div class="param">
+                        <label for="diffusionA">
+                            Diffusion A <span class="param-symbol">D<sub>A</sub></span>
+                            <span class="value" id="diffusionAValue">1.0</span>
+                        </label>
+                        <input type="range" id="diffusionA" min="0.5" max="1.5" step="0.01" value="1.0">
+                        <span class="param-description">Diffusion rate of substrate</span>
+                    </div>
+
+                    <div class="param">
+                        <label for="diffusionB">
+                            Diffusion B <span class="param-symbol">D<sub>B</sub></span>
+                            <span class="value" id="diffusionBValue">0.5</span>
+                        </label>
+                        <input type="range" id="diffusionB" min="0.1" max="0.8" step="0.01" value="0.5">
+                        <span class="param-description">Diffusion rate of activator</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="presets">
+                <h3>Pattern Presets</h3>
+                <div class="preset-grid">
+                    <button class="preset-btn" data-f="0.055" data-k="0.062">
+                        <span class="preset-name">Coral</span>
+                        <span class="preset-params">f=0.055, k=0.062</span>
+                    </button>
+                    <button class="preset-btn" data-f="0.035" data-k="0.065">
+                        <span class="preset-name">Mitosis</span>
+                        <span class="preset-params">f=0.035, k=0.065</span>
+                    </button>
+                    <button class="preset-btn" data-f="0.042" data-k="0.059">
+                        <span class="preset-name">Holes</span>
+                        <span class="preset-params">f=0.042, k=0.059</span>
+                    </button>
+                    <button class="preset-btn" data-f="0.029" data-k="0.057">
+                        <span class="preset-name">Chaos</span>
+                        <span class="preset-params">f=0.029, k=0.057</span>
+                    </button>
+                    <button class="preset-btn" data-f="0.039" data-k="0.058">
+                        <span class="preset-name">Spots</span>
+                        <span class="preset-params">f=0.039, k=0.058</span>
+                    </button>
+                    <button class="preset-btn" data-f="0.026" data-k="0.052">
+                        <span class="preset-name">Worms</span>
+                        <span class="preset-params">f=0.026, k=0.052</span>
+                    </button>
+                </div>
+            </section>
+
+            <section class="visualization">
+                <h3>Visualization</h3>
+                <div class="vis-controls">
+                    <select id="colorScheme">
+                        <option value="grayscale">Grayscale</option>
+                        <option value="heatmap">Heatmap</option>
+                        <option value="ocean">Ocean</option>
+                        <option value="plasma">Plasma</option>
+                        <option value="viridis">Viridis</option>
+                    </select>
+
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showChemicalB" checked>
+                        <span>Show Chemical B</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="simulation-controls">
+                <button id="playPause" class="control-btn">Pause</button>
+                <button id="reset" class="control-btn">Reset</button>
+                <button id="clear" class="control-btn">Clear</button>
+            </section>
+
+            <section class="equations">
+                <h3>The Mathematics</h3>
+                <p>The Gray-Scott equations describe how the concentrations of chemicals A and B change over time:</p>
+                <div class="equation">
+                    <div>∂A/∂t = D<sub>A</sub>∇²A - AB² + f(1-A)</div>
+                    <div>∂B/∂t = D<sub>B</sub>∇²B + AB² - (k+f)B</div>
+                </div>
+                <p>
+                    Where ∇² is the Laplacian operator (measuring diffusion), AB² represents the reaction rate,
+                    and the system exhibits pattern formation when the activator (B) diffuses slower than the inhibitor (A).
+                </p>
+            </section>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
