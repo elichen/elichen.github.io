@@ -41,13 +41,29 @@ class Physics {
             Math.pow(clawPos.y - environment.blockY, 2)
         );
 
-        // If claw just closed (was open last frame) and is close enough to block, pick up block
-        if (distance < environment.blockSize && 
-            robotArm.isClawClosed && 
-            this.wasClawOpen) {
+        // Match training environment: grab if claw is closed and close enough
+        // (not requiring a transition from open to closed)
+        if (!environment.isBlockHeld &&
+            robotArm.isClawClosed &&
+            distance < environment.blockSize) {
             environment.isBlockHeld = true;
-        } else if (!robotArm.isClawClosed) {
+            console.log('Block grabbed! Distance:', distance, 'Block size:', environment.blockSize);
+        } else if (environment.isBlockHeld && !robotArm.isClawClosed) {
+            // Drop if claw opens while holding
             environment.isBlockHeld = false;
+            console.log('Block dropped!');
+        }
+
+        // Debug: log when close but not grabbing
+        if (!environment.isBlockHeld && robotArm.isClawClosed && distance < environment.blockSize * 2) {
+            if (Math.random() < 0.01) {
+                console.log('Close but not grabbing:', {
+                    distance: distance,
+                    blockSize: environment.blockSize,
+                    clawClosed: robotArm.isClawClosed,
+                    blockHeld: environment.isBlockHeld
+                });
+            }
         }
 
         // Update previous claw state

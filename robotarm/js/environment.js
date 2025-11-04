@@ -17,6 +17,8 @@ class Environment {
         this.successMessageDuration = 1000; // Display for 1 second
         this.lastBlockY = null;  // Track previous block height
         this.lastDistance = null;  // Track previous distance to block
+        this.currentStep = 0;  // Track steps for timeout
+        this.maxSteps = 125;  // Reduced for faster episodes
     }
 
     reset() {
@@ -34,6 +36,7 @@ class Environment {
         this.currentReward = 0;
         this.lastBlockY = null;
         this.lastDistance = null;
+        this.currentStep = 0;  // Reset step counter
     }
 
     isPositionReachable(x, y) {
@@ -93,16 +96,24 @@ class Environment {
             (this.blockY - this.maxHeight) / 
                 (this.groundY - this.maxHeight),    // [0, 1]
             robotArm.isClawClosed ? 1 : 0,         // [0, 1]
-            distanceToBlock / 200,                 // [0, 1] normalized distance to block
+            Math.min(distanceToBlock / 200, 1.0),  // [0, 1] normalized distance (CAPPED like Python!)
             this.isBlockHeld ? 1 : 0,             // [0, 1] whether block is held
             ...validActions                        // [0, 1] each
         ];
     }
 
     calculateReward(robotArm) {
+        // Timeout check first (before incrementing)
+        if (this.currentStep >= this.maxSteps) {
+            return { reward: 0, done: true };  // Truncated episode (don't log repeatedly)
+        }
+
+        // Increment step counter
+        this.currentStep++;
+
         // Catastrophic failure check
-        if (!this.isBlockHeld && 
-            Math.abs(this.blockY - (this.groundY - this.blockSize/2)) < 0.1 && 
+        if (!this.isBlockHeld &&
+            Math.abs(this.blockY - (this.groundY - this.blockSize/2)) < 0.1 &&
             !this.isPositionReachable(this.blockX, this.blockY)) {
             this.lastBlockY = null;
             this.lastDistance = null;
@@ -117,72 +128,30 @@ class Environment {
 
         let reward = 0;
 
-        // Add elbow overbending penalty
-        const blockRelativeX = this.blockX - robotArm.baseX;
-        const elbowAngle = robotArm.angle2;
-
-        if (blockRelativeX < 0) {  // Block is to the left of the base
-            if (elbowAngle < 0) {
-                const penalty = Math.abs(elbowAngle) * 0.5;
-                reward -= penalty;
-            }
-        } else {  // Block is to the right of the base
-            if (elbowAngle > 0) {
-                const penalty = elbowAngle * 0.5;
-                reward -= penalty;
-            }
-        }
-
-        // Proximity reward when not holding block
+        // Simplified reward matching Python training (remove extra penalties)
         if (!this.isBlockHeld) {
-            // Reward for getting closer to block
+            // Reward for getting closer to block (MATCH PYTHON: 10.0x multiplier)
             if (this.lastDistance !== null) {
                 const distanceImprovement = this.lastDistance - distanceToBlock;
-                reward += distanceImprovement * 1.0;  // Increased from 0.5
-            }
-            
-            // Reward for appropriate claw state based on distance
-            if (distanceToBlock < this.blockSize * 1.5) {
-                // When close to block
-                if (!robotArm.isClawClosed) {
-                    reward += 0.2;  // Reward for having claw open when close
-                } else {
-                    reward -= 0.1;  // Small penalty for having claw closed too early
-                }
-            } else {
-                // When far from block
-                if (!robotArm.isClawClosed) {
-                    reward += 0.1;  // Small reward for keeping claw open while approaching
-                }
-            }
-            
-            // Reward for successful grasp attempt
-            if (distanceToBlock < this.blockSize && robotArm.isClawClosed) {
-                reward += 1.0;  // Significant reward for closing claw when very close
+                reward += distanceImprovement * 10.0;  // Match Python training!
             }
         } else {
-            // When holding block
+            // Reward for holding block
+            reward += 1.0;
+
+            // Reward for lifting block higher (MATCH PYTHON: 5.0x multiplier)
             if (this.lastBlockY !== null) {
                 const heightImprovement = this.lastBlockY - this.blockY;
-                reward += heightImprovement * 1.0;  // Increased from 0.5
+                reward += heightImprovement * 5.0;  // Match Python training!
             }
-            
-            // Strong penalty for opening claw while holding
-            if (!robotArm.isClawClosed) {
-                reward -= 5.0;  // Increased from 2.0
-            }
-            
+
             // Success condition
             if (this.blockY < this.maxHeight) {
                 reward += 100;
-                this.successMessage = {
-                    text: "Success!",
-                    timestamp: Date.now()
-                };
                 return { reward, done: true };
             }
         }
-        
+
         this.lastDistance = distanceToBlock;
         this.lastBlockY = this.blockY;
 

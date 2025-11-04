@@ -1,0 +1,28 @@
+{
+  "input_shape": [
+    11
+  ],
+  "output_shape": [
+    5
+  ],
+  "actions": [
+    "angle1+",
+    "angle1-",
+    "angle2+",
+    "angle2-",
+    "toggle_claw"
+  ],
+  "observation_features": [
+    "angle1_normalized",
+    "angle2_normalized",
+    "block_x_relative",
+    "block_y_normalized",
+    "claw_closed",
+    "distance_to_block",
+    "block_held",
+    "valid_action_0",
+    "valid_action_1",
+    "valid_action_2",
+    "valid_action_3"
+  ]
+}

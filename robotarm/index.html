@@ -3,81 +3,368 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Robot Arm RL Demo</title>
+    <title>PPO Robot Arm</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #fff;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 760px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 300;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: #666;
+            margin-bottom: 3rem;
+            font-weight: 300;
+            text-align: center;
+        }
+
+        #canvas-container {
+            position: relative;
+            margin: 2rem 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        canvas {
+            border: 1px solid #e0e0e0;
+            border-radius: 2px;
+        }
+
+        #success-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: 300;
+            color: #4CAF50;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        #success-message.show {
+            opacity: 1;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin: 2rem 0;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px 24px;
+            font-size: 0.95rem;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            cursor: pointer;
+            background: white;
+            color: #333;
+            font-weight: 400;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #f8f8f8;
+            border-color: #999;
+        }
+
+        button:active {
+            background: #f0f0f0;
+        }
+
+        .stats {
+            display: flex;
+            gap: 2rem;
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: #fafafa;
+            border-radius: 2px;
+            justify-content: center;
+            font-size: 0.9rem;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            display: block;
+            font-size: 1.8rem;
+            font-weight: 300;
+            color: #000;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        .section {
+            margin: 3rem 0;
+        }
+
+        .section h2 {
+            font-size: 1.4rem;
+            font-weight: 400;
+            margin-bottom: 1rem;
+            letter-spacing: -0.01em;
+        }
+
+        .section p {
+            color: #555;
+            margin-bottom: 0.8rem;
+        }
+
+        .section ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .section li {
+            padding-left: 1.5rem;
+            margin-bottom: 0.5rem;
+            position: relative;
+            color: #555;
+        }
+
+        .section li:before {
+            content: "•";
+            position: absolute;
+            left: 0.5rem;
+            color: #999;
+        }
+
+        .note {
+            padding: 1rem 1.5rem;
+            background: #f9f9f9;
+            border-left: 3px solid #ddd;
+            margin: 1.5rem 0;
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
 </head>
 <body>
-    <h1>Robot Arm</h1>
-    
-    <div id="simulation-container">
-        <canvas id="canvas" width="600" height="400"></canvas>
-        <div id="success-message" class="hidden">Success!</div>
-        <div id="controls">
-            <button id="mode-switch">Switch to AI Mode</button>
-            <button id="claw-control">Toggle Claw</button>
-            <button id="start-training">Start Training</button>
-            <button id="reset">Reset</button>
+    <div class="container">
+        <h1>Robot Arm Control with PPO</h1>
+        <p class="subtitle">Proximal Policy Optimization for robotic manipulation</p>
+
+        <div id="canvas-container">
+            <canvas id="canvas" width="600" height="400"></canvas>
+            <div id="success-message">Success</div>
         </div>
-        <div id="stats">
-            <p>Mode: <span id="current-mode">Human Control</span></p>
-            <p>Epsilon: <span id="epsilon-value">1.0</span></p>
-            <p>Episode: <span id="episode-count">0</span></p>
-            <p>Reward: <span id="total-reward">0</span></p>
+
+        <div class="controls">
+            <button id="reset">Reset Environment</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <span class="stat-value" id="episode-count">0</span>
+                <span class="stat-label">Episodes</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value" id="success-rate">0%</span>
+                <span class="stat-label">Success Rate</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>How it works</h2>
+            <p>This demo showcases a Proximal Policy Optimization (PPO) agent trained with Stable Baselines3 to control a two-segment robot arm. The agent autonomously:</p>
+            <ul>
+                <li>Navigates the arm to reach the red block</li>
+                <li>Closes the claw to securely grasp the block</li>
+                <li>Lifts the block above the green target line</li>
+            </ul>
+            <p>The model was trained for 3M timesteps using PPO, a state-of-the-art policy gradient method. The trained PyTorch model was exported to TensorFlow.js for browser-based inference.</p>
+        </div>
+
+        <div class="note">
+            <strong>Technical details:</strong> The agent receives 11-dimensional observations (joint angles, block position, claw state, and valid action masks) and outputs discrete actions to control the arm. PPO's clipped objective ensures stable learning while maximizing task completion rewards.
         </div>
     </div>
 
-    <div id="explainer">
-        <h2>Robot Arm Control Modes</h2>
-        
-        <div class="mode-section">
-            <h3>Human Control Mode</h3>
-            <p>In this mode, you can control the robot arm directly:</p>
-            <ul>
-                <li><strong>Mouse Click:</strong> Click anywhere to set target position for the arm</li>
-                <li><strong>Toggle Claw Button:</strong> Open/close the claw to grab blocks</li>
-                <li><strong>Goal:</strong> Pick up the red block and lift it above the green line</li>
-            </ul>
-            <p>Your demonstrations are recorded and used to help train the AI agent.</p>
-        </div>
-
-        <div class="mode-section">
-            <h3>RL Agent Mode</h3>
-            <p>Watch the AI agent learn to control the arm through trial and error:</p>
-            <ul>
-                <li>Uses Deep Q-Learning to learn optimal actions</li>
-                <li>Learns from both its own experiences and human demonstrations</li>
-                <li>Explores using random actions (epsilon-greedy strategy)</li>
-                <li>Gets rewards for:
-                    <ul>
-                        <li>Getting closer to the block</li>
-                        <li>Lifting the block higher</li>
-                        <li>Keeping the elbow on the opposite side of the block</li>
-                        <li>Successfully reaching the target height</li>
-                    </ul>
-                </li>
-            </ul>
-        </div>
-
-        <div class="mode-section">
-            <h3>Training Process</h3>
-            <p>The agent learns through these steps:</p>
-            <ol>
-                <li>Collects experiences (state, action, reward, next state)</li>
-                <li>Stores experiences in a replay buffer (mixed with human demos)</li>
-                <li>Periodically updates its neural network to predict better actions</li>
-                <li>Gradually reduces random exploration as it improves</li>
-            </ol>
-            <p>The epsilon value shows how often the agent takes random actions (1.0 = always, 0.0 = never).</p>
-        </div>
-    </div>
-
+    <!-- Load the robot arm components -->
     <script src="js/physics.js"></script>
     <script src="js/robotArm.js"></script>
     <script src="js/environment.js"></script>
-    <script src="js/humanControl.js"></script>
-    <script src="js/replayBuffer.js"></script>
-    <script src="js/rlAgent.js"></script>
-    <script src="js/main.js"></script>
+    <script src="js/trainedAgent.js"></script>
+
+    <script>
+        class DemoApp {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+
+                // Initialize modules
+                this.physics = new Physics();
+                this.robotArm = new RobotArm();
+                this.environment = new Environment(this.canvas.width, this.canvas.height);
+                this.agent = new TrainedAgent();
+
+                this.isRunning = false;
+                this.episodeCount = 0;
+                this.successCount = 0;
+                this.lastTimestamp = 0;
+                this.isResetting = false;
+                this.successShown = false;
+
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                document.getElementById('reset').addEventListener('click', () => {
+                    this.reset();
+                });
+
+                // Auto-load model and start demo on page load
+                this.autoStart();
+            }
+
+            async autoStart() {
+                console.log('Loading model and starting demo...');
+                await this.loadModel();
+                setTimeout(() => {
+                    if (this.agent.isLoaded) {
+                        this.start();
+                        console.log('Demo started');
+                    }
+                }, 100);
+            }
+
+            async loadModel() {
+                try {
+                    await this.agent.loadModel('./models/tfjs/model.json');
+                    console.log('Model loaded successfully');
+                } catch (error) {
+                    console.error('Error loading model:', error);
+                }
+            }
+
+            reset() {
+                this.environment.reset();
+                this.robotArm.reset();
+                this.render();
+            }
+
+            updateStats() {
+                document.getElementById('episode-count').textContent = this.episodeCount;
+
+                const successRate = this.episodeCount > 0
+                    ? ((this.successCount / this.episodeCount) * 100).toFixed(0)
+                    : '0';
+                document.getElementById('success-rate').textContent = `${successRate}%`;
+            }
+
+            async animate(timestamp = 0) {
+                if (!this.isRunning) return;
+
+                const deltaTime = timestamp - this.lastTimestamp;
+                this.lastTimestamp = timestamp;
+
+                // Update robot arm physics
+                this.robotArm.update();
+
+                // Get current state
+                const state = this.environment.getState(this.robotArm);
+
+                // Get action from trained model
+                const action = await this.agent.selectAction(state);
+
+                // Execute action
+                this.agent.executeAction(action, this.robotArm);
+
+                // Update physics
+                this.physics.update(this.robotArm, this.environment, deltaTime);
+
+                // Check if task is complete
+                const { reward, done } = this.environment.calculateReward(this.robotArm);
+
+                if (done && !this.isResetting) {
+                    this.isResetting = true;
+                    this.episodeCount++;
+
+                    if (reward > 50 && !this.successShown) {
+                        this.successCount++;
+                        this.showSuccess();
+                        this.successShown = true;
+                    }
+
+                    this.updateStats();
+
+                    // Reset after a short delay
+                    setTimeout(() => {
+                        this.environment.reset();
+                        this.robotArm.reset();
+                        this.isResetting = false;
+                        this.successShown = false;
+                    }, 1500);
+                }
+
+                // Render
+                this.render();
+
+                // Continue animation
+                requestAnimationFrame((t) => this.animate(t));
+            }
+
+            showSuccess() {
+                const msg = document.getElementById('success-message');
+                msg.classList.add('show');
+                setTimeout(() => {
+                    msg.classList.remove('show');
+                }, 1500);
+            }
+
+            render() {
+                // Clear canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Render environment and robot
+                this.environment.render(this.ctx);
+                this.robotArm.render(this.ctx);
+            }
+
+            start() {
+                this.isRunning = true;
+                this.reset();
+                this.render();
+                this.animate();
+            }
+        }
+
+        // Start the application when the window loads
+        window.onload = () => {
+            const app = new DemoApp();
+        };
+    </script>
 </body>
-</html> 
+</html>
