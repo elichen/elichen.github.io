@@ -1,0 +1,23 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Training artifacts
+logs/
+models/*.zip
+models/*_steps.zip
+
+# Temporary files
+.DS_Store
+*.swp
+*.swo
+*~

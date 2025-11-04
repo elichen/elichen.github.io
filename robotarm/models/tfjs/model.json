@@ -1,0 +1,108 @@
+{
+  "format": "layers-model",
+  "generatedBy": "export_model.py",
+  "convertedBy": "Custom PyTorch to TF.js converter",
+  "modelTopology": {
+    "keras_version": "2.13.0",
+    "backend": "tensorflow",
+    "model_config": {
+      "class_name": "Sequential",
+      "config": {
+        "name": "robot_arm_ppo",
+        "layers": [
+          {
+            "class_name": "Dense",
+            "config": {
+              "name": "0.0",
+              "trainable": true,
+              "batch_input_shape": [
+                null,
+                11
+              ],
+              "dtype": "float32",
+              "units": 64,
+              "activation": "relu",
+              "use_bias": true
+            }
+          },
+          {
+            "class_name": "Dense",
+            "config": {
+              "name": "0.2",
+              "trainable": true,
+              "dtype": "float32",
+              "units": 64,
+              "activation": "relu",
+              "use_bias": true
+            }
+          },
+          {
+            "class_name": "Dense",
+            "config": {
+              "name": "1",
+              "trainable": true,
+              "dtype": "float32",
+              "units": 5,
+              "activation": "linear",
+              "use_bias": true
+            }
+          }
+        ]
+      }
+    }
+  },
+  "weightsManifest": [
+    {
+      "paths": [
+        "group1-shard1of1.bin"
+      ],
+      "weights": [
+        {
+          "name": "0.0/kernel",
+          "shape": [
+            11,
+            64
+          ],
+          "dtype": "float32"
+        },
+        {
+          "name": "0.0/bias",
+          "shape": [
+            64
+          ],
+          "dtype": "float32"
+        },
+        {
+          "name": "0.2/kernel",
+          "shape": [
+            64,
+            64
+          ],
+          "dtype": "float32"
+        },
+        {
+          "name": "0.2/bias",
+          "shape": [
+            64
+          ],
+          "dtype": "float32"
+        },
+        {
+          "name": "1/kernel",
+          "shape": [
+            64,
+            5
+          ],
+          "dtype": "float32"
+        },
+        {
+          "name": "1/bias",
+          "shape": [
+            5
+          ],
+          "dtype": "float32"
+        }
+      ]
+    }
+  ]
+}
