@@ -1,0 +1,19 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Training outputs
+training_*.txt
+*.log
+
+# Models (keep only final)
+models/*
+!models/ppo_masked.zip
+
+# Temp files
+test_*.html
+test_*.py

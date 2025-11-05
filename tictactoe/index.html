@@ -3,24 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tic-Tac-Toe DQN</title>
+    <title>Training an Expert Tic-Tac-Toe Agent</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Tic-Tac-Toe DQN</h1>
-        <div id="game-container"></div>
-        <div id="winPercentage" class="stats">Rolling Average Reward: 0.000</div>
-        <canvas id="chart"></canvas>
-        <button id="modeButton" class="btn">Switch to Test Mode</button>
-    </div>
+    <article>
+        <header>
+            <h1>Neural Tic-Tac-Toe Agent</h1>
+            <p class="subtitle">Expert-level PPO with action masking, deployed via TensorFlow.js</p>
+        </header>
 
-    <script src="model.js"></script>
+        <section class="game-section">
+            <div id="game-container"></div>
+            <div class="game-status" id="gameStatus"></div>
+        </section>
+
+        <section class="explanation">
+            <h2>System Architecture</h2>
+
+            <p>This implementation deploys a <strong>Proximal Policy Optimization (PPO)</strong> neural network for expert-level Tic-Tac-Toe play directly in the browser using TensorFlow.js. The agent was trained offline using PyTorch and Stable-Baselines3, then converted for browser deployment.</p>
+
+            <h3>Board State Representation</h3>
+            <p>The game state is represented as a 9-element array where each position contains:</p>
+            <ul>
+                <li><code>1</code> — Agent's piece (X)</li>
+                <li><code>-1</code> — Opponent's piece (O)</li>
+                <li><code>0</code> — Empty cell</li>
+            </ul>
+            <p>This compact representation is fed directly to the neural network, which has learned to extract meaningful patterns from the raw board values during training.</p>
+
+            <h3>Action Masking Implementation</h3>
+            <p>Invalid moves are prevented through <em>action masking</em>—a critical technique for board games. The network outputs logits for all 9 positions, but before action selection:</p>
+            <ul>
+                <li>Valid moves receive a mask value of <code>0</code></li>
+                <li>Invalid moves receive <code>-Infinity</code></li>
+                <li>The mask is added to logits before <code>argmax</code> selection</li>
+            </ul>
+            <p>This ensures the model never selects occupied squares, eliminating wasted training capacity on learning game rules.</p>
+
+            <h3>Training Curriculum</h3>
+            <p>During offline training, the agent learned from a diverse opponent pool:</p>
+            <div class="results-grid">
+                <div class="result-card">
+                    <div class="result-stat">70%</div>
+                    <div class="result-label">Perfect play (minimax)</div>
+                    <div class="result-detail">Learned optimal defensive patterns</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-stat">30%</div>
+                    <div class="result-label">Random opponents</div>
+                    <div class="result-detail">Learned to exploit weak play</div>
+                </div>
+            </div>
+
+            <h3>Neural Network Architecture</h3>
+            <p>The PPO policy network is a compact 3-layer MLP with dimensions <code>9 → 128 → 128 → 9</code>:</p>
+            <ul>
+                <li><strong>Input layer:</strong> 9D board state (raw values)</li>
+                <li><strong>Hidden layers:</strong> Two layers with ReLU activation, 128 units each</li>
+                <li><strong>Output layer:</strong> 9D action logits (one per board position)</li>
+            </ul>
+            <p>The network processes the raw board state and outputs a probability distribution over possible moves, with action masking ensuring only legal moves are selected.</p>
+
+            <h3>Reward Engineering</h3>
+            <p>The reward structure shapes optimal behavior against perfect opponents:</p>
+            <ul>
+                <li><code>+1.0</code> for wins — Maximum reward for victory</li>
+                <li><code>+0.5</code> for draws — Positive signal since draws are optimal vs perfect play</li>
+                <li><code>-1.0</code> for losses — Penalty for defeat</li>
+                <li><code>-10.0</code> for invalid moves — Strong penalty to discourage rule violations</li>
+            </ul>
+
+            <h3>Web Deployment</h3>
+            <p>The trained PyTorch model is exported to TensorFlow.js format for browser inference:</p>
+            <ol>
+                <li>PyTorch → ONNX conversion preserves architecture</li>
+                <li>ONNX → TensorFlow.js enables browser deployment</li>
+                <li>Model loads asynchronously at page initialization</li>
+                <li>Inference runs client-side with ~10ms latency</li>
+            </ol>
+
+            <h3>Key Implementation Details</h3>
+
+            <p><strong>Action Selection (agent.js:26-44):</strong> The PPO model's inference pipeline:</p>
+            <ul>
+                <li>Network outputs raw logits for all 9 positions</li>
+                <li>Invalid moves masked with <code>-Infinity</code> addition</li>
+                <li>Argmax over masked logits guarantees legal moves</li>
+                <li>Fully deterministic (greedy) for deployed model</li>
+            </ul>
+
+            <p><strong>Game State Management (game.js):</strong> Clean board representation and game logic:</p>
+            <ul>
+                <li>9-element array tracks board state</li>
+                <li>Efficient win checking across rows, columns, and diagonals</li>
+                <li>Valid move detection for action masking</li>
+            </ul>
+
+            <p><strong>Performance Metrics:</strong></p>
+            <div class="results-grid">
+                <div class="result-card">
+                    <div class="result-stat">100%</div>
+                    <div class="result-label">Never loses to perfect play</div>
+                    <div class="result-detail">Achieved during training evaluation</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-stat">~10ms</div>
+                    <div class="result-label">Browser inference time</div>
+                    <div class="result-detail">Real-time response on CPU</div>
+                </div>
+            </div>
+
+            <h3>Source Code</h3>
+            <div class="source-links">
+                <a href="https://github.com/elichen/elichen.github.io/blob/main/tictactoe/train.py" target="_blank">train.py</a>
+                <span class="separator">•</span>
+                <a href="https://github.com/elichen/elichen.github.io/blob/main/tictactoe/tictactoe_env.py" target="_blank">tictactoe_env.py</a>
+                <span class="separator">•</span>
+                <a href="https://github.com/elichen/elichen.github.io/blob/main/tictactoe/perfect_player.py" target="_blank">perfect_player.py</a>
+                <span class="separator">•</span>
+                <a href="https://github.com/elichen/elichen.github.io/blob/main/tictactoe/export.py" target="_blank">export.py</a>
+            </div>
+        </section>
+    </article>
+
     <script src="game.js"></script>
     <script src="agent.js"></script>
-    <script src="visualization.js"></script>
     <script src="main.js"></script>
 </body>
 </html>
