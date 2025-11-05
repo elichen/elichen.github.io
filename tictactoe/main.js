@@ -1,196 +1,75 @@
 const game = new TicTacToeGame();
-const agent = new DQNAgent();
-const visualization = new Visualization();
+const agent = new PPOAgent();
 
-let isTraining = true;
-let episodeCount = 0;
-let testGamesPlayed = 0;
-let testGamesWon = 0;
-let gameLoopTimeout = null;
+let gameActive = false;
 
-class EvaluationManager {
-  constructor(evaluationFrequency = 100, numGames = 10) {
-      this.evaluationFrequency = evaluationFrequency;
-      this.numGames = numGames;
-      this.evaluationResults = [];
-      this.difficulty = 0;  // Start at easiest
-  }
-
-  async evaluateAgainstOptimal(agent, game) {
-      let losses = 0;
-      
-      for (let i = 0; i < this.numGames; i++) {
-          game.reset(true);
-          
-          while (!game.gameOver) {
-              const state = game.getState();
-              const validMoves = game.getValidMoves();
-              const action = agent.act(state, false, validMoves);
-              game.makeMove(action);
-              if (game.gameOver) break;
-              
-              // Opponent move with probability of random action
-              let optimalMove;
-              if (Math.random() < this.difficulty) {
-                  optimalMove = game.getBestMove(-1);
-              } else {
-                  const validMoves = game.getValidMoves();
-                  optimalMove = validMoves[Math.floor(Math.random() * validMoves.length)];
-              }
-              game.makeMove(optimalMove);
-          }
-          
-          if (game.checkWin(-1)) {
-              losses++;
-          }
-      }
-      
-      // Increase difficulty if agent is doing well
-      const losingRate = losses / this.numGames;
-      if (losingRate < 0.3 && this.difficulty < 1.0) {
-          this.difficulty += 0.1;
-          console.log("Increasing difficulty to:", this.difficulty);
-      }
-      
-      // Update difficulty display
-      const difficultyElement = document.getElementById('difficulty');
-      if (difficultyElement) {
-          difficultyElement.textContent = `Opponent Difficulty: ${(this.difficulty * 100).toFixed(0)}%`;
-      }
-      
-      return losingRate;
+function updateGameStatus(message) {
+  const statusElement = document.getElementById('gameStatus');
+  if (statusElement) {
+    statusElement.textContent = message;
   }
 }
 
-const evaluationManager = new EvaluationManager(100);
+async function playGame() {
+  // Randomly decide who goes first
+  const aiStarts = Math.random() < 0.5;
 
-function toggleMode() {
-  isTraining = !isTraining;
-  document.getElementById('modeButton').textContent = isTraining ? 'Switch to Test Mode' : 'Switch to Train Mode';
-  if (!isTraining) {
-    testGamesPlayed = 0;
-    testGamesWon = 0;
-    updateWinPercentage();
-  }
-  resetGame();
-}
+  // AI plays as X, Human plays as O
+  game.reset(false, aiStarts);
+  game.render(false);
+  gameActive = true;
 
-function updateWinPercentage() {
-  const winPercentage = (testGamesWon / testGamesPlayed * 100).toFixed(2);
-  document.getElementById('winPercentage').textContent = `Win Percentage: ${winPercentage}%`;
-}
-
-function getRandomStartingPlayer() {
-  return Math.random() < 0.5 ? 1 : 2;
-}
-
-async function runEpisode() {
-  const agentStarts = getRandomStartingPlayer() === 1;
-  const agentPlayer = agentStarts ? 1 : 2;
-  const agentIsX = (agentPlayer === 1);
-
-  game.reset(isTraining, agentStarts);
-
-  if (!isTraining) {
-    game.render(isTraining);
+  if (aiStarts) {
+    updateGameStatus("AI goes first as X");
+    // Small delay so user can see who goes first
+    await new Promise(resolve => setTimeout(resolve, 500));
+  } else {
+    updateGameStatus("You go first! Click a square to play as O");
   }
 
-  let episodeLoss = null;
+  while (!game.gameOver && gameActive) {
+    if (game.currentPlayer === 1) {
+      // AI's turn (X)
+      updateGameStatus("AI is thinking...");
+      await new Promise(resolve => setTimeout(resolve, 300)); // Small delay for UX
 
-  while (!game.gameOver) {
-    // Always consider the "X perspective" state
-    const stateFromX = game.getState(1);
-    const validMovesFromX = game.getValidMoves();
+      const state = game.getState(1);
+      const validMoves = game.getValidMoves();
+      const action = agent.act(state, validMoves);
+      game.makeMove(action);
+      game.render(false);
 
-    // If the agent is O, invert the perspective
-    let inputState = stateFromX;
-    let inputValidMoves = validMovesFromX;
-    if (!agentIsX) {
-      inputState = stateFromX.map(cell => -cell);
-      inputValidMoves = inputState.reduce((acc, cell, idx) => {
-        if (cell === 0) acc.push(idx);
-        return acc;
-      }, []);
-    }
-
-    let action;
-    if (!isTraining && game.currentPlayer === 2) {
-      // Human move if in test mode and current player is O
+      if (game.gameOver) break;
+      updateGameStatus("Your turn! Click a square to play as O");
+    } else {
+      // Human's turn (O)
       const cells = document.querySelectorAll('.cell');
-      action = await waitForHumanMove(cells);
+      const action = await waitForHumanMove(cells);
+      game.makeMove(action);
+      game.render(false);
+    }
+  }
+
+  // Show result
+  if (game.gameOver) {
+    if (game.checkWin(1)) {
+      updateGameStatus("AI wins! (X)");
+    } else if (game.checkWin(-1)) {
+      updateGameStatus("You win! (O)");
     } else {
-      // Agent move: same perspective logic applies in test mode as in training mode
-      tf.tidy(() => {
-        action = agent.act(inputState, isTraining, inputValidMoves);
-      });
+      updateGameStatus("It's a draw!");
     }
 
-    // Execute the move in the environment
-    game.makeMove(action);
-
-    // Compute reward from X’s perspective
-    const rewardFromX = game.getReward(1);
-    const done = game.gameOver;
-    const nextStateFromX = game.getState(1);
-
-    // Adjust reward and next state if agent is O
-    let finalReward, finalNextState;
-    if (agentIsX) {
-      finalReward = rewardFromX;
-      finalNextState = nextStateFromX;
-    } else {
-      finalNextState = nextStateFromX.map(cell => -cell);
-      // Invert reward:
-      // X win (1) => agent loses => -1
-      // X lose (-1) => agent wins => +1
-      // Draw (0.5) stays 0.5
-      if (rewardFromX === 1) {
-        finalReward = -1;
-      } else if (rewardFromX === -1) {
-        finalReward = 1;
-      } else {
-        finalReward = rewardFromX;
-      }
-    }
-
-    if (isTraining) {
-      // During training, store experience and train
-      const preStateForAgent = agentIsX ? stateFromX : stateFromX.map(cell => -cell);
-      const loss = await agent.remember(preStateForAgent, action, finalReward, finalNextState, done);
-      if (loss !== null) {
-        episodeLoss = loss;
-      }
-    }
-
-    if (!isTraining) {
-      game.render(isTraining);
-    }
-
-    // Evaluate periodically in training mode
-    if (isTraining && episodeCount % evaluationManager.evaluationFrequency === 0) {
-      const losingRate = await evaluationManager.evaluateAgainstOptimal(agent, game);
-      visualization.updateStats(losingRate);
+    // Auto restart after 2 seconds
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    if (gameActive) {
+      playGame();
     }
   }
-
-  episodeCount++;
-  if (isTraining) {
-    agent.decayEpsilon();
-  }
-
-  if (!isTraining) {
-    await showNewGameMessage();
-  }
-
-  if (gameLoopTimeout) {
-    clearTimeout(gameLoopTimeout);
-  }
-  gameLoopTimeout = setTimeout(runEpisode, isTraining ? 0 : 1000);
 }
 
-function waitForHumanMove() {
+function waitForHumanMove(cells) {
   return new Promise((resolve) => {
-    const cells = document.querySelectorAll('.cell');
     const clickHandler = (event) => {
       const index = Array.from(cells).indexOf(event.target);
       if (game.isValidMove(index)) {
@@ -202,55 +81,17 @@ function waitForHumanMove() {
   });
 }
 
-function resetGame() {
-  if (gameLoopTimeout) {
-    clearTimeout(gameLoopTimeout);
-    gameLoopTimeout = null;
-  }
-  game.reset(isTraining);
-  if (!isTraining) {
-    runEpisode();
-  } else {
-    gameLoopTimeout = setTimeout(runEpisode, 0);
-  }
-}
-
 async function init() {
-  visualization.updateStats();
-  document.getElementById('modeButton').addEventListener('click', toggleMode);
-  
-  const statsContainer = document.querySelector('.container');
-  
-  // Create win percentage element
-  const winPercentageElement = document.createElement('div');
-  winPercentageElement.id = 'winPercentage';
-  winPercentageElement.className = 'stats';
-  statsContainer.insertBefore(winPercentageElement, document.getElementById('chart'));
-  
-  // Create difficulty display element
-  const difficultyElement = document.createElement('div');
-  difficultyElement.id = 'difficulty';
-  difficultyElement.className = 'stats';
-  difficultyElement.textContent = 'Opponent Difficulty: 0%';
-  statsContainer.insertBefore(difficultyElement, document.getElementById('chart'));
-  
-  gameLoopTimeout = setTimeout(runEpisode, 0);
+  // Load the PPO model
+  const modelLoaded = await agent.loadModel();
+
+  if (modelLoaded) {
+    console.log('PPO model loaded successfully');
+    // Start the game
+    playGame();
+  } else {
+    updateGameStatus('⚠️ Model not loaded - Please train a model first');
+  }
 }
 
 init();
-
-function showNewGameMessage() {
-  return new Promise((resolve) => {
-    const messageElement = document.createElement('div');
-    messageElement.textContent = 'New game starting...';
-    messageElement.style.fontSize = '20px';
-    messageElement.style.marginTop = '10px';
-    game.container.appendChild(messageElement);
-    
-    setTimeout(() => {
-      messageElement.remove();
-      game.render(false);
-      resolve();
-    }, 1000);
-  });
-}

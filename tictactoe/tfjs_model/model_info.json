@@ -1,0 +1,21 @@
+{
+  "input_shape": [
+    9
+  ],
+  "output_shape": [
+    9
+  ],
+  "description": "PPO agent trained to expert level (never loses)",
+  "training_steps": 1000000,
+  "training_config": {
+    "opponent_mix": "70% perfect, 30% random",
+    "algorithm": "MaskablePPO with action masking",
+    "reward_structure": "win=+1.0, draw=+0.5, loss=-1.0"
+  },
+  "performance": {
+    "vs_perfect": "100% never-lose rate (40 wins, 60 draws, 0 losses)",
+    "vs_random": "91% win rate (91 wins, 6 draws, 3 losses)",
+    "skill_level": "Expert - Never loses to perfect opponent"
+  },
+  "usage": "Model outputs action logits for each board position (0-8)"
+}

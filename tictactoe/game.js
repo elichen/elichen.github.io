@@ -78,31 +78,12 @@ class TicTacToeGame {
     }
 
     this.container.appendChild(boardElement);
-
-    if (this.gameOver) {
-      const gameOverMessage = document.createElement('div');
-      gameOverMessage.className = 'game-over-message';
-      gameOverMessage.textContent = this.getGameOverMessage();
-      this.container.appendChild(gameOverMessage);
-    }
   }
 
   getCellContent(value) {
     if (value === 1) return 'X';
     if (value === -1) return 'O';
     return '';
-  }
-
-  getGameOverMessage() {
-    if (this.checkWin(1)) {
-      return "X wins!";
-    } else if (this.checkWin(-1)) {
-      return "O wins!";
-    } else if (!this.board.includes(0)) {
-      return "It's a draw!";
-    } else {
-      return "Game in progress";
-    }
   }
 
   getValidMoves() {
@@ -130,53 +111,5 @@ class TicTacToeGame {
       }
     }
     return false;
-  }
-
-  minimax(board, player, depth = 0) {
-    const availableMoves = this.getValidMoves();
-    
-    // Base cases
-    if (this.checkWin(1)) return 10 - depth;
-    if (this.checkWin(-1)) return depth - 10;
-    if (availableMoves.length === 0) return 0;
-    
-    if (player === 1) {
-      let bestScore = -Infinity;
-      for (let move of availableMoves) {
-        board[move] = player;
-        let score = this.minimax(board, -1, depth + 1);
-        board[move] = 0;
-        bestScore = Math.max(score, bestScore);
-      }
-      return bestScore;
-    } else {
-      let bestScore = Infinity;
-      for (let move of availableMoves) {
-        board[move] = player;
-        let score = this.minimax(board, 1, depth + 1);
-        board[move] = 0;
-        bestScore = Math.min(score, bestScore);
-      }
-      return bestScore;
-    }
-  }
-
-  getBestMove(player = 1) {
-    const availableMoves = this.getValidMoves();
-    let bestScore = player === 1 ? -Infinity : Infinity;
-    let bestMove = availableMoves[0];
-    
-    for (let move of availableMoves) {
-        this.board[move] = player;
-        let score = this.minimax(this.board, -player);
-        this.board[move] = 0;
-        
-        if (player === 1 ? score > bestScore : score < bestScore) {
-            bestScore = score;
-            bestMove = move;
-        }
-    }
-    
-    return bestMove;
   }
 }
