@@ -3,59 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stick Balancing RL</title>
+    <title>Self-Balancing Stick Environment</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div id="app">
-        <h1>Stick Balancing Reinforcement Learning</h1>
-        <canvas id="stickCanvas" width="800" height="400"></canvas>
-        <div id="controls">
-            <button id="toggleMode">Switch to Testing</button>
-        </div>
-        <div id="stats">
-            <p>Mode: <span id="currentMode">Training</span></p>
-            <p>Episode: <span id="episodeCount">0</span></p>
-        </div>
-        <canvas id="metricsChart" width="800" height="400"></canvas> <!-- Added metrics chart -->
-
-        <div id="explanation"> <!-- Updated explanation section -->
-            <h2>Learning Algorithm</h2>
-            <p>
-                The reinforcement learning agent uses a Policy Gradient method to directly learn the optimal policy for balancing the stick. Unlike value-based methods (like DQN), policy gradients learn by directly adjusting the probabilities of taking actions in each state. The network outputs action probabilities and samples actions from this distribution during training, providing natural exploration without needing an explicit exploration parameter.
-            </p>
-            
-            <h2>Metrics Explanation</h2>
-            <p>
-                <strong>Episode Reward:</strong> Represents the cumulative reward obtained in a single episode. A higher reward indicates better performance in balancing the stick. The reward structure encourages keeping the pole upright (+1 for each step, scaled by pole angle) while heavily penalizing failures (-10).
-            </p>
-            
-            <h2>Learning Process</h2>
-            <p>
-                The agent learns by:
-                <br>1. Sampling actions based on their predicted probabilities
-                <br>2. Collecting entire episodes of experience
-                <br>3. Computing returns (discounted sum of rewards) for each action
-                <br>4. Adjusting action probabilities: increasing probabilities of actions that led to good returns, and decreasing probabilities of actions that led to poor returns
-                <br><br>
-                This process is similar to learning to ride a bike - try actions with certain probabilities, do successful ones more often, and unsuccessful ones less often, until converging to good actions.
-            </p>
-
-            <h2>Policy Gradient Intuition</h2>
-            <p>
-                Policy Gradient methods, like the one used here, focus on optimizing the policy directly. The key idea is to adjust the action probabilities in a way that actions leading to higher returns become more likely. This is achieved by calculating the gradient of the expected return with respect to the policy parameters and updating the policy in the direction that increases the expected return. The use of a discount factor ensures that the agent considers both immediate and future rewards, balancing short-term gains with long-term success.
-            </p>
-
-            <h2>Advantage Normalization</h2>
-            <p>
-                Advantage Normalization is used to stabilize the training process by reducing variance in the policy gradient updates. Instead of using raw returns, the agent calculates advantages by subtracting a baseline (the mean return) from each return. This helps the agent focus on actions that are better than average, leading to more reliable learning. By normalizing the advantages, the agent can more effectively learn which actions are truly advantageous, preventing the model from collapsing into suboptimal policies.
-            </p>
-        </div>
+        <canvas id="stickCanvas" width="900" height="600"></canvas>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"> </script>
     <script src="environment.js"></script>
-    <script src="agent.js"></script>
     <script src="visualization.js"></script>
     <script src="main.js"></script>
 </body>

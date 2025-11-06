@@ -2,22 +2,26 @@ class StickBalancingEnv {
     constructor() {
         // Environment parameters
         this.gravity = 9.81;
-        this.cartMass = 1.0;
-        this.poleMass = 0.1;
-        this.poleLength = 0.5;
+        this.railLength = 4.8;
+        this.stickLength = 1.8;
         this.dt = 0.02;
-        this.forceStrength = 10.0;
-        this.maxPosition = 2.4;
-        this.maxAngle = 1  // About 57.3 degrees
-        
-        // Angular friction
-        this.angularFriction = 0.05;
+        this.maxPosition = this.railLength / 2;
 
-        // Parameters for restart condition
-        this.maxStepsDown = 20;
-        this.stepsDown = 0; // Counter for steps the stick has been down
+        // Mass parameters
+        this.stickMass = 0.1;
+        this.weightMass = 0.3;
 
-        this.previousAngle = 0;  // Add this to track previous angle
+        // Calculate center of mass and moment of inertia
+        this.totalMass = this.stickMass + this.weightMass;
+        // Center of mass from pivot point
+        this.centerOfMass = (this.stickMass * this.stickLength/2 + this.weightMass * this.stickLength) / this.totalMass;
+        // Moment of inertia: rod (1/3 mL^2) + point mass (mL^2)
+        this.momentOfInertia = (this.stickMass * this.stickLength * this.stickLength / 3) +
+                               (this.weightMass * this.stickLength * this.stickLength);
+
+        // Damping coefficient for pendulum
+        this.angularDamping = 0.10;
+
         this.reset();
     }
 
@@ -25,75 +29,93 @@ class StickBalancingEnv {
         // Randomize position and velocity with small values
         this.position = (Math.random() - 0.5) * 0.1;
         this.velocity = (Math.random() - 0.5) * 0.1;
-        
-        // Increase the range of starting angles
-        // Start with angles up to ±30 degrees (±0.52 radians)
-        const maxStartAngle = 0.52; // about 30 degrees
-        this.angle = Math.random() * maxStartAngle * (Math.random() < 0.5 ? -1 : 1);
-        
+
+        // Start with stick pointing down (π radians) with some variation
+        this.angle = Math.PI + (Math.random() - 0.5) * 0.3;
+
         // Small random initial angular velocity
         this.angularVelocity = (Math.random() - 0.5) * 0.1;
-        
-        this.stepsDown = 0; // Reset the counter
-        this.previousAngle = this.angle;  // Initialize previous angle
+
         return this.getState();
     }
 
     step(action) {
-        // Store previous angle before updating
-        this.previousAngle = this.angle;
+        // Direct cart velocity control for responsive motion
+        const targetVelocity = (action - 1) * 5.0;  // -5, 0, or 5 m/s target velocity
 
-        const force = (action - 1) * this.forceStrength;
-        
-        const cosTheta = Math.cos(this.angle);
-        const sinTheta = Math.sin(this.angle);
+        // Check if we're at a boundary and trying to move further into it
+        const atLeftBoundary = this.position <= -this.maxPosition && targetVelocity < 0;
+        const atRightBoundary = this.position >= this.maxPosition && targetVelocity > 0;
 
-        const temp = (force + this.poleMass * this.poleLength * this.angularVelocity ** 2 * sinTheta) / (this.cartMass + this.poleMass);
-        const angularAcceleration = (this.gravity * sinTheta - cosTheta * temp) / (this.poleLength * (4/3 - this.poleMass * cosTheta ** 2 / (this.cartMass + this.poleMass)));
-        const acceleration = temp - this.poleMass * this.poleLength * angularAcceleration * cosTheta / (this.cartMass + this.poleMass);
+        let cartAcceleration = 0;
 
-        // Update position and velocity with boundary checks
+        if (!atLeftBoundary && !atRightBoundary) {
+            // Only accelerate if not pushing into a boundary
+            cartAcceleration = (targetVelocity - this.velocity) * 25.0;
+        } else if ((atLeftBoundary && targetVelocity > 0) || (atRightBoundary && targetVelocity < 0)) {
+            // Allow moving away from boundary
+            cartAcceleration = (targetVelocity - this.velocity) * 25.0;
+        } else {
+            // At boundary and trying to push into it - stop completely
+            this.velocity = 0;
+        }
+
+        // Update cart position and velocity
+        this.velocity += cartAcceleration * this.dt;
+        this.velocity = Math.max(-6, Math.min(6, this.velocity));  // Limit max velocity
         this.position += this.velocity * this.dt;
-        this.velocity += acceleration * this.dt;
 
-        // Limit position within boundaries
-        if (Math.abs(this.position) > this.maxPosition) {
-            this.position = Math.sign(this.position) * this.maxPosition;
-            this.velocity = 0; // Stop the cart at the boundary
+        // Hard stop at rail boundaries
+        if (this.position < -this.maxPosition) {
+            this.position = -this.maxPosition;
+            this.velocity = Math.max(0, this.velocity);  // Only allow positive velocity
+        } else if (this.position > this.maxPosition) {
+            this.position = this.maxPosition;
+            this.velocity = Math.min(0, this.velocity);  // Only allow negative velocity
         }
 
-        // Apply angular friction
-        const frictionTorque = -this.angularFriction * this.angularVelocity;
-        const totalAngularAcceleration = angularAcceleration + frictionTorque / (this.poleMass * this.poleLength ** 2 / 3);
+        // Realistic pendulum physics
+        const sinTheta = Math.sin(this.angle);
+        const cosTheta = Math.cos(this.angle);
 
-        this.angle += this.angularVelocity * this.dt;
+        // Torque from gravity acting on center of mass
+        const gravityTorque = this.totalMass * this.gravity * this.centerOfMass * sinTheta;
+
+        // Torque from cart acceleration (pseudo-force in accelerating frame)
+        const accelerationTorque = -this.totalMass * this.centerOfMass * cartAcceleration * cosTheta;
+
+        // Total torque
+        const totalTorque = gravityTorque + accelerationTorque;
+
+        // Angular acceleration = torque / moment of inertia
+        const angularAcceleration = totalTorque / this.momentOfInertia;
+
+        // Apply damping (proportional to angular velocity)
+        const dampingAcceleration = -this.angularDamping * this.angularVelocity;
+        const totalAngularAcceleration = angularAcceleration + dampingAcceleration;
+
+        // Update angle and angular velocity
         this.angularVelocity += totalAngularAcceleration * this.dt;
+        this.angle += this.angularVelocity * this.dt;
 
-        // Check if the stick is down and update the counter
-        if (Math.abs(this.angle) > this.maxAngle) {
-            this.stepsDown++;
-        } else {
-            this.stepsDown = 0; // Reset the counter if the stick is upright
+        // Normalize angle to [-π, π]
+        while (this.angle > Math.PI) {
+            this.angle -= 2 * Math.PI;
+        }
+        while (this.angle < -Math.PI) {
+            this.angle += 2 * Math.PI;
         }
 
-        const done = this.stepsDown >= this.maxStepsDown;
-        
-        // New reward structure based on improvement
-        let reward;
-        if (done) {
-            reward = -10;  // Stronger penalty for failure
-        } else {
-            // Combine improvement reward with upright position reward
-            const previousAbsAngle = Math.abs(this.previousAngle);
-            const currentAbsAngle = Math.abs(this.angle);
-            const improvement = previousAbsAngle - currentAbsAngle;
-            
-            // Base reward for being upright (1.0 when vertical, 0 when at maxAngle)
-            const uprightReward = 1.0 - (currentAbsAngle / this.maxAngle);
-            
-            // Combine both rewards
-            reward = uprightReward + improvement * 5.0;  // Scale improvement for stronger signal
-        }
+        // Continuous environment
+        const done = false;
+
+        // Reward structure: cosine gives 1 when upright, -1 when down
+        const uprightReward = Math.cos(this.angle);
+
+        // Velocity penalty
+        const velocityPenalty = 0.001 * (this.velocity ** 2 + this.angularVelocity ** 2);
+
+        const reward = uprightReward - velocityPenalty;
 
         return [this.getState(), reward, done];
     }
