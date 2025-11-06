@@ -1,131 +1,89 @@
-// Main application logic
+// Environment simulation
 
 let environment;
-let agent;
-let isTraining = true;
-let episodeCount = 0;
-let shouldDrawEveryFrame = false;
+let animationId;
+let currentAction = 1; // 0=left, 1=none, 2=right
 
 function initializeApp() {
     environment = new StickBalancingEnv();
-    agent = new PolicyGradientAgent(environment);
-    
-    setupEventListeners();
-    resetEnvironment();
-    initializeMetricsChart();
-    updateModeDisplay();
-    startTraining();
-}
 
-function setupEventListeners() {
-    document.getElementById('toggleMode').addEventListener('click', toggleMode);
-}
-
-function toggleMode() {
-    isTraining = !isTraining;
-    shouldDrawEveryFrame = !isTraining;
-    updateModeDisplay();
-    if (isTraining) {
-        startTraining();
-    } else {
-        stopTraining();
-    }
-}
-
-function startTraining() {
-    trainLoop();
-}
-
-function stopTraining() {
-    // Stop the training loop, but continue running in testing mode
-    runTestingLoop();
-}
-
-function resetEnvironment() {
+    // Start with a random state
     environment.reset();
-    agent.reset();
-    episodeCount = 0;
-    updateStats();
+
+    // Setup keyboard controls
+    setupKeyboardControls();
+
+    // Start animation loop
+    animate();
+}
+
+function setupKeyboardControls() {
+    const keysPressed = new Set();
+
+    document.addEventListener('keydown', (e) => {
+        if (e.repeat) return; // Ignore key repeat
+
+        switch(e.key) {
+            case 'ArrowLeft':
+            case 'a':
+                keysPressed.add('left');
+                break;
+            case 'ArrowRight':
+            case 'd':
+                keysPressed.add('right');
+                break;
+            case ' ':
+            case 'r':
+                environment.reset();
+                break;
+        }
+
+        // Update action based on currently pressed keys
+        if (keysPressed.has('left') && !keysPressed.has('right')) {
+            currentAction = 0;
+        } else if (keysPressed.has('right') && !keysPressed.has('left')) {
+            currentAction = 2;
+        } else {
+            currentAction = 1; // Both or neither pressed
+        }
+    });
+
+    document.addEventListener('keyup', (e) => {
+        switch(e.key) {
+            case 'ArrowLeft':
+            case 'a':
+                keysPressed.delete('left');
+                break;
+            case 'ArrowRight':
+            case 'd':
+                keysPressed.delete('right');
+                break;
+        }
+
+        // Update action based on currently pressed keys
+        if (keysPressed.has('left') && !keysPressed.has('right')) {
+            currentAction = 0;
+        } else if (keysPressed.has('right') && !keysPressed.has('left')) {
+            currentAction = 2;
+        } else {
+            currentAction = 1; // Both or neither pressed
+        }
+    });
+}
+
+function animate() {
+    // Step the environment with current action
+    const [state, reward, done] = environment.step(currentAction);
+
+    // Draw the current state
     drawEnvironment();
+
+    // Continue animation
+    animationId = requestAnimationFrame(animate);
 }
 
-async function trainLoop() {
-    while (isTraining) {
-        let state = environment.reset();
-        let episodeReward = 0;
-        let done = false;
-        let stepCount = 0;
+// Expose environment globally
+window.environment = environment;
 
-        while (!done && stepCount < 500) {
-            const action = await agent.selectAction(state);
-            const [nextState, reward, stepDone] = environment.step(action);
-            
-            await agent.update(state, action, reward, nextState, stepDone);
-            
-            state = nextState;
-            episodeReward += reward;
-            stepCount++;
-            done = stepDone;
-            
-            if (shouldDrawEveryFrame) {
-                drawEnvironment();
-            }
-        }
-
-        drawEnvironment();
-
-        episodeCount++;
-        updateStats();
-        updateMetricsChart(episodeCount, episodeReward);
-
-        if (episodeCount % 10 === 0) {
-            console.log(`Episode ${episodeCount}, Episode Reward: ${episodeReward.toFixed(2)}, Steps: ${stepCount}`);
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 0));
-    }
-}
-
-async function runTestingLoop() {
-    shouldDrawEveryFrame = true;
-    while (!isTraining) {
-        let state = environment.reset();
-        let episodeReward = 0;
-        let done = false;
-        let stepCount = 0;
-
-        while (!done) {
-            const action = await agent.selectAction(state, true);
-            const [nextState, reward, stepDone] = environment.step(action);
-            
-            state = nextState;
-            episodeReward += reward;
-            stepCount++;
-            done = stepDone;
-            
-            drawEnvironment();
-            await new Promise(resolve => setTimeout(resolve, 10));
-        }
-
-        episodeCount++;
-        updateStats();
-        updateMetricsChart(episodeCount, episodeReward);
-
-        if (episodeCount % 10 === 0) {
-            console.log(`Test Episode ${episodeCount}, Episode Reward: ${episodeReward.toFixed(2)}, Steps: ${stepCount}`);
-        }
-    }
-}
-
-function updateModeDisplay() {
-    const modeButton = document.getElementById('toggleMode');
-    modeButton.textContent = isTraining ? 'Switch to Testing' : 'Switch to Training';
-    document.getElementById('currentMode').textContent = isTraining ? 'Training' : 'Testing';
-}
-
-function updateStats() {
-    document.getElementById('episodeCount').textContent = episodeCount;
-}
-
-// Initialize the application when the window loads
+// Initialize when window loads
 window.onload = initializeApp;
