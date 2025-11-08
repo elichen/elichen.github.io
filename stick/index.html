@@ -3,15 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Self-Balancing Stick Environment</title>
+    <title>Inverted Pendulum Swingup</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.0.0/dist/tf.min.js"></script>
 </head>
 <body>
-    <div id="app">
-        <canvas id="stickCanvas" width="900" height="600"></canvas>
-    </div>
+    <article>
+        <header>
+            <h1>Inverted Pendulum Swingup</h1>
+            <p class="subtitle">Learning continuous control with Soft Actor-Critic</p>
+        </header>
+
+        <section class="demo">
+            <canvas id="stickCanvas" width="900" height="600"></canvas>
+            <div class="controls">
+                <button id="aiToggle" class="control-btn">Stop AI</button>
+            </div>
+            <div class="key-help">
+                <kbd>←</kbd> <kbd>→</kbd> Move cart · <kbd>R</kbd> Reset
+            </div>
+        </section>
+
+        <section class="details">
+            <h2>Training Details</h2>
+            <p>
+                This demonstration shows a policy trained using SAC (Soft Actor-Critic) to swing up
+                and balance an inverted pendulum from the downward position. The task requires learning
+                to build energy through coordinated cart movements, then stabilize once upright.
+            </p>
+
+            <div class="metrics">
+                <div class="metric">
+                    <span class="metric-label">Training Steps</span>
+                    <span class="metric-value">1,000,000</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Algorithm</span>
+                    <span class="metric-value">SAC</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Balance Rate</span>
+                    <span class="metric-value">87.7%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Network</span>
+                    <span class="metric-value">[256, 256]</span>
+                </div>
+            </div>
+
+            <p>
+                The continuous action space allows smooth cart movements, mapped to target velocities in [-5, 5] m/s.
+                Shaped rewards combining upright positioning, energy, and height enabled convergence within 1M steps.
+            </p>
+        </section>
+    </article>
+
     <script src="environment.js"></script>
     <script src="visualization.js"></script>
+    <script src="ai_controller.js"></script>
     <script src="main.js"></script>
 </body>
 </html>

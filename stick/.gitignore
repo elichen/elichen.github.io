@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Training outputs
+stick_python/models*/
+stick_python/*.pkl
+stick_python/*.zip
+stick_python/*.onnx
+
+# TensorBoard logs
+stick_python/tensorboard/
+stick_python/logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
