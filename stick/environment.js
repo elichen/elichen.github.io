@@ -40,8 +40,8 @@ class StickBalancingEnv {
     }
 
     step(action) {
-        // Direct cart velocity control for responsive motion
-        const targetVelocity = (action - 1) * 5.0;  // -5, 0, or 5 m/s target velocity
+        // Handle continuous action [-1, 1] mapping to target velocity [-5, 5] m/s
+        const targetVelocity = action * 5.0;  // Maps to [-5, 5] m/s target velocity
 
         // Check if we're at a boundary and trying to move further into it
         const atLeftBoundary = this.position <= -this.maxPosition && targetVelocity < 0;

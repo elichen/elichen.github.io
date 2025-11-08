@@ -1,0 +1,9 @@
+gymnasium>=0.29.0
+numpy>=1.20.0
+stable-baselines3>=2.0.0
+sb3-contrib>=2.0.0
+pygame>=2.0.0  # For rendering (optional)
+# tensorboard>=2.10.0  # Optional - For training monitoring
+onnx>=1.14.0
+onnxruntime>=1.15.0
+tensorflowjs>=4.0.0

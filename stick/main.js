@@ -2,23 +2,74 @@
 
 let environment;
 let animationId;
-let currentAction = 1; // 0=left, 1=none, 2=right
+let currentAction = 0.0; // Continuous value between -1 and 1 (left to right)
+let aiController;
+let aiActive = false;
 
-function initializeApp() {
+async function initializeApp() {
     environment = new StickBalancingEnv();
 
     // Start with a random state
     environment.reset();
 
-    // Setup keyboard controls
+    // Initialize AI controller
+    aiController = new AIController();
+
+    // Setup controls
     setupKeyboardControls();
+    setupAIControls();
+
+    // Try to load AI model
+    loadAIModel();
 
     // Start animation loop
     animate();
 }
 
+async function loadAIModel() {
+    try {
+        const success = await aiController.loadModel();
+        if (success) {
+            // Enable AI by default once loaded
+            aiActive = true;
+            aiController.setEnabled(true);
+            console.log('AI model loaded and enabled');
+        } else {
+            console.warn('AI model not found');
+        }
+    } catch (error) {
+        console.error('Failed to load AI model:', error);
+    }
+}
+
+function setupAIControls() {
+    const toggleButton = document.getElementById('aiToggle');
+
+    // Button starts as "Stop AI" since AI is enabled by default
+    toggleButton.classList.add('active');
+
+    toggleButton.addEventListener('click', () => {
+        if (!aiController.isLoaded) {
+            console.warn('AI model not loaded yet');
+            return;
+        }
+
+        aiActive = !aiActive;
+        aiController.setEnabled(aiActive);
+
+        if (aiActive) {
+            toggleButton.textContent = 'Stop AI';
+            toggleButton.classList.add('active');
+        } else {
+            toggleButton.textContent = 'Start AI';
+            toggleButton.classList.remove('active');
+        }
+    });
+}
+
 function setupKeyboardControls() {
-    const keysPressed = new Set();
+    // Make keysPressed globally accessible for override logic
+    window.keysPressed = new Set();
 
     document.addEventListener('keydown', (e) => {
         if (e.repeat) return; // Ignore key repeat
@@ -26,25 +77,19 @@ function setupKeyboardControls() {
         switch(e.key) {
             case 'ArrowLeft':
             case 'a':
-                keysPressed.add('left');
+            case 'A':
+                window.keysPressed.add('left');
                 break;
             case 'ArrowRight':
             case 'd':
-                keysPressed.add('right');
+            case 'D':
+                window.keysPressed.add('right');
                 break;
             case ' ':
             case 'r':
+            case 'R':
                 environment.reset();
                 break;
-        }
-
-        // Update action based on currently pressed keys
-        if (keysPressed.has('left') && !keysPressed.has('right')) {
-            currentAction = 0;
-        } else if (keysPressed.has('right') && !keysPressed.has('left')) {
-            currentAction = 2;
-        } else {
-            currentAction = 1; // Both or neither pressed
         }
     });
 
@@ -52,28 +97,49 @@ function setupKeyboardControls() {
         switch(e.key) {
             case 'ArrowLeft':
             case 'a':
-                keysPressed.delete('left');
+            case 'A':
+                window.keysPressed.delete('left');
                 break;
             case 'ArrowRight':
             case 'd':
-                keysPressed.delete('right');
+            case 'D':
+                window.keysPressed.delete('right');
                 break;
-        }
-
-        // Update action based on currently pressed keys
-        if (keysPressed.has('left') && !keysPressed.has('right')) {
-            currentAction = 0;
-        } else if (keysPressed.has('right') && !keysPressed.has('left')) {
-            currentAction = 2;
-        } else {
-            currentAction = 1; // Both or neither pressed
         }
     });
 }
 
-function animate() {
+function getKeyboardAction() {
+    // Check if any movement keys are pressed
+    if (window.keysPressed.has('left') && !window.keysPressed.has('right')) {
+        return -1.0; // Full left
+    } else if (window.keysPressed.has('right') && !window.keysPressed.has('left')) {
+        return 1.0; // Full right
+    } else {
+        return null; // No keyboard input
+    }
+}
+
+async function animate() {
+    // Get current state for AI
+    const state = environment.getState();
+
+    // Priority: Keyboard input always overrides AI
+    const keyboardAction = getKeyboardAction();
+
+    if (keyboardAction !== null) {
+        // User is pressing keys - use keyboard input
+        currentAction = keyboardAction;
+    } else if (aiActive && aiController.isActive()) {
+        // No keyboard input and AI is active - use AI
+        currentAction = await aiController.getAction(state);
+    } else {
+        // No keyboard input and AI not active - stop
+        currentAction = 0.0;
+    }
+
     // Step the environment with current action
-    const [state, reward, done] = environment.step(currentAction);
+    const [newState, reward, done] = environment.step(currentAction);
 
     // Draw the current state
     drawEnvironment();
