@@ -25,7 +25,6 @@ metrics.json
 
 # Model exports and checkpoints
 js_weights/
-tfjs_model/
 web_model/
 model_weights/
 models/
