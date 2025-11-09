@@ -1,0 +1,24 @@
+# Requirements for PPO Snake training
+# Install with: pip install -r requirements_ppo.txt
+
+# Core dependencies
+numpy>=1.24.0
+gymnasium>=0.29.0
+stable-baselines3>=2.1.0
+
+# For parallel environments
+cloudpickle>=2.2.0
+
+# Visualization and monitoring
+matplotlib>=3.6.0
+seaborn>=0.12.0
+tensorboard>=2.13.0
+
+# For model export to TensorFlow.js
+tensorflow>=2.13.0
+tensorflowjs>=4.10.0
+
+# Optional but recommended
+tqdm>=4.65.0
+pandas>=2.0.0
+psutil>=5.9.0

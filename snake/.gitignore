@@ -7,6 +7,7 @@ checkpoints/
 # Python virtual environment
 snake_env/
 venv/
+venv_ppo/
 __pycache__/
 *.pyc
 *.pyo
@@ -16,15 +17,19 @@ __pycache__/
 *.log
 *.tmp
 *.temp
+logs/
+logs_test/
 training_log.txt
 training_metrics.json
 metrics.json
 
-# Model exports
+# Model exports and checkpoints
 js_weights/
 tfjs_model/
 web_model/
 model_weights/
+models/
+models_test/
 
 # OS files
 .DS_Store

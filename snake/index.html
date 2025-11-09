@@ -3,58 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snake AI - Pre-trained Model Demo</title>
+    <title>Snake AI - Reinforcement Learning</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>Snake AI with Pre-trained Model</h1>
-        <div class="game-section">
+        <h1>Snake AI</h1>
+        <p class="subtitle">Trained with Proximal Policy Optimization</p>
+
+        <div class="canvas-wrapper">
             <canvas id="gameCanvas" width="600" height="600"></canvas>
-            <div class="stats">
-                <p>Episode: <span id="episode">0</span></p>
-                <p>Score: <span id="score">0</span></p>
-                <p>Food Eaten: <span id="foodEaten">0</span></p>
-                <p>Model Status: <span id="modelStatus">Loading...</span></p>
-                <p id="modeStatus">Mode: Demo</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <span class="stat-value" id="score">0</span>
+                <span class="stat-label">Current Score</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="episode">1</span>
+                <span class="stat-label">Episode</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="foodEaten">0</span>
+                <span class="stat-label">Food Eaten</span>
             </div>
         </div>
-        <div class="controls">
-            <button id="demoBtn">Start Demo</button>
-            <button id="trainBtn">Continue Training</button>
-            <button id="resetBtn">Reset</button>
-            <div class="speed-control">
-                <label for="speedSlider">Speed: <span id="speedValue">100</span>ms</label>
-                <input type="range" id="speedSlider" min="10" max="500" value="100" step="10">
+
+        <p id="modelStatus"></p>
+
+        <div class="description">
+            <p>This agent learned to play Snake through 37.1 million timesteps of reinforcement learning on a 20×20 grid. The model achieves a best score of 71 cells (17.8% grid fill) and an average of 32 cells across continuous play.</p>
+
+            <p>Training was conducted directly on the target grid size without curriculum learning, using 8 parallel environments and PPO with entropy regularization to encourage exploration.</p>
+        </div>
+
+        <div class="metrics">
+            <div class="metric-card">
+                <div class="label">Best Performance</div>
+                <div class="value">71 cells</div>
             </div>
-            <a href="index-training.html" style="margin-left: 20px;">View Training Version</a>
+            <div class="metric-card">
+                <div class="label">Training Steps</div>
+                <div class="value">37.1M</div>
+            </div>
+            <div class="metric-card">
+                <div class="label">Grid Fill</div>
+                <div class="value">17.8%</div>
+            </div>
+            <div class="metric-card">
+                <div class="label">Architecture</div>
+                <div class="value">MLP</div>
+            </div>
         </div>
-        <div class="chart-container">
-            <canvas id="combinedChart"></canvas>
+
+        <div class="technical-details">
+            <h3>Architecture</h3>
+            <ul>
+                <li>Algorithm: Proximal Policy Optimization (PPO)</li>
+                <li>State space: 24 features (direction, food location, danger detection, connectivity)</li>
+                <li>Network: 2-layer MLP (64→64→4) with 6,020 parameters</li>
+                <li>Training: 8 parallel environments, batch size 256, learning rate 1e-4</li>
+                <li>Model size: 24KB (TensorFlow.js)</li>
+            </ul>
         </div>
-        <div class="info-section">
-            <h2>Pre-trained Snake AI Demo</h2>
-            <p>This Snake AI has been pre-trained to play the game effectively. Watch it navigate and collect food!</p>
-            <ul>
-                <li><strong>Demo Mode:</strong> Watch the pre-trained AI play</li>
-                <li><strong>Continue Training:</strong> Further improve the AI's performance</li>
-                <li><strong>Speed Control:</strong> Adjust the game speed for better viewing</li>
-            </ul>
-            <p>The AI uses a Deep Q-Network (DQN) with the following features:</p>
-            <ul>
-                <li>12 input features: snake direction, food direction, and danger detection</li>
-                <li>Two hidden layers with 256 neurons each</li>
-                <li>Pre-trained weights loaded from PyTorch model</li>
-            </ul>
+
+        <div class="description">
+            <p>The agent demonstrates learned strategies including food-seeking behavior, obstacle avoidance, and basic space management. Performance continues to improve with extended training, approaching the theoretical ceiling for feature-based representations.</p>
         </div>
     </div>
-    
+
     <script src="snake.js"></script>
     <script src="tf-model-pretrained.js"></script>
     <script src="agent-pretrained.js"></script>
-    <script src="visualization.js"></script>
     <script src="script-pretrained.js"></script>
 </body>
 </html>
