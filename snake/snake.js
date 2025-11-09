@@ -39,7 +39,6 @@ class SnakeGame {
         if (head.x < 0 || head.x >= this.gridSize || head.y < 0 || head.y >= this.gridSize) {
             this.gameOver = true;
             this.collisionType = 'wall';
-            console.log('Snake hit a wall!'); // New log
             return false;
         }
 
@@ -47,7 +46,6 @@ class SnakeGame {
         if (this.snake.some(segment => segment.x === head.x && segment.y === head.y)) {
             this.gameOver = true;
             this.collisionType = 'self';
-            console.log('Snake hit itself!'); // New log
             return false;
         }
 
@@ -57,7 +55,6 @@ class SnakeGame {
         if (head.x === this.food.x && head.y === this.food.y) {
             this.score++;
             this.food = this.generateFood();
-            console.log('Snake ate food! Score:', this.score); // New log
             return true; // Food was eaten
         } else {
             this.snake.pop();
@@ -73,7 +70,16 @@ class SnakeGame {
             { x: 0, y: 1 },  // Down
             { x: -1, y: 0 }  // Left
         ];
-        this.direction = directions[action];
+        let newDirection = directions[action];
+
+        // Prevent moving backward into itself (matching Python training env)
+        if (this.snake.length > 1) {
+            if (newDirection.x === -this.direction.x && newDirection.y === -this.direction.y) {
+                newDirection = this.direction; // Keep current direction
+            }
+        }
+
+        this.direction = newDirection;
 
         const foodEaten = this.update();
         this.movesSinceLastFood++;
@@ -94,7 +100,6 @@ class SnakeGame {
             this.gameOver = true;
             reward = -1;
             this.collisionType = 'starvation';
-            console.log('Snake starved!');
         }
 
         this.draw();

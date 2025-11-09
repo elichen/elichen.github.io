@@ -1,4 +1,4 @@
-let game, agent, visualization;
+let game, agent;
 const gridSize = 20;
 const maxSteps = 1000;
 let gameSpeed = 100;
@@ -7,25 +7,18 @@ let isTraining = false;
 
 async function initializeTensorFlow() {
     await tf.ready();
-    console.log('TensorFlow.js initialized');
 }
 
 async function initializeGame() {
     game = new SnakeGame('gameCanvas', gridSize);
-    
+
     if (!agent) {
         agent = new SnakeAgent(gridSize);
         // Load pre-trained weights
         const loaded = await agent.loadPreTrainedModel();
-        document.getElementById('modelStatus').textContent = loaded ? 'Pre-trained model loaded!' : 'Using random weights';
+        document.getElementById('modelStatus').textContent = loaded ? 'Model loaded successfully' : 'Using random weights';
     }
-    
-    if (!visualization) {
-        visualization = new Visualization();
-    } else {
-        visualization.reset();
-    }
-    
+
     agent.setTestingMode(!isTraining);
     game.draw();
 }
@@ -69,21 +62,17 @@ async function runEpisode() {
     } else {
         agent.episodeCount++;
     }
-    
-    visualization.updateCharts(agent.episodeCount, game.score, agent.epsilon);
 
     return totalReward;
 }
 
 async function startDemo() {
     if (isRunning) return;
-    
+
     isRunning = true;
     isTraining = false;
     agent.setTestingMode(true);
-    document.getElementById('demoBtn').textContent = 'Stop Demo';
-    document.getElementById('modeStatus').textContent = 'Mode: Demo';
-    
+
     while (isRunning) {
         await runEpisode();
         await tf.nextFrame();
@@ -92,7 +81,7 @@ async function startDemo() {
 
 async function startTraining() {
     if (isRunning) return;
-    
+
     isRunning = true;
     isTraining = true;
     agent.setTestingMode(false);
@@ -100,9 +89,7 @@ async function startTraining() {
     if (agent.epsilon < 0.1) {
         agent.epsilon = 0.1;
     }
-    document.getElementById('trainBtn').textContent = 'Stop Training';
-    document.getElementById('modeStatus').textContent = 'Mode: Training';
-    
+
     while (isRunning) {
         await runEpisode();
         await tf.nextFrame();
@@ -111,8 +98,6 @@ async function startTraining() {
 
 function stopRunning() {
     isRunning = false;
-    document.getElementById('demoBtn').textContent = 'Start Demo';
-    document.getElementById('trainBtn').textContent = 'Continue Training';
 }
 
 function updateStats(episode, score, epsilon, foodEaten) {
@@ -121,44 +106,14 @@ function updateStats(episode, score, epsilon, foodEaten) {
     document.getElementById('foodEaten').textContent = foodEaten;
 }
 
-// Event listeners
-document.getElementById('demoBtn').addEventListener('click', () => {
-    if (isRunning && !isTraining) {
-        stopRunning();
-    } else {
-        stopRunning();
-        startDemo();
-    }
-});
-
-document.getElementById('trainBtn').addEventListener('click', () => {
-    if (isRunning && isTraining) {
-        stopRunning();
-    } else {
-        stopRunning();
-        startTraining();
-    }
-});
-
-document.getElementById('resetBtn').addEventListener('click', async () => {
-    stopRunning();
-    await initializeGame();
-    updateStats(0, 0, agent.epsilon, 0);
-});
-
-document.getElementById('speedSlider').addEventListener('input', (e) => {
-    gameSpeed = parseInt(e.target.value);
-    document.getElementById('speedValue').textContent = gameSpeed;
-});
-
 // Initialize on load
 window.addEventListener('load', async () => {
     await initializeTensorFlow();
     await initializeGame();
     updateStats(0, 0, agent.epsilon, 0);
-    
+
     // Auto-start demo after a short delay
     setTimeout(() => {
         startDemo();
-    }, 1000);
+    }, 500);
 });

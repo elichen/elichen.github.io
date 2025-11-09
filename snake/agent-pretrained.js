@@ -1,8 +1,8 @@
 class SnakeAgent {
     constructor(gridSize) {
         this.gridSize = gridSize;
-        this.inputSize = 12; // 12 binary inputs for one-hot encoded states
-        this.hiddenSize = 256;
+        this.inputSize = 24; // 24 features (PPO state representation)
+        this.hiddenSize = 64;
         this.outputSize = 4; // 4 possible actions (up, down, left, right)
         this.model = new SnakeModel(this.inputSize, this.hiddenSize, this.outputSize);
         this.steps = 0;
@@ -23,7 +23,6 @@ class SnakeAgent {
         // Load the pre-trained weights
         this.isPreTrained = await this.model.loadPreTrainedWeights();
         if (this.isPreTrained) {
-            console.log('Pre-trained model loaded successfully!');
             // Set epsilon to 0 for pre-trained model (no exploration)
             this.epsilon = 0.0;
             this.epsilonMin = 0.0;
@@ -34,34 +33,126 @@ class SnakeAgent {
     getState(game) {
         const head = game.snake[0];
         const food = game.food;
+        const features = [];
 
-        // One-hot encode snake direction (NSEW)
-        const snakeDirection = [0, 0, 0, 0];
-        if (game.direction.y === -1) snakeDirection[0] = 1; // North
-        else if (game.direction.y === 1) snakeDirection[1] = 1; // South
-        else if (game.direction.x === 1) snakeDirection[2] = 1; // East
-        else if (game.direction.x === -1) snakeDirection[3] = 1; // West
+        // 1. Direction one-hot (4 features): [up, right, down, left]
+        const directionOnehot = [0, 0, 0, 0];
+        if (game.direction.y === -1) directionOnehot[0] = 1; // Up
+        else if (game.direction.x === 1) directionOnehot[1] = 1; // Right
+        else if (game.direction.y === 1) directionOnehot[2] = 1; // Down
+        else if (game.direction.x === -1) directionOnehot[3] = 1; // Left
+        features.push(...directionOnehot);
 
-        // One-hot encode food direction (NSEW)
-        const foodDirection = [0, 0, 0, 0];
-        if (food.y < head.y) foodDirection[0] = 1; // North
-        else if (food.y > head.y) foodDirection[1] = 1; // South
-        if (food.x > head.x) foodDirection[2] = 1; // East
-        else if (food.x < head.x) foodDirection[3] = 1; // West
+        // 2. Food direction (2 features): normalized dx, dy
+        const foodDx = (food.x - head.x) / this.gridSize;
+        const foodDy = (food.y - head.y) / this.gridSize;
+        features.push(foodDx, foodDy);
 
-        // One-hot encode immediate danger (NSEW)
-        const danger = [0, 0, 0, 0];
+        // 3. Danger detection in 4 directions (4 features): [up, right, down, left]
         const checkDanger = (x, y) => {
             return x < 0 || x >= this.gridSize || y < 0 || y >= this.gridSize ||
                    game.snake.some(segment => segment.x === x && segment.y === y);
         };
-        if (checkDanger(head.x, head.y - 1)) danger[0] = 1; // North
-        if (checkDanger(head.x, head.y + 1)) danger[1] = 1; // South
-        if (checkDanger(head.x + 1, head.y)) danger[2] = 1; // East
-        if (checkDanger(head.x - 1, head.y)) danger[3] = 1; // West
+        const dangers = [
+            checkDanger(head.x, head.y - 1) ? 1 : 0, // Up
+            checkDanger(head.x + 1, head.y) ? 1 : 0, // Right
+            checkDanger(head.x, head.y + 1) ? 1 : 0, // Down
+            checkDanger(head.x - 1, head.y) ? 1 : 0  // Left
+        ];
+        features.push(...dangers);
 
-        // Combine all one-hot encoded vectors
-        return [...snakeDirection, ...foodDirection, ...danger];
+        // 4. Distance to walls (4 features): [top, right, bottom, left]
+        const wallDistances = [
+            head.y / this.gridSize,
+            (this.gridSize - 1 - head.x) / this.gridSize,
+            (this.gridSize - 1 - head.y) / this.gridSize,
+            head.x / this.gridSize
+        ];
+        features.push(...wallDistances);
+
+        // 5. Snake length (1 feature): normalized
+        const maxLength = this.gridSize * this.gridSize;
+        features.push(game.snake.length / maxLength);
+
+        // 6. Grid fill ratio (1 feature)
+        features.push(game.score / (this.gridSize * this.gridSize));
+
+        // 7. Food distance (1 feature): manhattan distance normalized
+        const manhattanDist = Math.abs(head.x - food.x) + Math.abs(head.y - food.y);
+        features.push(manhattanDist / (2 * this.gridSize));
+
+        // 8. Body pattern features (3 features)
+        if (game.snake.length >= 3) {
+            // Simplified body patterns for web
+            const straightness = 0.5; // Placeholder
+            const turns = 0.5; // Placeholder
+            const loopiness = 0.0; // Placeholder
+            features.push(straightness, turns, loopiness);
+        } else {
+            features.push(0, 0, 0);
+        }
+
+        // 9. Connectivity features (4 features): accessible cells in each direction
+        const connectivity = this.calculateConnectivity(game, head);
+        features.push(...connectivity);
+
+        return features;
+    }
+
+    calculateConnectivity(game, head) {
+        // Calculate accessible cells in each direction using BFS (depth-limited to 5)
+        // Matches Python: snake_gym_env.py:372-411
+        const connectivity = [];
+        const maxDepth = 5;
+
+        // Check each direction: up, right, down, left
+        const directions = [
+            [0, -1], // Up
+            [1, 0],  // Right
+            [0, 1],  // Down
+            [-1, 0]  // Left
+        ];
+
+        for (const [dx, dy] of directions) {
+            const visited = new Set();
+            const queue = [{ x: head.x + dx, y: head.y + dy, depth: 0 }];
+            let accessible = 0;
+
+            while (queue.length > 0) {
+                const current = queue.shift();
+
+                if (current.depth > maxDepth) continue;
+
+                const key = `${current.x},${current.y}`;
+                if (visited.has(key)) continue;
+
+                // Check boundaries and obstacles
+                if (current.x < 0 || current.x >= this.gridSize ||
+                    current.y < 0 || current.y >= this.gridSize) {
+                    continue;
+                }
+
+                if (game.snake.some(seg => seg.x === current.x && seg.y === current.y)) {
+                    continue;
+                }
+
+                visited.add(key);
+                accessible++;
+
+                // Add neighbors with increased depth
+                const newDepth = current.depth + 1;
+                queue.push({ x: current.x, y: current.y + 1, depth: newDepth });
+                queue.push({ x: current.x + 1, y: current.y, depth: newDepth });
+                queue.push({ x: current.x, y: current.y - 1, depth: newDepth });
+                queue.push({ x: current.x - 1, y: current.y, depth: newDepth });
+            }
+
+            // Normalize by max possible (matching Python exactly)
+            const maxAccessible = Math.min(maxDepth * 4, this.gridSize * this.gridSize);
+            connectivity.push(accessible / maxAccessible);
+        }
+
+        return connectivity;
     }
 
     setTestingMode(isTestingMode) {
