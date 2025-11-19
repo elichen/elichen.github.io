@@ -1,4 +1,4 @@
-# The Chief Debugger: The Most Important Skill for AI-Assisted Coding
+# Debugging with AI
 
 "Vibe coding" has become a popular term for using AI to build products without necessarily understanding the underlying code. It promises rapid development and democratization of building software. However, there's a trap: if you build without understanding, you create systems that are impossible to debug or maintain.
 
