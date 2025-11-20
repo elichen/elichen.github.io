@@ -8,6 +8,7 @@ checkpoints/
 snake_env/
 venv/
 venv_ppo/
+tfjs_env/
 __pycache__/
 *.pyc
 *.pyo
@@ -24,11 +25,14 @@ training_metrics.json
 metrics.json
 
 # Model exports and checkpoints
+sb3_fullmap_model/
 js_weights/
-web_model/
 model_weights/
 models/
 models_test/
+
+# Local tooling caches
+.cache/
 
 # OS files
 .DS_Store
