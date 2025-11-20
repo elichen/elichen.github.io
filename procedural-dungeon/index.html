@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Dungeon | Procedural Raycaster</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="ui-overlay">
+            <div class="hud-top">
+                <div class="stat-box">FPS: <span id="fps-counter">0</span></div>
+                <div class="stat-box">SEED: <span id="seed-display">0000</span></div>
+                <div class="stat-box">LIGHTS: <span id="light-count">0</span></div>
+            </div>
+            <div class="controls-hint">
+                WASD: Move | Arrows: Look | SPACE: Place Light | M: Map | R: New Dungeon
+            </div>
+        </div>
+        <canvas id="minimap"></canvas>
+    </div>
+    <script src="engine.js"></script>
+</body>
+</html>
