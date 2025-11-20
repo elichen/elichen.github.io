@@ -1,0 +1,99 @@
+:root {
+    --bg-color: #111;
+    --ui-color: #00ff41;
+    --ui-bg: rgba(0, 20, 0, 0.7);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--ui-color);
+    font-family: 'VT323', monospace;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    max-width: 1280px;
+    aspect-ratio: 16/9;
+    background: #000;
+    box-shadow: 0 0 50px rgba(0, 255, 65, 0.1);
+}
+
+#gameCanvas {
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+}
+
+.ui-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.hud-top {
+    display: flex;
+    gap: 20px;
+}
+
+.stat-box {
+    background: var(--ui-bg);
+    padding: 5px 10px;
+    border: 1px solid var(--ui-color);
+    font-size: 1.5rem;
+    text-shadow: 0 0 5px var(--ui-color);
+}
+
+.controls-hint {
+    align-self: center;
+    background: var(--ui-bg);
+    padding: 10px 20px;
+    border: 1px solid var(--ui-color);
+    font-size: 1.2rem;
+    opacity: 0.8;
+}
+
+#minimap {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 200px;
+    height: 200px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid var(--ui-color);
+    opacity: 0.9;
+}
+
+/* CRT Scanline Effect */
+.game-container::after {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    z-index: 2;
+    background-size: 100% 2px, 3px 100%;
+    pointer-events: none;
+}
