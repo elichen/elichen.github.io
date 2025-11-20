@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Snake AI - Reinforcement Learning</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0/dist/tf.min.js"></script>
 </head>
 <body>
     <div class="container">
         <h1>Snake AI</h1>
-        <p class="subtitle">Trained with Proximal Policy Optimization</p>
+        <p class="subtitle">Full-board PPO policy running in TensorFlow.js</p>
 
         <div class="canvas-wrapper">
             <canvas id="gameCanvas" width="600" height="600"></canvas>
@@ -34,43 +34,41 @@
         <p id="modelStatus"></p>
 
         <div class="description">
-            <p>This agent learned to play Snake through 37.1 million timesteps of reinforcement learning on a 20×20 grid. The model achieves a best score of 71 cells (17.8% grid fill) and an average of 32 cells across continuous play.</p>
-
-            <p>Training was conducted directly on the target grid size without curriculum learning, using 8 parallel environments and PPO with entropy regularization to encourage exploration.</p>
+            <p>This agent was trained end-to-end on the full 20×20 board using PPO with a convolutional policy. Observations consist of four semantic channels (head, body, food, walls) stacked across the last four frames, giving the network consistent spatial awareness.</p>
         </div>
 
         <div class="metrics">
             <div class="metric-card">
-                <div class="label">Best Performance</div>
-                <div class="value">71 cells</div>
-            </div>
-            <div class="metric-card">
                 <div class="label">Training Steps</div>
-                <div class="value">37.1M</div>
+                <div class="value">10M</div>
             </div>
             <div class="metric-card">
-                <div class="label">Grid Fill</div>
-                <div class="value">17.8%</div>
+                <div class="label">Parallel Envs</div>
+                <div class="value">8 CPU</div>
             </div>
             <div class="metric-card">
-                <div class="label">Architecture</div>
-                <div class="value">MLP</div>
+                <div class="label">Observation</div>
+                <div class="value">16×20×20 + 24 stats</div>
+            </div>
+            <div class="metric-card">
+                <div class="label">Model Size</div>
+                <div class="value">~6 MB</div>
             </div>
         </div>
 
         <div class="technical-details">
             <h3>Architecture</h3>
             <ul>
-                <li>Algorithm: Proximal Policy Optimization (PPO)</li>
-                <li>State space: 24 features (direction, food location, danger detection, connectivity)</li>
-                <li>Network: 2-layer MLP (64→64→4) with 6,020 parameters</li>
-                <li>Training: 8 parallel environments, batch size 256, learning rate 1e-4</li>
-                <li>Model size: 24KB (TensorFlow.js)</li>
+                <li>Algorithm: PPO (55-step rollouts, batch 2048)</li>
+                <li>Observation: 4-channel board tensor stacked over 4 frames + 24 scalar features</li>
+                <li>Network: 3-layer CNN → MLP actor-critic head (shared features)</li>
+                <li>Training: 8 parallel Snake environments on Apple CPU backend</li>
+                <li>Weights exported via ONNX → TensorFlow.js</li>
             </ul>
         </div>
 
         <div class="description">
-            <p>The agent demonstrates learned strategies including food-seeking behavior, obstacle avoidance, and basic space management. Performance continues to improve with extended training, approaching the theoretical ceiling for feature-based representations.</p>
+            <p>The model avoids the handcrafted features of the earlier demo and instead reasons directly over the full board. TensorFlow.js executes the exact PPO policy that was trained in PyTorch, so what you see here matches the offline training run.</p>
         </div>
     </div>
 

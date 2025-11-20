@@ -1,119 +1,48 @@
-let game, agent;
-const gridSize = 20;
-const maxSteps = 1000;
-let gameSpeed = 100;
-let isRunning = false;
-let isTraining = false;
+const GRID_SIZE = 20;
+const STACK_SIZE = 4;
+const STEP_DELAY = 30;
 
-async function initializeTensorFlow() {
-    await tf.ready();
-}
+let game;
+let agent;
+let episode = 1;
+let foodEaten = 0;
 
-async function initializeGame() {
-    game = new SnakeGame('gameCanvas', gridSize);
+async function runEpisodes() {
+    while (true) {
+        game.reset();
+        agent.bootstrap(game);
+        foodEaten = 0;
+        updateStats(episode, game.score, foodEaten);
 
-    if (!agent) {
-        agent = new SnakeAgent(gridSize);
-        // Load pre-trained weights
-        const loaded = await agent.loadPreTrainedModel();
-        document.getElementById('modelStatus').textContent = loaded ? 'Model loaded successfully' : 'Using random weights';
-    }
-
-    agent.setTestingMode(!isTraining);
-    game.draw();
-}
-
-async function runEpisode() {
-    game.reset();
-    let state = agent.getState(game);
-    let totalReward = 0;
-    let foodEaten = 0;
-
-    for (let step = 0; step < maxSteps && isRunning; step++) {
-        const action = agent.getAction(state);
-        const { reward, done } = game.step(action);
-        const nextState = agent.getState(game);
-        totalReward += reward;
-
-        if (isTraining) {
-            agent.remember(state, action, reward, nextState, done);
-            await agent.trainShortTerm(state, action, reward, nextState, done);
+        while (!game.gameOver) {
+            const action = agent.predictAction(game);
+            const result = game.step(action);
+            if (result.reward > 0.9) {
+                foodEaten++;
+            }
+            const obs = agent.computeObservation(game);
+            agent.updateStack(obs.board, obs.stats);
+            updateStats(episode, game.score, foodEaten);
+            await new Promise(resolve => setTimeout(resolve, STEP_DELAY));
         }
-
-        state = nextState;
-
-        if (reward >= 1) {
-            foodEaten++;
-        }
-
-        game.draw();
-        await new Promise(resolve => setTimeout(resolve, gameSpeed));
-
-        updateStats(agent.episodeCount, game.score, agent.epsilon, foodEaten);
-
-        if (done) {
-            break;
-        }
-    }
-
-    if (isTraining) {
-        await agent.replay();
-        agent.incrementEpisodeCount();
-    } else {
-        agent.episodeCount++;
-    }
-
-    return totalReward;
-}
-
-async function startDemo() {
-    if (isRunning) return;
-
-    isRunning = true;
-    isTraining = false;
-    agent.setTestingMode(true);
-
-    while (isRunning) {
-        await runEpisode();
+        episode++;
         await tf.nextFrame();
     }
 }
 
-async function startTraining() {
-    if (isRunning) return;
-
-    isRunning = true;
-    isTraining = true;
-    agent.setTestingMode(false);
-    // Allow some exploration during continued training
-    if (agent.epsilon < 0.1) {
-        agent.epsilon = 0.1;
-    }
-
-    while (isRunning) {
-        await runEpisode();
-        await tf.nextFrame();
-    }
-}
-
-function stopRunning() {
-    isRunning = false;
-}
-
-function updateStats(episode, score, epsilon, foodEaten) {
-    document.getElementById('episode').textContent = episode;
+function updateStats(ep, score, food) {
+    document.getElementById('episode').textContent = ep;
     document.getElementById('score').textContent = score;
-    document.getElementById('foodEaten').textContent = foodEaten;
+    document.getElementById('foodEaten').textContent = food;
 }
 
-// Initialize on load
 window.addEventListener('load', async () => {
-    await initializeTensorFlow();
-    await initializeGame();
-    updateStats(0, 0, agent.epsilon, 0);
-
-    // Auto-start demo after a short delay
-    setTimeout(() => {
-        startDemo();
-    }, 500);
+    document.getElementById('modelStatus').textContent = 'Loading TensorFlow.js...';
+    await tf.ready();
+    game = new SnakeGame('gameCanvas', GRID_SIZE);
+    agent = new PPOWebAgent(GRID_SIZE, STACK_SIZE);
+    document.getElementById('modelStatus').textContent = 'Loading policy weights...';
+    await agent.load();
+    document.getElementById('modelStatus').textContent = 'Model loaded – running demo';
+    await runEpisodes();
 });

@@ -1,0 +1,4 @@
+tensorflowjs>=4.0.0
+tensorflow>=2.10.0
+onnx>=1.16.0
+tf2onnx>=1.13.0
