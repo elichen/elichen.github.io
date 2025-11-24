@@ -19,11 +19,7 @@
             <div id="grid-section">
                 <div id="grid-container">
                     <div id="music-grid">
-                        <!-- Grid rows and cells -->
-                        <div class="grid-row"> <div class="grid-cell" data-pitch="60" data-time="0"></div> <div class="grid-cell" data-pitch="60" data-time="1"></div> <div class="grid-cell" data-pitch="60" data-time="2"></div> <div class="grid-cell" data-pitch="60" data-time="3"></div> <div class="grid-cell" data-pitch="60" data-time="4"></div> <div class="grid-cell" data-pitch="60" data-time="5"></div> <div class="grid-cell" data-pitch="60" data-time="6"></div> <div class="grid-cell" data-pitch="60" data-time="7"></div> </div>
-                        <div class="grid-row"> <div class="grid-cell" data-pitch="62" data-time="0"></div> <div class="grid-cell" data-pitch="62" data-time="1"></div> <div class="grid-cell" data-pitch="62" data-time="2"></div> <div class="grid-cell" data-pitch="62" data-time="3"></div> <div class="grid-cell" data-pitch="62" data-time="4"></div> <div class="grid-cell" data-pitch="62" data-time="5"></div> <div class="grid-cell" data-pitch="62" data-time="6"></div> <div class="grid-cell" data-pitch="62" data-time="7"></div> </div>
-                        <div class="grid-row"> <div class="grid-cell" data-pitch="64" data-time="0"></div> <div class="grid-cell" data-pitch="64" data-time="1"></div> <div class="grid-cell" data-pitch="64" data-time="2"></div> <div class="grid-cell" data-pitch="64" data-time="3"></div> <div class="grid-cell" data-pitch="64" data-time="4"></div> <div class="grid-cell" data-pitch="64" data-time="5"></div> <div class="grid-cell" data-pitch="64" data-time="6"></div> <div class="grid-cell" data-pitch="64" data-time="7"></div> </div>
-                        <div class="grid-row"> <div class="grid-cell" data-pitch="65" data-time="0"></div> <div class="grid-cell" data-pitch="65" data-time="1"></div> <div class="grid-cell" data-pitch="65" data-time="2"></div> <div class="grid-cell" data-pitch="65" data-time="3"></div> <div class="grid-cell" data-pitch="65" data-time="4"></div> <div class="grid-cell" data-pitch="65" data-time="5"></div> <div class="grid-cell" data-pitch="65" data-time="6"></div> <div class="grid-cell" data-pitch="65" data-time="7"></div> </div>
+                        <!-- Grid rows will be generated dynamically -->
                     </div>
                 </div>
             </div>
@@ -37,51 +33,16 @@
                     <button id="generate-variation-btn" class="btn-control btn-generate" disabled>Generate Variation</button>
                     <button id="clear-grid-btn" class="btn-control btn-clear">Clear Grid</button>
                 </div>
-                <div id="tempo-control-container" class="controls-group">
-                    <label for="tempo-slider">Tempo:</label>
+                <div class="controls-group slider-group">
+                    <label for="tempo-slider">Tempo: <span id="tempo-value">120</span> BPM</label>
                     <input type="range" id="tempo-slider" min="60" max="180" value="120">
-                    <span id="tempo-value">120</span> BPM
+                </div>
+                <div class="controls-group slider-group">
+                    <label for="chaos-slider">Creativity: <span id="chaos-value">Mid</span></label>
+                    <input type="range" id="chaos-slider" min="0" max="1" step="0.1" value="0.4">
                 </div>
             </div>
         </main>
-
-        <section id="technical-details">
-            <h2>Technical Details</h2>
-            <p>This Interactive Music Loop Generator leverages several modern web technologies and machine learning to create a dynamic music experience:</p>
-            <ul>
-                <li><strong>Magenta.js:</strong> The core JavaScript library for music and art generation with machine learning, developed by Google.
-                    <ul>
-                        <li><code>mm.Player</code>: Used for sequencing and playing back musical notes in the browser. It utilizes Tone.js internally for audio synthesis.</li>
-                        <li><code>mm.MusicVAE</code>: A pre-trained machine learning model (Variational Autoencoder) for music. Specifically, this app uses the <code>mel_4bar_small_q2</code> checkpoint, which is trained on 4-bar melodies. It takes a user-provided melody (a "primer") and generates new, similar musical sequences.</li>
-                        <li><code>mm.sequences</code>: Utility functions for manipulating Magenta's <code>NoteSequence</code> data structure, such as cloning and quantizing sequences.</li>
-                    </ul>
-                </li>
-                <li><strong>TensorFlow.js:</strong> Magenta.js relies on TensorFlow.js (<code>mm.tf</code>) to run the machine learning models directly in the browser.</li>
-                <li><strong>Tone.js:</strong> A Web Audio framework for creating interactive music in the browser. It's bundled within Magenta.js and handles the actual sound synthesis for <code>mm.Player</code>. The app ensures the AudioContext is started via user interaction as required by browsers.</li>
-                <li><strong>HTML5 & CSS3:</strong> Used for the structure and styling of the user interface, including the interactive grid and control elements.</li>
-                <li><strong>JavaScript (ES6+):</strong> Powers the application's logic, event handling, and interaction between the UI, Magenta.js, and the VAE model.</li>
-            </ul>
-            <h3>Workflow:</h3>
-            <ol>
-                <li><strong>Melody Input:</strong> Users click cells on an interactive grid. Each cell represents a specific musical pitch (row) at a specific time step (column).</li>
-                <li><strong>NoteSequence Creation:</strong> The selected grid cells are converted into a Magenta.js <code>NoteSequence</code> object. This object includes note pitches, start/end times (quantized steps), tempo (BPM), and quantization information (steps per quarter note).</li>
-                <li><strong>Playback:</strong>
-                    <ul>
-                        <li>The user's <code>NoteSequence</code> can be played directly using <code>mm.Player</code>.</li>
-                        <li>Generated variations are also played back as <code>NoteSequence</code> objects.</li>
-                        <li>Looping functionality is implemented manually by re-triggering playback when a sequence ends if looping is enabled.</li>
-                    </ul>
-                </li>
-                <li><strong>Variation Generation:</strong>
-                    <ol>
-                        <li>The user's <code>NoteSequence</code> (or a processed version of it, typically quantized to 16 steps for the <code>mel_4bar_small_q2</code> model) is fed as a "primer" to the <code>music_vae_instance.sample()</code> method.</li>
-                        <li>The MusicVAE model generates one or more new <code>NoteSequence</code> objects that are musically similar to the input but offer variation.</li>
-                        <li>The generated sequence's tempo is explicitly set to match the current application tempo before playback.</li>
-                    </ol>
-                </li>
-                <li><strong>Tempo Control:</strong> Users can adjust the playback tempo (BPM) using a slider. This dynamically changes the duration of each step in the grid and updates the tempo for new and looped playbacks.</li>
-            </ol>
-        </section>
 
         <footer>
             <p>Powered by <a href="https://magenta.tensorflow.org/" target="_blank">Magenta.js</a></p>

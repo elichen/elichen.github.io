@@ -1,11 +1,23 @@
+:root {
+    --bg-color: #121212;
+    --card-bg: #1e1e1e;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --accent-color: #00d4ff; /* Cyan Neon */
+    --grid-bg: #252525;
+    --cell-border: #333;
+    --cell-inactive: #2a2a2a;
+    --cell-hover: #383838;
+}
+
 body {
     font-family: 'Roboto', sans-serif;
     margin: 0;
-    background-color: #f0f2f5; /* Light grayish background */
-    color: #333;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
     display: flex;
     justify-content: center;
-    align-items: flex-start; /* Align to top for longer content */
+    align-items: center;
     min-height: 100vh;
     padding: 20px;
     box-sizing: border-box;
@@ -13,31 +25,35 @@ body {
 
 .app-container {
     width: 100%;
-    max-width: 900px; /* Increased max-width */
-    background-color: #ffffff; /* White background for the app itself */
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    padding: 25px 30px;
+    max-width: 950px;
+    background-color: var(--card-bg);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    padding: 30px 40px;
+    border: 1px solid #333;
 }
 
 header {
     margin-bottom: 30px;
     text-align: center;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid #333;
     padding-bottom: 20px;
 }
 
 header h1 {
-    color: #2c3e50; /* Darker blue-gray */
-    font-weight: 500;
-    font-size: 2.2em;
+    color: var(--accent-color);
+    font-weight: 700;
+    font-size: 2.5em;
     margin-bottom: 5px;
+    text-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+    letter-spacing: 1px;
 }
 
 header .subtitle {
-    color: #7f8c8d; /* Muted gray */
+    color: var(--text-secondary);
     font-size: 1.1em;
     margin-top: 0;
+    font-weight: 300;
 }
 
 main {
@@ -46,364 +62,245 @@ main {
 
 #grid-section {
     margin-bottom: 30px;
+    overflow-x: auto; /* Scrollable */
+    padding-bottom: 10px;
 }
 
 #grid-container {
     display: flex;
     justify-content: center;
-    margin-bottom: 20px;
+    min-width: max-content; /* Ensure container stretches */
 }
 
 #music-grid {
     display: inline-block;
-    border: 1px solid #d1d8dd; /* Softer border for the grid */
-    border-radius: 6px;
-    padding: 5px; /* Add some padding around the cells within the grid border */
-    background-color: #f8f9fa; /* Light background for the grid area */
+    border: 2px solid #333;
+    border-radius: 8px;
+    padding: 8px;
+    background-color: var(--grid-bg);
+    white-space: nowrap;
 }
 
 .grid-row {
     display: flex;
+    margin-bottom: 4px;
+}
+.grid-row:last-child {
+    margin-bottom: 0;
 }
 
 .grid-cell {
-    width: 45px;  /* Slightly larger cells */
-    height: 45px;
-    border: 1px solid #ced4da; /* Lighter border for cells */
-    margin: 3px; /* Increased margin for better separation */
-    background-color: #e9ecef; /* Default cell color */
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--cell-border);
+    margin: 2px;
+    background-color: var(--cell-inactive);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
-    border-radius: 4px; /* Rounded corners for cells */
-    transition: background-color 0.2s ease, transform 0.1s ease;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    color: #555;
+    user-select: none;
 }
 
 .grid-cell:hover {
-    background-color: #dee2e6; /* Hover effect */
-    border-color: #adb5bd;
+    background-color: var(--cell-hover);
+    border-color: #555;
 }
 
+.grid-cell.row-label {
+    background-color: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 12px;
+    width: 30px; /* Smaller width for label */
+    margin-right: 8px;
+    cursor: default;
+}
+.grid-cell.row-label:hover {
+    background-color: transparent;
+}
+
+/* Active States with Neon Glows */
 .grid-cell.active {
-    background-color: #007bff; /* Primary blue for active */
-    border-color: #0056b3;
-    color: white; /* For any potential text inside */
-    transform: scale(1.05); /* Slight pop effect */
+    transform: scale(1.05);
+    color: white;
+    border-color: transparent;
 }
 
-.grid-cell.playing {
-    background-color: #ffc107; /* Vibrant yellow for playing */
-    border-color: #e0a800;
-    box-shadow: 0 0 10px rgba(255, 193, 7, 0.7); /* Glow effect */
-    transform: scale(1.1);
-    transition: background-color 0.05s, transform 0.05s;
+/* Pitch Colors */
+.grid-cell.active.pitch-60 {
+    background-color: #ff006e; /* Hot Pink */
+    box-shadow: 0 0 12px #ff006e;
 }
+.grid-cell.active.pitch-62 {
+    background-color: #fb5607; /* Orange/Red */
+    box-shadow: 0 0 12px #fb5607;
+}
+.grid-cell.active.pitch-64 {
+    background-color: #ffbe0b; /* Amber */
+    box-shadow: 0 0 12px #ffbe0b;
+}
+.grid-cell.active.pitch-65 {
+    background-color: #8338ec; /* Purple */
+    box-shadow: 0 0 12px #8338ec;
+}
+
+/* Playhead / Playing indicator */
+.grid-cell.playing {
+    filter: brightness(1.8);
+    transform: scale(1.15);
+    z-index: 10;
+    border: 1px solid white !important;
+}
+
 
 #controls-section {
     display: flex;
-    flex-wrap: wrap; /* Allow controls to wrap on smaller screens */
+    flex-wrap: wrap;
     justify-content: center;
-    gap: 20px; /* Gap between control groups */
-    padding: 20px;
-    background-color: #f8f9fa; /* Light background for controls area */
-    border-radius: 6px;
-    border: 1px solid #e0e0e0;
+    gap: 25px;
+    padding: 25px;
+    background-color: #2a2a3d;
+    border-radius: 10px;
+    border: 1px solid #333;
 }
 
 .controls-group {
     display: flex;
     align-items: center;
-    gap: 10px; /* Gap within a control group */
+    gap: 12px;
+}
+
+.slider-group {
+    flex-direction: column;
+    align-items: flex-start;
+    background: #222;
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: 1px solid #333;
+}
+
+.slider-group label {
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+}
+.slider-group span {
+    color: var(--accent-color);
+    font-weight: bold;
+}
+
+input[type=range] {
+    width: 140px;
+    accent-color: var(--accent-color);
+    cursor: pointer;
 }
 
 button.btn-control {
-    padding: 12px 20px;
-    font-size: 1em;
-    font-weight: 500;
+    padding: 12px 24px;
+    font-size: 0.95em;
+    font-weight: 600;
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
-    transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
-    min-width: 120px; /* Minimum width for buttons */
-    text-align: center;
+    transition: all 0.2s ease;
+    min-width: 130px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 button.btn-control:hover {
-    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    filter: brightness(1.1);
 }
-
 button.btn-control:active {
-    transform: translateY(0px);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    transform: translateY(0);
 }
-
 button.btn-control:disabled {
-    background-color: #adb5bd; /* Gray for disabled */
+    background-color: #333;
+    color: #666;
     cursor: not-allowed;
-    box-shadow: none;
     transform: none;
+    box-shadow: none;
 }
 
 #play-test-note-btn {
-    background-color: #6c757d; /* Secondary/Gray */
+    background-color: #495057;
 }
-#play-test-note-btn:hover:not(:disabled) {
-    background-color: #5a6268;
+#play-user-loop-btn {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
 }
-
-.btn-play {
-    background-color: #28a745; /* Green for play */
+#generate-variation-btn {
+    background: linear-gradient(135deg, #007bff, #00d4ff);
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
 }
-.btn-play:hover:not(:disabled) {
-    background-color: #218838;
+#clear-grid-btn {
+    background-color: #343a40;
+    border: 1px solid #495057;
+    color: #adb5bd;
 }
-
-.btn-generate {
-    background-color: #17a2b8; /* Info/Teal for generate */
-}
-.btn-generate:hover:not(:disabled) {
-    background-color: #138496;
-}
-
-.btn-clear {
-    background-color: #dc3545; /* Red for clear/danger */
-}
-.btn-clear:hover:not(:disabled) {
-    background-color: #c82333;
-}
-
-
-#tempo-control-container {
-    padding: 10px 15px;
-    border-radius: 5px;
-    /* background-color: #e9ecef; */ /* Optional: slightly different bg for this group */
-    /* border: 1px solid #ced4da; */
-    color: #495057;
-}
-
-#tempo-control-container label {
-    margin-right: 8px;
-    font-weight: 500;
-}
-
-#tempo-slider {
-    width: 150px; /* Adjust as needed */
-    margin-right: 8px;
-    vertical-align: middle;
-}
-
-#tempo-value {
-    font-weight: 500;
-    min-width: 25px; /* Ensure space for 3 digits */
-    display: inline-block;
-    text-align: right;
+#clear-grid-btn:hover {
+    background-color: #c0392b;
+    color: white;
+    border-color: #c0392b;
 }
 
 footer {
     text-align: center;
-    margin-top: 30px;
-    padding-top: 15px;
-    border-top: 1px solid #e0e0e0;
-    font-size: 0.9em;
-    color: #7f8c8d;
-}
-
-footer a {
-    color: #007bff;
-    text-decoration: none;
-}
-
-footer a:hover {
-    text-decoration: underline;
-}
-
-/* Basic responsiveness for controls */
-@media (max-width: 768px) {
-    header h1 {
-        font-size: 1.8em;
-    }
-    header .subtitle {
-        font-size: 1em;
-    }
-    .app-container {
-        padding: 20px 15px;
-    }
-    #controls-section {
-        flex-direction: column; /* Stack control groups vertically */
-        align-items: stretch; /* Make control groups take full width */
-    }
-    .controls-group {
-        flex-direction: column; /* Stack items within a group */
-        width: 100%;
-    }
-    button.btn-control {
-        width: 100%; /* Make buttons full width in their group */
-        margin-bottom: 10px;
-    }
-    .controls-group:last-child button.btn-control {
-        margin-bottom: 0;
-    }
-    #tempo-control-container {
-        flex-direction: row; /* Keep tempo items in a row but allow wrap */
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-    #tempo-slider {
-        width: calc(100% - 100px); /* Adjust slider width */
-    }
-}
-
-@media (max-width: 480px) {
-    .grid-cell {
-        width: 35px;
-        height: 35px;
-        margin: 2px;
-    }
-    #music-grid {
-        padding: 3px;
-    }
-    button.btn-control {
-        padding: 10px 15px;
-        font-size: 0.9em;
-    }
-}
-
-#technical-details {
     margin-top: 40px;
-    padding: 25px;
-    background-color: #f8f9fa; /* Light background for this section */
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    color: #495057; /* Slightly softer text color */
-}
-
-#technical-details h2 {
-    color: #2c3e50; /* Darker blue-gray, same as header h1 */
-    text-align: center;
-    margin-top: 0;
-    margin-bottom: 20px;
-    border-bottom: 1px solid #d1d8dd;
-    padding-bottom: 10px;
-}
-
-#technical-details h3 {
-    color: #34495e; /* Slightly lighter than h2 */
-    margin-top: 25px;
-    margin-bottom: 10px;
-    border-bottom: 1px dashed #ced4da;
-    padding-bottom: 5px;
-}
-
-#technical-details p {
-    line-height: 1.6;
-    margin-bottom: 15px;
-}
-
-#technical-details ul,
-#technical-details ol {
-    margin-left: 20px; /* Default indentation for lists */
-    padding-left: 20px; /* Add padding for list markers */
-    line-height: 1.6;
-}
-
-#technical-details ul ul {
-    margin-top: 5px;
-    margin-bottom: 10px;
-}
-
-#technical-details li {
-    margin-bottom: 8px;
-}
-
-#technical-details code,
-#technical-details kbd,
-#technical-details samp {
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-    font-size: 0.9em;
-    background-color: #e9ecef;
-    padding: 2px 5px;
-    border-radius: 3px;
-    color: #c0392b; /* A reddish color for code elements */
-}
-
-footer {
-    text-align: center;
-    margin-top: 30px;
-    padding-top: 20px; /* Increased padding */
-    border-top: 1px solid #e0e0e0;
-    font-size: 0.9em;
-    color: #7f8c8d;
+    padding-top: 20px;
+    border-top: 1px solid #333;
+    font-size: 0.85em;
+    color: #555;
 }
 
 footer a {
-    color: #007bff;
+    color: #666;
     text-decoration: none;
+    transition: color 0.2s;
 }
 
 footer a:hover {
-    text-decoration: underline;
+    color: var(--accent-color);
 }
 
-/* Basic responsiveness for controls */
+/* Responsive */
 @media (max-width: 768px) {
+    .app-container {
+        padding: 15px;
+    }
     header h1 {
         font-size: 1.8em;
     }
-    header .subtitle {
-        font-size: 1em;
-    }
-    .app-container {
-        padding: 20px 15px;
-    }
     #controls-section {
-        flex-direction: column; /* Stack control groups vertically */
-        align-items: stretch; /* Make control groups take full width */
+        flex-direction: column;
+        align-items: stretch;
     }
     .controls-group {
-        flex-direction: column; /* Stack items within a group */
+        flex-direction: row;
+        justify-content: space-between;
+    }
+    .slider-group {
+        width: 100%;
+        box-sizing: border-box;
+    }
+    input[type=range] {
         width: 100%;
     }
     button.btn-control {
-        width: 100%; /* Make buttons full width in their group */
-        margin-bottom: 10px;
-    }
-    .controls-group:last-child button.btn-control {
-        margin-bottom: 0;
-    }
-    #tempo-control-container {
-        flex-direction: row; /* Keep tempo items in a row but allow wrap */
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-    #tempo-slider {
-        width: calc(100% - 100px); /* Adjust slider width */
-    }
-    #technical-details {
-        padding: 20px 15px;
-    }
-    #technical-details h2 {
-        font-size: 1.5em;
-    }
-    #technical-details h3 {
-        font-size: 1.2em;
-    }
-}
-
-@media (max-width: 480px) {
-    .grid-cell {
-        width: 35px;
-        height: 35px;
-        margin: 2px;
-    }
-    #music-grid {
-        padding: 3px;
-    }
-    button.btn-control {
-        padding: 10px 15px;
-        font-size: 0.9em;
+        width: 48%;
+        min-width: auto;
+        padding: 12px 10px;
+        font-size: 0.8em;
     }
 }
