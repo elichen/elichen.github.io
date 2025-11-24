@@ -106,14 +106,21 @@ function playTestNote() {
     if (player.isPlaying()) {
         player.stop();
     }
-    // Ensure testSequence has the currentBPM if you want it to match UI tempo
-    const currentTestSequence = mm.sequences.clone(testSequence);
-    currentTestSequence.tempos = [{ time: 0, qpm: currentBPM }];
 
+    // Calculate duration for 1 quarter note (beat) at current BPM
+    // 60 seconds / BPM = seconds per beat
+    const beatDuration = 60 / currentBPM;
+
+    const dynamicTestSequence = {
+        notes: [ { pitch: 60, startTime: 0, endTime: beatDuration, velocity: 80 } ],
+        totalTime: beatDuration,
+        quantizationInfo: { stepsPerQuarter: 4 },
+        tempos: [{ time: 0, qpm: currentBPM }]
+    };
 
     try {
-        console.log("Playing test sequence with mm.Player:", currentTestSequence);
-        player.start(currentTestSequence)
+        console.log("Playing test sequence with mm.Player:", dynamicTestSequence);
+        player.start(dynamicTestSequence)
             .then(() => console.log("Test playback finished."))
             .catch(e => { console.error("Error during test playback:", e); alert("Error playing test sound."); });
     } catch (e) {
@@ -212,7 +219,7 @@ function initializeClearGridButton() {
     } else { console.error("Clear Grid button not found."); }
 }
 
-const VAE_CHECKPOINT_URL = 'https://storage.googleapis.com/magentadata/js/checkpoints/music_vae/mel_4bar_small_q2';
+const VAE_CHECKPOINT_URL = 'https://storage.googleapis.com/magentadata/js/checkpoints/music_vae/mel_2bar_small';
 
 async function initializeMusicVAE() {
   const generateBtn = document.getElementById('generate-variation-btn');
@@ -233,17 +240,54 @@ async function initializeMusicVAE() {
 }
 
 function initializeGrid() {
+    const gridContainer = document.getElementById('music-grid');
+    gridContainer.innerHTML = ''; // Clear existing
+    const rows = [60, 62, 64, 65];
+    const noteLabels = { 60: 'C4', 62: 'D4', 64: 'E4', 65: 'F4' };
+    const totalSteps = 32; // 2 bars * 16 steps/bar
+
+    rows.forEach(pitch => {
+        const rowDiv = document.createElement('div');
+        rowDiv.classList.add('grid-row');
+        for (let step = 0; step < totalSteps; step++) {
+            const cell = document.createElement('div');
+            cell.classList.add('grid-cell');
+            cell.classList.add(`pitch-${pitch}`); // Add pitch-specific class
+            
+            cell.dataset.pitch = pitch;
+            cell.dataset.time = step;
+            
+            // Add visual markers
+            if (step % 4 === 0) cell.style.borderLeftColor = '#adb5bd'; 
+            if (step % 16 === 0) cell.style.borderLeft = '2px solid #6c757d'; 
+
+            // Add label to the first cell
+            if (step === 0) {
+                cell.textContent = noteLabels[pitch];
+                cell.classList.add('row-label');
+                cell.style.fontWeight = 'bold';
+            }
+            
+            cell.addEventListener('click', () => cell.classList.toggle('active'));
+            rowDiv.appendChild(cell);
+        }
+        gridContainer.appendChild(rowDiv);
+    });
+
     const cells = document.querySelectorAll('.grid-cell');
-    cells.forEach(cell => cell.addEventListener('click', () => cell.classList.toggle('active')));
     currentVAEStepDuration = (60 / currentBPM) / 4;
-    console.log(`Initialized ${cells.length} grid cells. Initial step duration: ${currentVAEStepDuration}s.`);
+    console.log(`Initialized ${cells.length} grid cells (32 steps). Initial step duration: ${currentVAEStepDuration}s.`);
 }
 
 function gridToNoteSequence() {
     const notes = [];
     const activeCells = document.querySelectorAll('.grid-cell.active');
-    let maxEndTime = 0;
     const stepsPerQuarter = 4;
+    const totalGridSteps = 32; // 2 bars
+
+    // Calculate the full duration of the grid to ensure the sequence is treated as 2 bars long
+    // even if the user only clicks notes in the first few steps.
+    const fullGridDuration = totalGridSteps * currentVAEStepDuration;
 
     activeCells.forEach(cell => {
         const pitch = parseInt(cell.dataset.pitch, 10);
@@ -251,14 +295,13 @@ function gridToNoteSequence() {
         const startTime = timeStep * currentVAEStepDuration;
         const endTime = startTime + currentVAEStepDuration;
         notes.push({ pitch, startTime, endTime, quantizedStartStep: timeStep, quantizedEndStep: timeStep + 1, velocity: 80 });
-        if (endTime > maxEndTime) maxEndTime = endTime;
     });
 
     if (notes.length === 0) return null;
 
     return {
         notes: notes,
-        totalTime: maxEndTime,
+        totalTime: fullGridDuration, // Enforce full 2-bar duration
         quantizationInfo: { stepsPerQuarter: stepsPerQuarter },
         tempos: [{ time: 0, qpm: currentBPM }]
     };
@@ -336,8 +379,72 @@ function playSequence(sequenceToPlay, title = "Sequence", shouldLoop = false) {
         });
 }
 
+function snapNoteToGrid(pitch) {
+    const validRows = [60, 62, 64, 65];
+    return validRows.reduce((prev, curr) => {
+        return (Math.abs(curr - pitch) < Math.abs(prev - pitch) ? curr : prev);
+    });
+}
+
+function renderSequenceToGrid(sequence) {
+    // 1. Clear current grid
+    document.querySelectorAll('.grid-cell.active').forEach(cell => cell.classList.remove('active'));
+
+    // 2. Clone sequence to modify it for playback (snapped)
+    const snappedSequence = mm.sequences.clone(sequence);
+    snappedSequence.notes = [];
+
+    // 3. Render new notes
+    sequence.notes.forEach(note => {
+        const snappedPitch = snapNoteToGrid(note.pitch);
+        let startTimeStep = note.quantizedStartStep;
+
+        // Safety fallback for missing quantization info
+        if (startTimeStep === undefined || startTimeStep === null) {
+            if (note.startTime !== undefined) {
+                startTimeStep = Math.round(note.startTime / currentVAEStepDuration);
+            } else {
+                return; // Skip invalid note
+            }
+        }
+        
+        // Ensure step is within grid bounds
+        if (startTimeStep < 0 || startTimeStep >= 32) return;
+        
+        // Find cell
+        const cell = document.querySelector(`.grid-cell[data-pitch='${snappedPitch}'][data-time='${startTimeStep}']`);
+        if (cell) {
+            cell.classList.add('active');
+            
+            // Add snapped note to the new sequence
+            const newNote = { ...note, pitch: snappedPitch, quantizedStartStep: startTimeStep, quantizedEndStep: startTimeStep + 1 };
+            snappedSequence.notes.push(newNote);
+        }
+    });
+
+    return snappedSequence;
+}
+
 function initializeGenerateVariationButton() {
     const btn = document.getElementById('generate-variation-btn');
+    const chaosSlider = document.getElementById('chaos-slider');
+    const chaosDisplay = document.getElementById('chaos-value');
+
+    // Initialize slider label logic
+    if (chaosSlider && chaosDisplay) {
+        const updateChaosLabel = () => {
+            const val = parseFloat(chaosSlider.value);
+            let label = "Balanced";
+            if (val <= 0.3) label = "Safe";
+            else if (val <= 0.6) label = "Balanced";
+            else if (val <= 0.8) label = "Wild";
+            else label = "Chaos";
+            chaosDisplay.textContent = label;
+        };
+        chaosSlider.addEventListener('input', updateChaosLabel);
+        updateChaosLabel(); // set initial
+    }
+
     if (btn) {
         btn.addEventListener('click', async () => {
             await ensureToneStarted();
@@ -355,8 +462,11 @@ function initializeGenerateVariationButton() {
                 alert("Sequence processing function not loaded."); return;
             }
 
-            const STEPS_PER_BAR = 16;
+            const TOTAL_STEPS = 32; // 2 bars * 16 steps
             const STEPS_PER_QUARTER_FOR_VAE = 4;
+            
+            // Read creativity/chaos level from slider
+            const chaosLevel = chaosSlider ? parseFloat(chaosSlider.value) : 0.5;
 
             if (!userSeq.quantizationInfo) {
                 userSeq.quantizationInfo = { stepsPerQuarter: STEPS_PER_QUARTER_FOR_VAE };
@@ -369,20 +479,35 @@ function initializeGenerateVariationButton() {
                 mm.sequences.clone(userSeq),
                 STEPS_PER_QUARTER_FOR_VAE
             );
-            inputSequenceForVAE.totalQuantizedSteps = STEPS_PER_BAR;
+            inputSequenceForVAE.totalQuantizedSteps = TOTAL_STEPS;
 
             console.log("Prepared quantized input for VAE:", JSON.parse(JSON.stringify(inputSequenceForVAE)));
 
             try {
-                const genSequences = await music_vae_instance.sample(1, 0.7, null, STEPS_PER_QUARTER_FOR_VAE, inputSequenceForVAE);
+                // Calculate similarity: Higher chaos = Lower similarity
+                // chaos 0.0 -> similarity 0.98 (Almost identical)
+                // chaos 1.0 -> similarity 0.28 (Very different)
+                const similarity = 0.98 - (chaosLevel * 0.7);
+                
+                console.log(`Generating variation with Similarity=${similarity.toFixed(2)} (Temperature=0.9)...`);
+
+                // Use the 'similar' method: interpolates between input and random noise
+                const genSequences = await music_vae_instance.similar(inputSequenceForVAE, 1, similarity, 0.9);
+                
                 if (genSequences && genSequences.length > 0) {
                     let generatedSeq = genSequences[0];
                     generatedSeq.tempos = [{ time: 0, qpm: currentBPM }];
                     if (!generatedSeq.quantizationInfo || generatedSeq.quantizationInfo.stepsPerQuarter !== STEPS_PER_QUARTER_FOR_VAE) {
                         generatedSeq.quantizationInfo = { stepsPerQuarter: STEPS_PER_QUARTER_FOR_VAE };
                     }
-                    console.log("Sanitized sequence for player:", JSON.parse(JSON.stringify(generatedSeq)));
-                    playSequence(generatedSeq, "Generated Variation", true); // Play with looping enabled
+                    
+                    console.log("Raw generated sequence:", JSON.parse(JSON.stringify(generatedSeq)));
+                    
+                    // Render to grid and get the snapped version for playback
+                    const snappedSeq = renderSequenceToGrid(generatedSeq);
+                    
+                    console.log("Snapped sequence for player & grid:", JSON.parse(JSON.stringify(snappedSeq)));
+                    playSequence(snappedSeq, "Generated Variation", true); // Play with looping enabled
                 } else {
                     alert("AI could not generate a variation.");
                 }
