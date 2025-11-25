@@ -56,9 +56,7 @@ const elements = {
     learningRate: document.getElementById('learningRate'),
     l2Weight: document.getElementById('l2Weight'),
     tvWeight: document.getElementById('tvWeight'),
-    freqWeight: document.getElementById('freqWeight'),
     transformStrength: document.getElementById('transformStrength'),
-    progressiveRes: document.getElementById('progressiveRes'),
     showProgress: document.getElementById('showProgress'),
 
     // Visualization
@@ -234,96 +232,65 @@ function discoverAllLayers() {
     console.log(`Discovered ${Object.keys(allLayers).length} layers in InceptionV3`);
 }
 
-// ========== Fourier Basis Initialization ==========
+// ========== Color Decorrelation ==========
 
-// Fourier basis initialization - pure JavaScript implementation to ensure exact dimensions
-function fourierImage(size, decayPower = 1) {
-    // Ensure size is an integer
-    size = Math.floor(size);
+// Color correlation matrix from Lucid library (based on ImageNet statistics)
+// This transforms from decorrelated space to RGB
+const COLOR_CORRELATION_SVD_SQRT = [
+    [0.26, 0.09, 0.02],
+    [0.27, 0.00, -0.05],
+    [0.27, -0.09, 0.03]
+];
 
-    // Build the entire image in JavaScript, then convert to tensor
-    const imageData = [];
+// Normalize the color correlation matrix
+const COLOR_CORRELATION_NORMALIZED = (() => {
+    const maxNorm = Math.max(
+        ...COLOR_CORRELATION_SVD_SQRT.map(row =>
+            Math.sqrt(row.reduce((sum, v) => sum + v * v, 0))
+        )
+    );
+    return COLOR_CORRELATION_SVD_SQRT.map(row => row.map(v => v / maxNorm));
+})();
 
-    // Generate coordinates
-    const coords = [];
-    for (let y = 0; y < size; y++) {
-        const row = [];
-        for (let x = 0; x < size; x++) {
-            row.push({
-                x: (x / (size - 1)) * 2 - 1,  // -1 to 1
-                y: (y / (size - 1)) * 2 - 1   // -1 to 1
-            });
-        }
-        coords.push(row);
-    }
+// Apply color decorrelation: transform from decorrelated space to RGB
+function toRGB(decorrelatedImage) {
+    return tf.tidy(() => {
+        const colorMatrix = tf.tensor2d(COLOR_CORRELATION_NORMALIZED);
+        const [h, w, c] = decorrelatedImage.shape;
+        const reshaped = decorrelatedImage.reshape([h * w, c]);
+        const transformed = tf.matMul(reshaped, colorMatrix, false, true);
+        return transformed.reshape([h, w, c]);
+    });
+}
 
-    // Generate image data with Fourier patterns
-    for (let y = 0; y < size; y++) {
-        const row = [];
-        for (let x = 0; x < size; x++) {
-            const cx = coords[y][x].x;
-            const cy = coords[y][x].y;
+// ========== Image Initialization ==========
 
-            // Start with small random values
-            const pixel = [
-                Math.random() * 0.02 - 0.01,
-                Math.random() * 0.02 - 0.01,
-                Math.random() * 0.02 - 0.01
-            ];
+// Initialize image with low-frequency biased noise (approximates Fourier initialization)
+function initializeImage(size) {
+    return tf.tidy(() => {
+        // Start with small random noise in decorrelated color space
+        const decorrelated = tf.randomNormal([size, size, 3], 0, 0.01);
 
-            // Add frequency components
-            for (let f = 0; f < 5; f++) {
-                const freq = (f + 1) * Math.PI * 2;
-                const amplitude = 0.05 / Math.pow(f + 1, decayPower);
-                const angle = (Math.random() * Math.PI * 2);
-                const phase = (Math.random() * Math.PI * 2);
+        // Apply color correlation to get RGB
+        const rgb = toRGB(decorrelated);
 
-                const rotated = cx * Math.cos(angle) + cy * Math.sin(angle);
-                const value = Math.sin(rotated * freq + phase) * amplitude;
+        // Apply sigmoid to get bounded values, then scale to [-1, 1]
+        return tf.sigmoid(rgb).mul(2).sub(1);
+    });
+}
 
-                // Add to all channels with slight variation
-                pixel[0] += value;
-                pixel[1] += value * 0.9;
-                pixel[2] += value * 0.8;
-            }
+// Apply Gaussian blur to reduce high frequencies (approximates frequency penalization)
+function gaussianBlur(image) {
+    return tf.tidy(() => {
+        // Simple box blur using average pooling and upsampling
+        const [h, w, c] = image.shape;
+        const batched = image.expandDims(0);
 
-            row.push(pixel);
-        }
-        imageData.push(row);
-    }
+        // Downsample then upsample for blur effect
+        const pooled = tf.avgPool(batched, 2, 1, 'same');
 
-    // Flatten to 1D array for tensor creation
-    const flatData = [];
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            flatData.push(imageData[y][x][0]);
-            flatData.push(imageData[y][x][1]);
-            flatData.push(imageData[y][x][2]);
-        }
-    }
-
-    // Create tensor with exact dimensions
-    const image = tf.tensor(flatData, [size, size, 3], 'float32');
-
-    // Simple normalization
-    const mean = image.mean();
-    const std = tf.moments(image).variance.sqrt().add(1e-8);
-    const normalized = image.sub(mean).div(std.mul(2));
-
-    mean.dispose();
-    std.dispose();
-    image.dispose();
-
-    // Scale down
-    const output = tf.clipByValue(normalized, -1, 1).mul(0.01);
-    normalized.dispose();
-
-    // Verify dimensions
-    if (output.shape[0] !== size || output.shape[1] !== size || output.shape[2] !== 3) {
-        throw new Error(`Fourier image has incorrect shape: [${output.shape}], expected [${size},${size},3]`);
-    }
-
-    return output;
+        return pooled.squeeze(0);
+    });
 }
 
 // ========== Transformation Robustness ==========
@@ -555,146 +522,122 @@ async function optimizeNeuron(layerKey, channelIndex, config) {
     const startTime = Date.now();
     const layerInfo = INCEPTION_LAYERS[layerKey];
 
-    // Initialize with Fourier basis
-    updateProgress(0, 'Initializing with Fourier basis...');
-    let image = fourierImage(128);
-
-    // Progressive resolution stages
-    const resolutions = config.progressiveRes ? [128, 256, 512] : [512];
+    // InceptionV3 expects 299x299 input
+    const resolution = 299;
     const totalSteps = config.steps;
-    const stepsPerResolution = Math.floor(totalSteps / resolutions.length);
 
     let stepCount = 0;
     let finalLoss = 0;
 
-    for (let resIdx = 0; resIdx < resolutions.length; resIdx++) {
-        const resolution = resolutions[resIdx];
+    updateProgress(0, 'Initializing image...');
 
-        // Resize image to new resolution
-        if (resolution !== image.shape[0]) {
-            const resized = tf.tidy(() => {
-                const batched = image.expandDims(0);
-                const resizedBatched = tf.image.resizeBilinear(batched, [resolution, resolution]);
-                return resizedBatched.squeeze();
+    // Initialize image with color-decorrelated noise
+    let image = initializeImage(resolution);
+
+    // Create variable for optimization
+    const imageVar = tf.variable(image);
+    image.dispose();
+
+    updateProgress(0, 'Starting optimization...');
+
+    // Main optimization loop
+    for (let step = 0; step < totalSteps; step++) {
+        // Apply random jitter for robustness
+        const jitterAmount = Math.floor(8 * config.transformStrength);
+        const jitterY = Math.floor(Math.random() * (jitterAmount * 2 + 1)) - jitterAmount;
+        const jitterX = Math.floor(Math.random() * (jitterAmount * 2 + 1)) - jitterAmount;
+
+        // Compute gradient
+        const { value: loss, grads } = tf.variableGrads(() => {
+            return tf.tidy(() => {
+                // Apply jitter
+                const jittered = rollImage(imageVar, jitterY, jitterX);
+
+                // Prepare for model (add batch dimension)
+                const batched = jittered.expandDims(0);
+
+                // Compute neuron activation (objective to maximize)
+                const activation = computeNeuronObjective(batched, layerInfo.name, channelIndex);
+
+                // Regularization
+                const l2 = l2Penalty(imageVar).mul(config.l2Weight);
+                const tv = totalVariation(imageVar).mul(config.tvWeight);
+
+                // Return negative because we want to maximize activation
+                // (variableGrads minimizes by default)
+                return activation.sub(l2).sub(tv).neg();
             });
-            image.dispose();
-            image = resized;
-        }
+        });
 
-        updateProgress(
-            (resIdx / resolutions.length) * 100,
-            `Optimizing at ${resolution}x${resolution}...`
-        );
+        // Get the gradient for our image variable
+        const grad = grads[imageVar.name];
 
-        // Create variable for optimization
-        const imageVar = tf.variable(image.clone());
-
-        // Gradient ascent
-        for (let step = 0; step < stepsPerResolution; step++) {
-            // Don't wrap in tf.tidy() because we need to control disposal manually
-            // Apply random transformations - keep params for gradient reversal
-            const transformResult = applyRandomTransform(imageVar, config.transformStrength);
-            const transformed = transformResult.transformed;
-            const params = transformResult.params;
-
-            // Compute gradient
-            const grad = tf.grad(img => {
-                // Compute gradient on the untransformed image
-                // We'll apply the transformation outside and reverse it on the gradient
-                const result = tf.tidy(() => {
-                    const batch = img.expandDims(0);
-                    const obj = computeNeuronObjective(batch, layerInfo.name, channelIndex);
-                    const l2p = l2Penalty(img).mul(config.l2Weight);
-                    const tvp = totalVariation(img).mul(config.tvWeight);
-                    const freqp = frequencyPenalty(img, 1.5).mul(config.freqWeight);
-                    return obj.sub(l2p).sub(tvp).sub(freqp);
-                });
-
-                return result;
-            });
-
-            // Compute gradient on the transformed image
-            const gradient = grad(transformed);
-
-            // Compute loss for monitoring (do this before disposing transformed)
-            const loss = tf.tidy(() => {
-                const batched = transformed.expandDims(0);
-                const neuronObj = computeNeuronObjective(batched, layerInfo.name, channelIndex);
-                const l2 = l2Penalty(transformed).mul(config.l2Weight);
-                const tv = totalVariation(transformed).mul(config.tvWeight);
-                const freq = frequencyPenalty(transformed, 1.5).mul(config.freqWeight);
-                return neuronObj.sub(l2).sub(tv).sub(freq);
-            });
-
-            // Reverse transformation on gradient
-            const reversedGrad = reverseTransform(gradient, params);
-
-            // Ensure gradient has the same shape as the image variable
-            if (!tf.util.arraysEqual(reversedGrad.shape, imageVar.shape)) {
-                console.error(`Shape mismatch: reversedGrad ${reversedGrad.shape} vs imageVar ${imageVar.shape}`);
-                throw new Error(`Gradient shape ${reversedGrad.shape} doesn't match image shape ${imageVar.shape}`);
-            }
-
-            // Normalize gradient
-            const normalizedGrad = tf.tidy(() => {
-                const gradStd = tf.moments(reversedGrad).variance.sqrt().add(1e-8);
-                return reversedGrad.div(gradStd);
-            });
-
-            // Update image - wrap in tidy to ensure proper tensor handling
+        if (grad) {
+            // Normalize gradient and apply update (gradient ASCENT)
             const updateResult = tf.tidy(() => {
-                const scaled = normalizedGrad.mul(config.learningRate);
-                const added = imageVar.add(scaled);
-                return tf.clipByValue(added, -1, 1);
+                const gradStd = tf.moments(grad).variance.sqrt().add(1e-8);
+                const normalizedGrad = grad.div(gradStd);
+                // Subtract because we negated the loss above
+                const updated = imageVar.sub(normalizedGrad.mul(config.learningRate));
+                return tf.clipByValue(updated, -1, 1);
             });
 
             imageVar.assign(updateResult);
             updateResult.dispose();
-
-            // Clean up tensors
-            transformed.dispose();
-            gradient.dispose();
-            reversedGrad.dispose();
-            normalizedGrad.dispose();
-
-            finalLoss = await loss.data();
-            loss.dispose();
-
-            stepCount++;
-
-            // Update progress
-            if (step % 10 === 0 || step === stepsPerResolution - 1) {
-                const progress = ((resIdx + (step + 1) / stepsPerResolution) / resolutions.length) * 100;
-                updateProgress(progress, `Step ${stepCount}/${totalSteps}`);
-
-                // Show live preview if enabled
-                if (config.showProgress && step % 20 === 0) {
-                    await displayImage(imageVar);
-                }
-
-                await tf.nextFrame();
-            }
+            grad.dispose();
         }
 
-        // Update image for next resolution
-        image.dispose();
-        image = imageVar.clone();
-        imageVar.dispose();
+        // Apply periodic blur to suppress high frequencies (every 4 steps)
+        if (step % 4 === 0 && step > 0) {
+            const blurred = gaussianBlur(imageVar);
+            imageVar.assign(blurred);
+            blurred.dispose();
+        }
+
+        finalLoss = (await loss.data())[0];
+        loss.dispose();
+
+        stepCount++;
+
+        // Update progress and show preview
+        if (step % 5 === 0 || step === totalSteps - 1) {
+            const progress = ((step + 1) / totalSteps) * 100;
+            updateProgress(progress, `Step ${stepCount}/${totalSteps} (activation: ${(-finalLoss).toFixed(3)})`);
+
+            if (config.showProgress && step % 10 === 0) {
+                await displayImage(imageVar);
+            }
+
+            await tf.nextFrame();
+        }
     }
 
     // Final display
-    await displayImage(image);
+    const finalImage = imageVar.clone();
+
+    // Resize to 512x512 for display
+    const displaySize = 512;
+    const resizedImage = tf.tidy(() => {
+        const batched = finalImage.expandDims(0);
+        const resized = tf.image.resizeBilinear(batched, [displaySize, displaySize]);
+        return resized.squeeze();
+    });
+
+    await displayImage(resizedImage);
 
     const endTime = Date.now();
     const elapsedTime = ((endTime - startTime) / 1000).toFixed(1);
 
-    // Update info panel
-    updateVisualizationInfo(layerKey, channelIndex, finalLoss[0], elapsedTime);
+    // Update info panel (negate loss since we negated it for optimization)
+    updateVisualizationInfo(layerKey, channelIndex, -finalLoss, elapsedTime);
 
     // Add to history
-    await addToHistory(layerKey, channelIndex, image);
+    await addToHistory(layerKey, channelIndex, resizedImage);
 
-    image.dispose();
+    // Cleanup
+    imageVar.dispose();
+    finalImage.dispose();
+    resizedImage.dispose();
 }
 
 // ========== Display Functions ==========
@@ -887,9 +830,7 @@ async function startVisualization() {
         learningRate: parseFloat(elements.learningRate.value),
         l2Weight: parseFloat(elements.l2Weight.value),
         tvWeight: parseFloat(elements.tvWeight.value),
-        freqWeight: parseFloat(elements.freqWeight.value),
         transformStrength: parseFloat(elements.transformStrength.value),
-        progressiveRes: elements.progressiveRes.checked,
         showProgress: elements.showProgress.checked
     };
 
@@ -927,7 +868,6 @@ function shareSettings() {
         learningRate: elements.learningRate.value,
         l2Weight: elements.l2Weight.value,
         tvWeight: elements.tvWeight.value,
-        freqWeight: elements.freqWeight.value,
         transformStrength: elements.transformStrength.value
     };
 
