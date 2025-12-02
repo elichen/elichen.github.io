@@ -173,59 +173,6 @@ header .subtitle {
     font-size: 0.6em;
 }
 
-/* Note History */
-.history-section {
-    margin-bottom: 15px;
-}
-
-.note-history {
-    display: flex;
-    justify-content: center;
-    gap: 6px;
-    min-height: 40px;
-    flex-wrap: wrap;
-    padding: 10px;
-}
-
-.history-note {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #2a9d8f 0%, #264653 100%);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 0.75em;
-    font-weight: 700;
-    color: white;
-    animation: history-appear 0.2s ease;
-}
-
-/* Color notes based on pitch class */
-.history-note[data-pitch="0"],
-.history-note[data-pitch="2"],
-.history-note[data-pitch="4"] { background: linear-gradient(135deg, #e63946 0%, #c1121f 100%); }
-.history-note[data-pitch="5"],
-.history-note[data-pitch="7"],
-.history-note[data-pitch="9"],
-.history-note[data-pitch="11"] { background: linear-gradient(135deg, #f4a261 0%, #e76f51 100%); }
-.history-note[data-pitch="1"],
-.history-note[data-pitch="3"],
-.history-note[data-pitch="6"],
-.history-note[data-pitch="8"],
-.history-note[data-pitch="10"] { background: linear-gradient(135deg, #2a9d8f 0%, #264653 100%); }
-
-.history-note:nth-last-child(1) { opacity: 1; }
-.history-note:nth-last-child(2) { opacity: 0.85; }
-.history-note:nth-last-child(3) { opacity: 0.7; }
-.history-note:nth-last-child(4) { opacity: 0.6; }
-.history-note:nth-last-child(n+5) { opacity: 0.4; }
-
-@keyframes history-appear {
-    from { transform: scale(0); }
-    to { transform: scale(1); }
-}
-
 /* Controls */
 .control-section {
     display: flex;
