@@ -75,6 +75,25 @@
             </section>
 
             <div class="status" id="status">Loading...</div>
+
+            <!-- Technical Description -->
+            <section class="tech-section">
+                <h3>How It Works</h3>
+                <div class="tech-content">
+                    <div class="tech-block">
+                        <h4>MelodyRNN</h4>
+                        <p>This app uses <strong>MelodyRNN</strong>, a recurrent neural network trained by Google Magenta on thousands of MIDI melodies. The model learns musical patterns like scales, intervals, and melodic contours, predicting which notes are likely to follow a given sequence.</p>
+                    </div>
+                    <div class="tech-block">
+                        <h4>Human Hinting</h4>
+                        <p>When you press a key, you provide a <strong>hint</strong> to the AI. Instead of forcing that exact note, we apply a <strong>soft Gaussian bias</strong> to the RNN's probability distribution. Notes closer to your hint get boosted, while distant notes are suppressed&mdash;but the AI still picks from all possibilities weighted by musical sensibility.</p>
+                    </div>
+                    <div class="tech-block">
+                        <h4>The Math</h4>
+                        <p>For each candidate note, we compute: <code>weight = e^(-d²/2σ²)</code> where <em>d</em> is the semitone distance from your hint and <em>σ</em> controls the spread. The final probability is <code>P(note) × weight</code>, then we sample from this biased distribution. This creates an "auto-tune" effect where you guide the melody while the AI ensures it sounds musical.</p>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 
