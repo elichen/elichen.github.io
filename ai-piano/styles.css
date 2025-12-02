@@ -6,7 +6,7 @@
 
 body {
     font-family: 'Nunito', sans-serif;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 50%, #d9e2ec 100%);
     min-height: 100vh;
     display: flex;
     justify-content: center;
@@ -17,7 +17,7 @@ body {
 
 .app-container {
     width: 100%;
-    max-width: 500px;
+    max-width: 540px;
     text-align: center;
 }
 
@@ -28,14 +28,14 @@ header {
 header h1 {
     font-size: 2.8em;
     font-weight: 800;
-    background: linear-gradient(135deg, #ff6b6b 0%, #feca57 50%, #48dbfb 100%);
+    background: linear-gradient(135deg, #e63946 0%, #f4a261 50%, #2a9d8f 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
 
 header .subtitle {
-    color: rgba(255, 255, 255, 0.7);
+    color: #5a6c7d;
     font-size: 1em;
     margin-top: 5px;
 }
@@ -52,7 +52,7 @@ header .subtitle {
 .current-note {
     font-size: 3em;
     font-weight: 800;
-    background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);
+    background: linear-gradient(135deg, #e63946 0%, #f4a261 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     animation: note-pop 0.2s ease;
@@ -70,12 +70,14 @@ header .subtitle {
 }
 
 .piano-container {
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 12px;
     padding: 15px;
     padding-top: 35px;
     margin-bottom: 10px;
     position: relative;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
 }
 
 .octave-label {
@@ -83,7 +85,7 @@ header .subtitle {
     top: 8px;
     left: 15px;
     font-size: 0.7em;
-    color: rgba(255, 255, 255, 0.4);
+    color: #7a8a9a;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
@@ -121,44 +123,46 @@ header .subtitle {
 .piano-key.white {
     width: calc(100% / 7 - 4px);
     height: 100%;
-    background: linear-gradient(180deg, #f8f8f8 0%, #e0e0e0 100%);
+    background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%);
     color: #333;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    border: 1px solid #ddd;
 }
 
 .piano-key.white:hover {
-    background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%);
+    background: linear-gradient(180deg, #fff 0%, #fafafa 100%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .piano-key.white:active,
 .piano-key.white.active {
-    background: linear-gradient(135deg, #feca57 0%, #ff6b6b 100%);
+    background: linear-gradient(135deg, #f4a261 0%, #e63946 100%);
     color: white;
     transform: translateY(3px);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .piano-key.black {
     position: absolute;
     width: 30px;
     height: 60%;
-    background: linear-gradient(180deg, #333 0%, #111 100%);
-    color: #999;
+    background: linear-gradient(180deg, #444 0%, #222 100%);
+    color: #aaa;
     z-index: 1;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
 .piano-key.black:hover {
-    background: linear-gradient(180deg, #444 0%, #222 100%);
-    color: #bbb;
+    background: linear-gradient(180deg, #555 0%, #333 100%);
+    color: #ccc;
 }
 
 .piano-key.black:active,
 .piano-key.black.active {
-    background: linear-gradient(135deg, #48dbfb 0%, #0abde3 100%);
+    background: linear-gradient(135deg, #2a9d8f 0%, #264653 100%);
     color: white;
     transform: translateY(3px);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .piano-key.black span {
@@ -187,7 +191,7 @@ header .subtitle {
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #48dbfb 0%, #0abde3 100%);
+    background: linear-gradient(135deg, #2a9d8f 0%, #264653 100%);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -200,16 +204,16 @@ header .subtitle {
 /* Color notes based on pitch class */
 .history-note[data-pitch="0"],
 .history-note[data-pitch="2"],
-.history-note[data-pitch="4"] { background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); }
+.history-note[data-pitch="4"] { background: linear-gradient(135deg, #e63946 0%, #c1121f 100%); }
 .history-note[data-pitch="5"],
 .history-note[data-pitch="7"],
 .history-note[data-pitch="9"],
-.history-note[data-pitch="11"] { background: linear-gradient(135deg, #feca57 0%, #f39c12 100%); }
+.history-note[data-pitch="11"] { background: linear-gradient(135deg, #f4a261 0%, #e76f51 100%); }
 .history-note[data-pitch="1"],
 .history-note[data-pitch="3"],
 .history-note[data-pitch="6"],
 .history-note[data-pitch="8"],
-.history-note[data-pitch="10"] { background: linear-gradient(135deg, #48dbfb 0%, #0abde3 100%); }
+.history-note[data-pitch="10"] { background: linear-gradient(135deg, #2a9d8f 0%, #264653 100%); }
 
 .history-note:nth-last-child(1) { opacity: 1; }
 .history-note:nth-last-child(2) { opacity: 0.85; }
@@ -229,7 +233,8 @@ header .subtitle {
     justify-content: center;
     gap: 15px;
     padding: 12px 20px;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 12px;
     margin-bottom: 10px;
 }
@@ -241,27 +246,27 @@ header .subtitle {
 }
 
 .control-row label {
-    color: rgba(255, 255, 255, 0.7);
+    color: #5a6c7d;
     font-size: 0.85em;
 }
 
 .control-row input[type="range"] {
     width: 100px;
-    accent-color: #ff6b6b;
+    accent-color: #e63946;
 }
 
 .control-row span {
-    color: #feca57;
+    color: #e63946;
     font-weight: 700;
     min-width: 28px;
 }
 
 .reset-btn {
     padding: 8px 18px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.15);
     border-radius: 20px;
-    color: rgba(255, 255, 255, 0.7);
+    color: #5a6c7d;
     font-family: inherit;
     font-size: 0.85em;
     cursor: pointer;
@@ -269,15 +274,71 @@ header .subtitle {
 }
 
 .reset-btn:hover {
-    background: rgba(255, 107, 107, 0.3);
-    border-color: rgba(255, 107, 107, 0.5);
-    color: white;
+    background: rgba(230, 57, 70, 0.1);
+    border-color: rgba(230, 57, 70, 0.3);
+    color: #e63946;
 }
 
 /* Status */
 .status {
-    color: rgba(255, 255, 255, 0.5);
+    color: #7a8a9a;
     font-size: 0.8em;
+    margin-bottom: 20px;
+}
+
+/* Technical Section */
+.tech-section {
+    margin-top: 30px;
+    padding: 25px;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    text-align: left;
+}
+
+.tech-section h3 {
+    font-size: 1.3em;
+    font-weight: 700;
+    color: #264653;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.tech-content {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.tech-block h4 {
+    font-size: 1em;
+    font-weight: 700;
+    color: #2a9d8f;
+    margin-bottom: 8px;
+}
+
+.tech-block p {
+    font-size: 0.9em;
+    line-height: 1.6;
+    color: #4a5568;
+}
+
+.tech-block code {
+    background: rgba(42, 157, 143, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    color: #264653;
+}
+
+.tech-block strong {
+    color: #264653;
+}
+
+.tech-block em {
+    color: #e63946;
+    font-style: normal;
 }
 
 /* Overlay */
@@ -287,7 +348,7 @@ header .subtitle {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.95);
+    background: rgba(255, 255, 255, 0.97);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -306,14 +367,14 @@ header .subtitle {
 .overlay-content h2 {
     font-size: 3em;
     font-weight: 800;
-    background: linear-gradient(135deg, #ff6b6b 0%, #feca57 50%, #48dbfb 100%);
+    background: linear-gradient(135deg, #e63946 0%, #f4a261 50%, #2a9d8f 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 10px;
 }
 
 .overlay-content p {
-    color: rgba(255, 255, 255, 0.6);
+    color: #5a6c7d;
     font-size: 1.1em;
     margin-bottom: 25px;
 }
@@ -325,8 +386,8 @@ header .subtitle {
 .spinner {
     width: 40px;
     height: 40px;
-    border: 3px solid rgba(255, 255, 255, 0.2);
-    border-top-color: #ff6b6b;
+    border: 3px solid rgba(0, 0, 0, 0.1);
+    border-top-color: #e63946;
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin: 0 auto 15px;
@@ -337,7 +398,7 @@ header .subtitle {
 }
 
 .loading p {
-    color: rgba(255, 255, 255, 0.5);
+    color: #7a8a9a;
     font-size: 0.95em;
 }
 
@@ -346,17 +407,18 @@ header .subtitle {
     font-size: 1.2em;
     font-weight: 700;
     font-family: inherit;
-    background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);
+    background: linear-gradient(135deg, #e63946 0%, #f4a261 100%);
     color: white;
     border: none;
     border-radius: 30px;
     cursor: pointer;
     transition: all 0.2s ease;
+    box-shadow: 0 4px 15px rgba(230, 57, 70, 0.3);
 }
 
 .start-btn:hover {
     transform: scale(1.05);
-    box-shadow: 0 10px 30px rgba(255, 107, 107, 0.4);
+    box-shadow: 0 10px 30px rgba(230, 57, 70, 0.4);
 }
 
 /* Responsive */
@@ -366,4 +428,6 @@ header .subtitle {
     .piano-keys { height: 100px; }
     .piano-key.black { width: 26px; }
     .control-section { flex-direction: column; gap: 10px; }
+    .tech-section { padding: 18px; }
+    .tech-block p { font-size: 0.85em; }
 }
