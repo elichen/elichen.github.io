@@ -53,6 +53,11 @@ const STEPS_PER_QUARTER = 4;
 const QUARTERS_PER_TAP = 0.5;
 const MAX_CONTEXT = 20;
 
+// Chord support - buffer keys pressed within a short window
+let chordBuffer = [];
+let chordTimeout = null;
+const CHORD_WINDOW_MS = 50;  // Keys pressed within 50ms are treated as a chord
+
 // ==================== INIT ====================
 
 async function initModel() {
@@ -242,6 +247,88 @@ async function generateNote(hintMidi = null) {
     }
 }
 
+// Generate multiple notes for a chord from a single RNN call
+async function generateChord(hintMidis) {
+    console.log('generateChord called, hints:', hintMidis);
+
+    if (isGenerating) {
+        console.log('Skipped: already generating');
+        return [];
+    }
+    if (!melodyRNN) {
+        console.log('Skipped: melodyRNN not ready');
+        return [];
+    }
+
+    isGenerating = true;
+    const status = document.getElementById('status');
+    const generatedNotes = [];
+
+    try {
+        // Initialize sequence if needed - use first hint as seed
+        if (!currentSequence || currentSequence.notes.length === 0) {
+            currentSequence = createEmptySequence();
+            const startPitch = hintMidis[0];
+            addNoteToSequence(startPitch);
+            generatedNotes.push(startPitch);
+
+            // For remaining hints in initial chord, add them directly
+            for (let i = 1; i < hintMidis.length; i++) {
+                generatedNotes.push(hintMidis[i]);
+                addNoteToSequence(hintMidis[i]);
+            }
+
+            isGenerating = false;
+            return generatedNotes;
+        }
+
+        status.textContent = 'AI thinking...';
+
+        // Get probability distribution from RNN (single call)
+        const result = await melodyRNN.continueSequenceAndReturnProbabilities(
+            currentSequence,
+            1,
+            temperature
+        );
+
+        const probs = result.probs[0];
+        const sigma = 12 / BIAS_STRENGTH;
+
+        // For each hint, sample a note biased toward that hint
+        for (const hintMidi of hintMidis) {
+            const candidates = [];
+
+            for (let i = FIRST_PITCH_INDEX; i < probs.length; i++) {
+                const midi = indexToMidi(i);
+                if (midi >= MIN_PITCH && midi <= MAX_PITCH) {
+                    const distance = Math.abs(midi - hintMidi);
+                    const weight = Math.exp(-(distance * distance) / (2 * sigma * sigma));
+                    const biasedProb = probs[i] * weight;
+                    candidates.push({ midi, prob: biasedProb });
+                }
+            }
+
+            const selectedMidi = weightedSample(candidates);
+            if (selectedMidi !== null) {
+                const clampedMidi = Math.max(MIN_PITCH, Math.min(MAX_PITCH, selectedMidi));
+                generatedNotes.push(clampedMidi);
+                addNoteToSequence(clampedMidi);
+            }
+        }
+
+        status.textContent = 'Ready! Press keys to play';
+        isGenerating = false;
+        console.log('Generated chord:', generatedNotes);
+        return generatedNotes;
+
+    } catch (err) {
+        console.error('Chord generation error:', err);
+        status.textContent = 'Ready! Press keys to play';
+        isGenerating = false;
+        return [];
+    }
+}
+
 function addNoteToSequence(pitch) {
     const stepsPerNote = STEPS_PER_QUARTER * QUARTERS_PER_TAP;
 
@@ -270,26 +357,28 @@ function addNoteToSequence(pitch) {
 
 // ==================== AUDIO ====================
 
-async function playNote(midi) {
-    console.log('playNote called, midi:', midi);
+async function playNotes(midiNotes) {
+    console.log('playNotes called, midiNotes:', midiNotes);
     if (!player) {
-        console.error('playNote: no player!');
+        console.error('playNotes: no player!');
         return;
     }
 
+    if (!Array.isArray(midiNotes)) {
+        midiNotes = [midiNotes];
+    }
+
+    // Create noteSeq with all notes starting at the same time (chord)
     const noteSeq = {
-        notes: [{ pitch: midi, startTime: 0, endTime: 0.4 }],
+        notes: midiNotes.map(midi => ({ pitch: midi, startTime: 0, endTime: 0.4 })),
         totalTime: 0.4
     };
 
     try {
         if (player.isPlaying()) {
-            console.log('Stopping previous playback');
             player.stop();
         }
-        console.log('Loading samples...');
         await player.loadSamples(noteSeq);
-        console.log('Starting playback');
         player.start(noteSeq);
     } catch (err) {
         console.error('Playback error:', err);
@@ -298,20 +387,54 @@ async function playNote(midi) {
 
 // ==================== HANDLERS ====================
 
-async function handleKeyPress(hintMidi) {
+function handleKeyPress(hintMidi) {
     console.log('handleKeyPress:', hintMidi);
     animateKey(hintMidi);
 
-    const midi = await generateNote(hintMidi);
-    console.log('generateNote returned:', midi);
-    if (midi === null) {
-        console.log('midi is null, skipping playback');
+    // Add to chord buffer (avoid duplicates)
+    if (!chordBuffer.includes(hintMidi)) {
+        chordBuffer.push(hintMidi);
+    }
+
+    // Reset the chord window timer
+    if (chordTimeout) {
+        clearTimeout(chordTimeout);
+    }
+
+    // After CHORD_WINDOW_MS of no new keys, process the chord
+    chordTimeout = setTimeout(() => {
+        processChordBuffer();
+    }, CHORD_WINDOW_MS);
+}
+
+async function processChordBuffer() {
+    if (chordBuffer.length === 0) return;
+
+    const hints = [...chordBuffer];
+    chordBuffer = [];
+    chordTimeout = null;
+
+    console.log('Processing chord:', hints);
+
+    // Generate notes for all hints in the chord
+    const generatedNotes = await generateChord(hints);
+
+    if (generatedNotes.length === 0) {
+        console.log('No notes generated');
         return;
     }
 
-    playNote(midi);
-    showNote(midiToNoteName(midi));
-    addToHistory(midi);
+    // Play all notes as a chord
+    playNotes(generatedNotes);
+
+    // Update UI - show all notes
+    const noteNames = generatedNotes.map(midiToNoteName);
+    showNote(noteNames.join(' '));
+
+    // Add each note to history
+    for (const midi of generatedNotes) {
+        addToHistory(midi);
+    }
 }
 
 // ==================== UI ====================
