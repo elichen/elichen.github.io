@@ -430,11 +430,6 @@ async function processChordBuffer() {
     // Update UI - show all notes
     const noteNames = generatedNotes.map(midiToNoteName);
     showNote(noteNames.join(' '));
-
-    // Add each note to history
-    for (const midi of generatedNotes) {
-        addToHistory(midi);
-    }
 }
 
 // ==================== UI ====================
@@ -442,22 +437,6 @@ async function processChordBuffer() {
 function showNote(noteName) {
     const display = document.getElementById('note-display');
     display.innerHTML = `<span class="current-note">${noteName}</span>`;
-}
-
-function addToHistory(midi) {
-    const history = document.getElementById('note-history');
-    const pitchClass = midi % 12;
-    const noteName = NOTE_NAMES[pitchClass];
-
-    const el = document.createElement('div');
-    el.className = 'history-note';
-    el.dataset.pitch = pitchClass;
-    el.textContent = noteName;
-    history.appendChild(el);
-
-    while (history.children.length > 16) {
-        history.removeChild(history.firstChild);
-    }
 }
 
 function animateKey(midi) {
@@ -470,7 +449,6 @@ function animateKey(midi) {
 
 function resetMelody() {
     currentSequence = createEmptySequence();
-    document.getElementById('note-history').innerHTML = '';
     document.getElementById('note-display').innerHTML = '';
     document.getElementById('status').textContent = 'Melody reset - press keys to play!';
 }
