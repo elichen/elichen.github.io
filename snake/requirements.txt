@@ -1,7 +1,25 @@
+# Snake RL Training Dependencies
+
+# Core RL
 torch>=2.0.0
 numpy>=1.21.0
-matplotlib>=3.5.0
 gymnasium>=0.29.1
 stable-baselines3[extra]>=2.3.0
 sb3-contrib>=2.3.0
+
+# Visualization & Logging
+matplotlib>=3.5.0
 tensorboard>=2.15.0
+
+# Testing
+pytest>=7.0.0
+
+# Video recording (optional)
+imageio>=2.31.0
+imageio-ffmpeg>=0.4.8
+
+# Export to TensorFlow.js (optional, uncomment if needed)
+# onnx>=1.14.0
+# onnx-tf>=1.10.0
+# tensorflow>=2.13.0
+# tensorflowjs>=4.0.0
