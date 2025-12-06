@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snake AI - Reinforcement Learning</title>
+    <title>Snake AI - Curriculum-Trained PPO</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0/dist/tf.min.js"></script>
 </head>
 <body>
     <div class="container">
         <h1>Snake AI</h1>
-        <p class="subtitle">Full-board PPO policy running in TensorFlow.js</p>
+        <p class="subtitle">Curriculum-trained PPO (6x6 → 20x20)</p>
 
         <div class="canvas-wrapper">
             <canvas id="gameCanvas" width="600" height="600"></canvas>
@@ -34,47 +34,53 @@
         <p id="modelStatus"></p>
 
         <div class="description">
-            <p>This agent was trained end-to-end on the full 20×20 board using PPO with a convolutional policy. Observations consist of four semantic channels (head, body, food, walls) stacked across the last four frames, giving the network consistent spatial awareness.</p>
+            <p>This agent was trained using <strong>curriculum learning</strong>, starting on a 6x6 grid and progressively scaling to 20x20. The CNN processes the full board state through 8 feature channels, outputting 3 relative actions (turn left, go straight, turn right).</p>
         </div>
 
         <div class="metrics">
             <div class="metric-card">
                 <div class="label">Training Steps</div>
-                <div class="value">10M</div>
+                <div class="value">~10M</div>
             </div>
             <div class="metric-card">
-                <div class="label">Parallel Envs</div>
-                <div class="value">8 CPU</div>
+                <div class="label">Curriculum</div>
+                <div class="value">6→8→10→14→20</div>
             </div>
             <div class="metric-card">
                 <div class="label">Observation</div>
-                <div class="value">16×20×20 + 24 stats</div>
+                <div class="value">8×20×20</div>
             </div>
             <div class="metric-card">
-                <div class="label">Model Size</div>
-                <div class="value">~6 MB</div>
+                <div class="label">Actions</div>
+                <div class="value">3 (relative)</div>
             </div>
         </div>
 
         <div class="technical-details">
-            <h3>Architecture</h3>
+            <h3>8-Channel CNN Observations</h3>
+            <p>The agent sees the full 20x20 board through 8 feature planes:</p>
             <ul>
-                <li>Algorithm: PPO (55-step rollouts, batch 2048)</li>
-                <li>Observation: 4-channel board tensor stacked over 4 frames + 24 scalar features</li>
-                <li>Network: 3-layer CNN → MLP actor-critic head (shared features)</li>
-                <li>Training: 8 parallel Snake environments on Apple CPU backend</li>
-                <li>Weights exported via ONNX → TensorFlow.js</li>
+                <li><strong>Channel 0 - Head:</strong> 1 at head position, 0 elsewhere</li>
+                <li><strong>Channel 1 - Body:</strong> 1 at all snake segments</li>
+                <li><strong>Channel 2 - Food:</strong> 1 at food position</li>
+                <li><strong>Channels 3-6 - Direction:</strong> One-hot encoded, broadcast across entire grid (e.g., if facing up, all 400 cells in channel 3 = 1)</li>
+                <li><strong>Channel 7 - Length:</strong> Normalized snake length (snake_len / 400), broadcast to all cells</li>
             </ul>
-        </div>
+            <p>The direction channels being "broadcast" gives the CNN spatial context about orientation, allowing it to learn patterns like "food is left of head when facing up → turn left".</p>
 
-        <div class="description">
-            <p>The model avoids the handcrafted features of the earlier demo and instead reasons directly over the full board. TensorFlow.js executes the exact PPO policy that was trained in PyTorch, so what you see here matches the offline training run.</p>
+            <h3>Network Architecture</h3>
+            <ul>
+                <li><strong>Algorithm:</strong> PPO (Proximal Policy Optimization)</li>
+                <li><strong>CNN:</strong> 3 conv layers (64→128→256 filters, 3x3, same padding, ReLU)</li>
+                <li><strong>Pooling:</strong> Global Average Pooling → 256-dim vector</li>
+                <li><strong>MLP:</strong> Dense(256, ReLU) → Dense(256, Tanh) → Dense(256, Tanh) → Dense(3)</li>
+                <li><strong>Training:</strong> 8 parallel environments on Apple Silicon (MPS)</li>
+            </ul>
         </div>
     </div>
 
     <script src="snake.js"></script>
-    <script src="tf-model-pretrained.js"></script>
-    <script src="agent-pretrained.js"></script>
-    <script src="script-pretrained.js"></script>
+    <script src="web_model_new/agent-curriculum.js"></script>
+    <script src="web_model_new/script-curriculum.js"></script>
 </body>
 </html>
