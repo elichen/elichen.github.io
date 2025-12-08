@@ -7,7 +7,7 @@ let gameLoopId = null;
 const GAME_SPEED = 50; // ms per frame
 
 async function init() {
-    document.getElementById('modelStatus').textContent = 'Loading model...';
+    const loadingOverlay = document.getElementById('loadingOverlay');
 
     game = new SnakeGame('gameCanvas', 20);
     game.maxMovesWithoutFood = 200;
@@ -16,16 +16,17 @@ async function init() {
     try {
         await agent.load('web_model_new/weights.json');
         agent.reset(game);
-        document.getElementById('modelStatus').textContent = 'Model loaded! Starting game...';
-        setTimeout(startGame, 500);
+        loadingOverlay.classList.add('hidden');
+        setTimeout(startGame, 100);
     } catch (error) {
         console.error('Failed to load model:', error);
-        document.getElementById('modelStatus').textContent = 'Failed to load model: ' + error.message;
+        loadingOverlay.querySelector('.loading-text').textContent = 'Failed to load model';
+        loadingOverlay.querySelector('.loading-subtext').textContent = error.message;
+        loadingOverlay.querySelector('.loading-spinner').style.display = 'none';
     }
 }
 
 function startGame() {
-    document.getElementById('modelStatus').textContent = '';
     gameLoop();
 }
 
