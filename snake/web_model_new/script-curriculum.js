@@ -15,7 +15,7 @@ async function init() {
 
     try {
         await agent.load('web_model_new/weights.json');
-        agent.reset();
+        agent.reset(game);
         document.getElementById('modelStatus').textContent = 'Model loaded! Starting game...';
         setTimeout(startGame, 500);
     } catch (error) {
@@ -37,7 +37,7 @@ function gameLoop() {
         document.getElementById('foodEaten').textContent = 0;
         totalFoodEaten = 0;
         game.reset();
-        agent.reset();
+        agent.reset(game);  // Sync agent direction with game's random initial direction
     }
 
     // Get action from agent
