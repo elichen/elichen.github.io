@@ -213,8 +213,17 @@ class SnakeCurriculumAgent {
         });
     }
 
-    reset() {
-        this.currentDirection = 0; // Reset to up
+    reset(game) {
+        // Sync with game's actual direction (now random)
+        if (game) {
+            const d = game.direction;
+            if (d.x === 0 && d.y === -1) this.currentDirection = 0; // up
+            else if (d.x === 1 && d.y === 0) this.currentDirection = 1; // right
+            else if (d.x === 0 && d.y === 1) this.currentDirection = 2; // down
+            else if (d.x === -1 && d.y === 0) this.currentDirection = 3; // left
+        } else {
+            this.currentDirection = 0;
+        }
     }
 }
 

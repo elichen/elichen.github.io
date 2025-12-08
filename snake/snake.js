@@ -10,8 +10,30 @@ class SnakeGame {
     }
 
     reset() {
-        this.snake = [{ x: Math.floor(this.gridSize / 2), y: Math.floor(this.gridSize / 2) }];
-        this.direction = { x: 0, y: -1 }; // Start moving upwards
+        // Random initial direction (matching Python training env)
+        const directions = [
+            { x: 0, y: -1 },  // up
+            { x: 1, y: 0 },   // right
+            { x: 0, y: 1 },   // down
+            { x: -1, y: 0 }   // left
+        ];
+        this.direction = directions[Math.floor(Math.random() * 4)];
+
+        // Start snake in center with 3 segments (matching Python training env)
+        const centerX = Math.floor(this.gridSize / 2);
+        const centerY = Math.floor(this.gridSize / 2);
+        this.snake = [];
+        for (let i = 0; i < 3; i++) {
+            // Head first, then body segments behind (opposite of direction)
+            const x = centerX - i * this.direction.x;
+            const y = centerY - i * this.direction.y;
+            // Clamp to grid
+            this.snake.push({
+                x: Math.max(0, Math.min(this.gridSize - 1, x)),
+                y: Math.max(0, Math.min(this.gridSize - 1, y))
+            });
+        }
+
         this.food = this.generateFood();
         this.score = 0;
         this.gameOver = false;
@@ -42,11 +64,25 @@ class SnakeGame {
             return false;
         }
 
-        // Check collision with self
-        if (this.snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+        // Check collision with self (excluding tail, which will move away)
+        // Match Python: new_head in self.snake[:-1]
+        const bodyWithoutTail = this.snake.slice(0, -1);
+        if (bodyWithoutTail.some(segment => segment.x === head.x && segment.y === head.y)) {
             this.gameOver = true;
             this.collisionType = 'self';
             return false;
+        }
+        // Also check if head hits tail AND we're not eating food at that position
+        // (if eating food, snake grows so tail doesn't move)
+        const tail = this.snake[this.snake.length - 1];
+        if (head.x === tail.x && head.y === tail.y) {
+            // This is only a collision if we're eating food (tail won't move)
+            if (head.x === this.food.x && head.y === this.food.y) {
+                this.gameOver = true;
+                this.collisionType = 'self';
+                return false;
+            }
+            // Otherwise tail will move, so it's safe
         }
 
         this.snake.unshift(head);
