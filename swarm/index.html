@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swarm</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+Pro:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --text-color: #333;
+            --muted: #666;
+            --light-muted: #999;
+            --bg: #fff;
+            --figure-bg: #f7f7f7;
+            --border: #ddd;
+            --accent: #2563eb;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Source Serif Pro', Georgia, serif;
+            font-size: 18px;
+            line-height: 1.8;
+            color: var(--text-color);
+            background: var(--bg);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        article {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 80px 20px 120px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            font-size: 1.25rem;
+            color: var(--muted);
+            margin-bottom: 1.5rem;
+            font-style: italic;
+            font-weight: 400;
+        }
+
+        .byline {
+            font-family: 'Source Sans Pro', sans-serif;
+            font-size: 0.9rem;
+            color: var(--light-muted);
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-top: 3rem;
+            margin-bottom: 1rem;
+            letter-spacing: -0.01em;
+        }
+
+        p {
+            margin-bottom: 1.25rem;
+        }
+
+        .lead {
+            font-size: 1.15rem;
+        }
+
+        .figure {
+            margin: 3rem -40px;
+        }
+
+        @media (max-width: 780px) {
+            .figure {
+                margin: 2.5rem -20px;
+            }
+        }
+
+        .figure-content {
+            background: #1a1a2e;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .figure canvas {
+            width: 100%;
+            height: 450px;
+            display: block;
+        }
+
+        .figure-caption {
+            font-family: 'Source Sans Pro', sans-serif;
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-top: 12px;
+            text-align: left;
+            padding: 0;
+        }
+
+        .figure-caption strong {
+            color: var(--text-color);
+        }
+
+        .equation {
+            font-family: 'Source Sans Pro', monospace;
+            background: var(--figure-bg);
+            padding: 16px 20px;
+            border-radius: 4px;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+            overflow-x: auto;
+            border-left: 3px solid var(--accent);
+        }
+
+        .highlight {
+            background: #f0f7ff;
+            padding: 20px;
+            border-radius: 4px;
+            margin: 2rem 0;
+            font-size: 0.95rem;
+        }
+
+        .highlight strong {
+            color: var(--accent);
+        }
+
+        ul {
+            margin-left: 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .footnote {
+            font-family: 'Source Sans Pro', sans-serif;
+            font-size: 0.85rem;
+            color: var(--muted);
+            border-top: 1px solid var(--border);
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+        }
+
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .loading.hidden {
+            display: none;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-family: 'Source Sans Pro', sans-serif;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 600px) {
+            article {
+                padding: 40px 16px 80px;
+            }
+
+            h1 {
+                font-size: 1.9rem;
+            }
+
+            .figure canvas {
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading neural network...</div>
+    </div>
+
+    <article>
+        <h1>Swarm</h1>
+        <p class="subtitle">Emergent flocking from local rewards</p>
+        <p class="byline">An interactive demonstration</p>
+
+        <p class="lead">
+            Move your mouse over the simulation to guide the swarm. Each agent sees only its
+            nearest neighbors, yet the group moves as one—splitting, merging, and flowing like a
+            living fluid.
+        </p>
+
+        <p>
+            We trained a PPO agent where each particle uses the <em>same</em> policy network, receiving only
+            local information: its velocity, direction to an attractor, and the relative positions and velocities
+            of its 7 nearest neighbors. The reward encourages following the attractor while maintaining
+            cohesion and separation—the neural network discovers <em>how</em> to balance them.
+        </p>
+
+        <div class="figure">
+            <div class="figure-content">
+                <canvas id="canvas"></canvas>
+            </div>
+            <p class="figure-caption">
+                <strong>Figure 1.</strong> PPO-trained agents exhibiting emergent swarm behavior. Each agent runs the same
+                neural network policy using only local observations.
+            </p>
+        </div>
+
+        <h2>The Three Rules</h2>
+
+        <p>
+            Flocking behavior emerges from three simple local rules, first described by Craig Reynolds in 1986:
+        </p>
+
+        <ul>
+            <li><strong>Cohesion</strong> — Steer toward the average position of neighbors</li>
+            <li><strong>Separation</strong> — Avoid crowding neighbors</li>
+            <li><strong>Alignment</strong> — Match the heading of neighbors</li>
+        </ul>
+
+        <p>
+            Rather than hardcoding these rules, we provide them as reward signals and let the neural network
+            learn the appropriate response to any local configuration:
+        </p>
+
+        <div class="equation">
+            reward = cohesion_bonus + alignment_bonus − separation_penalty
+        </div>
+
+        <h2>Local Observations</h2>
+
+        <p>
+            Each agent observes a 32-dimensional vector containing only local information:
+        </p>
+
+        <div class="equation">
+            [velocity, attractor_dir, neighbor₁_pos, neighbor₁_vel, ..., neighbor₇_pos, neighbor₇_vel]
+        </div>
+
+        <p>
+            No agent knows the global state. No agent is given explicit rules. Yet from these simple
+            rewards, the shared policy discovers how to create fluid collective motion.
+        </p>
+
+        <div class="highlight">
+            <strong>Key insight:</strong> The policy learns a continuous mapping from local observations to actions.
+            Unlike rule-based boids, it can adapt its behavior to different configurations—turning sharply
+            when crowded, cruising smoothly when aligned.
+        </div>
+
+        <h2>Emergent Properties</h2>
+
+        <p>
+            Watch the simulation and you'll notice emergent properties:
+        </p>
+
+        <ul>
+            <li><strong>Fluid motion</strong> — The swarm moves smoothly, with direction changes propagating like waves</li>
+            <li><strong>Shape-shifting</strong> — The swarm constantly changes shape while maintaining cohesion</li>
+            <li><strong>No leader</strong> — Any agent can influence the group's direction</li>
+            <li><strong>Robustness</strong> — Even scattered agents form a cohesive swarm</li>
+        </ul>
+
+        <p class="footnote">
+            This demonstration uses a shared PPO policy with discrete actions (8 directions + stay).
+            Training was done with PyTorch; inference runs in-browser with TensorFlow.js.
+        </p>
+    </article>
+
+    <script src="agent.js"></script>
+    <script src="simulation.js"></script>
+</body>
+</html>
