@@ -1,0 +1,7 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# PyTorch checkpoints (weights JSON files are kept for web app)
+*.pt
