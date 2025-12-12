@@ -1,5 +1,6 @@
 /**
- * Swarm Simulation - Mouse-guided flocking
+ * Swarm Simulation - Starling Murmuration
+ * Birds flock together following a moving attractor (mouse)
  */
 
 class SwarmSimulation {
@@ -27,8 +28,9 @@ class SwarmSimulation {
         this.running = false;
         this.lastTime = 0;
 
-        // Mouse attractor (in arena coords)
+        // Mouse as attractor (in arena coords)
         this.attractor = { x: 0.5, y: 0.5 };
+        this.attractorAngle = 0;
         this.mouseInCanvas = false;
 
         // Trail effect
@@ -49,9 +51,20 @@ class SwarmSimulation {
         const canvasX = e.clientX - rect.left;
         const canvasY = e.clientY - rect.top;
 
-        // Convert to arena coords
-        this.attractor.x = (canvasX / this.width) * this.arenaWidth;
-        this.attractor.y = (canvasY / this.height) * this.arenaHeight;
+        // Convert to arena coords, accounting for centered view
+        let comX = 0, comY = 0;
+        for (const bird of this.birds) {
+            comX += bird.x;
+            comY += bird.y;
+        }
+        comX /= this.birds.length;
+        comY /= this.birds.length;
+
+        const offsetX = this.arenaWidth / 2 - comX;
+        const offsetY = this.arenaHeight / 2 - comY;
+
+        this.attractor.x = (canvasX / this.width) * this.arenaWidth - offsetX;
+        this.attractor.y = (canvasY / this.height) * this.arenaHeight - offsetY;
     }
 
     async init() {
@@ -155,13 +168,36 @@ class SwarmSimulation {
                 neighborObs.push(...nRelPos, ...nRelVel);
             }
 
+            // obs_dim = velocity(2) + attractor_dir(2) + neighbors(7*4) = 32
             observations.push([...myVel, ...attractorDir, ...neighborObs]);
         }
 
         return observations;
     }
 
+    moveAttractor() {
+        // When mouse is not in canvas, attractor moves in figure-8 around flock
+        if (this.mouseInCanvas) return;
+
+        // Calculate flock center
+        let comX = 0, comY = 0;
+        for (const bird of this.birds) {
+            comX += bird.x;
+            comY += bird.y;
+        }
+        comX /= this.birds.length;
+        comY /= this.birds.length;
+
+        // Figure-8 pattern around flock center
+        this.attractorAngle += 0.02;
+        const radius = 0.25;
+        const t = this.attractorAngle;
+        this.attractor.x = comX + radius * Math.sin(t);
+        this.attractor.y = comY + radius * Math.sin(t) * Math.cos(t);
+    }
+
     step() {
+        this.moveAttractor();
         const observations = this.buildObservations();
         const actions = this.agent.sample(observations);
 
@@ -185,25 +221,30 @@ class SwarmSimulation {
             bird.x += bird.vx;
             bird.y += bird.vy;
 
-            // Soft boundary
-            const margin = 0.15;
-            const turnForce = 0.004;
-            if (bird.x < margin) bird.vx += turnForce;
-            if (bird.x > this.arenaWidth - margin) bird.vx -= turnForce;
-            if (bird.y < margin) bird.vy += turnForce;
-            if (bird.y > this.arenaHeight - margin) bird.vy -= turnForce;
-
-            bird.x = Math.max(0.02, Math.min(this.arenaWidth - 0.02, bird.x));
-            bird.y = Math.max(0.02, Math.min(this.arenaHeight - 0.02, bird.y));
+            // No boundaries - flock can roam freely
+            // The cohesion reward keeps them together
         }
     }
 
     render() {
         const ctx = this.ctx;
 
+        // Calculate center of mass
+        let comX = 0, comY = 0;
+        for (const bird of this.birds) {
+            comX += bird.x;
+            comY += bird.y;
+        }
+        comX /= this.birds.length;
+        comY /= this.birds.length;
+
+        // Offset to center the flock
+        const offsetX = this.arenaWidth / 2 - comX;
+        const offsetY = this.arenaHeight / 2 - comY;
+
         const toCanvas = (x, y) => [
-            (x / this.arenaWidth) * this.width,
-            (y / this.arenaHeight) * this.height
+            ((x + offsetX) / this.arenaWidth) * this.width,
+            ((y + offsetY) / this.arenaHeight) * this.height
         ];
 
         // Trail fade
@@ -226,13 +267,13 @@ class SwarmSimulation {
             this.drawBird(bird, toCanvas);
         }
 
-        // Draw attractor hint when mouse is in canvas
+        // Draw attractor (subtle indicator when mouse is in canvas)
         if (this.mouseInCanvas) {
             const [ax, ay] = toCanvas(this.attractor.x, this.attractor.y);
-            ctx.strokeStyle = 'rgba(124, 58, 237, 0.5)';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(147, 197, 253, 0.4)';
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.arc(ax, ay, 15, 0, Math.PI * 2);
+            ctx.arc(ax, ay, 12, 0, Math.PI * 2);
             ctx.stroke();
         }
     }
