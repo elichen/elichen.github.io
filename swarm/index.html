@@ -79,6 +79,28 @@
             font-size: 1.15rem;
         }
 
+        .figure-hero {
+            position: relative;
+            left: 50%;
+            right: 50%;
+            margin-left: -50vw;
+            margin-right: -50vw;
+            width: 100vw;
+            margin-top: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .figure-hero .figure-content {
+            background: #1a1a2e;
+            overflow: hidden;
+        }
+
+        .figure-hero canvas {
+            width: 100%;
+            height: 70vh;
+            display: block;
+        }
+
         .figure {
             margin: 3rem -40px;
         }
@@ -86,6 +108,9 @@
         @media (max-width: 780px) {
             .figure {
                 margin: 2.5rem -20px;
+            }
+            .figure-hero canvas {
+                height: 50vh;
             }
         }
 
@@ -232,14 +257,10 @@
             cohesion and separation—the neural network discovers <em>how</em> to balance them.
         </p>
 
-        <div class="figure">
+        <div class="figure-hero">
             <div class="figure-content">
                 <canvas id="canvas"></canvas>
             </div>
-            <p class="figure-caption">
-                <strong>Figure 1.</strong> PPO-trained agents exhibiting emergent swarm behavior. Each agent runs the same
-                neural network policy using only local observations.
-            </p>
         </div>
 
         <h2>The Three Rules</h2>

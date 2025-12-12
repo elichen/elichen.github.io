@@ -10,7 +10,7 @@ class SwarmSimulation {
         this.agent = new MurmurationAgent();
 
         // Config (must match training parameters!)
-        this.numBirds = 150;
+        this.numBirds = 350;
         this.numNeighbors = 7;
         this.birdSpeed = 0.02;
         this.birdAcceleration = 0.008;
