@@ -186,15 +186,16 @@ body {
 @media screen and (max-width: 768px) {
     body {
         padding: 10px;
-        font-size: 14px;
+        font-size: 16px;
+        line-height: 1.55;
     }
-    
+
     .container {
         padding: 10px;
         border: none;
         box-shadow: none;
     }
-    
+
     /* Navigation for mobile */
     .nav-links {
         flex-wrap: wrap;
@@ -202,50 +203,51 @@ body {
         justify-content: center;
         padding: 10px 0;
     }
-    
+
     .nav-links a {
-        font-size: 12px;
+        font-size: 14px;
         padding: 5px 8px;
         letter-spacing: 1px;
     }
-    
+
     /* Section headers mobile */
     .section-header {
         font-size: 1.4em;
         letter-spacing: 2px;
         margin: 30px 0 15px 0;
     }
-    
+
     /* About section mobile */
     .about-section {
         padding: 15px;
-        font-size: 0.95em;
+        font-size: 17px;
+        line-height: 1.55;
         margin: 15px 0;
     }
-    
+
     /* Project grid mobile */
     .projects-grid {
         grid-template-columns: 1fr;
         gap: 15px;
         margin: 15px 0;
     }
-    
+
     /* Game box mobile */
     .game-box {
         min-height: auto;
         padding: 15px;
     }
-    
+
     .game-box h2 {
         font-size: 1.1em;
         letter-spacing: 1px;
     }
-    
+
     .game-box p {
-        font-size: 0.9em;
-        line-height: 1.5;
+        font-size: 16px;
+        line-height: 1.55;
     }
-    
+
     /* Play button mobile */
     .play-button {
         padding: 10px 20px;
@@ -260,33 +262,34 @@ body {
     body {
         padding: 5px;
     }
-    
+
     .container {
         padding: 5px;
     }
-    
+
     .nav-links {
         gap: 8px;
     }
-    
+
     .nav-links a {
-        font-size: 11px;
+        font-size: 13px;
         padding: 4px 6px;
     }
-    
+
     .section-header {
         font-size: 1.2em;
     }
-    
+
     .game-box {
         padding: 12px;
     }
-    
+
     .game-box h2 {
         font-size: 1em;
     }
-    
+
     .game-box p {
-        font-size: 0.85em;
+        font-size: 15px;
+        line-height: 1.55;
     }
 }
