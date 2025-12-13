@@ -77,8 +77,8 @@ class MinimalComicMaker {
 
         if (type === 'man') this.addPerson(p, 'standing', 'm');
         else if (type === 'woman') this.addPerson(p, 'standing', 'f');
-        else if (type === 'seated-man') this.addPerson(p, 'sitting', 'm');
-        else if (type === 'seated-woman') this.addPerson(p, 'sitting', 'f');
+        else if (type === 'chair') this.addChair(p);
+        else if (type === 'desk') this.addDesk(p);
         else if (type === 'bubble') this.addBubble(p);
         else if (type === 'text') this.addText(p);
     }
@@ -92,6 +92,7 @@ class MinimalComicMaker {
         this.canvas.width = Math.round(this.width * this.dpr);
         this.canvas.height = Math.round(this.height * this.dpr);
         this.autoScalePeople();
+        this.autoScaleFurniture();
         this.draw();
     }
 
@@ -179,6 +180,9 @@ class MinimalComicMaker {
                 } else if (el.type === 'person') {
                     this.debug('pointer up, auto-facing from drag', el.id);
                     this.autoSetFacing();
+                    this.updateChairPersonLinks();
+                } else if (el.type === 'chair') {
+                    this.updateChairPersonLinks();
                 }
                 this.draw();
             }
@@ -206,7 +210,8 @@ class MinimalComicMaker {
         // Add item shortcuts
         if (key === 'p' || key === 'm') return this.addItemAtRandom('man');
         if (key === 'w') return this.addItemAtRandom('woman');
-        if (key === 's') return this.addItemAtRandom(e.shiftKey ? 'seated-woman' : 'seated-man');
+        if (key === 'c') return this.addItemAtRandom('chair');
+        if (key === 'e') return this.addItemAtRandom('desk');
         if (key === 'b') return this.addItemAtRandom('bubble');
         if (key === 't') return this.addItemAtRandom('text');
 
@@ -292,6 +297,7 @@ class MinimalComicMaker {
         this.debug('add person', { id, pose, x: el.x, y: el.y });
         this.autoSetFacing();
         this.autoScalePeople();
+        this.updateChairPersonLinks();
         this.draw();
     }
 
@@ -331,6 +337,61 @@ class MinimalComicMaker {
         this.elements.push(el);
         this.selectedId = id;
         this.openEditor(el);
+        this.draw();
+    }
+
+    addChair(p) {
+        const id = Date.now() + Math.random();
+
+        // Find nearest standing person anywhere to snap to
+        const standing = this.elements.filter(e =>
+            e.type === 'person' && e.pose === 'standing' &&
+            !this.elements.some(c => c.type === 'chair' && c.seatedPersonId === e.id)
+        );
+        let target = null;
+        let targetDist = Infinity;
+        standing.forEach(person => {
+            const dx = person.x - p.x;
+            const dy = person.y - p.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < targetDist) {
+                targetDist = dist;
+                target = person;
+            }
+        });
+
+        const el = {
+            id,
+            type: 'chair',
+            x: target ? target.x : p.x,
+            y: target ? target.y : p.y,
+            scale: target ? target.scale : 1,
+            seatedPersonId: null
+        };
+
+        this.pushHistory();
+        this.elements.push(el);
+        this.selectedId = id;
+        this.updateChairPersonLinks();
+        this.autoScaleFurniture();
+        this.draw();
+    }
+
+    addDesk(p) {
+        const id = Date.now() + Math.random();
+        const el = {
+            id,
+            type: 'desk',
+            x: p.x,
+            y: p.y,
+            scale: 1,
+            autoScale: true
+        };
+
+        this.pushHistory();
+        this.elements.push(el);
+        this.selectedId = id;
+        this.autoScaleFurniture();
         this.draw();
     }
 
@@ -399,6 +460,15 @@ class MinimalComicMaker {
         if (!this.selectedId) return;
         const removed = this.getSelected();
         this.pushHistory();
+
+        // If deleting a chair, stand up the seated person
+        if (removed && removed.type === 'chair' && removed.seatedPersonId) {
+            const person = this.getById(removed.seatedPersonId);
+            if (person) {
+                person.pose = 'standing';
+            }
+        }
+
         this.elements = this.elements.filter(e => e.id !== this.selectedId);
         this.selectedId = null;
         if (removed && removed.type === 'person') {
@@ -450,6 +520,61 @@ class MinimalComicMaker {
         return best;
     }
 
+    // Link/unlink chairs and people based on proximity
+    updateChairPersonLinks() {
+        const chairs = this.elements.filter(e => e.type === 'chair');
+        const people = this.elements.filter(e => e.type === 'person');
+        const linkDist = 50;  // Distance to link
+        const unlinkDist = 80; // Distance to unlink (with hysteresis)
+
+        chairs.forEach(chair => {
+            if (chair.seatedPersonId) {
+                // Check if seated person moved away
+                const person = this.getById(chair.seatedPersonId);
+                if (!person) {
+                    // Person was deleted
+                    chair.seatedPersonId = null;
+                    return;
+                }
+                const dx = person.x - chair.x;
+                const dy = person.y - chair.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > unlinkDist) {
+                    // Unlink - person stands up
+                    person.pose = 'standing';
+                    chair.seatedPersonId = null;
+                    this.debug('person stood up from chair', person.id);
+                }
+            } else {
+                // Find nearest standing person to sit down
+                let nearest = null;
+                let nearestDist = linkDist;
+                people.forEach(person => {
+                    if (person.pose !== 'standing') return;
+                    // Check person isn't already seated in another chair
+                    const alreadySeated = chairs.some(c => c.seatedPersonId === person.id);
+                    if (alreadySeated) return;
+                    const dx = person.x - chair.x;
+                    const dy = person.y - chair.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearest = person;
+                    }
+                });
+                if (nearest) {
+                    // Link - person sits down, chair snaps to person
+                    nearest.pose = 'sitting';
+                    chair.seatedPersonId = nearest.id;
+                    chair.x = nearest.x;
+                    chair.y = nearest.y;
+                    chair.scale = nearest.scale;
+                    this.debug('person sat in chair', nearest.id);
+                }
+            }
+        });
+    }
+
     // Auto-default: people face nearest person (for 2 people, they face each other).
     autoSetFacing() {
         const people = this.elements.filter(e => e.type === 'person');
@@ -461,6 +586,7 @@ class MinimalComicMaker {
         this.debug('autoFacing run', people.map(p => p.id));
         people.forEach(p => {
             if (p.autoFacing === false) return;
+            if (p.pose === 'sitting') return; // Seated people keep their facing
             let nearest = null;
             let bestDist = Infinity;
             people.forEach(o => {
@@ -507,6 +633,41 @@ class MinimalComicMaker {
         autoPeople.forEach(p => {
             p.scale = scale;
         });
+
+        // Sync chair scales with their seated persons
+        this.elements.forEach(el => {
+            if (el.type === 'chair' && el.seatedPersonId) {
+                const person = this.getById(el.seatedPersonId);
+                if (person) {
+                    el.scale = person.scale;
+                }
+            }
+        });
+    }
+
+    autoScaleFurniture() {
+        // Scale standalone furniture (desks, unlinked chairs) based on average person scale
+        const people = this.elements.filter(e => e.type === 'person');
+        let avgScale;
+
+        if (people.length > 0) {
+            avgScale = people.reduce((sum, p) => sum + (p.scale || 1), 0) / people.length;
+        } else {
+            // No people - calculate scale as if there was 1 person
+            const baseH = 130;
+            const targetHeightFrac = 0.75;
+            avgScale = (this.height * targetHeightFrac) / baseH;
+            avgScale = Math.max(0.7, Math.min(3, avgScale));
+        }
+
+        this.elements.forEach(el => {
+            if (el.type === 'desk' && el.autoScale !== false) {
+                el.scale = avgScale;
+            }
+            if (el.type === 'chair' && !el.seatedPersonId) {
+                el.scale = avgScale;
+            }
+        });
     }
 
     hitTest(p) {
@@ -527,6 +688,14 @@ class MinimalComicMaker {
             const w = 90 * s;
             const h = 130 * s;
             return { x: el.x - w / 2, y: el.y - 22 * s, w, h };
+        }
+        if (el.type === 'chair') {
+            // Chair bounds: seat at y+48, legs down 28px (scaled)
+            return { x: el.x - 22 * s, y: el.y + 48 * s, w: 40 * s, h: 28 * s };
+        }
+        if (el.type === 'desk') {
+            // Desk bounds: 120 wide, 50 tall (scaled)
+            return { x: el.x - 60 * s, y: el.y, w: 120 * s, h: 50 * s };
         }
         if (el.type === 'bubble') {
             return { x: el.x - el.w / 2, y: el.y - el.h / 2, w: el.w, h: el.h + 24 };
@@ -599,6 +768,8 @@ class MinimalComicMaker {
         // Elements
         this.elements.forEach(el => {
             if (el.type === 'person') this.drawPerson(el);
+            if (el.type === 'chair') this.drawChair(el);
+            if (el.type === 'desk') this.drawDesk(el);
             if (el.type === 'bubble') this.drawBubble(el);
             if (el.type === 'text') this.drawText(el);
 
@@ -654,7 +825,6 @@ class MinimalComicMaker {
 
         if (el.pose === 'sitting') {
             this.drawSittingBody(ctx, headR);
-            this.drawDesk(ctx);
         } else {
             this.drawStandingBody(ctx, headR, el.hasDress);
         }
@@ -702,67 +872,121 @@ class MinimalComicMaker {
         const bodyStartY = headR;
         const bodyEndY = headR + 30;
 
-        // Body
+        // Body (slight lean back)
         ctx.beginPath();
         ctx.moveTo(0, bodyStartY);
-        ctx.lineTo(0, bodyEndY);
+        ctx.lineTo(-2, bodyEndY);
         ctx.stroke();
 
-        // Arms forward
+        // Arms forward (resting on lap or desk)
         ctx.beginPath();
-        ctx.moveTo(-14, headR + 12);
-        ctx.lineTo(0, headR + 18);
-        ctx.lineTo(16, headR + 16);
+        ctx.moveTo(-8, headR + 14);
+        ctx.lineTo(0, headR + 20);
+        ctx.lineTo(14, headR + 22);
         ctx.stroke();
 
-        // Seated legs
+        // Seated legs - profile view (thigh forward, lower leg down)
         ctx.beginPath();
-        ctx.moveTo(0, bodyEndY);
-        ctx.lineTo(-14, bodyEndY + 8);
-        ctx.lineTo(-14, bodyEndY + 26);
-        ctx.moveTo(0, bodyEndY);
-        ctx.lineTo(10, bodyEndY + 10);
-        ctx.lineTo(10, bodyEndY + 26);
-        ctx.stroke();
-
-        // Chair
-        ctx.beginPath();
-        ctx.moveTo(-22, bodyEndY + 6);
+        // Thigh extends forward
+        ctx.moveTo(-2, bodyEndY);
         ctx.lineTo(18, bodyEndY + 6);
-        ctx.moveTo(-18, bodyEndY + 6);
-        ctx.lineTo(-18, bodyEndY + 34);
-        ctx.moveTo(14, bodyEndY + 6);
-        ctx.lineTo(14, bodyEndY + 34);
+        // Lower leg hangs down
+        ctx.lineTo(18, bodyEndY + 28);
         ctx.stroke();
     }
 
-    drawDesk(ctx) {
-        // Desk surface
-        const deskY = 62;
-        const deskX = 20;
-        const deskW = 140;
+    drawChair(el) {
+        const ctx = this.ctx;
+        const s = el.scale || 1;
+        ctx.save();
+        ctx.translate(el.x, el.y);
+        ctx.scale(s, s);
 
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Get facing from seated person, or null if standalone
+        let facing = null;
+        if (el.seatedPersonId) {
+            const person = this.getById(el.seatedPersonId);
+            if (person) facing = person.facing;
+        }
+
+        const seatY = 48; // matches bodyEndY + 6 from sitting body
+
+        if (facing === null) {
+            // Standalone chair - front view with high back
+            ctx.beginPath();
+            // Seat
+            ctx.moveTo(-22, seatY);
+            ctx.lineTo(22, seatY);
+            // Back legs
+            ctx.moveTo(-18, seatY);
+            ctx.lineTo(-18, seatY + 28);
+            ctx.moveTo(18, seatY);
+            ctx.lineTo(18, seatY + 28);
+            // High backrest
+            ctx.moveTo(-22, seatY);
+            ctx.lineTo(-22, seatY - 30);
+            ctx.lineTo(22, seatY - 30);
+            ctx.lineTo(22, seatY);
+            ctx.stroke();
+        } else {
+            // Side view - backrest on opposite side of facing
+            const backX = facing > 0 ? -22 : 18;
+            const frontX = facing > 0 ? 18 : -22;
+            ctx.beginPath();
+            // Seat
+            ctx.moveTo(-22, seatY);
+            ctx.lineTo(18, seatY);
+            // Front leg
+            ctx.moveTo(frontX, seatY);
+            ctx.lineTo(frontX, seatY + 28);
+            // Back leg
+            ctx.moveTo(backX, seatY);
+            ctx.lineTo(backX, seatY + 28);
+            // Backrest (on back side)
+            ctx.moveTo(backX, seatY);
+            ctx.lineTo(backX, seatY - 30);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+
+    drawDesk(el) {
+        const ctx = this.ctx;
+        const s = el.scale || 1;
+        ctx.save();
+        ctx.translate(el.x, el.y);
+        ctx.scale(s, s);
+
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Simple desk - surface and legs
+        const deskW = 120;
+        const deskH = 50;
+
+        // Surface
         ctx.beginPath();
-        ctx.moveTo(deskX, deskY);
-        ctx.lineTo(deskX + deskW, deskY);
+        ctx.moveTo(-deskW / 2, 0);
+        ctx.lineTo(deskW / 2, 0);
         ctx.stroke();
 
-        // Desk legs
+        // Legs
         ctx.beginPath();
-        ctx.moveTo(deskX + 18, deskY);
-        ctx.lineTo(deskX + 18, deskY + 48);
-        ctx.moveTo(deskX + deskW - 18, deskY);
-        ctx.lineTo(deskX + deskW - 18, deskY + 48);
+        ctx.moveTo(-deskW / 2 + 15, 0);
+        ctx.lineTo(-deskW / 2 + 15, deskH);
+        ctx.moveTo(deskW / 2 - 15, 0);
+        ctx.lineTo(deskW / 2 - 15, deskH);
         ctx.stroke();
 
-        // Laptop
-        ctx.beginPath();
-        ctx.moveTo(deskX + 68, deskY - 2);
-        ctx.lineTo(deskX + 96, deskY - 20);
-        ctx.lineTo(deskX + 126, deskY - 20);
-        ctx.lineTo(deskX + 98, deskY - 2);
-        ctx.closePath();
-        ctx.stroke();
+        ctx.restore();
     }
 
     drawBubble(el) {
@@ -884,6 +1108,8 @@ class MinimalComicMaker {
         this.ctx = ectx;
         this.elements.forEach(el => {
             if (el.type === 'person') this.drawPerson(el);
+            if (el.type === 'chair') this.drawChair(el);
+            if (el.type === 'desk') this.drawDesk(el);
             if (el.type === 'bubble') this.drawBubble(el);
             if (el.type === 'text') this.drawText(el);
         });
