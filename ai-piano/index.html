@@ -11,62 +11,26 @@
     <div class="app-container">
         <header>
             <h1>Magic Piano</h1>
-            <p class="subtitle">Press keys to hint - AI picks the best notes</p>
+            <p class="subtitle">Inspired by <a href="https://magenta.tensorflow.org/pianogenie" target="_blank">Piano Genie</a></p>
         </header>
 
         <main>
             <!-- Current Note Display -->
             <div class="note-display" id="note-display"></div>
 
-            <!-- On-screen Piano - Two Octaves -->
-            <section class="piano-section">
-                <!-- Upper Octave (C4-B4) -->
-                <div class="piano-container">
-                    <div class="octave-label">Octave 4</div>
-                    <div class="piano-keys">
-                        <div class="piano-key white" data-midi="60"><span>C</span><small>Q</small></div>
-                        <div class="piano-key white" data-midi="62"><span>D</span><small>W</small></div>
-                        <div class="piano-key white" data-midi="64"><span>E</span><small>E</small></div>
-                        <div class="piano-key white" data-midi="65"><span>F</span><small>R</small></div>
-                        <div class="piano-key white" data-midi="67"><span>G</span><small>T</small></div>
-                        <div class="piano-key white" data-midi="69"><span>A</span><small>Y</small></div>
-                        <div class="piano-key white" data-midi="71"><span>B</span><small>U</small></div>
-                        <div class="piano-key black" data-midi="61" style="left: calc(14.28% - 12px);"><span>C#</span><small>2</small></div>
-                        <div class="piano-key black" data-midi="63" style="left: calc(28.57% - 12px);"><span>D#</span><small>3</small></div>
-                        <div class="piano-key black" data-midi="66" style="left: calc(57.14% - 12px);"><span>F#</span><small>5</small></div>
-                        <div class="piano-key black" data-midi="68" style="left: calc(71.43% - 12px);"><span>G#</span><small>6</small></div>
-                        <div class="piano-key black" data-midi="70" style="left: calc(85.71% - 12px);"><span>A#</span><small>7</small></div>
-                    </div>
+            <!-- 8 Genie Buttons -->
+            <section class="genie-section">
+                <div class="genie-buttons">
+                    <button class="genie-btn" data-btn="1"><span>1</span></button>
+                    <button class="genie-btn" data-btn="2"><span>2</span></button>
+                    <button class="genie-btn" data-btn="3"><span>3</span></button>
+                    <button class="genie-btn" data-btn="4"><span>4</span></button>
+                    <button class="genie-btn" data-btn="5"><span>5</span></button>
+                    <button class="genie-btn" data-btn="6"><span>6</span></button>
+                    <button class="genie-btn" data-btn="7"><span>7</span></button>
+                    <button class="genie-btn" data-btn="8"><span>8</span></button>
                 </div>
-
-                <!-- Lower Octave (C3-B3) -->
-                <div class="piano-container">
-                    <div class="octave-label">Octave 3</div>
-                    <div class="piano-keys">
-                        <div class="piano-key white" data-midi="48"><span>C</span><small>Z</small></div>
-                        <div class="piano-key white" data-midi="50"><span>D</span><small>X</small></div>
-                        <div class="piano-key white" data-midi="52"><span>E</span><small>C</small></div>
-                        <div class="piano-key white" data-midi="53"><span>F</span><small>V</small></div>
-                        <div class="piano-key white" data-midi="55"><span>G</span><small>B</small></div>
-                        <div class="piano-key white" data-midi="57"><span>A</span><small>N</small></div>
-                        <div class="piano-key white" data-midi="59"><span>B</span><small>M</small></div>
-                        <div class="piano-key black" data-midi="49" style="left: calc(14.28% - 12px);"><span>C#</span><small>S</small></div>
-                        <div class="piano-key black" data-midi="51" style="left: calc(28.57% - 12px);"><span>D#</span><small>D</small></div>
-                        <div class="piano-key black" data-midi="54" style="left: calc(57.14% - 12px);"><span>F#</span><small>G</small></div>
-                        <div class="piano-key black" data-midi="56" style="left: calc(71.43% - 12px);"><span>G#</span><small>H</small></div>
-                        <div class="piano-key black" data-midi="58" style="left: calc(85.71% - 12px);"><span>A#</span><small>J</small></div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Controls -->
-            <section class="control-section">
-                <div class="control-row">
-                    <label>Creativity</label>
-                    <input type="range" id="temperature" min="0.5" max="2" step="0.1" value="1.2">
-                    <span id="temp-value">1.2</span>
-                </div>
-                <button id="reset-btn" class="reset-btn">Reset</button>
+                <p class="genie-hint">Press keys 1-8 to play. Lower = lower notes, higher = higher notes.</p>
             </section>
 
             <div class="status" id="status">Loading...</div>
@@ -76,32 +40,31 @@
                 <h3>How It Works</h3>
                 <div class="tech-content">
                     <div class="tech-block">
-                        <h4>MelodyRNN</h4>
-                        <p>This app uses <strong>MelodyRNN</strong>, a recurrent neural network trained by Google Magenta on thousands of MIDI melodies. The model learns musical patterns like scales, intervals, and melodic contours, predicting which notes are likely to follow a given sequence.</p>
+                        <h4>The Magic</h4>
+                        <p>8 buttons control an 88-key piano. You can't play wrong notes&mdash;only express direction. Press ascending buttons (1&rarr;3&rarr;5) and the melody rises. Press descending (7&rarr;4&rarr;2) and it falls. The AI fills in the musical details.</p>
                     </div>
                     <div class="tech-block">
-                        <h4>Human Hinting</h4>
-                        <p>When you press a key, you provide a <strong>hint</strong> to the AI. Instead of forcing that exact note, we apply a <strong>soft Gaussian bias</strong> to the RNN's probability distribution. Notes closer to your hint get boosted, while distant notes are suppressed&mdash;but the AI still picks from all possibilities weighted by musical sensibility.</p>
+                        <h4>Contour Preservation</h4>
+                        <p>The key insight from <a href="https://magenta.tensorflow.org/pianogenie" target="_blank">Piano Genie</a>: your physical gestures should map to melodic shape. Button order is preserved as pitch order. This creates an intuitive body-to-music connection despite the radical simplification.</p>
                     </div>
                     <div class="tech-block">
-                        <h4>The Math</h4>
-                        <p>For each candidate note, we compute: <code>weight = e^(-d²/2σ²)</code> where <em>d</em> is the semitone distance from your hint and <em>σ</em> controls the spread. The final probability is <code>P(note) × weight</code>, then we sample from this biased distribution. This creates an "auto-tune" effect where you guide the melody while the AI ensures it sounds musical.</p>
+                        <h4>Under the Hood</h4>
+                        <p><strong>MelodyRNN</strong> predicts musically sensible notes. Each button maps to a pitch range, and the AI samples from that range weighted by the RNN's probability distribution. The result: you steer while the neural net handles the music theory.</p>
                     </div>
                 </div>
             </section>
         </main>
     </div>
 
-    <!-- Start Overlay -->
+    <!-- Loading Overlay -->
     <div id="init-overlay" class="overlay">
         <div class="overlay-content">
             <h2>Magic Piano</h2>
-            <p>AI-powered melody generation</p>
-            <div class="loading" id="loading">
+            <p>8 buttons. Infinite melodies.</p>
+            <div class="loading">
                 <div class="spinner"></div>
                 <p>Loading neural network...</p>
             </div>
-            <button id="start-btn" class="start-btn" style="display:none;">Start Playing</button>
         </div>
     </div>
 

@@ -1,51 +1,37 @@
-// Magic Piano - Neural Net melody with keyboard hints
-// Press keys to hint pitch class - RNN picks the best note
+// Magic Piano - Genie Mode
+// 8 buttons control 88 keys with contour preservation
+// Inspired by Piano Genie: https://magenta.tensorflow.org/pianogenie
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-// Two-octave keyboard mapping to MIDI notes
-// Lower octave (C3-B3): white=ZXCVBNM, black=SDGHJ
-// Upper octave (C4-B4): white=QWERTYU, black=23567
-const KEY_TO_MIDI = {
-    // Lower octave (C3 = 48)
-    'KeyZ': 48,  // C3
-    'KeyS': 49,  // C#3
-    'KeyX': 50,  // D3
-    'KeyD': 51,  // D#3
-    'KeyC': 52,  // E3
-    'KeyV': 53,  // F3
-    'KeyG': 54,  // F#3
-    'KeyB': 55,  // G3
-    'KeyH': 56,  // G#3
-    'KeyN': 57,  // A3
-    'KeyJ': 58,  // A#3
-    'KeyM': 59,  // B3
-    // Upper octave (C4 = 60)
-    'KeyQ': 60,  // C4
-    'Digit2': 61,  // C#4
-    'KeyW': 62,  // D4
-    'Digit3': 63,  // D#4
-    'KeyE': 64,  // E4
-    'KeyR': 65,  // F4
-    'Digit5': 66,  // F#4
-    'KeyT': 67,  // G4
-    'Digit6': 68,  // G#4
-    'KeyY': 69,  // A4
-    'Digit7': 70,  // A#4
-    'KeyU': 71   // B4
+// Keyboard mapping: keys 1-8 map to genie buttons
+const KEY_TO_BUTTON = {
+    'Digit1': 1, 'Digit2': 2, 'Digit3': 3, 'Digit4': 4,
+    'Digit5': 5, 'Digit6': 6, 'Digit7': 7, 'Digit8': 8,
+    'Numpad1': 1, 'Numpad2': 2, 'Numpad3': 3, 'Numpad4': 4,
+    'Numpad5': 5, 'Numpad6': 6, 'Numpad7': 7, 'Numpad8': 8
 };
 
 // MelodyRNN encoding constants
 const MIN_PITCH = 48;  // C3
 const MAX_PITCH = 84;  // C6
+const PITCH_RANGE = MAX_PITCH - MIN_PITCH;  // 36 semitones (3 octaves)
 const FIRST_PITCH_INDEX = 2;  // Indices 0,1 are NO_EVENT and NOTE_OFF
-const BIAS_STRENGTH = 2;  // How strongly to bias toward hint (higher = stronger)
 
 // State
 let melodyRNN = null;
 let player = null;
-let temperature = 1.2;
+const temperature = 0.95;  // Balanced creativity
 let isGenerating = false;
+
+// Genie state - track last button and note for contour preservation
+let lastButton = null;
+let lastPitch = null;
+
+// Chord support - buffer buttons pressed within a short window
+let chordBuffer = [];
+let chordTimeout = null;
+const CHORD_WINDOW_MS = 50;
 
 // Melody state
 let currentSequence = null;
@@ -53,19 +39,11 @@ const STEPS_PER_QUARTER = 4;
 const QUARTERS_PER_TAP = 0.5;
 const MAX_CONTEXT = 20;
 
-// Chord support - buffer keys pressed within a short window
-let chordBuffer = [];
-let chordTimeout = null;
-const CHORD_WINDOW_MS = 50;  // Keys pressed within 50ms are treated as a chord
-
 // ==================== INIT ====================
 
 async function initModel() {
     const status = document.getElementById('status');
-    const loading = document.getElementById('loading');
-    const startBtn = document.getElementById('start-btn');
-
-    status.textContent = 'Loading MelodyRNN...';
+    const overlay = document.getElementById('init-overlay');
 
     try {
         melodyRNN = new mm.MusicRNN(
@@ -77,9 +55,8 @@ async function initModel() {
             'https://storage.googleapis.com/magentadata/js/soundfonts/sgm_plus'
         );
 
-        status.textContent = 'Ready! Press keys to play';
-        loading.style.display = 'none';
-        startBtn.style.display = 'block';
+        status.textContent = 'Press 1-8 to play';
+        overlay.classList.add('hidden');
 
         console.log('MelodyRNN initialized');
     } catch (err) {
@@ -104,68 +81,82 @@ function midiToNoteName(midi) {
     return note + octave;
 }
 
-// Convert RNN output index to MIDI pitch
 function indexToMidi(index) {
     return index - FIRST_PITCH_INDEX + MIN_PITCH;
 }
 
-// Convert MIDI pitch to RNN index
 function midiToIndex(midi) {
     return midi - MIN_PITCH + FIRST_PITCH_INDEX;
 }
 
-// Calculate pitch class distance (wraps around octave)
-function pitchClassDistance(pc1, pc2) {
-    const diff = Math.abs(pc1 - pc2);
-    return Math.min(diff, 12 - diff);
+// ==================== CONTOUR-PRESERVING NOTE GENERATION ====================
+
+// Map button (1-8) to a target pitch range
+// Button 1 = lowest range, Button 8 = highest range
+function getButtonPitchRange(button) {
+    // Divide pitch range into 8 overlapping regions
+    const regionSize = PITCH_RANGE / 4;  // ~9 semitones per region
+    const center = MIN_PITCH + ((button - 1) / 7) * PITCH_RANGE;
+
+    return {
+        min: Math.max(MIN_PITCH, Math.floor(center - regionSize / 2)),
+        max: Math.min(MAX_PITCH, Math.ceil(center + regionSize / 2)),
+        center: Math.round(center)
+    };
 }
 
-// Weighted random sampling from candidates
-function weightedSample(candidates) {
-    if (!candidates || candidates.length === 0) {
-        console.error('weightedSample: no candidates!');
-        return null;
+// Apply contour constraint: if ascending buttons, note must not descend (and vice versa)
+function applyContourConstraint(button, pitchRange) {
+    if (lastButton === null || lastPitch === null) {
+        return pitchRange;  // No constraint on first note
     }
 
-    const totalProb = candidates.reduce((sum, c) => sum + c.prob, 0);
-    if (totalProb === 0) {
-        console.warn('weightedSample: all probs are 0, picking first');
-        return candidates[0].midi;
+    const constrained = { ...pitchRange };
+
+    if (button > lastButton) {
+        // Ascending button press - note should be >= lastPitch
+        constrained.min = Math.max(constrained.min, lastPitch);
+    } else if (button < lastButton) {
+        // Descending button press - note should be <= lastPitch
+        constrained.max = Math.min(constrained.max, lastPitch);
+    }
+    // If same button, allow some variation around lastPitch
+
+    // Ensure valid range
+    if (constrained.min > constrained.max) {
+        // Constraint impossible - use boundary
+        if (button > lastButton) {
+            constrained.min = constrained.max = Math.min(MAX_PITCH, lastPitch + 1);
+        } else {
+            constrained.min = constrained.max = Math.max(MIN_PITCH, lastPitch - 1);
+        }
     }
 
-    let r = Math.random() * totalProb;
-
-    for (const c of candidates) {
-        r -= c.prob;
-        if (r <= 0) return c.midi;
-    }
-    return candidates[candidates.length - 1].midi;
+    return constrained;
 }
 
-// ==================== RNN-BIASED NOTE GENERATION ====================
-
-async function generateNote(hintMidi = null) {
-    console.log('generateNote called, hintMidi:', hintMidi, 'isGenerating:', isGenerating);
-
-    if (isGenerating) {
-        console.log('Skipped: already generating');
-        return null;
-    }
-    if (!melodyRNN) {
-        console.log('Skipped: melodyRNN not ready');
-        return null;
-    }
+async function generateGenieNote(button) {
+    if (isGenerating || !melodyRNN) return null;
 
     isGenerating = true;
     const status = document.getElementById('status');
 
     try {
+        // Get target range for this button
+        let pitchRange = getButtonPitchRange(button);
+
+        // Apply contour constraint
+        pitchRange = applyContourConstraint(button, pitchRange);
+
+        console.log(`Button ${button}: range [${pitchRange.min}-${pitchRange.max}], last: ${lastPitch}`);
+
         // Initialize sequence if needed
         if (!currentSequence || currentSequence.notes.length === 0) {
             currentSequence = createEmptySequence();
-            // Start with the hinted note or middle C
-            const startPitch = hintMidi !== null ? hintMidi : 60;
+            const startPitch = pitchRange.center;
             addNoteToSequence(startPitch);
+            lastButton = button;
+            lastPitch = startPitch;
             isGenerating = false;
             return startPitch;
         }
@@ -175,109 +166,92 @@ async function generateNote(hintMidi = null) {
         // Get probability distribution from RNN
         const result = await melodyRNN.continueSequenceAndReturnProbabilities(
             currentSequence,
-            1,  // Generate 1 step
+            1,
             temperature
         );
 
-        // Get the probability array (already Float32Array, no .data() needed)
         const probs = result.probs[0];
 
+        // Build candidates within the constrained pitch range
+        const candidates = [];
+        for (let midi = pitchRange.min; midi <= pitchRange.max; midi++) {
+            const idx = midiToIndex(midi);
+            if (idx >= FIRST_PITCH_INDEX && idx < probs.length) {
+                // Weight by distance from button's center pitch
+                const distFromCenter = Math.abs(midi - pitchRange.center);
+                const centerWeight = Math.exp(-distFromCenter * distFromCenter / 50);
+                candidates.push({
+                    midi,
+                    prob: probs[idx] * centerWeight
+                });
+            }
+        }
+
+        // Sample from candidates
         let selectedMidi;
-
-        if (hintMidi !== null) {
-            // Soft bias: weight all notes by distance from hint
-            // Gaussian-like falloff: weight = exp(-distance² / (2 * sigma²))
-            const sigma = 12 / BIAS_STRENGTH;  // Controls spread
-            const candidates = [];
-
-            for (let i = FIRST_PITCH_INDEX; i < probs.length; i++) {
-                const midi = indexToMidi(i);
-                if (midi >= MIN_PITCH && midi <= MAX_PITCH) {
-                    const distance = Math.abs(midi - hintMidi);
-                    // Gaussian weight - notes near hint get boosted
-                    const weight = Math.exp(-(distance * distance) / (2 * sigma * sigma));
-                    const biasedProb = probs[i] * weight;
-
-                    candidates.push({ midi, prob: biasedProb, origProb: probs[i], distance, weight });
+        if (candidates.length === 0) {
+            // Fallback if no candidates
+            selectedMidi = pitchRange.center;
+        } else {
+            const totalProb = candidates.reduce((sum, c) => sum + c.prob, 0);
+            if (totalProb === 0) {
+                selectedMidi = candidates[Math.floor(candidates.length / 2)].midi;
+            } else {
+                let r = Math.random() * totalProb;
+                for (const c of candidates) {
+                    r -= c.prob;
+                    if (r <= 0) {
+                        selectedMidi = c.midi;
+                        break;
+                    }
+                }
+                if (selectedMidi === undefined) {
+                    selectedMidi = candidates[candidates.length - 1].midi;
                 }
             }
-
-            // Sort by biased prob to see top candidates
-            const sorted = [...candidates].sort((a, b) => b.prob - a.prob);
-            console.log('Top 5 biased candidates:', sorted.slice(0, 5));
-            console.log('Probs array length:', probs.length);
-
-            // Sample from biased distribution
-            selectedMidi = weightedSample(candidates);
-            console.log('Selected MIDI:', selectedMidi);
-        } else {
-            // No hint - use the RNN's own choice from the returned sequence
-            const continued = await result.sequence;
-            if (continued.notes && continued.notes.length > 0) {
-                selectedMidi = continued.notes[continued.notes.length - 1].pitch;
-            } else {
-                // Fallback
-                const lastNote = currentSequence.notes[currentSequence.notes.length - 1];
-                selectedMidi = lastNote.pitch + (Math.random() < 0.5 ? 1 : -1);
-            }
         }
-
-        // Check if we got a valid note
-        if (selectedMidi === null || selectedMidi === undefined) {
-            console.error('No valid MIDI selected');
-            status.textContent = 'Ready! Press keys to play';
-            isGenerating = false;
-            return null;
-        }
-
-        // Clamp to valid range
-        selectedMidi = Math.max(MIN_PITCH, Math.min(MAX_PITCH, selectedMidi));
 
         addNoteToSequence(selectedMidi);
-        status.textContent = 'Ready! Press keys to play';
+        lastButton = button;
+        lastPitch = selectedMidi;
+
+        status.textContent = 'Ready! Press 1-8 to play';
         isGenerating = false;
-        console.log('Returning MIDI:', selectedMidi);
         return selectedMidi;
 
     } catch (err) {
         console.error('Generation error:', err);
-        status.textContent = 'Ready! Press keys to play';
+        status.textContent = 'Ready! Press 1-8 to play';
         isGenerating = false;
         return null;
     }
 }
 
-// Generate multiple notes for a chord from a single RNN call
-async function generateChord(hintMidis) {
-    console.log('generateChord called, hints:', hintMidis);
-
-    if (isGenerating) {
-        console.log('Skipped: already generating');
-        return [];
-    }
-    if (!melodyRNN) {
-        console.log('Skipped: melodyRNN not ready');
-        return [];
-    }
+// Generate multiple notes for a chord
+async function generateGenieChord(buttons) {
+    if (isGenerating || !melodyRNN) return [];
 
     isGenerating = true;
     const status = document.getElementById('status');
     const generatedNotes = [];
 
     try {
-        // Initialize sequence if needed - use first hint as seed
+        // Sort buttons to process in order (for consistent contour)
+        buttons.sort((a, b) => a - b);
+
+        // Initialize sequence if needed
         if (!currentSequence || currentSequence.notes.length === 0) {
             currentSequence = createEmptySequence();
-            const startPitch = hintMidis[0];
-            addNoteToSequence(startPitch);
-            generatedNotes.push(startPitch);
-
-            // For remaining hints in initial chord, add them directly
-            for (let i = 1; i < hintMidis.length; i++) {
-                generatedNotes.push(hintMidis[i]);
-                addNoteToSequence(hintMidis[i]);
+            // Generate each note in the chord
+            for (const button of buttons) {
+                const pitchRange = getButtonPitchRange(button);
+                const pitch = pitchRange.center;
+                generatedNotes.push(pitch);
+                addNoteToSequence(pitch);
             }
-
+            // Track the highest button/pitch for next contour
+            lastButton = buttons[buttons.length - 1];
+            lastPitch = Math.max(...generatedNotes);
             isGenerating = false;
             return generatedNotes;
         }
@@ -290,40 +264,85 @@ async function generateChord(hintMidis) {
             1,
             temperature
         );
-
         const probs = result.probs[0];
-        const sigma = 12 / BIAS_STRENGTH;
 
-        // For each hint, sample a note biased toward that hint
-        for (const hintMidi of hintMidis) {
+        // Generate a note for each button
+        let currentLastButton = lastButton;
+        let currentLastPitch = lastPitch;
+
+        for (const button of buttons) {
+            // Get target range for this button
+            let pitchRange = getButtonPitchRange(button);
+
+            // Apply contour constraint based on current state
+            if (currentLastButton !== null && currentLastPitch !== null) {
+                const constrained = { ...pitchRange };
+                if (button > currentLastButton) {
+                    constrained.min = Math.max(constrained.min, currentLastPitch);
+                } else if (button < currentLastButton) {
+                    constrained.max = Math.min(constrained.max, currentLastPitch);
+                }
+                if (constrained.min > constrained.max) {
+                    if (button > currentLastButton) {
+                        constrained.min = constrained.max = Math.min(MAX_PITCH, currentLastPitch + 1);
+                    } else {
+                        constrained.min = constrained.max = Math.max(MIN_PITCH, currentLastPitch - 1);
+                    }
+                }
+                pitchRange = constrained;
+            }
+
+            // Build candidates
             const candidates = [];
-
-            for (let i = FIRST_PITCH_INDEX; i < probs.length; i++) {
-                const midi = indexToMidi(i);
-                if (midi >= MIN_PITCH && midi <= MAX_PITCH) {
-                    const distance = Math.abs(midi - hintMidi);
-                    const weight = Math.exp(-(distance * distance) / (2 * sigma * sigma));
-                    const biasedProb = probs[i] * weight;
-                    candidates.push({ midi, prob: biasedProb });
+            for (let midi = pitchRange.min; midi <= pitchRange.max; midi++) {
+                const idx = midiToIndex(midi);
+                if (idx >= FIRST_PITCH_INDEX && idx < probs.length) {
+                    const distFromCenter = Math.abs(midi - pitchRange.center);
+                    const centerWeight = Math.exp(-distFromCenter * distFromCenter / 50);
+                    candidates.push({ midi, prob: probs[idx] * centerWeight });
                 }
             }
 
-            const selectedMidi = weightedSample(candidates);
-            if (selectedMidi !== null) {
-                const clampedMidi = Math.max(MIN_PITCH, Math.min(MAX_PITCH, selectedMidi));
-                generatedNotes.push(clampedMidi);
-                addNoteToSequence(clampedMidi);
+            // Sample
+            let selectedMidi;
+            if (candidates.length === 0) {
+                selectedMidi = pitchRange.center;
+            } else {
+                const totalProb = candidates.reduce((sum, c) => sum + c.prob, 0);
+                if (totalProb === 0) {
+                    selectedMidi = candidates[Math.floor(candidates.length / 2)].midi;
+                } else {
+                    let r = Math.random() * totalProb;
+                    for (const c of candidates) {
+                        r -= c.prob;
+                        if (r <= 0) {
+                            selectedMidi = c.midi;
+                            break;
+                        }
+                    }
+                    if (selectedMidi === undefined) {
+                        selectedMidi = candidates[candidates.length - 1].midi;
+                    }
+                }
             }
+
+            generatedNotes.push(selectedMidi);
+            addNoteToSequence(selectedMidi);
+            currentLastButton = button;
+            currentLastPitch = selectedMidi;
         }
 
-        status.textContent = 'Ready! Press keys to play';
+        // Update state with the highest note in chord for next contour
+        lastButton = buttons[buttons.length - 1];
+        lastPitch = Math.max(...generatedNotes);
+
+        status.textContent = 'Ready! Press 1-8 to play';
         isGenerating = false;
-        console.log('Generated chord:', generatedNotes);
         return generatedNotes;
 
     } catch (err) {
         console.error('Chord generation error:', err);
-        status.textContent = 'Ready! Press keys to play';
+        status.textContent = 'Ready! Press 1-8 to play';
         isGenerating = false;
         return [];
     }
@@ -340,7 +359,7 @@ function addNoteToSequence(pitch) {
 
     currentSequence.totalQuantizedSteps += stepsPerNote;
 
-    // Trim old notes to keep generation fast
+    // Trim old notes
     if (currentSequence.notes.length > MAX_CONTEXT) {
         const removeCount = currentSequence.notes.length - MAX_CONTEXT;
         currentSequence.notes.splice(0, removeCount);
@@ -358,17 +377,12 @@ function addNoteToSequence(pitch) {
 // ==================== AUDIO ====================
 
 async function playNotes(midiNotes) {
-    console.log('playNotes called, midiNotes:', midiNotes);
-    if (!player) {
-        console.error('playNotes: no player!');
-        return;
-    }
+    if (!player) return;
 
     if (!Array.isArray(midiNotes)) {
         midiNotes = [midiNotes];
     }
 
-    // Create noteSeq with all notes starting at the same time (chord)
     const noteSeq = {
         notes: midiNotes.map(midi => ({ pitch: midi, startTime: 0, endTime: 0.4 })),
         totalTime: 0.4
@@ -387,13 +401,13 @@ async function playNotes(midiNotes) {
 
 // ==================== HANDLERS ====================
 
-function handleKeyPress(hintMidi) {
-    console.log('handleKeyPress:', hintMidi);
-    animateKey(hintMidi);
+function handleGenieButton(button) {
+    console.log('Genie button:', button);
+    animateButton(button);
 
     // Add to chord buffer (avoid duplicates)
-    if (!chordBuffer.includes(hintMidi)) {
-        chordBuffer.push(hintMidi);
+    if (!chordBuffer.includes(button)) {
+        chordBuffer.push(button);
     }
 
     // Reset the chord window timer
@@ -401,7 +415,7 @@ function handleKeyPress(hintMidi) {
         clearTimeout(chordTimeout);
     }
 
-    // After CHORD_WINDOW_MS of no new keys, process the chord
+    // After CHORD_WINDOW_MS of no new buttons, process the chord
     chordTimeout = setTimeout(() => {
         processChordBuffer();
     }, CHORD_WINDOW_MS);
@@ -410,26 +424,25 @@ function handleKeyPress(hintMidi) {
 async function processChordBuffer() {
     if (chordBuffer.length === 0) return;
 
-    const hints = [...chordBuffer];
+    const buttons = [...chordBuffer];
     chordBuffer = [];
     chordTimeout = null;
 
-    console.log('Processing chord:', hints);
+    console.log('Processing buttons:', buttons);
 
-    // Generate notes for all hints in the chord
-    const generatedNotes = await generateChord(hints);
-
-    if (generatedNotes.length === 0) {
-        console.log('No notes generated');
-        return;
+    let notes;
+    if (buttons.length === 1) {
+        const midi = await generateGenieNote(buttons[0]);
+        notes = midi !== null ? [midi] : [];
+    } else {
+        notes = await generateGenieChord(buttons);
     }
 
-    // Play all notes as a chord
-    playNotes(generatedNotes);
-
-    // Update UI - show all notes
-    const noteNames = generatedNotes.map(midiToNoteName);
-    showNote(noteNames.join(' '));
+    if (notes.length > 0) {
+        playNotes(notes);
+        const noteNames = notes.map(midiToNoteName);
+        showNote(noteNames.join(' '));
+    }
 }
 
 // ==================== UI ====================
@@ -439,18 +452,12 @@ function showNote(noteName) {
     display.innerHTML = `<span class="current-note">${noteName}</span>`;
 }
 
-function animateKey(midi) {
-    const key = document.querySelector(`.piano-key[data-midi="${midi}"]`);
-    if (key) {
-        key.classList.add('active');
-        setTimeout(() => key.classList.remove('active'), 150);
+function animateButton(button) {
+    const btn = document.querySelector(`.genie-btn[data-btn="${button}"]`);
+    if (btn) {
+        btn.classList.add('active');
+        setTimeout(() => btn.classList.remove('active'), 150);
     }
-}
-
-function resetMelody() {
-    currentSequence = createEmptySequence();
-    document.getElementById('note-display').innerHTML = '';
-    document.getElementById('status').textContent = 'Melody reset - press keys to play!';
 }
 
 // ==================== SETUP ====================
@@ -458,45 +465,28 @@ function resetMelody() {
 document.addEventListener('DOMContentLoaded', () => {
     initModel();
 
-    const overlay = document.getElementById('init-overlay');
-    const startBtn = document.getElementById('start-btn');
-    const tempSlider = document.getElementById('temperature');
-    const tempValue = document.getElementById('temp-value');
-    const resetBtn = document.getElementById('reset-btn');
-
-    startBtn.addEventListener('click', () => {
-        overlay.classList.add('hidden');
-    });
-
-    tempSlider.addEventListener('input', (e) => {
-        temperature = parseFloat(e.target.value);
-        tempValue.textContent = temperature.toFixed(1);
-    });
-
-    resetBtn.addEventListener('click', resetMelody);
-
     // Keyboard handlers
     document.addEventListener('keydown', (e) => {
         if (e.repeat) return;
 
-        const midi = KEY_TO_MIDI[e.code];
-        if (midi !== undefined) {
+        const button = KEY_TO_BUTTON[e.code];
+        if (button !== undefined) {
             e.preventDefault();
-            handleKeyPress(midi);
+            handleGenieButton(button);
         }
     });
 
-    // On-screen piano clicks
-    document.querySelectorAll('.piano-key').forEach(key => {
-        key.addEventListener('mousedown', (e) => {
+    // On-screen button clicks
+    document.querySelectorAll('.genie-btn').forEach(btn => {
+        btn.addEventListener('mousedown', (e) => {
             e.preventDefault();
-            const midi = parseInt(key.dataset.midi);
-            handleKeyPress(midi);
+            const button = parseInt(btn.dataset.btn);
+            handleGenieButton(button);
         });
-        key.addEventListener('touchstart', (e) => {
+        btn.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            const midi = parseInt(key.dataset.midi);
-            handleKeyPress(midi);
+            const button = parseInt(btn.dataset.btn);
+            handleGenieButton(button);
         });
     });
 });

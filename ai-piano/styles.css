@@ -17,12 +17,12 @@ body {
 
 .app-container {
     width: 100%;
-    max-width: 540px;
+    max-width: 600px;
     text-align: center;
 }
 
 header {
-    margin-bottom: 15px;
+    margin-bottom: 20px;
 }
 
 header h1 {
@@ -40,22 +40,31 @@ header .subtitle {
     margin-top: 5px;
 }
 
+header .subtitle a {
+    color: #2a9d8f;
+    text-decoration: none;
+}
+
+header .subtitle a:hover {
+    text-decoration: underline;
+}
+
 /* Note Display */
 .note-display {
-    height: 70px;
+    height: 80px;
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 20px;
 }
 
 .current-note {
-    font-size: 3em;
+    font-size: 3.5em;
     font-weight: 800;
     background: linear-gradient(135deg, #e63946 0%, #f4a261 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: note-pop 0.2s ease;
+    animation: note-pop 0.15s ease;
 }
 
 @keyframes note-pop {
@@ -64,113 +73,92 @@ header .subtitle {
     100% { transform: scale(1); opacity: 1; }
 }
 
-/* Piano Section */
-.piano-section {
-    margin-bottom: 20px;
+/* Genie Section */
+.genie-section {
+    margin-bottom: 25px;
 }
 
-.piano-container {
-    background: rgba(255, 255, 255, 0.7);
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 12px;
-    padding: 15px;
-    padding-top: 35px;
-    margin-bottom: 10px;
-    position: relative;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-}
-
-.octave-label {
-    position: absolute;
-    top: 8px;
-    left: 15px;
-    font-size: 0.7em;
-    color: #7a8a9a;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.piano-keys {
+.genie-buttons {
     display: flex;
     justify-content: center;
-    gap: 4px;
-    position: relative;
-    height: 120px;
+    gap: 8px;
+    margin-bottom: 12px;
 }
 
-.piano-key {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    align-items: center;
-    padding-bottom: 10px;
+.genie-btn {
+    width: 60px;
+    height: 80px;
+    border: none;
+    border-radius: 12px;
     cursor: pointer;
     transition: all 0.1s ease;
-    border-radius: 0 0 8px 8px;
-}
-
-.piano-key span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    font-size: 1.5em;
     font-weight: 700;
-    font-size: 1em;
+    position: relative;
+    overflow: hidden;
 }
 
-.piano-key small {
-    font-size: 0.7em;
-    opacity: 0.5;
-    margin-top: 3px;
-}
-
-.piano-key.white {
-    width: calc(100% / 7 - 4px);
-    height: 100%;
-    background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%);
-    color: #333;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-    border: 1px solid #ddd;
-}
-
-.piano-key.white:hover {
-    background: linear-gradient(180deg, #fff 0%, #fafafa 100%);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.piano-key.white:active,
-.piano-key.white.active {
-    background: linear-gradient(135deg, #f4a261 0%, #e63946 100%);
+/* Soft gradient buttons */
+.genie-btn[data-btn="1"] {
+    background: linear-gradient(180deg, #e63946 0%, #d62839 100%);
     color: white;
-    transform: translateY(3px);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 12px rgba(230, 57, 70, 0.3);
 }
-
-.piano-key.black {
-    position: absolute;
-    width: 30px;
-    height: 60%;
-    background: linear-gradient(180deg, #444 0%, #222 100%);
-    color: #aaa;
-    z-index: 1;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-}
-
-.piano-key.black:hover {
-    background: linear-gradient(180deg, #555 0%, #333 100%);
-    color: #ccc;
-}
-
-.piano-key.black:active,
-.piano-key.black.active {
-    background: linear-gradient(135deg, #2a9d8f 0%, #264653 100%);
+.genie-btn[data-btn="2"] {
+    background: linear-gradient(180deg, #f4a261 0%, #e8975a 100%);
     color: white;
+    box-shadow: 0 4px 12px rgba(244, 162, 97, 0.3);
+}
+.genie-btn[data-btn="3"] {
+    background: linear-gradient(180deg, #e9c46a 0%, #ddb85f 100%);
+    color: #264653;
+    box-shadow: 0 4px 12px rgba(233, 196, 106, 0.3);
+}
+.genie-btn[data-btn="4"] {
+    background: linear-gradient(180deg, #2a9d8f 0%, #248a7e 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(42, 157, 143, 0.3);
+}
+.genie-btn[data-btn="5"] {
+    background: linear-gradient(180deg, #48cae4 0%, #3db8d1 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(72, 202, 228, 0.3);
+}
+.genie-btn[data-btn="6"] {
+    background: linear-gradient(180deg, #4895ef 0%, #3d85db 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(72, 149, 239, 0.3);
+}
+.genie-btn[data-btn="7"] {
+    background: linear-gradient(180deg, #7b2cbf 0%, #6a24a8 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(123, 44, 191, 0.3);
+}
+.genie-btn[data-btn="8"] {
+    background: linear-gradient(180deg, #e63988 0%, #d62d78 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(230, 57, 136, 0.3);
+}
+
+.genie-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.genie-btn:active,
+.genie-btn.active {
     transform: translateY(3px);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    filter: brightness(1.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.piano-key.black span {
-    font-size: 0.75em;
-}
-
-.piano-key.black small {
-    font-size: 0.6em;
+.genie-hint {
+    color: #7a8a9a;
+    font-size: 0.85em;
 }
 
 /* Controls */
@@ -268,6 +256,15 @@ header .subtitle {
     font-size: 0.9em;
     line-height: 1.6;
     color: #4a5568;
+}
+
+.tech-block a {
+    color: #2a9d8f;
+    text-decoration: none;
+}
+
+.tech-block a:hover {
+    text-decoration: underline;
 }
 
 .tech-block code {
@@ -371,9 +368,9 @@ header .subtitle {
 /* Responsive */
 @media (max-width: 500px) {
     header h1 { font-size: 2.2em; }
-    .current-note { font-size: 2.5em; }
-    .piano-keys { height: 100px; }
-    .piano-key.black { width: 26px; }
+    .current-note { font-size: 2.8em; }
+    .genie-btn { width: 42px; height: 60px; font-size: 1.2em; }
+    .genie-buttons { gap: 5px; }
     .control-section { flex-direction: column; gap: 10px; }
     .tech-section { padding: 18px; }
     .tech-block p { font-size: 0.85em; }
