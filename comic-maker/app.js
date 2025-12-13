@@ -11,6 +11,8 @@ class MinimalComicMaker {
 
         this.draggingId = null;
         this.dragOffset = { x: 0, y: 0 };
+        this.dragStartPos = null;
+        this.dragMoved = false;
 
         this.editingId = null;
         this.editingWasNew = false;
@@ -128,16 +130,11 @@ class MinimalComicMaker {
         if (hit) {
             this.selectedId = hit.id;
 
-            // Single-click on bubble/text opens editor
-            if (hit.type === 'bubble' || hit.type === 'text') {
-                this.openEditor(hit);
-                this.draw();
-                return;
-            }
-
-            // Start dragging
+            // Start dragging (for all element types)
             this.draggingId = hit.id;
             this.dragOffset = { x: p.x - hit.x, y: p.y - hit.y };
+            this.dragStartPos = { x: p.x, y: p.y };
+            this.dragMoved = false;
             this.pushHistory();
             this.canvas.setPointerCapture(e.pointerId);
         } else {
@@ -152,6 +149,16 @@ class MinimalComicMaker {
         if (!el) return;
 
         const p = this.toCanvasPos(e);
+
+        // Check if we've moved enough to count as a drag (5px threshold)
+        if (this.dragStartPos && !this.dragMoved) {
+            const dx = p.x - this.dragStartPos.x;
+            const dy = p.y - this.dragStartPos.y;
+            if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+                this.dragMoved = true;
+            }
+        }
+
         el.x = p.x - this.dragOffset.x;
         el.y = p.y - this.dragOffset.y;
         this.draw();
@@ -166,6 +173,9 @@ class MinimalComicMaker {
                     this.elements = this.elements.filter(e => e.id !== el.id);
                     if (this.selectedId === el.id) this.selectedId = null;
                     this.debug('deleted off-canvas element', el.id);
+                } else if (!this.dragMoved && (el.type === 'bubble' || el.type === 'text')) {
+                    // Click without drag on bubble/text opens editor
+                    this.openEditor(el);
                 } else if (el.type === 'person') {
                     this.debug('pointer up, auto-facing from drag', el.id);
                     this.autoSetFacing();
@@ -174,6 +184,8 @@ class MinimalComicMaker {
             }
         }
         this.draggingId = null;
+        this.dragStartPos = null;
+        this.dragMoved = false;
     }
 
     isOffCanvas(el) {
