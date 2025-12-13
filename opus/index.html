@@ -337,12 +337,6 @@
             text-align: center;
         }
 
-        .loading-samples {
-            color: #fff9f4;
-            font-style: italic;
-            text-align: center;
-            padding: 10px;
-        }
     </style>
 </head>
 <body>
@@ -901,14 +895,7 @@ V:3 clef=bass name="Foundation"
         }
 
         // Create audio controls HTML
-        function createControls(ready = false) {
-            if (!ready) {
-                return `
-                    <div class="magenta-controls">
-                        <button id="loadAudioBtn">Click to Load Piano</button>
-                    </div>
-                `;
-            }
+        function createControls() {
             return `
                 <div class="magenta-controls">
                     <button id="playBtn">Play</button>
@@ -1059,65 +1046,62 @@ V:3 clef=bass name="Foundation"
                 console.warn("Could not extract timing events:", e);
             }
 
-            // Show "Click to Load" button (audio init requires user gesture)
-            document.getElementById('audio-controls').innerHTML = createControls(false);
+            // Show controls - audio loads on first play
+            document.getElementById('audio-controls').innerHTML = createControls();
 
-            document.getElementById('loadAudioBtn').addEventListener('click', async () => {
-                await initializeAudio();
+            document.getElementById('playBtn').addEventListener('click', async () => {
+                await handlePlay();
+            });
+
+            document.getElementById('stopBtn').addEventListener('click', () => {
+                stopPlayback();
+            });
+
+            document.getElementById('progressContainer').addEventListener('click', () => {
+                stopPlayback();
             });
         }
 
-        // Initialize audio after user gesture
-        async function initializeAudio() {
-            document.getElementById('audio-controls').innerHTML =
-                '<div class="loading-samples">Loading piano samples...</div>';
+        // Handle play button - loads audio on first click
+        async function handlePlay() {
+            if (isPlaying) {
+                stopPlayback();
+                return;
+            }
 
-            try {
-                // Use abcjs for note extraction (correct pitches), then pass to Magenta
-                currentNoteSequence = await createNoteSequenceFromAbcjs(visualObj);
+            const playBtn = document.getElementById('playBtn');
 
-                if (!currentNoteSequence) {
-                    document.getElementById('audio-controls').innerHTML =
-                        '<p style="text-align: center; color: #fff9f4; font-style: italic;">Could not generate audio for this piece</p>';
+            // Load audio if not yet loaded
+            if (!currentNoteSequence) {
+                playBtn.textContent = 'Loading...';
+                playBtn.disabled = true;
+
+                try {
+                    currentNoteSequence = await createNoteSequenceFromAbcjs(visualObj);
+
+                    if (!currentNoteSequence) {
+                        playBtn.textContent = 'Error';
+                        return;
+                    }
+
+                    totalDuration = currentNoteSequence.totalTime;
+                    document.getElementById('totalTime').textContent = formatTime(totalDuration);
+
+                    if (!player) {
+                        player = new mm.SoundFontPlayer(SOUNDFONT_URL);
+                    }
+
+                    await player.loadSamples(currentNoteSequence);
+                } catch (error) {
+                    console.error("Failed to load audio:", error);
+                    playBtn.textContent = 'Error';
                     return;
                 }
 
-                totalDuration = currentNoteSequence.totalTime;
-
-                // Initialize player if needed
-                if (!player) {
-                    player = new mm.SoundFontPlayer(SOUNDFONT_URL);
-                }
-
-                // Load samples for this sequence
-                await player.loadSamples(currentNoteSequence);
-
-                // Create full controls
-                document.getElementById('audio-controls').innerHTML = createControls(true);
-                document.getElementById('totalTime').textContent = formatTime(totalDuration);
-
-                // Set up event listeners
-                document.getElementById('playBtn').addEventListener('click', () => {
-                    if (isPlaying) {
-                        stopPlayback();
-                    } else {
-                        startPlayback();
-                    }
-                });
-
-                document.getElementById('stopBtn').addEventListener('click', () => {
-                    stopPlayback();
-                });
-
-                // Click on progress bar to seek (basic - restarts from position)
-                document.getElementById('progressContainer').addEventListener('click', (e) => {
-                    stopPlayback();
-                });
-            } catch (error) {
-                console.error("Failed to load audio:", error);
-                document.getElementById('audio-controls').innerHTML =
-                    '<p style="text-align: center; color: #fff9f4; font-style: italic;">Failed to load audio: ' + error.message + '</p>';
+                playBtn.disabled = false;
             }
+
+            startPlayback();
         }
 
         // Initialize on page load
