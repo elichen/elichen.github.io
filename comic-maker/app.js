@@ -7,7 +7,6 @@ class MinimalComicMaker {
 
         this.elements = [];
         this.history = [];
-        this.tool = 'select';
         this.selectedId = null;
 
         this.draggingId = null;
@@ -32,9 +31,9 @@ class MinimalComicMaker {
     }
 
     bindUI() {
-        // Toolbar
-        document.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.addEventListener('click', () => this.setTool(btn.dataset.tool));
+        // Toolbar - add buttons add items at random positions
+        document.querySelectorAll('.tool-btn[data-add]').forEach(btn => {
+            btn.addEventListener('click', () => this.addItemAtRandom(btn.dataset.add));
         });
         document.getElementById('undoBtn').addEventListener('click', () => this.undo());
         document.getElementById('clearBtn').addEventListener('click', () => this.clear());
@@ -45,7 +44,6 @@ class MinimalComicMaker {
         this.canvas.addEventListener('pointermove', e => this.onPointerMove(e));
         this.canvas.addEventListener('pointerup', () => this.onPointerUp());
         this.canvas.addEventListener('pointerleave', () => this.onPointerUp());
-        this.canvas.addEventListener('dblclick', e => this.onDoubleClick(e));
 
         // Text editor
         document.getElementById('saveEdit').addEventListener('click', () => this.saveText());
@@ -68,11 +66,19 @@ class MinimalComicMaker {
         window.addEventListener('resize', () => this.resize());
     }
 
-    setTool(tool) {
-        this.tool = tool;
-        document.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.tool === tool);
-        });
+    addItemAtRandom(type) {
+        const margin = 60;
+        const p = {
+            x: margin + Math.random() * (this.width - margin * 2),
+            y: margin + Math.random() * (this.height - margin * 2)
+        };
+
+        if (type === 'man') this.addPerson(p, 'standing', 'm');
+        else if (type === 'woman') this.addPerson(p, 'standing', 'f');
+        else if (type === 'seated-man') this.addPerson(p, 'sitting', 'm');
+        else if (type === 'seated-woman') this.addPerson(p, 'sitting', 'f');
+        else if (type === 'bubble') this.addBubble(p);
+        else if (type === 'text') this.addText(p);
     }
 
     resize() {
@@ -117,35 +123,19 @@ class MinimalComicMaker {
 
     onPointerDown(e) {
         const p = this.toCanvasPos(e);
-
-        if (this.tool === 'man') {
-            this.addPerson(p, 'standing', 'm');
-            return;
-        }
-        if (this.tool === 'woman') {
-            this.addPerson(p, 'standing', 'f');
-            return;
-        }
-        if (this.tool === 'seated-man') {
-            this.addPerson(p, 'sitting', 'm');
-            return;
-        }
-        if (this.tool === 'seated-woman') {
-            this.addPerson(p, 'sitting', 'f');
-            return;
-        }
-        if (this.tool === 'bubble') {
-            this.addBubble(p);
-            return;
-        }
-        if (this.tool === 'text') {
-            this.addText(p);
-            return;
-        }
-
         const hit = this.hitTest(p);
+
         if (hit) {
             this.selectedId = hit.id;
+
+            // Single-click on bubble/text opens editor
+            if (hit.type === 'bubble' || hit.type === 'text') {
+                this.openEditor(hit);
+                this.draw();
+                return;
+            }
+
+            // Start dragging
             this.draggingId = hit.id;
             this.dragOffset = { x: p.x - hit.x, y: p.y - hit.y };
             this.pushHistory();
@@ -170,23 +160,29 @@ class MinimalComicMaker {
     onPointerUp() {
         if (this.draggingId) {
             const el = this.getById(this.draggingId);
-            if (el && el.type === 'person') {
-                this.debug('pointer up, auto-facing from drag', el.id);
-                this.autoSetFacing();
+            if (el) {
+                // Delete if dragged off canvas
+                if (this.isOffCanvas(el)) {
+                    this.elements = this.elements.filter(e => e.id !== el.id);
+                    if (this.selectedId === el.id) this.selectedId = null;
+                    this.debug('deleted off-canvas element', el.id);
+                } else if (el.type === 'person') {
+                    this.debug('pointer up, auto-facing from drag', el.id);
+                    this.autoSetFacing();
+                }
                 this.draw();
             }
         }
         this.draggingId = null;
     }
 
-    onDoubleClick(e) {
-        const p = this.toCanvasPos(e);
-        const hit = this.hitTest(p);
-        if (hit && (hit.type === 'bubble' || hit.type === 'text')) {
-            this.selectedId = hit.id;
-            this.openEditor(hit);
-            this.draw();
-        }
+    isOffCanvas(el) {
+        const b = this.getBounds(el);
+        if (!b) return false;
+        // Consider off-canvas if center is outside bounds
+        const cx = b.x + b.w / 2;
+        const cy = b.y + b.h / 2;
+        return cx < 0 || cx > this.width || cy < 0 || cy > this.height;
     }
 
     onKeyDown(e) {
@@ -195,13 +191,12 @@ class MinimalComicMaker {
 
         const key = e.key.toLowerCase();
 
-        // Tool shortcuts
-        if (key === 'v' || e.key === 'Escape') return this.setTool('select');
-        if (key === 'p' || key === 'm') return this.setTool('man');
-        if (key === 'w') return this.setTool('woman');
-        if (key === 's') return this.setTool(e.shiftKey ? 'seated-woman' : 'seated-man');
-        if (key === 'b') return this.setTool('bubble');
-        if (key === 't') return this.setTool('text');
+        // Add item shortcuts
+        if (key === 'p' || key === 'm') return this.addItemAtRandom('man');
+        if (key === 'w') return this.addItemAtRandom('woman');
+        if (key === 's') return this.addItemAtRandom(e.shiftKey ? 'seated-woman' : 'seated-man');
+        if (key === 'b') return this.addItemAtRandom('bubble');
+        if (key === 't') return this.addItemAtRandom('text');
 
         // Undo / duplicate
         if ((e.metaKey || e.ctrlKey) && key === 'z') {
