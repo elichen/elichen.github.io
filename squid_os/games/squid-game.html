@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Squid Game</title>
+    <link rel="stylesheet" href="../css/squid-game.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="canvas" width="400" height="500"></canvas>
+        <div id="health-display">
+            <div class="health-bar">
+                <span>You:</span>
+                <div class="health-outer">
+                    <div id="player-health" class="health-inner"></div>
+                </div>
+            </div>
+            <div class="health-bar">
+                <span>Enemy:</span>
+                <div class="health-outer">
+                    <div id="enemy-health" class="health-inner enemy"></div>
+                </div>
+            </div>
+        </div>
+        <div id="instructions">
+            <p>The Final Game: <strong>Squid Game</strong></p>
+            <p>Use <strong>Arrow Keys</strong> to move.</p>
+            <p>Press <strong>Space</strong> to attack when close!</p>
+            <p>Reach the enemy's territory (the head) to win, or defeat the enemy!</p>
+            <button id="start-button">Start Game</button>
+        </div>
+        <div id="status"></div>
+    </div>
+    <script src="../js/squid-game.js"></script>
+</body>
+</html>
