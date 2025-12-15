@@ -1,0 +1,196 @@
+body, html {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    font-family: 'Courier New', Courier, monospace;
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#progress-display {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 18px;
+    color: #fff;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 8px 20px;
+    border-radius: 5px;
+}
+
+#bridge-container {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 50px;
+    height: calc(100% - 180px);
+    overflow-y: auto;
+    padding: 10px;
+}
+
+#finish-platform, #start-platform {
+    width: 180px;
+    height: 40px;
+    background-color: #2ecc71;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #fff;
+    border-radius: 5px;
+    flex-shrink: 0;
+}
+
+#start-platform {
+    background-color: #3498db;
+}
+
+#bridge {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 0;
+}
+
+.glass-row {
+    display: flex;
+    gap: 20px;
+}
+
+.glass-panel {
+    width: 80px;
+    height: 35px;
+    background: linear-gradient(135deg, rgba(135, 206, 235, 0.6), rgba(176, 224, 230, 0.4));
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 15px rgba(135, 206, 235, 0.3);
+}
+
+.glass-panel:hover:not(.broken):not(.safe):not(.disabled) {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(135, 206, 235, 0.5);
+}
+
+.glass-panel.current {
+    border-color: #f1c40f;
+    box-shadow: 0 0 20px rgba(241, 196, 15, 0.6);
+}
+
+.glass-panel.safe {
+    background: linear-gradient(135deg, rgba(46, 204, 113, 0.8), rgba(39, 174, 96, 0.6));
+    border-color: #2ecc71;
+}
+
+.glass-panel.broken {
+    background: linear-gradient(135deg, rgba(231, 76, 60, 0.3), rgba(192, 57, 43, 0.2));
+    border-color: rgba(231, 76, 60, 0.5);
+    animation: shatter 0.5s ease-out;
+}
+
+.glass-panel.disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+@keyframes shatter {
+    0% { transform: scale(1); }
+    20% { transform: scale(1.1); }
+    40% { transform: scale(0.9) rotate(5deg); }
+    60% { transform: scale(0.8) rotate(-5deg); }
+    100% { transform: scale(0.7); opacity: 0.3; }
+}
+
+#choice-area {
+    display: none;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.choice-btn {
+    padding: 15px 40px;
+    font-size: 18px;
+    font-weight: bold;
+    background: linear-gradient(135deg, rgba(135, 206, 235, 0.8), rgba(100, 149, 237, 0.8));
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    border-radius: 5px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.choice-btn:hover:not(:disabled) {
+    transform: scale(1.1);
+    box-shadow: 0 0 20px rgba(135, 206, 235, 0.6);
+}
+
+.choice-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#status {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 20px;
+    color: #fff;
+    text-align: center;
+}
+
+#instructions {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.85);
+    padding: 30px;
+    border-radius: 10px;
+    text-align: center;
+    color: #fff;
+    max-width: 400px;
+    border: 2px solid #ff0055;
+}
+
+#instructions p {
+    margin: 10px 0;
+    line-height: 1.5;
+}
+
+#start-button {
+    margin-top: 20px;
+    padding: 12px 30px;
+    background-color: #ff0055;
+    border: none;
+    border-radius: 5px;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#start-button:hover {
+    background-color: #cc0044;
+}
+
+.player-marker {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background-color: #f1c40f;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #f1c40f;
+    transition: all 0.3s;
+    z-index: 10;
+}

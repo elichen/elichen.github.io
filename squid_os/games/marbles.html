@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marbles</title>
+    <link rel="stylesheet" href="../css/marbles.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="score-display">
+            <div class="score-item">
+                <span>Your Marbles:</span>
+                <span id="player-marbles">10</span>
+            </div>
+            <div class="score-item">
+                <span>Opponent:</span>
+                <span id="opponent-marbles">10</span>
+            </div>
+        </div>
+        <div id="game-area">
+            <div id="opponent-hand">
+                <div class="closed-hand">?</div>
+            </div>
+            <div id="bet-area">
+                <label for="bet-amount">Bet amount:</label>
+                <input type="number" id="bet-amount" min="1" max="10" value="1">
+            </div>
+            <div id="guess-buttons">
+                <button class="guess-btn" data-guess="odd">Odd</button>
+                <button class="guess-btn" data-guess="even">Even</button>
+            </div>
+        </div>
+        <div id="instructions">
+            <p>Guess if your opponent is holding an <strong>odd</strong> or <strong>even</strong> number of marbles.</p>
+            <p>If you guess correctly, you win their marbles. If wrong, you lose your bet.</p>
+            <p>First to get all 20 marbles wins!</p>
+            <button id="start-button">Start Game</button>
+        </div>
+        <div id="status"></div>
+    </div>
+    <script src="../js/marbles.js"></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glass Bridge</title>
+    <link rel="stylesheet" href="../css/glass-bridge.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="progress-display">
+            Step: <span id="current-step">0</span> / <span id="total-steps">18</span>
+        </div>
+        <div id="bridge-container">
+            <div id="finish-platform">FINISH</div>
+            <div id="bridge"></div>
+            <div id="start-platform">START</div>
+        </div>
+        <div id="choice-area">
+            <button class="choice-btn" data-choice="left">LEFT</button>
+            <button class="choice-btn" data-choice="right">RIGHT</button>
+        </div>
+        <div id="instructions">
+            <p>Cross the glass bridge by choosing the correct panel!</p>
+            <p>One panel is <strong>tempered glass</strong> (safe), the other will <strong>break</strong>!</p>
+            <p>Make it across all 18 steps to survive!</p>
+            <button id="start-button">Start Game</button>
+        </div>
+        <div id="status"></div>
+    </div>
+    <script src="../js/glass-bridge.js"></script>
+</body>
+</html>
