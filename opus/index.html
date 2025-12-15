@@ -1205,32 +1205,25 @@ V:3 clef=bass name="Foundation"
                 paddingleft: 10
             })[0];
 
-            // Extract timing events for cursor sync (doesn't need AudioContext)
+            // Extract timing events for cursor sync
             try {
-                const timing = visualObj.setTiming();
+                visualObj.setTiming(); // This populates noteTimings
                 timingEvents = [];
-                if (timing && timing.lines) {
-                    timing.lines.forEach(line => {
-                        if (!line.staff) return;
-                        line.staff.forEach(staff => {
-                            if (!staff.voices) return;
-                            staff.voices.forEach(voice => {
-                                voice.forEach(element => {
-                                    if (element.startTime !== undefined && element.abselem) {
-                                        const abselem = element.abselem;
-                                        timingEvents.push({
-                                            startTime: element.startTime,
-                                            left: abselem.x,
-                                            top: abselem.top,
-                                            height: abselem.bottom - abselem.top
-                                        });
-                                    }
-                                });
+
+                if (visualObj.noteTimings && visualObj.noteTimings.length > 0) {
+                    visualObj.noteTimings.forEach(event => {
+                        if (event.milliseconds !== undefined) {
+                            timingEvents.push({
+                                startTime: event.milliseconds / 1000, // Convert to seconds
+                                left: event.left,
+                                top: event.top,
+                                height: event.height || 50
                             });
-                        });
+                        }
                     });
-                    timingEvents.sort((a, b) => a.startTime - b.startTime);
                 }
+
+                timingEvents.sort((a, b) => a.startTime - b.startTime);
             } catch (e) {
                 console.warn("Could not extract timing events:", e);
             }
