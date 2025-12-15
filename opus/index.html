@@ -768,6 +768,7 @@ V:3 clef=bass name="Foundation"
         let totalDuration = 0;
         let animationFrameId = null;
         let timingEvents = [];
+        let timingEventsScaled = false;
 
         // Initialize Magenta SoundFontPlayer with high-quality piano samples
         const SOUNDFONT_URL = 'https://storage.googleapis.com/magentadata/js/soundfonts/sgm_plus';
@@ -1015,7 +1016,8 @@ V:3 clef=bass name="Foundation"
 
                 return {
                     notes: notes,
-                    totalTime: totalTime
+                    totalTime: totalTime,
+                    tempoScale: tempoScale  // For cursor sync
                 };
             } catch (error) {
                 console.error("Error extracting notes:", error);
@@ -1183,6 +1185,7 @@ V:3 clef=bass name="Foundation"
 
             currentComposition = index;
             currentNoteSequence = null;
+            timingEventsScaled = false;
 
             // Update button states
             document.querySelectorAll('.composition-btn').forEach((btn, i) => {
@@ -1275,6 +1278,16 @@ V:3 clef=bass name="Foundation"
 
                     totalDuration = currentNoteSequence.totalTime;
                     document.getElementById('totalTime').textContent = formatTime(totalDuration);
+
+                    // Scale timing events to match Magenta playback time (only once)
+                    if (!timingEventsScaled) {
+                        const tempoScale = currentNoteSequence.tempoScale;
+                        timingEvents = timingEvents.map(e => ({
+                            ...e,
+                            startTime: e.startTime * tempoScale
+                        }));
+                        timingEventsScaled = true;
+                    }
 
                     if (!player) {
                         player = new mm.SoundFontPlayer(SOUNDFONT_URL);
