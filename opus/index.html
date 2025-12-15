@@ -772,7 +772,86 @@ V:3 clef=bass name="Foundation"
         // Initialize Magenta SoundFontPlayer with high-quality piano samples
         const SOUNDFONT_URL = 'https://storage.googleapis.com/magentadata/js/soundfonts/sgm_plus';
 
-        // Create note sequence using abcjs for note extraction
+        // ============================================================
+        // EXPRESSIVE DYNAMICS ENGINE
+        // Each composition is a journey - let the music breathe
+        // ============================================================
+
+        // Structural curves define the emotional arc of each piece
+        // Values are multipliers: 1.0 = normal, <1 = softer, >1 = louder
+        const structuralCurves = {
+            0: function(pos) { // Digital Reverie - A contemplative arc
+                // Prologue: emergence from silence
+                if (pos < 0.05) return 0.45 + pos * 6;
+                // Part A - The Awakening: gentle unfolding
+                if (pos < 0.25) return 0.75 + Math.sin((pos - 0.05) * Math.PI / 0.2) * 0.15;
+                // Part B - Reverie Deepens: introspective, slightly fuller
+                if (pos < 0.45) return 0.85 + (pos - 0.25) * 0.5;
+                // Part C - Dance of Shadows: rhythmic energy builds
+                if (pos < 0.70) return 0.95 + Math.sin((pos - 0.45) * Math.PI / 0.25) * 0.2;
+                // Coda: the sigh returns, fading to eternity
+                if (pos < 0.85) return 1.0 - (pos - 0.70) * 1.5;
+                return 0.55 - (pos - 0.85) * 2; // Final fade
+            },
+            1: function(pos) { // Dancing Circuits - Electric energy
+                // Part A - The Spark: ignition
+                if (pos < 0.20) return 0.80 + pos * 1.5;
+                // Part B - Current Flow: building sequences
+                if (pos < 0.40) return 0.95 + (pos - 0.20) * 0.75;
+                // Part C - The Surge (Wild Reel): FURIOSO!
+                if (pos < 0.70) return 1.15 + Math.sin((pos - 0.40) * Math.PI / 0.30) * 0.15;
+                // Coda - Discharge: triumphant but resolving
+                if (pos < 0.90) return 1.10 - (pos - 0.70) * 0.5;
+                return 0.90 - (pos - 0.90) * 2; // Final spark
+            },
+            2: function(pos) { // Silicon Symphony - Epic journey through consciousness
+                // Part I - Genesis: from the void, barely audible
+                if (pos < 0.08) return 0.35 + pos * 5;
+                // Part II - Iteration: the loop begins, searching
+                if (pos < 0.18) return 0.70 + (pos - 0.08) * 2;
+                // Part III - Complexity (Fugue): rigorous, building
+                if (pos < 0.30) return 0.85 + (pos - 0.18) * 1.5;
+                // Part IV - Chaos: AGITATO! Edge of order
+                if (pos < 0.42) return 1.05 + (pos - 0.30) * 1.8;
+                // The Crash: sudden silence (but we still have notes fading)
+                if (pos < 0.48) return 0.40;
+                // Part V - Crystallization: clarity emerges from silence
+                if (pos < 0.58) return 0.50 + (pos - 0.48) * 3;
+                // Part VI - Synthesis: all themes unite, MAESTOSO
+                if (pos < 0.70) return 0.85 + (pos - 0.58) * 2;
+                // Part VII - Convergence (Canon): inexorable
+                if (pos < 0.80) return 1.05 + (pos - 0.70) * 1.5;
+                // Part VIII - Transcendence: the breakthrough, LUMINOSO
+                if (pos < 0.90) return 1.15 + Math.sin((pos - 0.80) * Math.PI / 0.10) * 0.1;
+                // Part IX - Resolution: serene, transformed, fading to infinite
+                return 1.0 - (pos - 0.90) * 4;
+            }
+        };
+
+        // Meter patterns: which beats get accented
+        // Format: [beat1_weight, beat2_weight, ...]
+        const meterPatterns = {
+            '3/4': [1.12, 0.88, 0.95],           // Waltz: ONE two three
+            '6/8': [1.10, 0.85, 0.90, 1.05, 0.85, 0.90], // Jig: ONE two three FOUR five six
+            '4/4': [1.12, 0.88, 1.02, 0.90],     // Common: ONE two Three four
+            '5/4': [1.12, 0.90, 1.00, 0.88, 0.92], // Asymmetric: ONE two Three four five
+            '7/8': [1.12, 0.88, 0.92, 1.05, 0.88, 0.90, 0.92], // 2+2+3 feel
+            '9/8': [1.10, 0.85, 0.90, 1.05, 0.85, 0.90, 1.02, 0.85, 0.90], // Compound triple
+            '15/16': [1.15, 0.85, 0.88, 0.90, 1.05, 0.85, 0.88, 0.90, 1.02, 0.85, 0.88, 0.90, 0.95, 0.88, 0.90] // Chaos meter
+        };
+
+        // Voice roles: melody sings, harmony supports, bass grounds
+        // Additional voices default to supportive role
+        function getVoiceWeight(trackIdx) {
+            const weights = [
+                1.12,  // Voice 1 (Melody/Lead): prominent, singing
+                0.88,  // Voice 2 (Harmony/Counter): supportive, blending
+                0.82   // Voice 3 (Bass/Foundation): grounding, felt not heard
+            ];
+            return weights[trackIdx] !== undefined ? weights[trackIdx] : 0.85;
+        }
+
+        // Create note sequence with full expressive dynamics
         async function createNoteSequenceFromAbcjs(visualObj) {
             try {
                 const synth = new ABCJS.synth.CreateSynth();
@@ -786,47 +865,157 @@ V:3 clef=bass name="Foundation"
 
                 const tempo = synth.flattened?.tempo || 120;
                 const rawDuration = synth.flattened?.totalDuration || 60;
-
-                // Scale factor: abcjs stores times in internal units
-                // Empirically determined: 240 / tempo converts to seconds
                 const tempoScale = 240 / tempo;
+                const totalTime = rawDuration * tempoScale;
 
-                const notes = [];
+                // Collect all notes first for context analysis
+                const allEvents = [];
                 tracks.forEach((track, trackIndex) => {
                     if (!Array.isArray(track)) return;
-
                     track.forEach(event => {
                         if (event.pitch !== undefined && event.start !== undefined) {
-                            const scaledStart = event.start * tempoScale;
-                            const duration = (event.duration || 0.25) * tempoScale;
-
-                            // Dynamic curve based on position
-                            const timeRatio = event.start / rawDuration;
-                            let velocity;
-                            if (timeRatio < 0.1) velocity = 55;
-                            else if (timeRatio < 0.3) velocity = 70;
-                            else if (timeRatio < 0.6) velocity = 85;
-                            else if (timeRatio < 0.8) velocity = 100;
-                            else velocity = 70;
-
-                            notes.push({
-                                pitch: event.pitch,
-                                startTime: scaledStart,
-                                endTime: scaledStart + duration,
-                                velocity: velocity + Math.floor(Math.random() * 10 - 5),
-                                program: 0
+                            allEvents.push({
+                                ...event,
+                                trackIndex,
+                                scaledStart: event.start * tempoScale,
+                                scaledDuration: (event.duration || 0.25) * tempoScale
                             });
                         }
                     });
                 });
 
-                if (notes.length === 0) {
-                    return null;
+                if (allEvents.length === 0) return null;
+
+                // Sort by time for context analysis
+                allEvents.sort((a, b) => a.scaledStart - b.scaledStart);
+
+                // Build pitch history per voice for phrase contour
+                const voicePitchHistory = {};
+
+                // Calculate local density map (notes per 2-second window)
+                const densityMap = new Map();
+                const windowSize = 2.0;
+                allEvents.forEach(e => {
+                    const windowKey = Math.floor(e.scaledStart / windowSize);
+                    densityMap.set(windowKey, (densityMap.get(windowKey) || 0) + 1);
+                });
+                const maxDensity = Math.max(...densityMap.values(), 1);
+
+                // Get structural curve for current composition
+                const structuralCurve = structuralCurves[currentComposition] || (p => 0.9);
+
+                // Current meter (will be updated as we parse)
+                let currentMeter = '3/4';
+                let beatsPerMeasure = 3;
+                let beatUnit = 4;
+
+                // Parse meter from ABC
+                const meterMatch = compositions[currentComposition].abc.match(/M:(\d+)\/(\d+)/);
+                if (meterMatch) {
+                    currentMeter = `${meterMatch[1]}/${meterMatch[2]}`;
+                    beatsPerMeasure = parseInt(meterMatch[1]);
+                    beatUnit = parseInt(meterMatch[2]);
                 }
+
+                const notes = [];
+
+                allEvents.forEach((event, idx) => {
+                    const position = event.scaledStart / totalTime;
+                    const trackIdx = event.trackIndex;
+
+                    // ====== BASE VELOCITY ======
+                    let velocity = 75;
+
+                    // ====== 1. STRUCTURAL DYNAMICS ======
+                    // Where are we in the emotional arc?
+                    velocity *= structuralCurve(position);
+
+                    // ====== 2. VOICE WEIGHTING ======
+                    // Melody sings, bass supports
+                    velocity *= getVoiceWeight(trackIdx);
+
+                    // ====== 3. METRIC ACCENT ======
+                    // Find beat position within measure
+                    const pattern = meterPatterns[currentMeter] || meterPatterns['4/4'];
+                    const measureLength = beatsPerMeasure; // in beat units
+                    const beatPosition = (event.start % measureLength);
+                    const beatIndex = Math.floor(beatPosition) % pattern.length;
+                    velocity *= pattern[beatIndex];
+
+                    // ====== 4. PHRASE CONTOUR ======
+                    // Rising lines crescendo, falling lines diminuendo
+                    if (!voicePitchHistory[trackIdx]) {
+                        voicePitchHistory[trackIdx] = [];
+                    }
+                    const history = voicePitchHistory[trackIdx];
+                    if (history.length > 0) {
+                        const prevPitch = history[history.length - 1];
+                        const interval = event.pitch - prevPitch;
+
+                        if (interval > 0) {
+                            // Rising: crescendo effect, scaled by interval size
+                            velocity *= 1.0 + Math.min(interval * 0.012, 0.15);
+                        } else if (interval < 0) {
+                            // Falling: gentle diminuendo
+                            velocity *= 1.0 + Math.max(interval * 0.008, -0.10);
+                        }
+
+                        // Leap emphasis: large intervals get slight accent
+                        if (Math.abs(interval) > 5) {
+                            velocity *= 1.05;
+                        }
+                    }
+                    history.push(event.pitch);
+                    if (history.length > 8) history.shift(); // Keep recent context
+
+                    // ====== 5. REGISTER COLORING ======
+                    // High notes naturally "speak" more; deep bass is felt
+                    const registerCenter = 60; // Middle C
+                    const registerOffset = (event.pitch - registerCenter) / 24; // 2 octaves = full range
+                    velocity *= 0.95 + registerOffset * 0.12;
+
+                    // ====== 6. DENSITY RESPONSE ======
+                    // Sparse passages: intimate; Dense passages: full
+                    const windowKey = Math.floor(event.scaledStart / windowSize);
+                    const localDensity = densityMap.get(windowKey) || 1;
+                    const densityRatio = localDensity / maxDensity;
+                    if (densityRatio < 0.3) {
+                        velocity *= 0.90; // Sparse: more intimate
+                    } else if (densityRatio > 0.7) {
+                        velocity *= 1.06; // Dense: fuller sound
+                    }
+
+                    // ====== 7. HUMANIZATION ======
+                    // Subtle random variation - music breathes
+                    velocity += (Math.random() - 0.5) * 6;
+
+                    // Micro-timing: slight push/pull (±15ms)
+                    const timingOffset = (Math.random() - 0.5) * 0.015;
+
+                    // ====== 8. DURATION SHAPING ======
+                    // Melody notes sustain fully; inner voices slightly detached
+                    let durationMult = 1.0;
+                    if (trackIdx === 1) durationMult = 0.92;
+                    if (trackIdx === 2) durationMult = 0.88;
+
+                    // ====== FINAL VELOCITY ======
+                    velocity = Math.max(25, Math.min(115, Math.round(velocity)));
+
+                    notes.push({
+                        pitch: event.pitch,
+                        startTime: Math.max(0, event.scaledStart + timingOffset),
+                        endTime: event.scaledStart + timingOffset + (event.scaledDuration * durationMult),
+                        velocity: velocity,
+                        program: 0 // Piano
+                    });
+                });
+
+                // Sort by start time for proper playback
+                notes.sort((a, b) => a.startTime - b.startTime);
 
                 return {
                     notes: notes,
-                    totalTime: rawDuration * tempoScale
+                    totalTime: totalTime
                 };
             } catch (error) {
                 console.error("Error extracting notes:", error);
