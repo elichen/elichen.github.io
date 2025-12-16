@@ -110,8 +110,10 @@ let state = {
     tempo: 120,
     beatsPerChord: 4,
     isPlaying: false,
-    synth: null,
-    loop: null,
+    player: null,
+    playbackInterval: null,
+    audioContext: null,
+    isLoading: false,
 };
 
 // Utility functions
@@ -124,6 +126,11 @@ function transposedNote(rootNote, semitones) {
     const rootIndex = noteIndex(rootNote);
     const newIndex = (rootIndex + semitones + 12) % 12;
     return NOTES[newIndex];
+}
+
+function noteToMidi(noteName, octave) {
+    const noteIdx = noteIndex(noteName);
+    return 12 + (octave + 1) * 12 + noteIdx;
 }
 
 function getChordNotes(rootNote, chordType) {
@@ -351,80 +358,151 @@ function updateAll() {
     updateFretboard();
 }
 
-// Audio
-function initAudio() {
-    state.synth = new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: 'triangle' },
-        envelope: {
-            attack: 0.02,
-            decay: 0.3,
-            sustain: 0.4,
-            release: 0.8
-        }
-    }).toDestination();
-    state.synth.volume.value = -6;
+// Audio - Magenta SoundFont Player
+const SOUNDFONT_URL = 'https://storage.googleapis.com/magentadata/js/soundfonts/sgm_plus';
+
+async function initAudio() {
+    if (state.player) return;
+    if (state.isLoading) return;
+
+    state.isLoading = true;
+    playBtnEl.textContent = 'Loading...';
+    playBtnEl.disabled = true;
+
+    try {
+        // Create audio context
+        state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Initialize Magenta SoundFont player
+        // Program 26 = Electric Guitar (jazz), Program 25 = Acoustic Guitar (steel)
+        state.player = new core.SoundFontPlayer(SOUNDFONT_URL, state.audioContext, undefined, undefined, {
+            run: (note) => {},
+            stop: () => {}
+        });
+
+        // Load the soundfont
+        await state.player.loadSamples({
+            notes: [
+                // Preload a range of guitar notes
+                ...Array.from({ length: 49 }, (_, i) => ({
+                    pitch: 40 + i, // E2 to E6
+                    program: 26,   // Jazz Guitar
+                    velocity: 80
+                }))
+            ]
+        });
+
+        state.isLoading = false;
+        playBtnEl.textContent = 'Play';
+        playBtnEl.disabled = false;
+    } catch (e) {
+        console.error('Failed to load soundfont:', e);
+        state.isLoading = false;
+        playBtnEl.textContent = 'Play';
+        playBtnEl.disabled = false;
+    }
 }
 
-function playChord(chordRoot, chordType, duration = '2n') {
-    if (!state.synth) return;
+function playChord(chordRoot, chordType, durationSec) {
+    if (!state.player || !state.audioContext) return;
 
     const chord = CHORD_TYPES[chordType];
-    // Play a nice voicing in a comfortable range
-    const baseOctave = 3;
-    const notes = chord.intervals.map((interval, idx) => {
-        const note = transposedNote(chordRoot, interval);
-        const octave = baseOctave + (idx > 1 ? 1 : 0);
-        return note + octave;
-    });
+    const rootMidi = noteToMidi(chordRoot, 3); // Root in octave 3
 
-    state.synth.triggerAttackRelease(notes, duration);
+    // Create a nice jazz voicing
+    // Drop 2 voicing style: Root, 5th, 7th, 3rd (from low to high)
+    const voicing = [
+        rootMidi,           // Root
+        rootMidi + chord.intervals[2],  // 5th
+        rootMidi + chord.intervals[3],  // 7th
+        rootMidi + chord.intervals[1] + 12,  // 3rd (up an octave)
+    ];
+
+    // Add slight strum effect (stagger note starts)
+    const now = state.audioContext.currentTime;
+    const strumDelay = 0.02; // 20ms between notes for strum feel
+
+    voicing.forEach((pitch, idx) => {
+        const noteStart = now + (idx * strumDelay);
+        const noteEnd = now + durationSec - 0.1;
+
+        state.player.playNoteDown({
+            pitch: pitch,
+            velocity: 70 + Math.random() * 20, // Slight velocity variation
+            program: 26, // Jazz Guitar
+            startTime: noteStart,
+            endTime: noteEnd
+        });
+    });
 }
 
 function playNote(stringIndex, fret) {
-    if (!state.synth) initAudio();
+    // Initialize audio on first interaction
+    if (!state.player) {
+        initAudio().then(() => {
+            if (state.player) {
+                playSingleNote(stringIndex, fret);
+            }
+        });
+        return;
+    }
+    playSingleNote(stringIndex, fret);
+}
+
+function playSingleNote(stringIndex, fret) {
+    if (!state.player || !state.audioContext) return;
 
     const midiNote = STRING_MIDI_BASE[stringIndex] + fret;
-    const freq = Tone.Frequency(midiNote, 'midi').toFrequency();
-    state.synth.triggerAttackRelease(freq, '8n');
+    const now = state.audioContext.currentTime;
+
+    state.player.playNoteDown({
+        pitch: midiNote,
+        velocity: 80,
+        program: 26, // Jazz Guitar
+        startTime: now,
+        endTime: now + 0.8
+    });
 }
 
 function startPlayback() {
     if (state.isPlaying) return;
-
-    if (!state.synth) initAudio();
+    if (!state.player) return;
 
     state.isPlaying = true;
     playBtnEl.textContent = 'Playing...';
     playBtnEl.disabled = true;
 
-    Tone.Transport.bpm.value = state.tempo;
-
     const progression = PROGRESSIONS[state.currentProgression];
     let beatCount = 0;
 
-    state.loop = new Tone.Loop((time) => {
+    // Calculate interval in ms
+    const beatDurationMs = (60 / state.tempo) * 1000;
+    const chordDurationSec = (60 / state.tempo) * state.beatsPerChord;
+
+    // Play first chord immediately
+    state.currentChordIndex = 0;
+    updateAll();
+    const firstChordInfo = progression[0];
+    const firstChordRoot = transposedNote(state.currentKey, firstChordInfo.root);
+    playChord(firstChordRoot, firstChordInfo.type, chordDurationSec);
+    beatCount = 1;
+
+    state.playbackInterval = setInterval(() => {
         const chordIndex = Math.floor(beatCount / state.beatsPerChord) % progression.length;
         const beatInChord = beatCount % state.beatsPerChord;
 
-        // Update display on first beat of each chord
+        // Play chord on first beat of each chord
         if (beatInChord === 0) {
             state.currentChordIndex = chordIndex;
-            // Use Tone.Draw to sync with animation frame
-            Tone.Draw.schedule(() => {
-                updateAll();
-            }, time);
+            updateAll();
 
-            // Play chord
             const chordInfo = progression[chordIndex];
             const chordRoot = transposedNote(state.currentKey, chordInfo.root);
-            playChord(chordRoot, chordInfo.type, state.beatsPerChord + 'n');
+            playChord(chordRoot, chordInfo.type, chordDurationSec);
         }
 
         beatCount++;
-    }, '4n');
-
-    state.loop.start(0);
-    Tone.Transport.start();
+    }, beatDurationMs);
 }
 
 function stopPlayback() {
@@ -432,12 +510,15 @@ function stopPlayback() {
     playBtnEl.textContent = 'Play';
     playBtnEl.disabled = false;
 
-    if (state.loop) {
-        state.loop.stop();
-        state.loop.dispose();
-        state.loop = null;
+    if (state.playbackInterval) {
+        clearInterval(state.playbackInterval);
+        state.playbackInterval = null;
     }
-    Tone.Transport.stop();
+
+    // Stop all sounds
+    if (state.player) {
+        state.player.stop();
+    }
 }
 
 // Event listeners
@@ -455,17 +536,34 @@ keySelectEl.addEventListener('change', (e) => {
 tempoSliderEl.addEventListener('input', (e) => {
     state.tempo = parseInt(e.target.value);
     tempoValueEl.textContent = state.tempo;
+
+    // If playing, restart with new tempo
     if (state.isPlaying) {
-        Tone.Transport.bpm.value = state.tempo;
+        stopPlayback();
+        startPlayback();
     }
 });
 
 beatsSelectEl.addEventListener('change', (e) => {
     state.beatsPerChord = parseInt(e.target.value);
+
+    // If playing, restart with new beats
+    if (state.isPlaying) {
+        stopPlayback();
+        startPlayback();
+    }
 });
 
 playBtnEl.addEventListener('click', async () => {
-    await Tone.start();
+    if (!state.player) {
+        await initAudio();
+    }
+
+    // Resume audio context if suspended (browser autoplay policy)
+    if (state.audioContext && state.audioContext.state === 'suspended') {
+        await state.audioContext.resume();
+    }
+
     startPlayback();
 });
 
@@ -478,7 +576,19 @@ document.addEventListener('keydown', (e) => {
         if (state.isPlaying) {
             stopPlayback();
         } else {
-            Tone.start().then(startPlayback);
+            if (!state.player) {
+                initAudio().then(() => {
+                    if (state.audioContext && state.audioContext.state === 'suspended') {
+                        state.audioContext.resume();
+                    }
+                    startPlayback();
+                });
+            } else {
+                if (state.audioContext && state.audioContext.state === 'suspended') {
+                    state.audioContext.resume();
+                }
+                startPlayback();
+            }
         }
     }
     if (e.code === 'ArrowRight') {
