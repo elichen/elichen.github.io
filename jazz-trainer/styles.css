@@ -50,6 +50,14 @@ header h1 {
     font-size: 1.1rem;
 }
 
+.mobile-hint {
+    display: none;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-top: 8px;
+    opacity: 0.8;
+}
+
 /* Chord Display */
 .chord-display {
     display: flex;
@@ -481,27 +489,292 @@ input[type="range"]::-webkit-slider-thumb {
     opacity: 0.7;
 }
 
-/* Responsive */
+/* Responsive - Tablet */
 @media (max-width: 768px) {
+    body {
+        padding: 12px;
+    }
+
     header h1 {
         font-size: 1.8rem;
     }
 
     .chord-display {
         flex-direction: column;
-        gap: 20px;
+        gap: 15px;
+        padding: 20px;
     }
 
     .chord-name {
         font-size: 2.5rem;
     }
 
+    .scale-name {
+        font-size: 1.4rem;
+    }
+
     .controls {
         flex-direction: column;
         align-items: stretch;
+        gap: 20px;
     }
 
     .playback-buttons {
         justify-content: center;
+    }
+
+    .progression-select, .key-select {
+        display: block;
+        margin-bottom: 12px;
+    }
+
+    .legend {
+        gap: 12px;
+    }
+
+    .legend-item {
+        font-size: 0.8rem;
+    }
+}
+
+/* Responsive - Mobile */
+@media (max-width: 480px) {
+    body {
+        padding: 8px;
+    }
+
+    header {
+        margin-bottom: 15px;
+    }
+
+    header h1 {
+        font-size: 1.5rem;
+        letter-spacing: 1px;
+    }
+
+    .subtitle {
+        font-size: 0.9rem;
+    }
+
+    /* Compact chord display */
+    .chord-display {
+        flex-direction: row;
+        gap: 15px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    .chord-label, .scale-label {
+        font-size: 0.7rem;
+    }
+
+    .chord-name {
+        font-size: 2rem;
+    }
+
+    .chord-function {
+        font-size: 1rem;
+    }
+
+    .scale-name {
+        font-size: 1.1rem;
+    }
+
+    /* Mobile fretboard - fewer frets visible */
+    .fretboard-container {
+        padding: 15px 10px 10px;
+        margin-bottom: 15px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .fretboard {
+        grid-template-rows: repeat(6, 36px);
+        min-width: 600px;
+    }
+
+    .string {
+        grid-template-columns: 35px repeat(15, 1fr);
+    }
+
+    .string::after {
+        left: 35px;
+    }
+
+    .open-note {
+        font-size: 0.75rem;
+    }
+
+    .note {
+        width: 28px;
+        height: 28px;
+        font-size: 0.65rem;
+    }
+
+    .fret-numbers {
+        grid-template-columns: 35px repeat(15, 1fr);
+        min-width: 600px;
+    }
+
+    .fret-number {
+        font-size: 0.7rem;
+    }
+
+    /* Compact legend */
+    .legend {
+        gap: 8px;
+        margin-bottom: 15px;
+        justify-content: space-around;
+    }
+
+    .legend-item {
+        font-size: 0.7rem;
+        gap: 4px;
+    }
+
+    .legend-item span:last-child {
+        display: none;
+    }
+
+    .dot {
+        width: 14px;
+        height: 14px;
+    }
+
+    /* Progression section */
+    .progression-section {
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    .progression-section h2 {
+        font-size: 1rem;
+        margin-bottom: 10px;
+    }
+
+    .progression-display {
+        gap: 8px;
+        margin-bottom: 15px;
+    }
+
+    .progression-chord {
+        padding: 10px 14px;
+        font-size: 1.1rem;
+    }
+
+    select {
+        padding: 10px 12px;
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+
+    /* Controls */
+    .controls {
+        padding: 15px;
+        margin-bottom: 15px;
+        gap: 15px;
+    }
+
+    .tempo-control {
+        min-width: 100%;
+    }
+
+    .btn {
+        padding: 14px 24px;
+        font-size: 1rem;
+        flex: 1;
+    }
+
+    .playback-buttons {
+        width: 100%;
+    }
+
+    /* Tips */
+    .tips-section {
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    .tips-section h2 {
+        font-size: 1rem;
+    }
+
+    .tip {
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    /* Theory - horizontal scroll on mobile */
+    .theory-section {
+        padding: 15px;
+    }
+
+    .theory-section h2 {
+        font-size: 1rem;
+    }
+
+    .theory-display {
+        display: flex;
+        gap: 10px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 5px;
+    }
+
+    .interval-row {
+        padding: 10px 12px;
+        min-width: 70px;
+        flex-shrink: 0;
+    }
+
+    .interval-label {
+        font-size: 0.7rem;
+    }
+
+    .interval-note {
+        font-size: 1.2rem;
+    }
+}
+
+/* Touch-friendly improvements */
+@media (hover: none) and (pointer: coarse) {
+    .mobile-hint {
+        display: block;
+    }
+
+    .note {
+        /* Larger touch targets */
+        min-width: 32px;
+        min-height: 32px;
+    }
+
+    .note:active {
+        transform: scale(1.15);
+        box-shadow: 0 0 20px currentColor;
+    }
+
+    .progression-chord:active {
+        background: var(--accent);
+        transform: scale(1.05);
+    }
+
+    .btn:active {
+        transform: scale(0.98);
+    }
+
+    /* Remove hover effects that don't work on touch */
+    .note:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .note.root:hover {
+        box-shadow: 0 0 10px var(--root-color);
+    }
+
+    .btn:hover {
+        transform: none;
+    }
+
+    .progression-chord:hover {
+        background: var(--accent-secondary);
     }
 }
