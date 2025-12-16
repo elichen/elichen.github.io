@@ -403,6 +403,9 @@ async function initAudio() {
 function playChord(chordRoot, chordType, durationSec) {
     if (!state.player) return;
 
+    // Stop any currently playing sequence
+    state.player.stop();
+
     const chord = CHORD_TYPES[chordType];
     const rootMidi = noteToMidi(chordRoot, 3); // Root in octave 3
 
@@ -449,6 +452,9 @@ function playNote(stringIndex, fret) {
 
 function playSingleNote(stringIndex, fret) {
     if (!state.player) return;
+
+    // Stop any currently playing sequence
+    state.player.stop();
 
     const midiNote = STRING_MIDI_BASE[stringIndex] + fret;
 
