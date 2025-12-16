@@ -1,0 +1,780 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg-dark: #1a1a2e;
+    --bg-card: #16213e;
+    --accent: #e94560;
+    --accent-secondary: #0f3460;
+    --text-primary: #eee;
+    --text-secondary: #aaa;
+    --root-color: #e94560;
+    --chord-tone-color: #f39c12;
+    --tension-color: #9b59b6;
+    --scale-tone-color: #3498db;
+    --avoid-color: #555;
+    --fret-color: #444;
+    --string-color: #888;
+}
+
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+header h1 {
+    font-size: 2.5rem;
+    font-weight: 300;
+    letter-spacing: 2px;
+    margin-bottom: 5px;
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+}
+
+.mobile-hint {
+    display: none;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-top: 8px;
+    opacity: 0.8;
+}
+
+/* Chord Display */
+.chord-display {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 40px;
+    background: var(--bg-card);
+    padding: 25px 40px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+}
+
+.current-chord, .scale-info {
+    text-align: center;
+}
+
+.chord-label, .scale-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+}
+
+.chord-name {
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    display: block;
+}
+
+.chord-function {
+    font-size: 1.5rem;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.scale-name {
+    font-size: 1.8rem;
+    font-weight: 500;
+    color: var(--scale-tone-color);
+    display: block;
+}
+
+/* Fretboard */
+.fretboard-container {
+    background: var(--bg-card);
+    padding: 30px 20px 20px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    overflow-x: auto;
+}
+
+.fretboard {
+    display: grid;
+    grid-template-rows: repeat(6, 40px);
+    gap: 2px;
+    min-width: 800px;
+    position: relative;
+}
+
+.string {
+    display: grid;
+    grid-template-columns: 50px repeat(15, 1fr);
+    align-items: center;
+    position: relative;
+}
+
+.string::after {
+    content: '';
+    position: absolute;
+    left: 50px;
+    right: 0;
+    top: 50%;
+    height: 2px;
+    background: linear-gradient(to right, var(--string-color), #666);
+    z-index: 0;
+}
+
+.string:nth-child(1)::after { height: 1px; }
+.string:nth-child(2)::after { height: 1.5px; }
+.string:nth-child(3)::after { height: 2px; }
+.string:nth-child(4)::after { height: 2.5px; }
+.string:nth-child(5)::after { height: 3px; }
+.string:nth-child(6)::after { height: 3.5px; }
+
+.open-note {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: center;
+    z-index: 1;
+}
+
+.fret {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 3px solid var(--fret-color);
+    z-index: 1;
+}
+
+.fret:first-of-type {
+    border-left: 5px solid #ccc;
+}
+
+.note {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    z-index: 2;
+}
+
+.note:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 15px currentColor;
+}
+
+.note.root {
+    background: var(--root-color);
+    color: white;
+    box-shadow: 0 0 10px var(--root-color);
+}
+
+.note.chord-tone {
+    background: var(--chord-tone-color);
+    color: white;
+}
+
+.note.tension {
+    background: var(--tension-color);
+    color: white;
+}
+
+.note.scale-tone {
+    background: var(--scale-tone-color);
+    color: white;
+}
+
+.note.avoid {
+    background: var(--avoid-color);
+    color: #999;
+    opacity: 0.6;
+}
+
+.note.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.fret-numbers {
+    display: grid;
+    grid-template-columns: 50px repeat(15, 1fr);
+    margin-top: 10px;
+    min-width: 800px;
+}
+
+.fret-number {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.fret-number.marker {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Legend */
+.legend {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+}
+
+.dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+}
+
+.dot.root { background: var(--root-color); }
+.dot.chord-tone { background: var(--chord-tone-color); }
+.dot.tension { background: var(--tension-color); }
+.dot.scale-tone { background: var(--scale-tone-color); }
+.dot.avoid { background: var(--avoid-color); }
+
+/* Progression Section */
+.progression-section {
+    background: var(--bg-card);
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+}
+
+.progression-section h2 {
+    font-size: 1.2rem;
+    font-weight: 500;
+    margin-bottom: 15px;
+    color: var(--text-secondary);
+}
+
+.progression-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.progression-chord {
+    padding: 12px 20px;
+    background: var(--accent-secondary);
+    border-radius: 8px;
+    font-size: 1.3rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.progression-chord:hover {
+    background: #1a4a7a;
+}
+
+.progression-chord.active {
+    background: var(--accent);
+    transform: scale(1.1);
+}
+
+.progression-select, .key-select {
+    display: inline-block;
+    margin-right: 20px;
+}
+
+.progression-select label, .key-select label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-right: 8px;
+}
+
+select {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent-secondary);
+    color: var(--text-primary);
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+/* Controls */
+.controls {
+    background: var(--bg-card);
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 30px;
+}
+
+.tempo-control {
+    flex: 1;
+    min-width: 200px;
+}
+
+.tempo-control label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+#tempoValue {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+input[type="range"] {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--accent-secondary);
+    outline: none;
+    -webkit-appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+}
+
+.beats-control label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-right: 8px;
+}
+
+.playback-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.btn {
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s, background 0.2s;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #ff5a75;
+}
+
+.btn-secondary {
+    background: var(--accent-secondary);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #1a4a7a;
+}
+
+/* Tips Section */
+.tips-section {
+    background: var(--bg-card);
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+}
+
+.tips-section h2 {
+    font-size: 1.2rem;
+    font-weight: 500;
+    margin-bottom: 15px;
+    color: var(--text-secondary);
+}
+
+.tip {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+}
+
+.tip strong {
+    color: var(--accent);
+}
+
+/* Theory Section */
+.theory-section {
+    background: var(--bg-card);
+    padding: 25px;
+    border-radius: 12px;
+}
+
+.theory-section h2 {
+    font-size: 1.2rem;
+    font-weight: 500;
+    margin-bottom: 15px;
+    color: var(--text-secondary);
+}
+
+.theory-display {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+}
+
+.interval-row {
+    background: var(--accent-secondary);
+    padding: 12px 15px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.interval-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.interval-note {
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+
+.interval-row.tensions {
+    opacity: 0.7;
+}
+
+/* Responsive - Tablet */
+@media (max-width: 768px) {
+    body {
+        padding: 12px;
+    }
+
+    header h1 {
+        font-size: 1.8rem;
+    }
+
+    .chord-display {
+        flex-direction: column;
+        gap: 15px;
+        padding: 20px;
+    }
+
+    .chord-name {
+        font-size: 2.5rem;
+    }
+
+    .scale-name {
+        font-size: 1.4rem;
+    }
+
+    .controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 20px;
+    }
+
+    .playback-buttons {
+        justify-content: center;
+    }
+
+    .progression-select, .key-select {
+        display: block;
+        margin-bottom: 12px;
+    }
+
+    .legend {
+        gap: 12px;
+    }
+
+    .legend-item {
+        font-size: 0.8rem;
+    }
+}
+
+/* Responsive - Mobile */
+@media (max-width: 480px) {
+    body {
+        padding: 8px;
+    }
+
+    header {
+        margin-bottom: 15px;
+    }
+
+    header h1 {
+        font-size: 1.5rem;
+        letter-spacing: 1px;
+    }
+
+    .subtitle {
+        font-size: 0.9rem;
+    }
+
+    /* Compact chord display */
+    .chord-display {
+        flex-direction: row;
+        gap: 15px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    .chord-label, .scale-label {
+        font-size: 0.7rem;
+    }
+
+    .chord-name {
+        font-size: 2rem;
+    }
+
+    .chord-function {
+        font-size: 1rem;
+    }
+
+    .scale-name {
+        font-size: 1.1rem;
+    }
+
+    /* Mobile fretboard - fewer frets visible */
+    .fretboard-container {
+        padding: 15px 10px 10px;
+        margin-bottom: 15px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .fretboard {
+        grid-template-rows: repeat(6, 36px);
+        min-width: 600px;
+    }
+
+    .string {
+        grid-template-columns: 35px repeat(15, 1fr);
+    }
+
+    .string::after {
+        left: 35px;
+    }
+
+    .open-note {
+        font-size: 0.75rem;
+    }
+
+    .note {
+        width: 28px;
+        height: 28px;
+        font-size: 0.65rem;
+    }
+
+    .fret-numbers {
+        grid-template-columns: 35px repeat(15, 1fr);
+        min-width: 600px;
+    }
+
+    .fret-number {
+        font-size: 0.7rem;
+    }
+
+    /* Compact legend */
+    .legend {
+        gap: 8px;
+        margin-bottom: 15px;
+        justify-content: space-around;
+    }
+
+    .legend-item {
+        font-size: 0.7rem;
+        gap: 4px;
+    }
+
+    .legend-item span:last-child {
+        display: none;
+    }
+
+    .dot {
+        width: 14px;
+        height: 14px;
+    }
+
+    /* Progression section */
+    .progression-section {
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    .progression-section h2 {
+        font-size: 1rem;
+        margin-bottom: 10px;
+    }
+
+    .progression-display {
+        gap: 8px;
+        margin-bottom: 15px;
+    }
+
+    .progression-chord {
+        padding: 10px 14px;
+        font-size: 1.1rem;
+    }
+
+    select {
+        padding: 10px 12px;
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+
+    /* Controls */
+    .controls {
+        padding: 15px;
+        margin-bottom: 15px;
+        gap: 15px;
+    }
+
+    .tempo-control {
+        min-width: 100%;
+    }
+
+    .btn {
+        padding: 14px 24px;
+        font-size: 1rem;
+        flex: 1;
+    }
+
+    .playback-buttons {
+        width: 100%;
+    }
+
+    /* Tips */
+    .tips-section {
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    .tips-section h2 {
+        font-size: 1rem;
+    }
+
+    .tip {
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    /* Theory - horizontal scroll on mobile */
+    .theory-section {
+        padding: 15px;
+    }
+
+    .theory-section h2 {
+        font-size: 1rem;
+    }
+
+    .theory-display {
+        display: flex;
+        gap: 10px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 5px;
+    }
+
+    .interval-row {
+        padding: 10px 12px;
+        min-width: 70px;
+        flex-shrink: 0;
+    }
+
+    .interval-label {
+        font-size: 0.7rem;
+    }
+
+    .interval-note {
+        font-size: 1.2rem;
+    }
+}
+
+/* Touch-friendly improvements */
+@media (hover: none) and (pointer: coarse) {
+    .mobile-hint {
+        display: block;
+    }
+
+    .note {
+        /* Larger touch targets */
+        min-width: 32px;
+        min-height: 32px;
+    }
+
+    .note:active {
+        transform: scale(1.15);
+        box-shadow: 0 0 20px currentColor;
+    }
+
+    .progression-chord:active {
+        background: var(--accent);
+        transform: scale(1.05);
+    }
+
+    .btn:active {
+        transform: scale(0.98);
+    }
+
+    /* Remove hover effects that don't work on touch */
+    .note:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .note.root:hover {
+        box-shadow: 0 0 10px var(--root-color);
+    }
+
+    .btn:hover {
+        transform: none;
+    }
+
+    .progression-chord:hover {
+        background: var(--accent-secondary);
+    }
+}
