@@ -215,8 +215,12 @@ function buildFretboard() {
             noteEl.textContent = note;
             noteEl.dataset.note = note;
 
-            // Click to play note
+            // Click and touch to play note
             noteEl.addEventListener('click', () => playNote(stringIdx, fret));
+            noteEl.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                playNote(stringIdx, fret);
+            }, { passive: false });
 
             fretEl.appendChild(noteEl);
             stringEl.appendChild(fretEl);
@@ -487,6 +491,46 @@ document.addEventListener('keydown', (e) => {
         state.currentChordIndex = (state.currentChordIndex - 1 + progression.length) % progression.length;
         updateAll();
     }
+});
+
+// Touch swipe gestures for chord navigation
+let touchStartX = 0;
+let touchStartY = 0;
+const SWIPE_THRESHOLD = 50;
+
+document.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+    if (!e.changedTouches.length) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+
+    // Only trigger swipe if horizontal movement is greater than vertical
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD) {
+        const progression = PROGRESSIONS[state.currentProgression];
+        if (deltaX < 0) {
+            // Swipe left - next chord
+            state.currentChordIndex = (state.currentChordIndex + 1) % progression.length;
+        } else {
+            // Swipe right - previous chord
+            state.currentChordIndex = (state.currentChordIndex - 1 + progression.length) % progression.length;
+        }
+        updateAll();
+    }
+}, { passive: true });
+
+// Prevent double-tap zoom on buttons
+document.querySelectorAll('.btn, .progression-chord, select').forEach(el => {
+    el.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        el.click();
+    }, { passive: false });
 });
 
 // Initialize
