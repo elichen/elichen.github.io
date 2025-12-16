@@ -403,9 +403,6 @@ async function initAudio() {
 function playChord(chordRoot, chordType, durationSec) {
     if (!state.player) return;
 
-    // Stop any currently playing sequence
-    state.player.stop();
-
     const chord = CHORD_TYPES[chordType];
     const rootMidi = noteToMidi(chordRoot, 3); // Root in octave 3
 
@@ -418,23 +415,28 @@ function playChord(chordRoot, chordType, durationSec) {
         rootMidi + chord.intervals[1] + 12,  // 3rd (up an octave)
     ];
 
-    // Create NoteSequence with strum effect
-    const strumDelay = 0.02; // 20ms between notes for strum feel
-    const notes = voicing.map((pitch, idx) => ({
-        pitch: pitch,
-        startTime: idx * strumDelay,
-        endTime: durationSec - 0.1,
-        velocity: Math.floor(70 + Math.random() * 20),
-        program: 26, // Jazz Guitar
-        isDrum: false
-    }));
+    // Play each note with strum effect using playNoteDown/playNoteUp
+    const strumDelay = 20; // 20ms between notes for strum feel
+    const durationMs = durationSec * 1000;
 
-    const seq = {
-        notes: notes,
-        totalTime: durationSec
-    };
+    voicing.forEach((pitch, idx) => {
+        const note = {
+            pitch: pitch,
+            velocity: Math.floor(70 + Math.random() * 20),
+            program: 26, // Jazz Guitar
+            isDrum: false
+        };
 
-    state.player.start(seq);
+        // Strum: stagger note starts
+        setTimeout(() => {
+            state.player.playNoteDown(note);
+        }, idx * strumDelay);
+
+        // Release note before next chord
+        setTimeout(() => {
+            state.player.playNoteUp(note);
+        }, durationMs - 50);
+    });
 }
 
 function playNote(stringIndex, fret) {
@@ -453,24 +455,21 @@ function playNote(stringIndex, fret) {
 function playSingleNote(stringIndex, fret) {
     if (!state.player) return;
 
-    // Stop any currently playing sequence
-    state.player.stop();
-
     const midiNote = STRING_MIDI_BASE[stringIndex] + fret;
 
-    const seq = {
-        notes: [{
-            pitch: midiNote,
-            startTime: 0,
-            endTime: 0.8,
-            velocity: 80,
-            program: 26, // Jazz Guitar
-            isDrum: false
-        }],
-        totalTime: 0.8
+    const note = {
+        pitch: midiNote,
+        velocity: 80,
+        program: 26, // Jazz Guitar
+        isDrum: false
     };
 
-    state.player.start(seq);
+    state.player.playNoteDown(note);
+
+    // Release after 800ms
+    setTimeout(() => {
+        state.player.playNoteUp(note);
+    }, 800);
 }
 
 function startPlayback() {
