@@ -3,8 +3,7 @@
 
 const NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 const ENHARMONICS = {
-    'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb',
-    'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#'
+    'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb'
 };
 
 // Guitar tuning (standard) - from high E to low E
@@ -52,20 +51,20 @@ const CHORD_SCALES = {
 // Common progressions
 const PROGRESSIONS = {
     'ii-V-I-major': [
-        { root: 1, type: 'm7', function: 'ii' },
-        { root: 6, type: '7', function: 'V' },
+        { root: 2, type: 'm7', function: 'ii' },
+        { root: 7, type: '7', function: 'V' },
         { root: 0, type: 'maj7', function: 'I' },
     ],
     'ii-V-I-minor': [
-        { root: 1, type: 'm7b5', function: 'ii°' },
-        { root: 6, type: '7alt', function: 'V' },
+        { root: 2, type: 'm7b5', function: 'ii°' },
+        { root: 7, type: '7alt', function: 'V' },
         { root: 0, type: 'm7', function: 'i' },
     ],
     'I-vi-ii-V': [
         { root: 0, type: 'maj7', function: 'I' },
-        { root: 8, type: 'm7', function: 'vi' },
-        { root: 1, type: 'm7', function: 'ii' },
-        { root: 6, type: '7', function: 'V' },
+        { root: 9, type: 'm7', function: 'vi' },
+        { root: 2, type: 'm7', function: 'ii' },
+        { root: 7, type: '7', function: 'V' },
     ],
     'blues': [
         { root: 0, type: '7', function: 'I' },
@@ -404,15 +403,15 @@ function playChord(chordRoot, chordType, durationSec) {
     if (!state.player) return;
 
     const chord = CHORD_TYPES[chordType];
-    const rootMidi = noteToMidi(chordRoot, 3); // Root in octave 3
 
-    // Create a nice jazz voicing
-    // Drop 2 voicing style: Root, 5th, 7th, 3rd (from low to high)
+    const rootMidi = noteToMidi(chordRoot, 3);
+
+    // Simple stacked voicing: 1-3-5-7
     const voicing = [
-        rootMidi,           // Root
+        rootMidi + chord.intervals[0],  // Root
+        rootMidi + chord.intervals[1],  // 3rd
         rootMidi + chord.intervals[2],  // 5th
         rootMidi + chord.intervals[3],  // 7th
-        rootMidi + chord.intervals[1] + 12,  // 3rd (up an octave)
     ];
 
     // Play each note with strum effect using playNoteDown/playNoteUp
@@ -422,7 +421,7 @@ function playChord(chordRoot, chordType, durationSec) {
     voicing.forEach((pitch, idx) => {
         const note = {
             pitch: pitch,
-            velocity: Math.floor(70 + Math.random() * 20),
+            velocity: 80,
             program: 26, // Jazz Guitar
             isDrum: false
         };
