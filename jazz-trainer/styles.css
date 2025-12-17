@@ -8,28 +8,28 @@
 }
 
 :root {
-    /* Smoky Jazz Club Palette */
-    --bg-deep: #0a0f1a;
-    --bg-card: #111827;
-    --bg-card-elevated: #1a2234;
-    --accent-brass: #d4a853;
-    --accent-coral: #e07a5f;
-    --accent-blue: #3d5a80;
-    --text-cream: #f5f0e8;
-    --text-muted: #8b95a5;
-    --text-warm: #c9b896;
+    /* Light Jazz Palette - warm paper tones */
+    --bg-deep: #f8f5f0;
+    --bg-card: #ffffff;
+    --bg-card-elevated: #f3efe8;
+    --accent-brass: #b8860b;
+    --accent-coral: #c75d48;
+    --accent-blue: #4a6fa5;
+    --text-cream: #1a1a1a;
+    --text-muted: #6b7280;
+    --text-warm: #4a4035;
 
-    /* Note colors - jewel tones */
-    --root-color: #e07a5f;
-    --chord-tone-color: #d4a853;
-    --tension-color: #9d8ec9;
-    --scale-tone-color: #5d9cad;
-    --avoid-color: #3a4255;
+    /* Note colors - rich but visible on light */
+    --root-color: #c75d48;
+    --chord-tone-color: #b8860b;
+    --tension-color: #7c5cbf;
+    --scale-tone-color: #2a7d8c;
+    --avoid-color: #9ca3af;
 
     /* Fretboard */
-    --fret-color: #2d3748;
-    --string-color: #b8a589;
-    --nut-color: #f5f0e8;
+    --fret-color: #d1ccc4;
+    --string-color: #8b7355;
+    --nut-color: #2d2a26;
 }
 
 body {
@@ -41,7 +41,7 @@ body {
     overflow-x: hidden;
 }
 
-/* Subtle noise texture overlay */
+/* Subtle paper texture overlay */
 body::before {
     content: '';
     position: fixed;
@@ -49,23 +49,10 @@ body::before {
     left: 0;
     width: 100%;
     height: 100%;
-    opacity: 0.03;
+    opacity: 0.025;
     pointer-events: none;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
     z-index: 1000;
-}
-
-/* Warm gradient glow at top */
-body::after {
-    content: '';
-    position: fixed;
-    top: -50%;
-    left: -25%;
-    width: 150%;
-    height: 100%;
-    background: radial-gradient(ellipse at center, rgba(212, 168, 83, 0.06) 0%, transparent 60%);
-    pointer-events: none;
-    z-index: -1;
 }
 
 .container {
@@ -136,8 +123,9 @@ header h1 {
     border-radius: 16px;
     overflow: hidden;
     box-shadow:
-        0 4px 30px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        0 4px 20px rgba(0, 0, 0, 0.08),
+        0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .current-chord {
@@ -185,7 +173,6 @@ header h1 {
     display: block;
     line-height: 1;
     letter-spacing: 2px;
-    text-shadow: 0 0 40px rgba(212, 168, 83, 0.3);
 }
 
 .chord-function {
@@ -208,14 +195,15 @@ header h1 {
 
 /* Fretboard - The Instrument */
 .fretboard-container {
-    background: linear-gradient(180deg, var(--bg-card-elevated) 0%, var(--bg-card) 100%);
+    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-card-elevated) 100%);
     padding: 35px 25px 25px;
     border-radius: 16px;
     margin-bottom: 30px;
     overflow-x: auto;
     box-shadow:
-        0 8px 40px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        0 4px 20px rgba(0, 0, 0, 0.08),
+        0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.06);
     position: relative;
 }
 
@@ -321,29 +309,25 @@ header h1 {
 .note.root {
     background: var(--root-color);
     color: white;
-    box-shadow:
-        0 0 20px rgba(224, 122, 95, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    box-shadow: 0 2px 8px rgba(199, 93, 72, 0.4);
 }
 
 .note.chord-tone {
     background: var(--chord-tone-color);
-    color: var(--bg-deep);
-    box-shadow:
-        0 0 15px rgba(212, 168, 83, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    color: white;
+    box-shadow: 0 2px 8px rgba(184, 134, 11, 0.4);
 }
 
 .note.tension {
     background: var(--tension-color);
     color: white;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    box-shadow: 0 2px 6px rgba(124, 92, 191, 0.3);
 }
 
 .note.scale-tone {
     background: var(--scale-tone-color);
     color: white;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    box-shadow: 0 2px 6px rgba(42, 125, 140, 0.3);
 }
 
 .note.avoid {
@@ -416,8 +400,9 @@ section:not(.chord-display):not(.fretboard-container):not(.legend) {
     border-radius: 16px;
     margin-bottom: 25px;
     box-shadow:
-        0 4px 20px rgba(0, 0, 0, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        0 4px 20px rgba(0, 0, 0, 0.08),
+        0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 /* Progression Section */
@@ -462,9 +447,9 @@ section:not(.chord-display):not(.fretboard-container):not(.legend) {
 
 .progression-chord.active {
     background: var(--accent-brass);
-    color: var(--bg-deep);
+    color: white;
     transform: scale(1.08);
-    box-shadow: 0 0 25px rgba(212, 168, 83, 0.4);
+    box-shadow: 0 4px 15px rgba(184, 134, 11, 0.35);
 }
 
 .progression-select, .key-select {
@@ -543,7 +528,7 @@ input[type="range"]::-webkit-slider-thumb {
     border-radius: 50%;
     background: var(--accent-brass);
     cursor: pointer;
-    box-shadow: 0 0 15px rgba(212, 168, 83, 0.4);
+    box-shadow: 0 2px 8px rgba(184, 134, 11, 0.35);
     transition: transform 0.2s;
 }
 
@@ -577,14 +562,14 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 .btn-primary {
     background: var(--accent-brass);
-    color: var(--bg-deep);
-    box-shadow: 0 4px 20px rgba(212, 168, 83, 0.3);
+    color: white;
+    box-shadow: 0 4px 15px rgba(184, 134, 11, 0.25);
 }
 
 .btn-primary:hover {
-    background: #e5b964;
+    background: #a07a0a;
     transform: translateY(-2px);
-    box-shadow: 0 6px 25px rgba(212, 168, 83, 0.4);
+    box-shadow: 0 6px 20px rgba(184, 134, 11, 0.35);
 }
 
 .btn-primary:active {
@@ -1021,8 +1006,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 /* Animation for chord changes */
 @keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 20px rgba(212, 168, 83, 0.3); }
-    50% { box-shadow: 0 0 35px rgba(212, 168, 83, 0.5); }
+    0%, 100% { box-shadow: 0 4px 15px rgba(184, 134, 11, 0.35); }
+    50% { box-shadow: 0 6px 25px rgba(184, 134, 11, 0.5); }
 }
 
 .progression-chord.active {
