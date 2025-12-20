@@ -14,7 +14,7 @@ async function init() {
     game.draw();
 
     try {
-        await agent.load('web_model_egocentric/weights.json');
+        await agent.load('https://github.com/elichen/elichen.github.io/releases/download/snake-model-v1/weights.json');
         agent.reset(game);
         loadingOverlay.classList.add('hidden');
         setTimeout(startGame, 100);
