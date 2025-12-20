@@ -18,12 +18,31 @@ class SnakeEgocentricAgent {
         console.log('Loading egocentric agent weights...');
         const response = await fetch(weightsUrl);
         const data = await response.json();
-        this.weights = data.weights;
         this.metadata = data.metadata;
+
+        // Reconstruct weights from compact format (shape + flat data)
+        this.weights = {};
+        for (const [name, w] of Object.entries(data.weights)) {
+            this.weights[name] = this.unflatten(w.data, w.shape);
+        }
+
         console.log('Snake egocentric agent loaded');
         console.log('  Board size:', this.metadata.board_size);
         console.log('  Network scale:', this.metadata.network_scale + 'x');
         console.log('  Observation:', this.metadata.n_channels + 'x' + this.metadata.obs_size + 'x' + this.metadata.obs_size);
+    }
+
+    // Reconstruct nested array from flat data and shape
+    unflatten(data, shape) {
+        if (shape.length === 1) {
+            return data.slice(0, shape[0]);
+        }
+        const result = [];
+        const subSize = shape.slice(1).reduce((a, b) => a * b, 1);
+        for (let i = 0; i < shape[0]; i++) {
+            result.push(this.unflatten(data.slice(i * subSize, (i + 1) * subSize), shape.slice(1)));
+        }
+        return result;
     }
 
     // LayerNorm: normalize, then scale and shift
