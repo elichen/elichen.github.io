@@ -1,7 +1,7 @@
 // Main script for egocentric FC Snake AI
 
 let game;
-let totalFoodEaten = 0;
+let maxScore = 0;
 let episodeCount = 1;
 let gameLoopId = null;
 const GAME_SPEED = 50; // ms per frame
@@ -32,11 +32,14 @@ function startGame() {
 
 function gameLoop() {
     if (game.gameOver) {
+        // Update max score before reset
+        if (game.score > maxScore) {
+            maxScore = game.score;
+            document.getElementById('maxScore').textContent = maxScore;
+        }
         // Reset and start new episode
         episodeCount++;
         document.getElementById('episode').textContent = episodeCount;
-        document.getElementById('foodEaten').textContent = 0;
-        totalFoodEaten = 0;
         game.reset();
         agent.reset(game);  // Sync agent direction with game's random initial direction
     }
@@ -49,10 +52,6 @@ function gameLoop() {
 
     // Update stats
     document.getElementById('score').textContent = game.score;
-    if (result.reward > 0) {
-        totalFoodEaten++;
-        document.getElementById('foodEaten').textContent = totalFoodEaten;
-    }
 
     // Schedule next frame
     gameLoopId = setTimeout(gameLoop, GAME_SPEED);
