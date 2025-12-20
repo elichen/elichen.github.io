@@ -3,21 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snake AI - Curriculum-Trained PPO</title>
+    <title>Snake AI - Egocentric PPO</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0/dist/tf.min.js"></script>
 </head>
 <body>
     <div class="container">
         <h1>Snake AI</h1>
-        <p class="subtitle">Curriculum-trained PPO (6x6 → 20x20)</p>
+        <p class="subtitle">Egocentric observation with symmetric augmentation</p>
 
         <div class="canvas-wrapper">
             <canvas id="gameCanvas" width="600" height="600"></canvas>
             <div id="loadingOverlay" class="loading-overlay">
                 <div class="loading-spinner"></div>
                 <div class="loading-text">Loading AI model...</div>
-                <div class="loading-subtext">This may take a few seconds</div>
+                <div class="loading-subtext">This may take a few seconds (164 MB)</div>
             </div>
         </div>
 
@@ -39,53 +38,54 @@
         <p id="modelStatus"></p>
 
         <div class="description">
-            <p>This agent was trained using <strong>curriculum learning</strong>, starting on a 6x6 grid and progressively scaling to 20x20. The CNN processes the full board state through 8 feature channels, outputting 3 relative actions (turn left, go straight, turn right).</p>
+            <p>This agent uses <strong>egocentric observation</strong>: the grid is rotated so the snake always "faces up", reducing complexity. Combined with <strong>symmetric augmentation</strong> (horizontal flips during training), this achieves strong performance on 20x20 Snake.</p>
         </div>
 
         <div class="metrics">
             <div class="metric-card">
                 <div class="label">Training Steps</div>
-                <div class="value">~10M</div>
+                <div class="value">~50M</div>
             </div>
             <div class="metric-card">
-                <div class="label">Curriculum</div>
-                <div class="value">6→8→10→14→20</div>
+                <div class="label">Best Score</div>
+                <div class="value">254/397</div>
             </div>
             <div class="metric-card">
                 <div class="label">Observation</div>
-                <div class="value">8×20×20</div>
+                <div class="value">5x22x22</div>
             </div>
             <div class="metric-card">
-                <div class="label">Actions</div>
-                <div class="value">3 (relative)</div>
+                <div class="label">Parameters</div>
+                <div class="value">4.4M</div>
             </div>
         </div>
 
         <div class="technical-details">
-            <h3>8-Channel CNN Observations</h3>
-            <p>The agent sees the full 20x20 board through 8 feature planes:</p>
+            <h3>5-Channel Egocentric Observations</h3>
+            <p>The agent sees a 22x22 grid (20x20 + wall padding) rotated so it always faces "up":</p>
             <ul>
-                <li><strong>Channel 0 - Head:</strong> 1 at head position, 0 elsewhere</li>
+                <li><strong>Channel 0 - Head:</strong> 1 at head position</li>
                 <li><strong>Channel 1 - Body:</strong> 1 at all snake segments</li>
                 <li><strong>Channel 2 - Food:</strong> 1 at food position</li>
-                <li><strong>Channels 3-6 - Direction:</strong> One-hot encoded, broadcast across entire grid (e.g., if facing up, all 400 cells in channel 3 = 1)</li>
-                <li><strong>Channel 7 - Length:</strong> Normalized snake length (snake_len / 400), broadcast to all cells</li>
+                <li><strong>Channel 3 - Length:</strong> Normalized snake length (snake_len / 400)</li>
+                <li><strong>Channel 4 - Walls:</strong> 1 at border cells</li>
             </ul>
-            <p>The direction channels being "broadcast" gives the CNN spatial context about orientation, allowing it to learn patterns like "food is left of head when facing up → turn left".</p>
+            <p>By rotating the grid based on the snake's direction, the agent learns direction-invariant patterns.</p>
 
-            <h3>Network Architecture</h3>
+            <h3>Network Architecture (2x Scale)</h3>
             <ul>
                 <li><strong>Algorithm:</strong> PPO (Proximal Policy Optimization)</li>
-                <li><strong>CNN:</strong> 3 conv layers (64→128→256 filters, 3x3, same padding, ReLU)</li>
-                <li><strong>Pooling:</strong> Global Average Pooling → 256-dim vector</li>
-                <li><strong>MLP:</strong> Dense(256, ReLU) → Dense(256, Tanh) → Dense(256, Tanh) → Dense(3)</li>
-                <li><strong>Training:</strong> 8 parallel environments on Apple Silicon (MPS)</li>
+                <li><strong>Input:</strong> 5 x 22 x 22 = 2,420 features (flattened)</li>
+                <li><strong>Backbone:</strong> FC 2048 + FC 1024 + FC 512 + FC 256 (with LayerNorm)</li>
+                <li><strong>Policy Head:</strong> FC 128 + FC 3 (left/straight/right)</li>
+                <li><strong>Total Parameters:</strong> 4.4 million</li>
+                <li><strong>Training:</strong> 256 parallel environments on Apple Silicon (MPS)</li>
             </ul>
         </div>
     </div>
 
     <script src="snake.js"></script>
-    <script src="web_model_new/agent-curriculum.js"></script>
-    <script src="web_model_new/script-curriculum.js"></script>
+    <script src="web_model_egocentric/agent-egocentric.js"></script>
+    <script src="web_model_egocentric/script-egocentric.js"></script>
 </body>
 </html>
