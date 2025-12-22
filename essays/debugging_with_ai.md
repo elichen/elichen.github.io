@@ -2,29 +2,15 @@
 
 "Vibe coding" has become a popular term for using AI to build products without necessarily understanding the underlying code. It promises rapid development and democratization of building software. However, there's a trap: if you build without understanding, you create systems that are impossible to debug or maintain.
 
-I've found that using AI to code is an incredible accelerator for learning. It provides concrete implementation references that help build intuition for abstract concepts. It acts as a filter, helping distinguish between what is immediately relevant and what can be learned later. This aligns closely with Jeremy Howard's "top-down" teaching philosophy in Fast.ai—getting your hands dirty with working code before diving into the theoretical weeds.
+I've found that using AI to code is an incredible accelerator for learning. It provides concrete implementation references that help build intuition for abstract concepts. It acts as a filter, helping distinguish between what is immediately relevant and what can be learned later. This aligns closely with Jeremy Howard's "top-down" teaching philosophy in Fast.ai: getting your hands dirty with working code before diving into the theoretical weeds.
 
 The criticism of "vibe coding" usually centers on the idea that it generates code suitable only for prototypes, that it lacks the robustness required for production, or that the resulting systems are too brittle to maintain. These criticisms often stem from neglecting the learning component. If you skip understanding how systems work, syntax nuances, or software architecture, you are setting yourself up for failure when the AI makes mistakes.
 
-## Expecting Mistakes
+We must remember that current AI models are still being reinforcement-learned to search the solution space more effectively. Mistakes are expected. Whether it's hallucinations, subtle syntax errors, or choosing a strategically incorrect path, the AI is not infallible. So how do we maximize productivity during this era of imperfect AI? We must become great debuggers.
 
-We must remember that current AI models are still being reinforcement-learned to search the solution space more effectively. Mistakes are expected. Whether it's hallucinations, subtle syntax errors, or choosing a strategically incorrect path, the AI is not infallible.
+What makes a great debugger? Tenacity, the sheer refusal to give up. Deep focus, the ability to peel back the layers of the onion one by one. Humility, putting aside assumptions to run objective experiments. Systems thinking, leveraging prior knowledge to make educated guesses about failure modes. Pattern matching, skills honed through previous experiences of building and fixing software.
 
-So, how do we maximize productivity during this era of imperfect AI? We must become **great debuggers**.
-
-## The Art of Debugging
-
-What makes a great debugger?
-
-*   **Tenacity:** The sheer refusal to give up.
-*   **Deep Focus:** The ability to peel back the layers of the onion, one by one.
-*   **Humility:** Putting aside assumptions to run objective experiments.
-*   **Systems Thinking:** Leveraging prior knowledge to make educated guesses about failure modes.
-*   **Pattern Matching:** Skills honed through previous experiences of building and fixing software.
-
-I personally love debugging. It's a form of high-stakes problem-solving that inextricably involves learning. The dopamine hit when you finally fix a stubborn issue is intense—you either fix it, or you keep grinding. While I understand some people hate it, I'm addicted to it.
-
-## Lifting the Ceiling
+I personally love debugging. It's a form of high-stakes problem-solving that inextricably involves learning. The dopamine hit when you finally fix a stubborn issue is intense. You either fix it, or you keep grinding. While I understand some people hate it, I'm addicted to it.
 
 For those learning to code with AI today, I encourage you to use these tools not just to generate output, but to learn the craft of software engineering. Focus on developing your debugging skills. This means you must invest time in understanding how computers work, how software operates, and how systems interact. This foundational knowledge is what will make you a great debugger.
 
