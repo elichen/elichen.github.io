@@ -74,6 +74,125 @@
             </p>
         </section>
 
+        <section id="parity-intuition">
+            <h2>Why the Parity Rule Works</h2>
+
+            <p>
+                The even/odd rule seems arbitrary at first. Why swap with different positions when k is even,
+                but always with position 0 when k is odd? The answer lies in a beautiful principle:
+                <strong>compensation between levels</strong>.
+            </p>
+
+            <div class="intuition-box">
+                <h3>The Compensation Principle</h3>
+                <p>
+                    Each level's swapping strategy compensates for what the sub-level does to the array.
+                </p>
+                <p>
+                    When <code>generate(k-1)</code> completes, it leaves the first k-1 elements in a specific
+                    "residual state." This state depends on the parity of k-1:
+                </p>
+
+                <div class="parity-table">
+                    <div class="parity-row header">
+                        <span>If k-1 is...</span>
+                        <span>Sub-call effect on A[0..k-2]</span>
+                        <span>So level k must...</span>
+                    </div>
+                    <div class="parity-row">
+                        <span><strong>Odd</strong></span>
+                        <span>Returns elements to ~same positions (swaps "cancel out")</span>
+                        <span>Rotate through positions to create variation</span>
+                    </div>
+                    <div class="parity-row">
+                        <span><strong>Even</strong></span>
+                        <span>Leaves elements shuffled differently each time</span>
+                        <span>Use simple fixed swap (variation comes from inside)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="gear-analogy">
+                <h3>The Gear Analogy</h3>
+                <p>
+                    Imagine nested gears in a clockwork mechanism. If adjacent gears spin the same direction,
+                    they grind against each other. They must spin in <em>opposite</em> directions to mesh.
+                </p>
+                <div class="gear-visual">
+                    <div class="gear-pair">
+                        <div class="gear even">k even<br><small>rotates</small></div>
+                        <div class="gear-connector"></div>
+                        <div class="gear odd">k-1 odd<br><small>pivots</small></div>
+                    </div>
+                    <div class="gear-pair">
+                        <div class="gear odd">k odd<br><small>pivots</small></div>
+                        <div class="gear-connector"></div>
+                        <div class="gear even">k-1 even<br><small>rotates</small></div>
+                    </div>
+                </div>
+                <p>
+                    The alternating even/odd rule creates two "gear types" that mesh perfectly. When the inner
+                    gear rotates through positions, the outer gear can simply pivot. When the inner gear pivots,
+                    the outer gear must rotate to explore new territory.
+                </p>
+            </div>
+
+            <div class="trace-example">
+                <h3>See It In Action: k=3 (odd)</h3>
+                <p>Starting with [A, B, C], watch how the levels coordinate:</p>
+                <div class="trace-steps">
+                    <div class="trace-step">
+                        <div class="trace-call">generate(2) on [A,B,C]</div>
+                        <div class="trace-detail">
+                            k=2 is <strong>even</strong>, so it rotates: outputs [A,B,C], swaps pos 0↔1, outputs [B,A,C]
+                        </div>
+                        <div class="trace-result">Returns with array as [B,A,C]</div>
+                    </div>
+                    <div class="trace-step">
+                        <div class="trace-call">swap(0, 2) → [C,A,B]</div>
+                        <div class="trace-detail">
+                            k=3 is <strong>odd</strong>, so always swap with position 0
+                        </div>
+                    </div>
+                    <div class="trace-step">
+                        <div class="trace-call">generate(2) on [C,A,B]</div>
+                        <div class="trace-detail">
+                            Rotates again: outputs [C,A,B], swaps, outputs [A,C,B]
+                        </div>
+                        <div class="trace-result">Returns with array as [A,C,B]</div>
+                    </div>
+                    <div class="trace-step">
+                        <div class="trace-call">swap(0, 2) → [B,C,A]</div>
+                        <div class="trace-detail">
+                            Odd k: swap with position 0 again
+                        </div>
+                    </div>
+                    <div class="trace-step">
+                        <div class="trace-call">generate(2) on [B,C,A]</div>
+                        <div class="trace-detail">
+                            Rotates: outputs [B,C,A], swaps, outputs [C,B,A]
+                        </div>
+                        <div class="trace-result">All 6 permutations generated!</div>
+                    </div>
+                </div>
+                <p class="trace-insight">
+                    The inner level (k=2, even) <em>rotates</em>. The outer level (k=3, odd) just <em>pivots</em>
+                    with position 0 each time. Together, they cover all permutations with no repeats.
+                </p>
+            </div>
+
+            <div class="one-liner">
+                <h3>The One-Liner</h3>
+                <p class="highlight-text">
+                    When inside rotates, outside pivots. When inside pivots, outside rotates.
+                </p>
+                <p>
+                    This complementary motion ensures every permutation is visited exactly once,
+                    with exactly one swap between each consecutive pair.
+                </p>
+            </div>
+        </section>
+
         <section id="visualization">
             <h2>Interactive Visualization</h2>
             
