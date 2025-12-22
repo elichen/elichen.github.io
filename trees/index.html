@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Tree Simulation with Wind</title>
-    <meta name="description" content="Realistic 3D tree simulation with natural wind animations using WebGL">
+    <title>3D Forest Simulation</title>
+    <meta name="description" content="Immersive 3D forest simulation with multiple tree species, dynamic weather, day/night cycle, and terrain using WebGL">
     <style>
         body {
             margin: 0;
@@ -14,7 +14,7 @@
             min-height: 100vh;
             overflow: hidden;
         }
-        
+
         .loading {
             position: fixed;
             top: 50%;
@@ -23,129 +23,223 @@
             text-align: center;
             color: #2c3e50;
             z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px 50px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
         }
-        
+
         .loading-spinner {
             width: 50px;
             height: 50px;
             border: 4px solid rgba(44, 62, 80, 0.1);
-            border-top: 4px solid #2c3e50;
+            border-top: 4px solid #27ae60;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
         }
-        
+
+        .loading-text {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .loading-subtext {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 8px;
+        }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
+
         .title {
             position: absolute;
             top: 20px;
             left: 20px;
             color: #2c3e50;
-            font-size: 24px;
+            font-size: 28px;
             font-weight: 300;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-shadow: 0 2px 4px rgba(255,255,255,0.5);
             z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        
+
+        .title-icon {
+            font-size: 32px;
+        }
+
         .info {
             position: absolute;
             bottom: 20px;
-            right: 20px;
+            left: 20px;
             color: #2c3e50;
-            font-size: 12px;
-            text-align: right;
-            background: rgba(255,255,255,0.8);
-            padding: 10px;
-            border-radius: 8px;
+            font-size: 13px;
+            background: rgba(255,255,255,0.85);
+            padding: 12px 16px;
+            border-radius: 10px;
             backdrop-filter: blur(10px);
             z-index: 100;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .info-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-icon {
+            width: 18px;
+            text-align: center;
+        }
+
+        .info-label {
+            color: #7f8c8d;
+            min-width: 50px;
+        }
+
+        .info-value {
+            font-weight: 600;
+            color: #2c3e50;
         }
     </style>
 </head>
 <body>
     <div class="loading" id="loading">
         <div class="loading-spinner"></div>
-        <div>Loading Tree Simulation...</div>
-    </div>
-    
-    <div class="title">3D Tree Simulation</div>
-    
-    <div class="info">
-        <div>FPS: <span id="fps">--</span></div>
-        <div>Wind: <span id="windInfo">Gentle Breeze</span></div>
+        <div class="loading-text">Generating Forest...</div>
+        <div class="loading-subtext">Planting trees and growing leaves</div>
     </div>
 
-    <!-- Tree Simulation Web Component -->
-    <tree-simulation id="treeSimulation"></tree-simulation>
+    <div class="title">
+        <span class="title-icon">🌲</span>
+        <span>3D Forest Simulation</span>
+    </div>
+
+    <div class="info">
+        <div class="info-row">
+            <span class="info-icon">🌡️</span>
+            <span class="info-label">Weather:</span>
+            <span class="info-value" id="weatherInfo">Clear</span>
+        </div>
+        <div class="info-row">
+            <span class="info-icon">🌲</span>
+            <span class="info-label">Trees:</span>
+            <span class="info-value" id="treeInfo">--</span>
+        </div>
+    </div>
+
+    <!-- Forest Simulation Web Component -->
+    <tree-simulation id="forestSimulation"></tree-simulation>
 
     <!-- Load Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    
-    <!-- Load our tree simulation component -->
+
+    <!-- Load our forest simulation component -->
     <script type="module" src="tree-simulation.js"></script>
-    
+
     <script>
         // Initialize the simulation once the component is ready
         window.addEventListener('DOMContentLoaded', () => {
-            const treeSimulation = document.getElementById('treeSimulation');
+            const forestSimulation = document.getElementById('forestSimulation');
             const loading = document.getElementById('loading');
-            
+
             // Hide loading screen once simulation is ready
-            treeSimulation.addEventListener('ready', () => {
+            forestSimulation.addEventListener('ready', () => {
                 loading.style.display = 'none';
+                updateTreeInfo();
             });
-            
-            // Update FPS display
-            treeSimulation.addEventListener('fps-update', (event) => {
-                document.getElementById('fps').textContent = event.detail.fps;
-            });
-            
-            // Update wind info display
-            treeSimulation.addEventListener('wind-update', (event) => {
-                document.getElementById('windInfo').textContent = event.detail.description;
-            });
-            
+
+            function updateTreeInfo() {
+                const treeInfo = document.getElementById('treeInfo');
+                if (forestSimulation.trees) {
+                    treeInfo.textContent = forestSimulation.trees.length;
+                }
+            }
+
+            function updateWeatherInfo() {
+                const weatherInfo = document.getElementById('weatherInfo');
+                let weather = '';
+
+                if (!forestSimulation.windEnabled) {
+                    weather = 'Calm';
+                } else if (forestSimulation.windStrength < 0.3) {
+                    weather = 'Light Breeze';
+                } else if (forestSimulation.windStrength < 0.7) {
+                    weather = 'Breezy';
+                } else if (forestSimulation.windStrength < 1.2) {
+                    weather = 'Windy';
+                } else {
+                    weather = 'Stormy';
+                }
+
+                // Add time context
+                const time = forestSimulation.timeOfDay;
+                if (time < 5 || time > 20) {
+                    weather += ' Night';
+                } else if (time < 7) {
+                    weather += ' Dawn';
+                } else if (time > 18) {
+                    weather += ' Dusk';
+                }
+
+                weatherInfo.textContent = weather;
+            }
+
+            // Update info periodically
+            setInterval(() => {
+                updateWeatherInfo();
+                updateTreeInfo();
+            }, 1000);
+
             // Handle keyboard controls
             document.addEventListener('keydown', (event) => {
                 switch(event.code) {
                     case 'Space':
                         event.preventDefault();
-                        treeSimulation.toggleWind();
+                        forestSimulation.toggleWind();
                         break;
                     case 'KeyR':
-                        treeSimulation.regenerateTree();
+                        forestSimulation.generateForest();
+                        forestSimulation.createGrass();
                         break;
-                    case 'KeyH':
-                        // Cycle through tree heights
-                        const heights = [4, 6, 8, 10, 12, 16];
-                        const currentHeightIndex = heights.indexOf(treeSimulation.treeHeight);
-                        const nextHeight = heights[(currentHeightIndex + 1) % heights.length];
-                        treeSimulation.treeHeight = nextHeight;
-                        treeSimulation.shadowRoot.querySelector('#treeHeight').value = nextHeight;
-                        treeSimulation.shadowRoot.querySelector('#treeHeightValue').textContent = nextHeight;
-                        treeSimulation.generateTree();
+                    case 'KeyT':
+                        forestSimulation.dayCycleEnabled = !forestSimulation.dayCycleEnabled;
+                        const toggleBtn = forestSimulation.shadowRoot.querySelector('#toggleDayCycle');
+                        if (toggleBtn) {
+                            toggleBtn.textContent = forestSimulation.dayCycleEnabled ? 'Stop Day Cycle' : 'Start Day Cycle';
+                            toggleBtn.classList.toggle('active', forestSimulation.dayCycleEnabled);
+                        }
                         break;
-                    case 'KeyF':
-                        // Cycle through fullness levels
-                        const fullness = [5, 10, 15, 20, 25, 30];
-                        const currentFullnessIndex = fullness.indexOf(treeSimulation.treeFullness);
-                        const nextFullness = fullness[(currentFullnessIndex + 1) % fullness.length];
-                        treeSimulation.treeFullness = nextFullness;
-                        treeSimulation.shadowRoot.querySelector('#treeFullness').value = nextFullness;
-                        treeSimulation.shadowRoot.querySelector('#treeFullnessValue').textContent = nextFullness;
-                        treeSimulation.generateTree();
+                    case 'KeyC':
+                        forestSimulation.cloudsEnabled = !forestSimulation.cloudsEnabled;
+                        forestSimulation.clouds.forEach(cloud => {
+                            cloud.visible = forestSimulation.cloudsEnabled;
+                        });
+                        const cloudBtn = forestSimulation.shadowRoot.querySelector('#toggleClouds');
+                        if (cloudBtn) {
+                            cloudBtn.textContent = forestSimulation.cloudsEnabled ? 'Hide Clouds' : 'Show Clouds';
+                            cloudBtn.classList.toggle('active', forestSimulation.cloudsEnabled);
+                        }
                         break;
                 }
             });
-            
+
             // Handle window resize
             window.addEventListener('resize', () => {
-                treeSimulation.handleResize();
+                forestSimulation.handleResize();
             });
         });
     </script>
