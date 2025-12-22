@@ -85,10 +85,10 @@ const PROGRESSIONS = {
         { root: 5, type: '7', function: 'V' },
         { root: 10, type: 'maj7', function: 'I' },
         { root: 3, type: 'maj7', function: 'IV' },
-        { root: 8, type: 'm7b5', function: 'vii°' },
-        { root: 1, type: '7alt', function: 'III' },
-        { root: 5, type: 'm7', function: 'vi' },
-        { root: 5, type: 'm7', function: 'vi' },
+        { root: 9, type: 'm7b5', function: 'ii°' },
+        { root: 2, type: '7alt', function: 'V' },
+        { root: 7, type: 'm7', function: 'i' },
+        { root: 7, type: 'm7', function: 'i' },
     ],
 };
 
