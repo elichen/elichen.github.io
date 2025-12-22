@@ -3,713 +3,309 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Heap's Algorithm: An Interactive Guide to Generating Permutations</title>
+    <title>Heap's Algorithm</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <article>
         <header>
             <h1>Heap's Algorithm</h1>
-            <p class="subtitle">An Interactive Guide to Generating Permutations</p>
-            <p class="author">An exploration of one of the most elegant algorithms in combinatorics</p>
+            <p class="subtitle">Generating all permutations with minimal swaps</p>
         </header>
 
-        <section id="introduction">
-            <h2>What are Permutations?</h2>
+        <section id="intro">
             <p>
-                A permutation is a rearrangement of elements in a set. For a set of <em>n</em> distinct elements, 
-                there are exactly <em>n!</em> (n factorial) possible permutations. For example, the set {A, B, C} 
-                has 3! = 6 permutations:
+                How do you generate every possible arrangement of a set of elements?
+                The naive approach copies and rearranges repeatedly. But there's a beautiful
+                algorithm discovered by B.R. Heap in 1963 that does something remarkable:
+                it generates each new permutation by swapping just <em>two elements</em>.
             </p>
-            
-            <div class="figure" id="permutation-demo">
-                <div class="permutation-list">
-                    <!-- Will be populated by JavaScript -->
-                </div>
-                <p class="caption">All permutations of {A, B, C}</p>
-            </div>
 
             <p>
-                Generating all permutations is a fundamental problem in computer science, with applications 
-                ranging from cryptography to optimization algorithms. While there are many ways to generate 
-                permutations, Heap's algorithm stands out for its elegance and efficiency.
+                This means to generate all 24 permutations of [A,B,C,D], Heap's algorithm
+                performs exactly 23 swaps. One swap, one new arrangement. No wasted motion.
             </p>
         </section>
 
-        <section id="the-algorithm">
-            <h2>Understanding Heap's Algorithm</h2>
-            
+        <section id="simple-case">
+            <h2>Start Simple: Two Elements</h2>
+
+            <p>With just two elements, there are only two permutations:</p>
+
+            <div class="swap-demo" id="demo-2">
+                <div class="demo-row">
+                    <div class="perm-box">[A, B]</div>
+                    <div class="swap-arrow">swap 0↔1</div>
+                    <div class="perm-box">[B, A]</div>
+                </div>
+            </div>
+
+            <p>One swap. Done. Now let's add a third element.</p>
+        </section>
+
+        <section id="three-elements">
+            <h2>Three Elements: The Pattern Emerges</h2>
+
             <p>
-                B. R. Heap discovered this algorithm in 1963. Its brilliance is deceptively simple: to generate 
-                all n! permutations, it swaps just two elements between each permutation. This creates a complete 
-                sequence where each arrangement differs from the previous by exactly one swap.
+                With three elements, we have 3! = 6 permutations. Watch what Heap's algorithm does:
             </p>
 
-            <div class="algorithm-box">
-                <h3>The Algorithm</h3>
-                <pre><code>procedure generate(k : integer, A : array):
-    if k = 1 then
-        output(A)
-    else
-        // Generate permutations with kth element in each position
-        generate(k - 1, A)
-        
-        for i := 0 to k - 2 do
-            if k is even then
-                swap(A[i], A[k-1])
-            else
-                swap(A[0], A[k-1])
-            generate(k - 1, A)</code></pre>
+            <div class="interactive-demo" id="demo-3">
+                <div class="demo-controls">
+                    <button id="play-3" class="btn">▶ Play</button>
+                    <button id="step-3" class="btn">Step</button>
+                    <button id="reset-3" class="btn">Reset</button>
+                </div>
+
+                <div class="demo-stage">
+                    <div class="current-state">
+                        <div class="element" data-idx="0">A</div>
+                        <div class="element" data-idx="1">B</div>
+                        <div class="element" data-idx="2">C</div>
+                    </div>
+                    <div class="swap-info" id="swap-info-3">Click Play or Step</div>
+                </div>
+
+                <div class="permutation-trail" id="trail-3">
+                    <div class="trail-item active">ABC</div>
+                </div>
             </div>
 
             <p>
-                The algorithm's clever trick is its swap pattern based on whether k (the current size) is even or odd:
-            </p>
-            <ul>
-                <li><strong>When k is even:</strong> Rotate through positions - swap k-1 with position 0, then 1, then 2, etc.</li>
-                <li><strong>When k is odd:</strong> Always swap k-1 with position 0 (the first element)</li>
-            </ul>
-            <p class="algorithm-note">
-                This pattern ensures every possible arrangement is generated exactly once, with minimal movement.
+                Notice the pattern: we generate all permutations where C is in the last position,
+                then swap to put a different element there, and repeat.
             </p>
         </section>
 
-        <section id="parity-intuition">
-            <h2>Why the Parity Rule Works</h2>
+        <section id="the-insight">
+            <h2>The Key Insight</h2>
 
             <p>
-                The even/odd rule seems arbitrary at first. Why swap with different positions when k is even,
-                but always with position 0 when k is odd? The answer lies in a beautiful principle:
-                <strong>compensation between levels</strong>.
+                Heap's algorithm is recursive. To permute n elements:
             </p>
 
-            <div class="intuition-box">
-                <h3>The Compensation Principle</h3>
-                <p>
-                    Each level's swapping strategy compensates for what the sub-level does to the array.
-                </p>
-                <p>
-                    When <code>generate(k-1)</code> completes, it leaves the first k-1 elements in a specific
-                    "residual state." This state depends on the parity of k-1:
-                </p>
+            <ol class="insight-list">
+                <li>Generate all permutations of the first n-1 elements (keeping the last element fixed)</li>
+                <li>Swap to bring a new element into the last position</li>
+                <li>Repeat until every element has had a turn in the last position</li>
+            </ol>
 
-                <div class="parity-table">
-                    <div class="parity-row header">
-                        <span>If k-1 is...</span>
-                        <span>Sub-call effect on A[0..k-2]</span>
-                        <span>So level k must...</span>
-                    </div>
-                    <div class="parity-row">
-                        <span><strong>Odd</strong></span>
-                        <span>Returns elements to ~same positions (swaps "cancel out")</span>
-                        <span>Rotate through positions to create variation</span>
-                    </div>
-                    <div class="parity-row">
-                        <span><strong>Even</strong></span>
-                        <span>Leaves elements shuffled differently each time</span>
-                        <span>Use simple fixed swap (variation comes from inside)</span>
+            <div class="visual-recursion">
+                <div class="recursion-level">
+                    <div class="level-label">Permute 3 elements:</div>
+                    <div class="level-content">
+                        <div class="sub-problem">
+                            <span class="bracket">[</span>
+                            <span class="varying">permute A,B</span>
+                            <span class="bracket">]</span>
+                            <span class="fixed">C</span>
+                        </div>
+                        <div class="then">→ swap →</div>
+                        <div class="sub-problem">
+                            <span class="bracket">[</span>
+                            <span class="varying">permute B,C</span>
+                            <span class="bracket">]</span>
+                            <span class="fixed">A</span>
+                        </div>
+                        <div class="then">→ swap →</div>
+                        <div class="sub-problem">
+                            <span class="bracket">[</span>
+                            <span class="varying">permute C,A</span>
+                            <span class="bracket">]</span>
+                            <span class="fixed">B</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="gear-analogy">
-                <h3>The Gear Analogy</h3>
-                <p>
-                    Imagine nested gears in a clockwork mechanism. If adjacent gears spin the same direction,
-                    they grind against each other. They must spin in <em>opposite</em> directions to mesh.
-                </p>
-                <div class="gear-visual">
-                    <div class="gear-pair">
-                        <div class="gear even">k even<br><small>rotates</small></div>
-                        <div class="gear-connector"></div>
-                        <div class="gear odd">k-1 odd<br><small>pivots</small></div>
-                    </div>
-                    <div class="gear-pair">
-                        <div class="gear odd">k odd<br><small>pivots</small></div>
-                        <div class="gear-connector"></div>
-                        <div class="gear even">k-1 even<br><small>rotates</small></div>
+            <p>
+                But here's the puzzle: <em>which</em> element should we swap into the last position each time?
+            </p>
+        </section>
+
+        <section id="the-rule">
+            <h2>The Parity Rule</h2>
+
+            <p>
+                This is where Heap's genius shows. The swap rule depends on whether n is even or odd:
+            </p>
+
+            <div class="rule-comparison">
+                <div class="rule-box odd">
+                    <h3>When n is odd</h3>
+                    <div class="rule-visual">
+                        <div class="array-viz">
+                            <span class="el swap-source">0</span>
+                            <span class="el">1</span>
+                            <span class="el">2</span>
+                            <span class="el swap-target">n-1</span>
+                        </div>
+                        <div class="rule-desc">Always swap first element with last</div>
                     </div>
                 </div>
-                <p>
-                    The alternating even/odd rule creates two "gear types" that mesh perfectly. When the inner
-                    gear rotates through positions, the outer gear can simply pivot. When the inner gear pivots,
-                    the outer gear must rotate to explore new territory.
-                </p>
-            </div>
-
-            <div class="trace-example">
-                <h3>See It In Action: k=3 (odd)</h3>
-                <p>Starting with [A, B, C], watch how the levels coordinate:</p>
-                <div class="trace-steps">
-                    <div class="trace-step">
-                        <div class="trace-call">generate(2) on [A,B,C]</div>
-                        <div class="trace-detail">
-                            k=2 is <strong>even</strong>, so it rotates: outputs [A,B,C], swaps pos 0↔1, outputs [B,A,C]
+                <div class="rule-box even">
+                    <h3>When n is even</h3>
+                    <div class="rule-visual">
+                        <div class="array-viz">
+                            <span class="el swap-source">i</span>
+                            <span class="el">...</span>
+                            <span class="el swap-target">n-1</span>
                         </div>
-                        <div class="trace-result">Returns with array as [B,A,C]</div>
-                    </div>
-                    <div class="trace-step">
-                        <div class="trace-call">swap(0, 2) → [C,A,B]</div>
-                        <div class="trace-detail">
-                            k=3 is <strong>odd</strong>, so always swap with position 0
-                        </div>
-                    </div>
-                    <div class="trace-step">
-                        <div class="trace-call">generate(2) on [C,A,B]</div>
-                        <div class="trace-detail">
-                            Rotates again: outputs [C,A,B], swaps, outputs [A,C,B]
-                        </div>
-                        <div class="trace-result">Returns with array as [A,C,B]</div>
-                    </div>
-                    <div class="trace-step">
-                        <div class="trace-call">swap(0, 2) → [B,C,A]</div>
-                        <div class="trace-detail">
-                            Odd k: swap with position 0 again
-                        </div>
-                    </div>
-                    <div class="trace-step">
-                        <div class="trace-call">generate(2) on [B,C,A]</div>
-                        <div class="trace-detail">
-                            Rotates: outputs [B,C,A], swaps, outputs [C,B,A]
-                        </div>
-                        <div class="trace-result">All 6 permutations generated!</div>
+                        <div class="rule-desc">Swap position i with last (i goes 0, 1, 2, ...)</div>
                     </div>
                 </div>
-                <p class="trace-insight">
-                    The inner level (k=2, even) <em>rotates</em>. The outer level (k=3, odd) just <em>pivots</em>
-                    with position 0 each time. Together, they cover all permutations with no repeats.
-                </p>
             </div>
 
-            <div class="one-liner">
-                <h3>The One-Liner</h3>
-                <p class="highlight-text">
-                    When inside rotates, outside pivots. When inside pivots, outside rotates.
-                </p>
+            <p>
+                Why these specific rules? They're not arbitrary—they're the <em>only</em> rules that work.
+            </p>
+        </section>
+
+        <section id="why-parity">
+            <h2>Why Parity Matters</h2>
+
+            <p>
+                Think of nested gears in a clock. If two adjacent gears spin the same direction,
+                they grind. They must spin <em>opposite</em> directions to mesh properly.
+            </p>
+
+            <div class="gear-demo">
+                <div class="gear-pair">
+                    <div class="gear outer">n even<br><small>rotates through positions</small></div>
+                    <div class="meshing">⚙</div>
+                    <div class="gear inner">n-1 odd<br><small>pivots on position 0</small></div>
+                </div>
+            </div>
+
+            <p>
+                The same principle applies here. After the recursive call returns, the first n-1
+                elements are in a specific state that depends on parity:
+            </p>
+
+            <div class="state-table">
+                <div class="state-row header">
+                    <span>After permuting n-1 elements...</span>
+                    <span>So the outer level must...</span>
+                </div>
+                <div class="state-row">
+                    <span><strong>If n-1 is odd:</strong> elements return to ~original order</span>
+                    <span>Rotate through positions to create new combinations</span>
+                </div>
+                <div class="state-row">
+                    <span><strong>If n-1 is even:</strong> elements end up shuffled differently</span>
+                    <span>Use fixed position (inner provides the variation)</span>
+                </div>
+            </div>
+
+            <div class="key-insight">
                 <p>
-                    This complementary motion ensures every permutation is visited exactly once,
-                    with exactly one swap between each consecutive pair.
+                    <strong>The one-liner:</strong> When inside rotates, outside pivots.
+                    When inside pivots, outside rotates.
                 </p>
             </div>
         </section>
 
-        <section id="visualization">
-            <h2>Interactive Visualization</h2>
-            
-            <p>
-                Let's see Heap's algorithm in action. This visualization shows exactly how the algorithm 
-                generates all permutations by swapping just two elements at each step.
-            </p>
-            
-            <div class="visualization-guide">
-                <h3>What You'll See:</h3>
-                <ul>
-                    <li><strong>Current Permutation:</strong> The large letters show the current arrangement of elements</li>
-                    <li><strong>Swap Indicator:</strong> Arrows highlight which two elements are about to be swapped</li>
-                    <li><strong>Algorithm State:</strong> Shows the current recursion level (k value) and whether we're doing an "even" or "odd" type swap</li>
-                    <li><strong>Generated Permutations:</strong> A growing list of all permutations created so far</li>
-                </ul>
-                
-                <p class="tip">
-                    💡 <strong>Tip:</strong> Use the Step button to go through one swap at a time and observe the pattern:
-                    even k values swap different positions each time, while odd k values always swap with position 0.
-                </p>
-            </div>
+        <section id="four-elements">
+            <h2>Four Elements: See It All Together</h2>
 
-            <div class="interactive-container">
-                <div class="controls">
-                    <button id="play-btn" class="control-btn">▶ Play</button>
-                    <button id="pause-btn" class="control-btn" style="display: none;">⏸ Pause</button>
-                    <button id="step-btn" class="control-btn">Step →</button>
-                    <button id="reset-btn" class="control-btn">↺ Reset</button>
+            <p>
+                Now watch the full algorithm on four elements. Notice how the parity rule
+                creates a meshing pattern between levels:
+            </p>
+
+            <div class="interactive-demo large" id="demo-4">
+                <div class="demo-controls">
+                    <button id="play-4" class="btn">▶ Play</button>
+                    <button id="step-4" class="btn">Step</button>
+                    <button id="reset-4" class="btn">Reset</button>
                     <div class="speed-control">
-                        <label>Speed: <span id="speed-value">500</span>ms</label>
-                        <input type="range" id="speed-slider" min="100" max="2000" value="500" step="100">
+                        <label>Speed:</label>
+                        <input type="range" id="speed-4" min="100" max="1000" value="400">
                     </div>
                 </div>
 
-                <div class="visualization-area">
-                    <div class="current-permutation" id="current-perm">
-                        <!-- Will be populated by JavaScript -->
+                <div class="demo-stage">
+                    <div class="current-state" id="state-4">
+                        <div class="element" data-idx="0">A</div>
+                        <div class="element" data-idx="1">B</div>
+                        <div class="element" data-idx="2">C</div>
+                        <div class="element" data-idx="3">D</div>
                     </div>
-                    
-                    <div class="swap-indicator" id="swap-indicator">
-                        <!-- Shows which elements are being swapped -->
-                    </div>
-
-                    <div class="algorithm-state">
-                        <h4>Algorithm State</h4>
-                        <div id="state-display">
-                            <div class="state-item">
-                                <span class="state-label">Step:</span>
-                                <span id="step-count">0</span>
-                            </div>
-                            <div class="state-item">
-                                <span class="state-label">Current k:</span>
-                                <span id="current-k">-</span>
-                            </div>
-                            <div class="state-item">
-                                <span class="state-label">Swap type:</span>
-                                <span id="swap-type">-</span>
-                            </div>
-                        </div>
+                    <div class="swap-info" id="swap-info-4">Click Play or Step</div>
+                    <div class="level-indicator" id="level-4">
+                        <span class="level-badge">k=4</span>
                     </div>
                 </div>
 
-                <div class="permutation-history" id="perm-history">
-                    <h4>Generated Permutations</h4>
-                    <div class="history-list" id="history-list">
-                        <!-- Will be populated as permutations are generated -->
-                    </div>
+                <div class="permutation-grid" id="trail-4">
+                    <div class="trail-item active">ABCD</div>
+                </div>
+
+                <div class="stats" id="stats-4">
+                    <span>Permutations: <strong id="perm-count-4">1</strong>/24</span>
+                    <span>Swaps: <strong id="swap-count-4">0</strong></span>
                 </div>
             </div>
         </section>
 
-        <section id="recursive-tree">
-            <h2>The Recursive Structure</h2>
-            
-            <p>
-                Heap's algorithm works by recursively solving smaller problems. Think of it like this: to permute 
-                n elements, it first generates all permutations of n-1 elements, then systematically moves the 
-                nth element through different positions.
-            </p>
-            
-            <p>
-                The tree below shows this recursive breakdown. Each node represents a recursive call with a 
-                specific k value (the size of the sub-problem). The leaf nodes (k=1) are where permutations 
-                are actually output:
-            </p>
+        <section id="the-code">
+            <h2>The Code</h2>
 
-            <div class="tree-visualization" id="tree-vis">
-                <!-- SVG tree will be generated here -->
-            </div>
-        </section>
+            <p>The entire algorithm in just a few lines:</p>
 
-        <section id="implementation">
-            <h2>Implementation Variations</h2>
-            
-            <p>
-                While the recursive version is easiest to understand, Heap's algorithm can be implemented 
-                in several ways. Each approach has its own advantages:
-            </p>
-            
-            <div class="implementation-tabs">
-                <div class="tab-buttons">
-                    <button class="tab-btn active" data-tab="recursive">Recursive</button>
-                    <button class="tab-btn" data-tab="iterative">Iterative</button>
-                    <button class="tab-btn" data-tab="fixed-space">Fixed Space</button>
-                    <button class="tab-btn" data-tab="generator">Generator</button>
-                </div>
-                
-                <div class="tab-content active" id="recursive-tab">
-                    <pre><code class="javascript">function heapPermutation(array) {
-    const result = [];
-    
-    function generate(k, arr) {
-        if (k === 1) {
-            result.push([...arr]);
-            return;
-        }
-        
-        generate(k - 1, arr);
-        
-        for (let i = 0; i < k - 1; i++) {
-            if (k % 2 === 0) {
-                [arr[i], arr[k - 1]] = [arr[k - 1], arr[i]];
-            } else {
-                [arr[0], arr[k - 1]] = [arr[k - 1], arr[0]];
-            }
-            generate(k - 1, arr);
-        }
+            <pre><code>function heapPermute(arr, n = arr.length) {
+    if (n === 1) {
+        output(arr);
+        return;
     }
-    
-    generate(array.length, array);
-    return result;
-}</code></pre>
-                </div>
-                
-                <div class="tab-content" id="iterative-tab">
-                    <pre><code class="javascript">function heapPermutationIterative(array) {
-    const result = [];
-    const c = new Array(array.length).fill(0);
-    
-    result.push([...array]);
-    
-    let i = 0;
-    while (i < array.length) {
-        if (c[i] < i) {
-            if (i % 2 === 0) {
-                [array[0], array[i]] = [array[i], array[0]];
-            } else {
-                [array[c[i]], array[i]] = [array[i], array[c[i]]];
-            }
-            result.push([...array]);
-            c[i]++;
-            i = 0;
-        } else {
-            c[i] = 0;
-            i++;
-        }
-    }
-    
-    return result;
-}</code></pre>
-                </div>
-                
-                <div class="tab-content" id="fixed-space-tab">
-                    <pre><code class="javascript">// Non-recursive, fixed O(n) space implementation
-function heapPermutationFixedSpace(array, callback) {
-    // Uses only O(n) auxiliary space via the counter array
-    const n = array.length;
-    const c = new Array(n).fill(0);
-    
-    // Process the initial permutation
-    callback([...array]);
-    
-    // The algorithm uses a clever counting mechanism
-    // c[i] counts how many times we've done the i-th swap
-    let i = 0;
-    while (i < n) {
-        if (c[i] < i) {
-            // Perform the swap based on parity
-            if (i % 2 === 0) {
-                [array[0], array[i]] = [array[i], array[0]];
-            } else {
-                [array[c[i]], array[i]] = [array[i], array[c[i]]];
-            }
-            
-            // Process the new permutation
-            callback([...array]);
-            
-            // Increment counter and reset position
-            c[i]++;
-            i = 0;
-        } else {
-            // Reset counter and move to next position
-            c[i] = 0;
-            i++;
-        }
-    }
-}
 
-// Example usage:
-const arr = ['A', 'B', 'C', 'D'];
-heapPermutationFixedSpace(arr, perm => {
-    console.log(perm.join(''));
-});</code></pre>
-                </div>
-                
-                <div class="tab-content" id="generator-tab">
-                    <pre><code class="javascript">function* heapPermutationGenerator(array) {
-    const c = new Array(array.length).fill(0);
-    
-    yield [...array];
-    
-    let i = 0;
-    while (i < array.length) {
-        if (c[i] < i) {
-            if (i % 2 === 0) {
-                [array[0], array[i]] = [array[i], array[0]];
+    for (let i = 0; i < n; i++) {
+        heapPermute(arr, n - 1);
+
+        if (i < n - 1) {  // don't swap after last iteration
+            if (n % 2 === 0) {
+                swap(arr, i, n - 1);
             } else {
-                [array[c[i]], array[i]] = [array[i], array[c[i]]];
+                swap(arr, 0, n - 1);
             }
-            yield [...array];
-            c[i]++;
-            i = 0;
-        } else {
-            c[i] = 0;
-            i++;
         }
     }
 }</code></pre>
-                </div>
-            </div>
-        </section>
-
-        <section id="iterative-explained">
-            <h2>Understanding the Iterative Version</h2>
 
             <p>
-                The iterative implementation might seem mysterious at first, but it's actually simulating
-                what the recursive version does - it's just using a counter array instead of the call stack.
-                Let's break it down step by step.
-            </p>
-
-            <div class="analogy-box">
-                <h3>💡 The Key Insight</h3>
-                <p>
-                    Think of the counter array <code>c</code> as a set of <strong>nested loop counters</strong>.
-                    In the recursive version, each recursion level is like a loop. The iterative version
-                    replaces the recursion stack with explicit counters:
-                </p>
-                <div class="analogy-comparison">
-                    <div class="analogy-side">
-                        <h4>Recursive (implicit)</h4>
-                        <pre><code>for each at level 3:
-  for each at level 2:
-    for each at level 1:
-      output</code></pre>
-                    </div>
-                    <div class="analogy-side">
-                        <h4>Iterative (explicit)</h4>
-                        <pre><code>c[3] = 0, c[2] = 0, c[1] = 0
-// c[i] tells us: "how many times
-// have we looped at level i?"</code></pre>
-                    </div>
-                </div>
-            </div>
-
-            <div class="iterative-simulator">
-                <h3>Interactive Iterative Algorithm Simulator</h3>
-                <p>
-                    Watch how the counter array <code>c</code> and position <code>i</code> change as
-                    the algorithm generates permutations for [A, B, C]:
-                </p>
-
-                <div class="sim-controls">
-                    <button id="iter-step" class="control-btn">Step Forward →</button>
-                    <button id="iter-reset" class="control-btn">↺ Reset</button>
-                </div>
-
-                <div class="sim-state">
-                    <div class="sim-display">
-                        <div class="sim-row">
-                            <strong>Current Array:</strong>
-                            <span id="iter-array" class="code-display">['A', 'B', 'C']</span>
-                        </div>
-                        <div class="sim-row">
-                            <strong>Counter Array c:</strong>
-                            <span id="iter-counter" class="code-display">[0, 0, 0]</span>
-                        </div>
-                        <div class="sim-row">
-                            <strong>Current i:</strong>
-                            <span id="iter-i" class="code-highlight">0</span>
-                        </div>
-                        <div class="sim-row">
-                            <strong>Condition:</strong>
-                            <span id="iter-condition">c[0] < 0? Start loop...</span>
-                        </div>
-                        <div class="sim-row highlight-action">
-                            <strong>Action:</strong>
-                            <span id="iter-action">Starting...</span>
-                        </div>
-                    </div>
-
-                    <div class="sim-explanation">
-                        <h4>What's Happening?</h4>
-                        <div id="iter-explain">
-                            <p>We start with i=0 and check if c[0] < 0. Since 0 is not less than 0,
-                            we reset c[0]=0 (already 0) and increment i to 1. Click "Step Forward" to see the algorithm in action!</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="sim-legend">
-                    <h4>The Algorithm Logic:</h4>
-                    <div class="legend-grid">
-                        <div class="legend-item">
-                            <span class="legend-code">if (c[i] < i)</span>
-                            <span>"Have we done all i swaps at this position yet?"</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-code">perform swap</span>
-                            <span>"No - do the next swap (even/odd rule)"</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-code">c[i]++</span>
-                            <span>"Mark that we did one more swap at position i"</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-code">i = 0</span>
-                            <span>"Reset to start - like going back down the recursion"</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-code">else { c[i] = 0; i++ }</span>
-                            <span>"Yes - reset this counter and move to next position"</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="why-reset-i">
-                <h3>Why Reset i = 0 After Each Swap?</h3>
-                <p>
-                    This is the most confusing part! Here's why: in the recursive version, after doing
-                    a swap at level k, we recursively call <code>generate(k-1)</code>. This means we
-                    need to do ALL the permutations for the smaller problem again.
-                </p>
-                <p>
-                    Setting <code>i = 0</code> simulates "going back down the recursion tree". It means:
-                    <em>"I just did a swap at a high level, now let me go back and do all the
-                    low-level swaps again for this new arrangement."</em>
-                </p>
-                <div class="visual-comparison">
-                    <div class="comparison-side">
-                        <h4>Recursive Flow</h4>
-                        <pre><code>generate(3):
-  generate(2)  ← do all of these
-  swap at 3
-  generate(2)  ← do all again!</code></pre>
-                    </div>
-                    <div class="comparison-side">
-                        <h4>Iterative Flow</h4>
-                        <pre><code>i=0, do swaps...
-i=1, do swaps...
-i=2, swap, i=0! ← restart
-i=0, do swaps again...</code></pre>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section id="fixed-space-explanation">
-            <h2>The Fixed-Space Implementation</h2>
-
-            <p>
-                One of the most elegant aspects of Heap's algorithm is that it can be implemented
-                non-recursively using only O(n) auxiliary space. This fixed-space version is
-                particularly valuable for embedded systems or when dealing with very large permutations.
-            </p>
-
-            <div class="algorithm-explanation">
-                <h3>How the Counter Array Works</h3>
-                <p>
-                    The magic lies in the counter array <code>c</code>. Think of it as tracking "where we are"
-                    in each recursive level. For an array of size 4, the counter works like this:
-                </p>
-
-                <div class="counter-example">
-                    <code>c = [0, 0, 0, 0]</code> → At the beginning<br>
-                    <code>c = [1, 0, 0, 0]</code> → Did 1st swap at position 1<br>
-                    <code>c = [0, 1, 0, 0]</code> → Reset c[1], did 1st swap at position 2<br>
-                    <code>c = [1, 1, 0, 0]</code> → Did another swap at position 1<br>
-                    ...and so on
-                </div>
-
-                <div class="key-points">
-                    <h4>The Pattern:</h4>
-                    <ul>
-                        <li><strong>c[i] < i:</strong> We still have swaps to do at position i - perform the swap</li>
-                        <li><strong>c[i] = i:</strong> We've done all swaps for position i - reset counter and move up</li>
-                        <li><strong>i = 0 after each swap:</strong> Always restart from the beginning to handle nested loops</li>
-                        <li><strong>When i reaches array length:</strong> We've generated all permutations!</li>
-                    </ul>
-                </div>
-
-                <p>
-                    This implementation is particularly useful when you need to process permutations
-                    one at a time without storing them all in memory. The callback pattern allows
-                    for streaming processing of permutations.
-                </p>
-            </div>
-        </section>
-
-        <section id="performance">
-            <h2>Performance Analysis</h2>
-            
-            <p>
-                What makes Heap's algorithm special? It achieves the theoretical minimum number of swaps: 
-                exactly n! - 1 swaps to generate all n! permutations. That's just one swap between each 
-                consecutive permutation!
-            </p>
-
-            <div class="performance-comparison">
-                <canvas id="performance-chart" width="800" height="400"></canvas>
-            </div>
-            
-            <p class="chart-note">
-                The chart above shows how different algorithms scale. Notice how Heap's algorithm maintains 
-                optimal performance even as the input size grows.
-            </p>
-
-            <div class="complexity-table">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Algorithm</th>
-                            <th>Time Complexity</th>
-                            <th>Space Complexity</th>
-                            <th>Swaps per Permutation</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Heap's Algorithm (Recursive)</td>
-                            <td>O(n!)</td>
-                            <td>O(n)</td>
-                            <td>1</td>
-                        </tr>
-                        <tr>
-                            <td>Heap's Algorithm (Fixed-Space)</td>
-                            <td>O(n!)</td>
-                            <td>O(n)</td>
-                            <td>1</td>
-                        </tr>
-                        <tr>
-                            <td>Lexicographic Order</td>
-                            <td>O(n! × n)</td>
-                            <td>O(n)</td>
-                            <td>≈ n/2</td>
-                        </tr>
-                        <tr>
-                            <td>Recursive Backtracking</td>
-                            <td>O(n! × n)</td>
-                            <td>O(n²)</td>
-                            <td>Variable</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <section id="applications">
-            <h2>Real-World Applications</h2>
-            
-            <p>
-                Heap's algorithm finds use in many practical scenarios:
-            </p>
-
-            <div class="applications-grid">
-                <div class="application-card">
-                    <h3>Cryptography</h3>
-                    <p>Generating permutation-based encryption keys and testing cryptographic strength</p>
-                </div>
-                <div class="application-card">
-                    <h3>Optimization</h3>
-                    <p>Solving traveling salesman problems and other combinatorial optimization tasks</p>
-                </div>
-                <div class="application-card">
-                    <h3>Testing</h3>
-                    <p>Exhaustive testing of functions with different parameter orderings</p>
-                </div>
-                <div class="application-card">
-                    <h3>Game Development</h3>
-                    <p>Generating puzzle configurations and evaluating game states</p>
-                </div>
-            </div>
-        </section>
-
-        <section id="conclusion">
-            <h2>Conclusion</h2>
-            
-            <p>
-                Heap's algorithm exemplifies the beauty of computer science: a simple, elegant solution 
-                to a fundamental problem. Its minimal-swap property and straightforward implementation 
-                make it a go-to choice for permutation generation.
-            </p>
-            
-            <p>
-                Understanding algorithms like Heap's helps us appreciate how clever insights can lead 
-                to optimal solutions. Whether you're solving puzzles, optimizing routes, or exploring 
-                combinatorial spaces, Heap's algorithm provides an efficient tool for generating all 
-                possible arrangements.
+                That's it. The parity check <code>n % 2 === 0</code> is the entire secret.
+                Everything else is just recursion and a loop.
             </p>
         </section>
+
+        <section id="why-it-matters">
+            <h2>Why This Matters</h2>
+
+            <p>
+                Heap's algorithm achieves the theoretical minimum: n! - 1 swaps for n! permutations.
+                Each swap produces exactly one new arrangement. This makes it:
+            </p>
+
+            <ul>
+                <li><strong>Cache-friendly:</strong> Only two elements move at a time</li>
+                <li><strong>Minimal memory:</strong> Works in-place, no copying needed</li>
+                <li><strong>Simple to implement:</strong> Just recursion + parity check</li>
+            </ul>
+
+            <p>
+                The deeper lesson: sometimes the right abstraction makes a complex problem trivial.
+                Heap found that parity—the simplest property of numbers—perfectly captures
+                what's needed to navigate the space of permutations.
+            </p>
+        </section>
+
+        <footer>
+            <p>
+                An interactive exploration of Heap's Algorithm.
+                <a href="https://en.wikipedia.org/wiki/Heap%27s_algorithm">Learn more →</a>
+            </p>
+        </footer>
     </article>
-
-    <footer>
-        <p>An interactive exploration of Heap's Algorithm • Built with HTML, CSS, and JavaScript</p>
-    </footer>
 
     <script src="script.js"></script>
 </body>
