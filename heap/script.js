@@ -23,7 +23,7 @@ function generateHeapSteps(arr) {
                     before: [...a]
                 });
                 [a[swapIdx], a[k - 1]] = [a[k - 1], a[swapIdx]];
-                steps.push({ type: 'output', state: [...a] });
+                // Don't push output here - next generate(k-1) will output at base case
             }
         }
     }
@@ -39,6 +39,7 @@ class Demo {
         this.elements = elements;
         this.steps = generateHeapSteps([...elements]);
         this.stepIndex = 0;
+        this.currentState = [...elements];
         this.playing = false;
         this.speed = 400;
         this.timeoutId = null;
@@ -73,16 +74,7 @@ class Demo {
     }
 
     render() {
-        // Find current state
-        let currentState = [...this.elements];
-        for (let i = 0; i < this.stepIndex; i++) {
-            if (this.steps[i].type === 'output') {
-                currentState = [...this.steps[i].state];
-            }
-        }
-
-        // Render elements
-        this.stateEl.innerHTML = currentState.map((el, idx) =>
+        this.stateEl.innerHTML = this.currentState.map((el, idx) =>
             `<div class="element" data-idx="${idx}">${el}</div>`
         ).join('');
     }
@@ -133,7 +125,12 @@ class Demo {
         const step = this.steps[this.stepIndex];
 
         if (step.type === 'swap') {
+            // Perform the swap on our state
+            const [i, j] = step.indices;
+            [this.currentState[i], this.currentState[j]] = [this.currentState[j], this.currentState[i]];
+            this.render();
             this.highlightSwap(step.indices);
+
             const swapType = step.k % 2 === 0 ? 'even (rotate)' : 'odd (pivot)';
             this.infoEl.textContent = `Swap positions ${step.indices[0]} ↔ ${step.indices[1]} [k=${step.k}, ${swapType}]`;
             this.updateLevel(step.k);
@@ -141,6 +138,7 @@ class Demo {
             this.updateStats();
         } else if (step.type === 'output') {
             this.clearHighlight();
+            this.currentState = [...step.state];
             this.render();
 
             if (this.stepIndex > 0) {
@@ -197,6 +195,7 @@ class Demo {
     reset() {
         this.pause();
         this.stepIndex = 0;
+        this.currentState = [...this.elements];
         this.permutations = 1;
         this.swaps = 0;
 
