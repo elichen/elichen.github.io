@@ -4,28 +4,11 @@ AI is making the cost of coding drop rapidly toward zero, and the effort require
 
 This shift doesn't diminish the role of software engineers, but rather elevates the most critical aspects of their craft.
 
-Coding has traditionally required deep fluency in multiple layers of technical knowledge:
-
-**Syntax and Language Mastery**: Understanding programming languages at a fundamental level, similar to learning a musical instrument. This knowledge had to be internalized through textbooks, exercises, and countless hours of practice.
-
-**Ecosystem Expertise**: Mastering libraries, frameworks, and language-specific tools. Productive engineers needed "muscle memory" across these systems because referencing documentation mid-build was ineffective for production code.
-
-**Best Practices and Patterns**: Learning not just what works, but what works well. Understanding gotchas, anti-patterns, and proven approaches that prevent future problems.
-
-**Cultural Knowledge**: Absorbing coding idioms, internal style guides, and community conventions. Code doesn't exist in isolation; it must pass review by other engineers through processes like pull requests.
+Coding has traditionally required deep fluency in multiple layers of technical knowledge. You need syntax and language mastery, understanding programming languages at a fundamental level through textbooks, exercises, and countless hours of practice. You need ecosystem expertise across libraries, frameworks, and language-specific tools. Productive engineers needed "muscle memory" across these systems because referencing documentation mid-build was ineffective for production code. You need to learn not just what works, but what works well: gotchas, anti-patterns, and proven approaches that prevent future problems. And you need cultural knowledge: coding idioms, internal style guides, and community conventions. Code doesn't exist in isolation; it must pass review by other engineers through processes like pull requests.
 
 This learning curve is substantial. At companies like Twitter, engineers typically spent six months ramping up, learning Scala, understanding distributed systems infrastructure, and internalizing internal style guides before becoming truly productive.
 
-Beyond coding lies software engineering: the art of making decisions that determine a system's fundamental characteristics. These decisions shape performance, quality, security, and scalability in ways that either enable or constrain everything built on top.
-
-**Examples of Engineering Decisions**:
-- Hash map versus linked list
-- Schema versus unstructured data
-- SQL versus NoSQL databases
-- Strict event ordering versus unordered processing
-- SSO versus magic link authentication
-- Frontend framework selection
-- Mutable versus immutable programming paradigms
+Beyond coding lies software engineering: the art of making decisions that determine a system's fundamental characteristics. These decisions shape performance, quality, security, and scalability in ways that either enable or constrain everything built on top. Hash map versus linked list. Schema versus unstructured data. SQL versus NoSQL. Strict event ordering versus unordered processing. SSO versus magic link authentication. Frontend framework selection. Mutable versus immutable paradigms.
 
 These choices have cascading consequences. Selecting the wrong database leads to scaling failures, causing outages when systems can't handle growth or requiring expensive infrastructure to compensate. Poor authentication decisions create security vulnerabilities or block enterprise sales due to compliance issues.
 
