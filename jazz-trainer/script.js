@@ -165,6 +165,66 @@ function getNoteCategory(note, chordRoot, chordType) {
     return 'hidden';
 }
 
+// Get interval label for a note relative to the chord
+function getIntervalLabel(note, chordRoot, chordType) {
+    const chord = CHORD_TYPES[chordType];
+    const noteIdx = noteIndex(note);
+    const rootIdx = noteIndex(chordRoot);
+    const interval = (noteIdx - rootIdx + 12) % 12;
+
+    // Root
+    if (interval === 0) return 'R';
+
+    // Check chord tones (3rd, 5th, 7th)
+    const intervalIndex = chord.intervals.indexOf(interval);
+    if (intervalIndex === 1) {
+        // 3rd - check if minor or major
+        return interval === 3 ? 'b3' : '3';
+    }
+    if (intervalIndex === 2) {
+        // 5th - check if diminished, perfect, or augmented
+        if (interval === 6) return 'b5';
+        if (interval === 8) return '#5';
+        return '5';
+    }
+    if (intervalIndex === 3) {
+        // 7th - check type
+        if (interval === 9) return 'bb7';
+        if (interval === 10) return 'b7';
+        return '7';
+    }
+
+    // Check tensions (2, 4, 6)
+    const tensionIndex = chord.tensions.indexOf(interval);
+    if (tensionIndex !== -1) {
+        // Map common tension intervals to labels
+        if (interval === 1) return 'b2';
+        if (interval === 2) return '2';
+        if (interval === 3) return 'b3';
+        if (interval === 5) return '4';
+        if (interval === 6) return '#4';
+        if (interval === 8) return 'b6';
+        if (interval === 9) return '6';
+    }
+
+    // Avoid notes and scale tones - map interval to label
+    const intervalLabels = {
+        1: 'b2',
+        2: '2',
+        3: 'b3',
+        4: '3',
+        5: '4',
+        6: '#4',
+        7: '5',
+        8: 'b6',
+        9: '6',
+        10: 'b7',
+        11: '7'
+    };
+
+    return intervalLabels[interval] || note;
+}
+
 // DOM Elements
 const fretboardEl = document.getElementById('fretboard');
 const fretNumbersEl = document.getElementById('fretNumbers');
@@ -260,8 +320,12 @@ function updateFretboard() {
     notes.forEach(noteEl => {
         const note = noteEl.dataset.note;
         const category = getNoteCategory(note, chordRoot, chordType);
+        const intervalLabel = getIntervalLabel(note, chordRoot, chordType);
 
         noteEl.className = 'note ' + category;
+
+        // Show interval labels for all visible notes
+        noteEl.textContent = intervalLabel;
     });
 
     // Update open string indicators too
