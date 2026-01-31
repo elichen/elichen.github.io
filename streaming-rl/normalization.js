@@ -4,9 +4,11 @@ class SampleMeanStd {
         this.var = tf.variable(tf.ones(shape));
         this.p = tf.variable(tf.zeros(shape));
         this.count = 0;
+        this.frozen = false; // When true, don't update stats
     }
 
     update(x) {
+        if (this.frozen) return;
         return tf.tidy(() => {
             if (this.count === 0) {
                 this.mean.assign(x);
@@ -41,6 +43,12 @@ class SampleMeanStd {
             const std = tf.sqrt(tf.add(this.var, tf.scalar(1e-8)));
             return tf.div(tf.sub(x, this.mean), std);
         });
+    }
+
+    loadStats(stats) {
+        this.mean.assign(tf.tensor(stats.mean));
+        this.var.assign(tf.tensor(stats.var));
+        this.count = stats.count;
     }
 
     dispose() {

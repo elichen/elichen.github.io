@@ -19,256 +19,111 @@ class CircularBuffer {
     }
 }
 
-class TrainingManager {
-    constructor(config = {}) {
-        this.isManualMode = false;   // Add manual mode flag
+class DemoRunner {
+    constructor() {
         this.animationFrameId = null;
-        this.initializeEnvironment(config);
-        this.setupControls();
-        this.setupKeyboardControls();
-        this.train();
-    }
-
-    initializeEnvironment(config) {
-        let env = new CartPole();
-        env = new ScaleReward(env, config.gamma || 0.99);
-        env = new NormalizeObservation(env);
-        env = new AddTimeInfo(env);
-        this.env = env;
-        
-        config.env = env;
-        this.agent = new StreamQ(config);
-        this.episodeRewards = new CircularBuffer(10);
-        this.isTraining = true;
         this.stats = document.getElementById('stats');
+        this.gradientStats = document.getElementById('gradientStats');
+        this.episodeRewards = new CircularBuffer(10);
+        this.episodeCount = 0;
         this.totalSteps = 0;
     }
 
-    setupKeyboardControls() {
-        document.addEventListener('keydown', (event) => {
-            if (!this.isManualMode) return;
-            
-            switch(event.key) {
-                case 'ArrowLeft':
-                    this.manualAction = 0;  // Push left
-                    break;
-                case 'ArrowRight':
-                    this.manualAction = 1;  // Push right
-                    break;
-            }
+    async init() {
+        // Create environment chain
+        let baseEnv = new CartPole();
+        let scaleEnv = new ScaleReward(baseEnv, 0.99);
+        let normEnv = new NormalizeObservation(scaleEnv);
+        this.env = new AddTimeInfo(normEnv);
+
+        // Create agent with small epsilon for continual learning
+        this.agent = new StreamQ({
+            env: this.env,
+            numActions: 2,
+            gamma: 0.99,
+            epsilonStart: 0.01,
+            epsilonTarget: 0.01,
+            totalSteps: 1000
         });
 
-        document.addEventListener('keyup', (event) => {
-            if (!this.isManualMode) return;
-            
-            if (event.key === 'ArrowLeft' && this.manualAction === 0) {
-                this.manualAction = null;
-            } else if (event.key === 'ArrowRight' && this.manualAction === 1) {
-                this.manualAction = null;
-            }
-        });
+        // Load pretrained weights
+        try {
+            const weightsResponse = await fetch('trained-weights.json');
+            const weightsJson = await weightsResponse.json();
+            await this.agent.network.loadPretrainedWeights(weightsJson);
+
+            // Load normalization stats
+            const normResponse = await fetch('trained-normalization.json');
+            const normStats = await normResponse.json();
+
+            // Load and freeze normalizer stats
+            normEnv.normalizer.loadStats(normStats.observation);
+            normEnv.normalizer.frozen = true;
+            scaleEnv.rewardStats.loadStats({ mean: [0], var: normStats.reward.var, count: normStats.reward.count });
+            scaleEnv.rewardStats.frozen = true;
+
+            // Set epsilon to 0.01 for minimal exploration
+            this.agent.epsilon = 0.01;
+
+            this.stats.innerHTML = 'Pretrained agent loaded. Training...';
+            this.run();
+        } catch (error) {
+            console.error('Error loading pretrained:', error);
+            this.stats.innerHTML = `Error loading pretrained agent: ${error.message}`;
+        }
     }
 
-    setupControls() {
-        // Training/Manual mode toggle
-        const modeButton = document.getElementById('toggleTraining');
-        modeButton.textContent = 'Switch to Manual Mode';
-        modeButton.onclick = () => {
-            // Cancel any existing animation frame first
-            if (this.animationFrameId !== null) {
-                cancelAnimationFrame(this.animationFrameId);
-                this.animationFrameId = null;
-            }
-
-            this.isManualMode = !this.isManualMode;
-            this.isTraining = !this.isManualMode;  // Make sure these are always opposite
-            
-            if (this.isManualMode) {
-                modeButton.textContent = 'Switch to Training Mode';
-                this.manual();
-            } else {
-                modeButton.textContent = 'Switch to Manual Mode';
-                this.initializeEnvironment({
-                    epsilonStart: parseFloat(document.getElementById('epsilonStart').value),
-                    epsilonTarget: parseFloat(document.getElementById('epsilonTarget').value),
-                    totalSteps: parseFloat(document.getElementById('decaySteps').value)
-                });
-                this.train();
-            }
-        };
-
-        // Add change listeners to parameter inputs
-        ['epsilonStart', 'epsilonTarget', 'decaySteps'].forEach(id => {
-            document.getElementById(id).addEventListener('change', () => {
-                if (!this.isManualMode) {
-                    this.initializeEnvironment({
-                        epsilonStart: parseFloat(document.getElementById('epsilonStart').value),
-                        epsilonTarget: parseFloat(document.getElementById('epsilonTarget').value),
-                        totalSteps: parseFloat(document.getElementById('decaySteps').value)
-                    });
-                    this.train();
-                }
-            });
-        });
-    }
-
-    async train() {
-        let episodeReward = 0;
+    async run() {
         let state = this.env.reset();
-        let episodeCount = 0;
+        let episodeSteps = 0;
 
         const animate = async () => {
-            if (!this.isTraining) {
-                return;  // Exit if we're not in training mode
-            }
-
-            this.totalSteps++;
+            // Get action
             const { action, isNonGreedy } = await this.agent.sampleAction(state);
             const result = this.env.step(action);
-            
-            episodeReward += result.reward;
+
+            // Learn from this transition
             await this.agent.update(state, action, result.reward, result.state, result.done, isNonGreedy);
 
+            episodeSteps++;
+            this.totalSteps++;
             state = result.state;
 
             this.env.render();
 
             if (result.done) {
+                this.episodeCount++;
                 const rawReturn = result.info.episode.r;
-                const steps = result.info.episode.steps;
                 this.episodeRewards.push(rawReturn);
-                episodeCount++;
-                
-                console.log(`Episodic Return: ${rawReturn.toFixed(1)}, Steps: ${steps}, Episode ${episodeCount}, Epsilon ${this.agent.epsilon.toFixed(3)}`);
-                
                 const avgReward = this.episodeRewards.average();
-                
+
                 this.stats.innerHTML = `
-                    Episode: ${episodeCount}<br>
+                    Episode: ${this.episodeCount}<br>
                     Last Return: ${rawReturn.toFixed(1)}<br>
-                    Steps: ${steps}<br>
+                    Steps: ${episodeSteps}<br>
                     Avg Return (${this.episodeRewards.size}): ${avgReward.toFixed(1)}<br>
-                    Epsilon: ${this.agent.epsilon.toFixed(3)}
+                    Epsilon: ${this.agent.epsilon.toFixed(3)}<br>
+                    Total Steps: ${this.totalSteps.toLocaleString()}
                 `;
 
-                const gradientStats = document.getElementById('gradientStats');
-                if (gradientStats) {
-                    gradientStats.textContent = this.agent.optimizer.getLastStats();
+                if (this.gradientStats) {
+                    this.gradientStats.textContent = this.agent.optimizer.getLastStats();
                 }
 
                 state = this.env.reset();
-                episodeReward = 0;
+                episodeSteps = 0;
             }
 
             this.animationFrameId = requestAnimationFrame(animate);
         };
-        
+
         this.animationFrameId = requestAnimationFrame(animate);
-    }
-
-    async test() {
-        // Cancel any existing animation frame
-        if (this.animationFrameId !== null) {
-            cancelAnimationFrame(this.animationFrameId);
-            this.animationFrameId = null;
-        }
-
-        let state = this.env.reset();
-        let totalReward = 0;
-        
-        const testEpisode = async () => {
-            if (this.isTraining) {
-                this.animationFrameId = null;
-                return;
-            }
-
-            const savedEpsilon = this.agent.epsilon;
-            this.agent.epsilon = 0;
-            
-            const { action } = await this.agent.sampleAction(state);
-            const { state: nextState, reward, done } = this.env.step(action);
-            
-            this.agent.epsilon = savedEpsilon;
-            
-            totalReward += reward;
-            state = nextState;
-            
-            this.env.render();
-            
-            if (done) {
-                this.stats.innerHTML = `
-                    Mode: Testing<br>
-                    Test Episode Reward: ${totalReward.toFixed(1)}
-                `;
-                state = this.env.reset();
-                totalReward = 0;
-            }
-            
-            this.animationFrameId = requestAnimationFrame(testEpisode);
-        };
-        
-        this.animationFrameId = requestAnimationFrame(testEpisode);
-    }
-
-    async manual() {
-        let state = this.env.reset();
-        let totalReward = 0;
-        this.manualAction = null;  // Initialize manual action
-        
-        const runManualEpisode = async () => {
-            if (!this.isManualMode) {
-                return;  // Exit if we're not in manual mode
-            }
-
-            // Only take action when a key is pressed
-            const action = this.manualAction !== null ? this.manualAction : 0;
-            const { state: nextState, reward, done } = this.env.step(action);
-            
-            totalReward += reward;
-            state = nextState;
-            
-            this.env.render();
-            
-            if (done) {
-                this.stats.innerHTML = `
-                    Mode: Manual Control<br>
-                    Episode Reward: ${totalReward.toFixed(1)}
-                `;
-                state = this.env.reset();
-                totalReward = 0;
-            }
-            
-            this.animationFrameId = requestAnimationFrame(runManualEpisode);
-        };
-        
-        this.animationFrameId = requestAnimationFrame(runManualEpisode);
-    }
-
-    dispose() {
-        if (this.env.dispose) {
-            this.env.dispose();
-        }
-        if (this.agent.dispose) {
-            this.agent.dispose();
-        }
     }
 }
 
 // Initialize when document is loaded
 window.onload = async () => {
     await tf.setBackend('cpu');
-    const config = {
-        // Hardcoded values
-        learningRate: 1.0,
-        gamma: 0.99,
-        lambda: 0.8,
-        
-        // Exploration settings from UI
-        epsilonStart: parseFloat(document.getElementById('epsilonStart').value),
-        epsilonTarget: parseFloat(document.getElementById('epsilonTarget').value),
-        totalSteps: parseFloat(document.getElementById('decaySteps').value),
-        explorationFraction: 1.0  // Use all decay steps for exploration
-    };
-    
-    const manager = new TrainingManager(config);
-}; 
+    const demo = new DemoRunner();
+    await demo.init();
+};

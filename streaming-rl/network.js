@@ -45,7 +45,8 @@ tf.serialization.registerClass(LayerNorm);
 class StreamingNetwork {
     constructor(inputSize = 4, hiddenSize = 32, numActions = 2) {
         this.model = this.buildModel(inputSize, hiddenSize, numActions);
-        this.sparseInit();
+        // Store the promise so we can wait for it before loading pretrained weights
+        this.initPromise = this.sparseInit();
     }
 
     buildModel(inputSize, hiddenSize, numActions) {
@@ -111,6 +112,26 @@ class StreamingNetwork {
         }
     }
 
+    async loadPretrainedWeights(weightsJson) {
+        // Wait for sparseInit to complete first (avoid race condition)
+        if (this.initPromise) {
+            await this.initPromise;
+        }
+
+        // Load weights from JSON format (overwrites sparseInit weights)
+        for (const layer of this.model.layers) {
+            if (layer.getClassName() === 'Dense' && weightsJson[layer.name]) {
+                const data = weightsJson[layer.name];
+                const kernel = tf.tensor(data.kernel, data.kernelShape);
+                const bias = tf.tensor(data.bias, data.biasShape);
+                await layer.setWeights([kernel, bias]);
+                kernel.dispose();
+                bias.dispose();
+            }
+        }
+        console.log('Pretrained weights loaded successfully');
+    }
+
     async sparseInit() {
         const layers = this.model.layers.filter(layer => layer.getClassName() === 'Dense');
         
@@ -124,7 +145,8 @@ class StreamingNetwork {
                 const weights = tf.randomUniform(expectedShape, -1.0/Math.sqrt(inputSize), 1.0/Math.sqrt(inputSize));
                 
                 const sparsity = 0.9;
-                const numZeros = Math.ceil(sparsity * inputSize);
+                // Ensure at least 1 input remains active (don't zero everything)
+                const numZeros = Math.min(Math.ceil(sparsity * inputSize), inputSize - 1);
                 
                 const permutation = Array.from({length: inputSize}, (_, i) => i);
                 for (let i = permutation.length - 1; i > 0; i--) {

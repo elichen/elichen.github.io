@@ -12,7 +12,7 @@ class CartPole {
         
         // Boundaries matching Gym exactly
         this.xLimit = 2.4;  // Gym's x_threshold
-        this.thetaLimit = 12 * 2 * Math.PI / 360;  // Gym's theta_threshold_radians (12 degrees)
+        this.thetaLimit = Math.PI / 2;  // 90 degrees - fail when pole goes horizontal
 
         // Episode management
         this.steps = 0;

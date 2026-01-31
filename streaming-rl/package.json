@@ -1,0 +1,11 @@
+{
+  "name": "streaming-rl-test",
+  "version": "1.0.0",
+  "description": "Headless tests for Stream Q(λ) CartPole implementation",
+  "scripts": {
+    "test": "node test-headless.js"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs-node": "^4.20.0"
+  }
+}
