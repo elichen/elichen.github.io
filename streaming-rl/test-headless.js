@@ -413,6 +413,8 @@ async function testFullTraining(ctx) {
     console.log(`  Training for ${totalTrainingSteps} steps (CartPole max episode: ${MAX_EPISODE_STEPS} steps)...`);
     console.log('');
 
+    const startTime = Date.now();
+
     while (steps < totalTrainingSteps) {
         const { action, isNonGreedy } = await agent.sampleAction(state);
         const result = env.step(action);
@@ -470,10 +472,14 @@ async function testFullTraining(ctx) {
     // =========================================================================
     // Performance Summary
     // =========================================================================
+    const elapsedSec = (Date.now() - startTime) / 1000;
+    const stepsPerSec = Math.round(steps / elapsedSec);
+
     console.log('');
     console.log('  ─────────────────────────────────────────────────────────');
     console.log('  BALANCING PERFORMANCE SUMMARY');
     console.log('  ─────────────────────────────────────────────────────────');
+    console.log(`  Training time: ${elapsedSec.toFixed(1)}s (${stepsPerSec} steps/s)`);
 
     // Overall stats
     const totalEpisodes = episodeReturns.length;
