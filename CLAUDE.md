@@ -66,3 +66,36 @@ Since projects are browser-based:
 2. Check browser console for errors
 3. Test on different screen sizes for responsive design
 4. Verify no external dependencies are broken
+
+## Streaming RL Project (`/streaming-rl/`)
+
+Stream Q(lambda) reinforcement learning demos based on "Streaming Deep Reinforcement Learning Finally Works" (arXiv:2410.14606).
+
+### Demos
+- **Balance** (`index.html`): Classic CartPole balancing - pole starts upright
+- **Swingup** (`swingup.html`): Single pendulum swingup - pole starts hanging down
+- **Double Pendulum** (`double.html`): Two-segment chaotic swingup (WIP)
+
+### Training Commands
+```bash
+cd streaming-rl
+
+# Single pendulum swingup (achieves 90%+ returns)
+python3 train_swingup.py --steps 500000
+
+# Double pendulum swingup (much harder - chaotic dynamics)
+python3 train_double.py --steps 10000000 --hidden 128
+```
+
+### Double Pendulum Progress
+The double pendulum is significantly harder than single due to chaotic dynamics and discrete actions:
+- 10M steps with hidden=128: ~44% of max return (avg 445/1000)
+- The system plateaus around 350-450 avg return
+- May need larger network (--hidden 256) or more steps
+- Consider: discrete actions limit fine control needed for chaotic system
+
+### Files
+- `cartpole-double.js`: 6D state environment with Lagrangian physics
+- `train_double.py`: PyTorch training (input_size=7, lambda=0.95)
+- `double-main.js`: Web runner (loads trained-weights-double.json)
+- Weights files generated after training: `trained-weights-double.json`, `trained-normalization-double.json`
