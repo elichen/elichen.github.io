@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BAAIWorm - C. elegans FEM Simulation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      overflow: hidden;
+    }
+    #container { display: flex; height: 100vh; }
+    #canvas-container { flex: 1; position: relative; }
+    canvas { display: block; }
+    #sidebar {
+      width: 340px;
+      background: #12121a;
+      padding: 20px;
+      overflow-y: auto;
+      border-left: 1px solid #2a2a3a;
+    }
+    h1 { font-size: 1.3rem; margin-bottom: 4px; color: #fff; }
+    .subtitle { font-size: 0.75rem; color: #666; margin-bottom: 20px; }
+    .panel {
+      background: #1a1a24;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .panel h2 {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .stat {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+    }
+    .stat-label { color: #666; }
+    .stat-value { color: #4fc3f7; font-family: 'SF Mono', Monaco, monospace; font-size: 0.8rem; }
+    .slider-group { margin-bottom: 14px; }
+    .slider-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .slider-group label span { color: #4fc3f7; font-family: monospace; }
+    input[type="range"] {
+      width: 100%;
+      height: 4px;
+      accent-color: #4fc3f7;
+      background: #2a2a3a;
+      border-radius: 2px;
+    }
+    .btn {
+      background: #2a2a3a;
+      border: 1px solid #3a3a4a;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      margin-right: 8px;
+      margin-bottom: 8px;
+      transition: all 0.15s;
+    }
+    .btn:hover { background: #3a3a4a; border-color: #4a4a5a; }
+    .btn.active { background: #4fc3f7; color: #000; border-color: #4fc3f7; }
+    .btn-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    #neuron-grid {
+      display: grid;
+      grid-template-columns: repeat(16, 1fr);
+      gap: 2px;
+    }
+    .neuron {
+      width: 100%;
+      aspect-ratio: 1;
+      background: #2a2a3a;
+      border-radius: 2px;
+    }
+    #muscle-display { display: flex; gap: 8px; margin-top: 8px; }
+    .muscle-quadrant { flex: 1; }
+    .muscle-quadrant-label {
+      font-size: 0.65rem;
+      color: #666;
+      text-align: center;
+      margin-bottom: 4px;
+    }
+    .muscle-bar-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .muscle-bar {
+      height: 3px;
+      background: #2a2a3a;
+      border-radius: 1px;
+      overflow: hidden;
+    }
+    .muscle-bar-fill {
+      height: 100%;
+      background: #4fc3f7;
+      width: 0%;
+      transition: width 0.05s;
+    }
+    #loading {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #0a0a0f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 1000;
+    }
+    .loader {
+      width: 48px;
+      height: 48px;
+      border: 3px solid #2a2a3a;
+      border-top-color: #4fc3f7;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-text { margin-top: 20px; color: #888; font-size: 0.9rem; }
+    #loading-progress {
+      margin-top: 8px;
+      color: #4fc3f7;
+      font-family: monospace;
+      font-size: 0.8rem;
+    }
+    .webgpu-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #4fc3f7 0%, #7c4dff 100%);
+      color: #000;
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 3px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .error-panel {
+      background: #2d1a1a;
+      border: 1px solid #5a2a2a;
+      color: #ff6b6b;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div class="loader"></div>
+    <div id="loading-text">Initializing WebGPU...</div>
+    <div id="loading-progress"></div>
+  </div>
+
+  <div id="container" style="display: none;">
+    <div id="canvas-container"></div>
+    <div id="sidebar">
+      <h1>BAAIWorm <span class="webgpu-badge">WebGPU</span></h1>
+      <p class="subtitle">C. elegans connectome-driven FEM simulation</p>
+
+      <div id="error-container"></div>
+
+      <div class="panel">
+        <h2>Simulation</h2>
+        <div class="stat">
+          <span class="stat-label">Time</span>
+          <span class="stat-value" id="sim-time">0.000 s</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Frame</span>
+          <span class="stat-value" id="sim-frame">0 / 300</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">FPS</span>
+          <span class="stat-value" id="sim-fps">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Substeps</span>
+          <span class="stat-value" id="sim-substeps">10</span>
+        </div>
+        <div class="btn-group">
+          <button class="btn" id="btn-play">Play</button>
+          <button class="btn" id="btn-step">Step</button>
+          <button class="btn" id="btn-reset">Reset</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Playback</h2>
+        <div class="slider-group">
+          <label>Speed <span id="speed-val">1.0x</span></label>
+          <input type="range" id="speed-slider" min="0.1" max="3" step="0.1" value="1">
+        </div>
+        <div class="slider-group">
+          <label>Neural Frame <span id="frame-val">0</span></label>
+          <input type="range" id="frame-slider" min="0" max="299" step="1" value="0">
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>FEM Physics</h2>
+        <div class="slider-group">
+          <label>Young's Modulus <span id="youngs-val">1e2</span></label>
+          <input type="range" id="youngs-slider" min="0" max="5" step="0.1" value="1.7">
+        </div>
+        <div class="slider-group">
+          <label>Poisson Ratio <span id="poisson-val">0.45</span></label>
+          <input type="range" id="poisson-slider" min="0.1" max="0.49" step="0.01" value="0.45">
+        </div>
+        <div class="slider-group">
+          <label>Muscle Stiffness <span id="muscle-stiff-val">1e5</span></label>
+          <input type="range" id="muscle-stiff-slider" min="3" max="6" step="0.1" value="5">
+        </div>
+        <div class="slider-group">
+          <label>Damping <span id="damping-val">0.970</span></label>
+          <input type="range" id="damping-slider" min="0.8" max="0.999" step="0.001" value="0.970">
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Motor Neurons (80)</h2>
+        <div id="neuron-grid"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Muscle Activation</h2>
+        <div id="muscle-display">
+          <div class="muscle-quadrant">
+            <div class="muscle-quadrant-label">DR (Dorsal R)</div>
+            <div class="muscle-bar-container" id="muscle-dr"></div>
+          </div>
+          <div class="muscle-quadrant">
+            <div class="muscle-quadrant-label">VR (Ventral R)</div>
+            <div class="muscle-bar-container" id="muscle-vr"></div>
+          </div>
+          <div class="muscle-quadrant">
+            <div class="muscle-quadrant-label">DL (Dorsal L)</div>
+            <div class="muscle-bar-container" id="muscle-dl"></div>
+          </div>
+          <div class="muscle-quadrant">
+            <div class="muscle-quadrant-label">VL (Ventral L)</div>
+            <div class="muscle-bar-container" id="muscle-vl"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Model Info</h2>
+        <div class="stat">
+          <span class="stat-label">Vertices</span>
+          <span class="stat-value" id="info-vertices">984</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Tetrahedra</span>
+          <span class="stat-value" id="info-tets">3341</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Surface Tris</span>
+          <span class="stat-value" id="info-tris">1466</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Muscles</span>
+          <span class="stat-value">4 x 24 = 96</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Motor Neurons</span>
+          <span class="stat-value">80</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
