@@ -2,8 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Stream Q(λ) - Double Pendulum Swingup</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <title>TD3 Continuous - Double Pendulum Swingup</title>
     <style>
         .container {
             display: flex;
@@ -40,22 +39,18 @@
 </head>
 <body>
     <div class="container">
-        <h1>Stream Q(λ) - Double Pendulum Swingup</h1>
-        <p class="subtitle">Two linked segments must both be swung up and balanced - chaotic dynamics!</p>
+        <h1>TD3 Continuous - Double Pendulum Swingup</h1>
+        <p class="subtitle">Inference-only viewer for the continuous-action policy checkpoint.</p>
         <p class="nav-links">
             <a href="index.html">Balance Demo</a> |
             <a href="swingup.html">Single Swingup</a>
         </p>
         <canvas id="cartpoleCanvas" width="600" height="400"></canvas>
-        <div id="stats">Loading pretrained agent...</div>
-        <pre id="gradientStats" style="font-family: monospace; white-space: pre; margin: 10px; padding: 10px; background: #f5f5f5; font-size: 12px;"></pre>
+        <div id="stats">Loading continuous actor...</div>
+        <pre id="policyStats" style="font-family: monospace; white-space: pre; margin: 10px; padding: 10px; background: #f5f5f5; font-size: 12px;"></pre>
     </div>
 
     <script src="cartpole-double.js"></script>
-    <script src="network.js"></script>
-    <script src="optimizer.js"></script>
-    <script src="agent.js"></script>
-    <script src="normalization.js"></script>
     <script src="double-main.js"></script>
 </body>
 </html>

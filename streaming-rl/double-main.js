@@ -19,107 +19,239 @@ class CircularBuffer {
     }
 }
 
-class DoubleRunner {
-    constructor() {
-        this.animationFrameId = null;
-        this.stats = document.getElementById('stats');
-        this.gradientStats = document.getElementById('gradientStats');
-        this.episodeReturns = new CircularBuffer(10);
-        this.episodeCount = 0;
-        this.totalSteps = 0;
+class ContinuousActor {
+    constructor(weights, config) {
+        this.forceMag = config.forceMag;
+        this.xLimit = config.xLimit;
+        this.velScale = config.velScale;
+
+        this.fc1Kernel = Float32Array.from(weights.fc1.kernel);
+        this.fc1Bias = Float32Array.from(weights.fc1.bias);
+        this.fc2Kernel = Float32Array.from(weights.hidden.kernel);
+        this.fc2Bias = Float32Array.from(weights.hidden.bias);
+        this.fc3Kernel = Float32Array.from(weights.output.kernel);
+        this.fc3Bias = Float32Array.from(weights.output.bias);
+
+        this.inputSize = weights.fc1.kernelShape[0];
+        this.hiddenSize = weights.fc1.kernelShape[1];
+
+        if (this.inputSize === 9) {
+            this.obsMode = 'trig';
+            this.useTime = true;
+        } else if (this.inputSize === 8) {
+            this.obsMode = 'trig';
+            this.useTime = false;
+        } else if (this.inputSize === 7) {
+            this.obsMode = 'raw';
+            this.useTime = true;
+        } else if (this.inputSize === 6) {
+            this.obsMode = 'raw';
+            this.useTime = false;
+        } else {
+            throw new Error(`Unsupported actor input size: ${this.inputSize}`);
+        }
+
+        if (this.hiddenSize !== weights.hidden.kernelShape[0] ||
+            this.hiddenSize !== weights.hidden.kernelShape[1]) {
+            throw new Error('Hidden layer shape mismatch in checkpoint.');
+        }
+        if (weights.output.kernelShape[0] !== this.hiddenSize || weights.output.kernelShape[1] !== 1) {
+            throw new Error('Output layer shape mismatch in checkpoint.');
+        }
+
+        this.h1 = new Float32Array(this.hiddenSize);
+        this.h2 = new Float32Array(this.hiddenSize);
     }
 
-    async init() {
-        // Create environment chain with double pendulum environment
-        let baseEnv = new CartPoleDouble();
-        let scaleEnv = new ScaleReward(baseEnv, 0.99);
-        let normEnv = new NormalizeObservation(scaleEnv);
-        this.env = new AddTimeInfo(normEnv);
+    buildInput(state, episodeTime) {
+        const x = state[0];
+        const xDot = state[1];
+        const theta1 = state[2];
+        const theta1Dot = state[3];
+        const theta2 = state[4];
+        const theta2Dot = state[5];
 
-        // Create agent with 128 hidden units (larger network for harder task)
-        // Input: 6 obs + 1 time = 7
-        this.agent = new StreamQ({
-            env: this.env,
-            numActions: 2,
-            gamma: 0.99,
-            epsilonStart: 0.01,
-            epsilonTarget: 0.01,
-            totalSteps: 1000,
-            hiddenSize: 128,  // Larger network for double pendulum
-            lambda: 0.95,     // Higher lambda for longer credit assignment
-            inputSize: 7      // 6 state dims + time
-        });
+        let obs;
+        if (this.obsMode === 'trig') {
+            obs = [
+                x / this.xLimit,
+                xDot / this.velScale,
+                Math.sin(theta1),
+                Math.cos(theta1),
+                theta1Dot / this.velScale,
+                Math.sin(theta2),
+                Math.cos(theta2),
+                theta2Dot / this.velScale
+            ];
+        } else {
+            obs = [
+                x / this.xLimit,
+                xDot / this.velScale,
+                theta1 / Math.PI,
+                theta1Dot / this.velScale,
+                theta2 / Math.PI,
+                theta2Dot / this.velScale
+            ];
+        }
 
-        // Load pretrained double pendulum weights
-        try {
-            const weightsResponse = await fetch('trained-weights-double.json');
-            const weightsJson = await weightsResponse.json();
-            await this.agent.network.loadPretrainedWeights(weightsJson);
+        if (this.useTime) {
+            obs.push(episodeTime);
+        }
 
-            // Load normalization stats
-            const normResponse = await fetch('trained-normalization-double.json');
-            const normStats = await normResponse.json();
+        if (obs.length !== this.inputSize) {
+            throw new Error(`Built input size ${obs.length} does not match actor input size ${this.inputSize}`);
+        }
 
-            // Load and freeze normalizer stats
-            normEnv.normalizer.loadStats(normStats.observation);
-            normEnv.normalizer.frozen = true;
-            scaleEnv.rewardStats.loadStats({ mean: [0], var: normStats.reward.var, count: normStats.reward.count });
-            scaleEnv.rewardStats.frozen = true;
+        return obs;
+    }
 
-            // Set epsilon for minimal exploration
-            this.agent.epsilon = 0.001;
-
-            this.stats.innerHTML = 'Pretrained double pendulum agent loaded. Running...';
-            this.run();
-        } catch (error) {
-            console.error('Error loading pretrained:', error);
-            this.stats.innerHTML = `Error loading pretrained agent: ${error.message}<br>Running with random initialization...`;
-            // Run anyway to show physics
-            this.run();
+    denseRelu(input, kernel, inSize, outSize, bias, out) {
+        for (let j = 0; j < outSize; j++) {
+            let sum = bias[j];
+            for (let i = 0; i < inSize; i++) {
+                sum += input[i] * kernel[i * outSize + j];
+            }
+            out[j] = sum > 0 ? sum : 0;
         }
     }
 
-    async run() {
-        let state = this.env.reset();
-        let episodeSteps = 0;
+    denseLinear(input, kernel, inSize, outSize, bias, out) {
+        for (let j = 0; j < outSize; j++) {
+            let sum = bias[j];
+            for (let i = 0; i < inSize; i++) {
+                sum += input[i] * kernel[i * outSize + j];
+            }
+            out[j] = sum;
+        }
+    }
 
-        const animate = async () => {
-            // Get action
-            const { action, isNonGreedy } = await this.agent.sampleAction(state);
+    act(input) {
+        this.denseRelu(input, this.fc1Kernel, this.inputSize, this.hiddenSize, this.fc1Bias, this.h1);
+        this.denseRelu(this.h1, this.fc2Kernel, this.hiddenSize, this.hiddenSize, this.fc2Bias, this.h2);
+        const out = [0.0];
+        this.denseLinear(this.h2, this.fc3Kernel, this.hiddenSize, 1, this.fc3Bias, out);
+        return Math.tanh(out[0]) * this.forceMag;
+    }
+}
+
+class DoubleInferenceRunner {
+    constructor() {
+        this.animationFrameId = null;
+        this.stats = document.getElementById('stats');
+        this.policyStats = document.getElementById('policyStats');
+        this.episodeReturns = new CircularBuffer(20);
+        this.actionAbs = new CircularBuffer(500);
+        this.episodeCount = 0;
+        this.totalSteps = 0;
+        this.episodeSteps = 0;
+        this.episodeTime = -0.5;
+        this.prevAction = 0.0;
+        this.state = null;
+    }
+
+    async init() {
+        this.env = new CartPoleDouble({
+            forceMag: POLICY_CONFIG.forceMag,
+            dt: POLICY_CONFIG.dt,
+            maxSteps: POLICY_CONFIG.maxSteps
+        });
+
+        const response = await fetch(POLICY_CONFIG.weightsPath);
+        if (!response.ok) {
+            throw new Error(`Failed to load actor weights (${response.status}): ${POLICY_CONFIG.weightsPath}`);
+        }
+        const weights = await response.json();
+        this.actor = new ContinuousActor(weights, {
+            forceMag: this.env.forceMag,
+            xLimit: this.env.xLimit,
+            velScale: POLICY_CONFIG.velScale
+        });
+
+        this.stats.innerHTML = 'Continuous TD3 actor loaded. Running inference...';
+        this.policyStats.textContent = this.buildPolicyText();
+
+        this.resetEpisode();
+        this.run();
+    }
+
+    resetEpisode() {
+        this.state = this.env.reset();
+        this.episodeSteps = 0;
+        this.episodeTime = -0.5;
+        this.prevAction = 0.0;
+    }
+
+    currentGain() {
+        if (POLICY_CONFIG.actionGainEarly == null || POLICY_CONFIG.actionGainLate == null) {
+            return POLICY_CONFIG.actionGain;
+        }
+        const frac = this.episodeTime + 0.5;
+        return frac < POLICY_CONFIG.actionGainSwitchFrac
+            ? POLICY_CONFIG.actionGainEarly
+            : POLICY_CONFIG.actionGainLate;
+    }
+
+    buildPolicyText() {
+        const lines = [
+            'Policy:',
+            `  checkpoint: ${POLICY_CONFIG.weightsPath}`,
+            `  actor input: ${this.actor.obsMode}${this.actor.useTime ? '+time' : ''} (${this.actor.inputSize})`,
+            `  force: +/-${this.env.forceMag.toFixed(1)}, dt: ${this.env.dt.toFixed(3)}, maxSteps: ${this.env.maxSteps}`,
+            `  gain schedule: early=${POLICY_CONFIG.actionGainEarly}, late=${POLICY_CONFIG.actionGainLate}, switch=${POLICY_CONFIG.actionGainSwitchFrac}`,
+            `  smoothing: ${POLICY_CONFIG.actionSmooth}`
+        ];
+        return lines.join('\n');
+    }
+
+    updateStats(lastAction, episodeReturn) {
+        const avgReturn = this.episodeReturns.average();
+        const maxReturn = this.env.maxSteps * 2;
+        const pctMax = (episodeReturn / maxReturn * 100).toFixed(0);
+        const avgAction = this.actionAbs.average();
+
+        this.stats.innerHTML = `
+            Episode: ${this.episodeCount}<br>
+            Return: ${episodeReturn.toFixed(1)} (${pctMax}% of max)<br>
+            Steps: ${this.episodeSteps}<br>
+            Avg Return (${this.episodeReturns.size}): ${avgReturn.toFixed(1)}<br>
+            Last Action: ${lastAction.toFixed(3)}<br>
+            Mean |Action| (recent): ${avgAction.toFixed(3)}<br>
+            Total Steps: ${this.totalSteps.toLocaleString()}
+        `;
+    }
+
+    run() {
+        const animate = () => {
+            const modelInput = this.actor.buildInput(this.state, this.episodeTime);
+            let action = this.actor.act(modelInput);
+
+            const gain = this.currentGain();
+            action = Math.max(-this.env.forceMag, Math.min(this.env.forceMag, action * gain));
+
+            if (POLICY_CONFIG.actionSmooth > 0) {
+                action = (1 - POLICY_CONFIG.actionSmooth) * action + POLICY_CONFIG.actionSmooth * this.prevAction;
+            }
+
+            this.prevAction = action;
+            this.actionAbs.push(Math.abs(action));
+
             const result = this.env.step(action);
+            this.state = result.state;
 
-            // Learn from this transition
-            await this.agent.update(state, action, result.reward, result.state, result.done, isNonGreedy);
-
-            episodeSteps++;
-            this.totalSteps++;
-            state = result.state;
+            this.episodeSteps += 1;
+            this.totalSteps += 1;
+            if (this.actor.useTime) {
+                this.episodeTime += 1.0 / this.env.maxSteps;
+            }
 
             this.env.render();
 
             if (result.done) {
-                this.episodeCount++;
-                const rawReturn = result.info.episode.r;
-                this.episodeReturns.push(rawReturn);
-                const avgReturn = this.episodeReturns.average();
-
-                // Calculate percentage of max possible return (1000)
-                const pctMax = (rawReturn / 1000 * 100).toFixed(0);
-
-                this.stats.innerHTML = `
-                    Episode: ${this.episodeCount}<br>
-                    Return: ${rawReturn.toFixed(1)} (${pctMax}% of max)<br>
-                    Steps: ${episodeSteps}<br>
-                    Avg Return (${this.episodeReturns.size}): ${avgReturn.toFixed(1)}<br>
-                    Total Steps: ${this.totalSteps.toLocaleString()}
-                `;
-
-                if (this.gradientStats) {
-                    this.gradientStats.textContent = this.agent.optimizer.getLastStats();
-                }
-
-                state = this.env.reset();
-                episodeSteps = 0;
+                this.episodeCount += 1;
+                const episodeReturn = result.info.episode.r;
+                this.episodeReturns.push(episodeReturn);
+                this.updateStats(action, episodeReturn);
+                this.resetEpisode();
             }
 
             this.animationFrameId = requestAnimationFrame(animate);
@@ -129,9 +261,30 @@ class DoubleRunner {
     }
 }
 
-// Initialize when document is loaded
+const POLICY_CONFIG = {
+    weightsPath: 'trained-actor-double-sb3-sac-sb3-sac-continue-h512.json',
+    forceMag: 10.0,
+    dt: 0.02,
+    maxSteps: 5000,
+    velScale: 5.0,
+    actionGain: 1.0,
+    actionGainEarly: null,
+    actionGainLate: null,
+    actionGainSwitchFrac: 0.4,
+    actionSmooth: 0.0
+};
+
 window.onload = async () => {
-    await tf.setBackend('cpu');
-    const demo = new DoubleRunner();
-    await demo.init();
+    const demo = new DoubleInferenceRunner();
+    try {
+        await demo.init();
+    } catch (error) {
+        console.error(error);
+        const stats = document.getElementById('stats');
+        const policyStats = document.getElementById('policyStats');
+        stats.innerHTML = `Failed to initialize inference runner: ${error.message}`;
+        if (policyStats) {
+            policyStats.textContent = 'Check console and checkpoint path.';
+        }
+    }
 };

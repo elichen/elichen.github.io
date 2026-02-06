@@ -1,21 +1,21 @@
 class CartPoleDouble {
     constructor(config = {}) {
         // Physics constants
-        this.gravity = 9.8;
-        this.cartMass = 1.0;       // M: cart mass
-        this.m1 = 0.1;             // m1: first segment mass
-        this.m2 = 0.1;             // m2: second segment mass
-        this.L1 = 0.5;             // L1: first segment half-length
-        this.L2 = 0.5;             // L2: second segment half-length
-        this.forceMag = 10.0;
-        this.dt = 0.02;            // seconds between state updates
+        this.gravity = config.gravity ?? 9.8;
+        this.cartMass = config.cartMass ?? 1.0;       // M: cart mass
+        this.m1 = config.m1 ?? 0.1;                   // m1: first segment mass
+        this.m2 = config.m2 ?? 0.1;                   // m2: second segment mass
+        this.L1 = config.L1 ?? 0.5;                   // L1: first segment half-length
+        this.L2 = config.L2 ?? 0.5;                   // L2: second segment half-length
+        this.forceMag = config.forceMag ?? 10.0;
+        this.dt = config.dt ?? 0.02;                  // seconds between state updates
 
         // Boundaries
-        this.xLimit = 2.4;
+        this.xLimit = config.xLimit ?? 2.4;
 
         // Episode management
         this.steps = 0;
-        this.maxSteps = 500;
+        this.maxSteps = config.maxSteps ?? 500;
         this.episodeReturn = 0;
 
         // Rendering setup
@@ -54,8 +54,16 @@ class CartPoleDouble {
 
         let [x, xDot, theta1, theta1Dot, theta2, theta2Dot] = this.state;
 
-        // Get force direction (0: left, 1: right)
-        const F = (action === 0 ? -1 : 1) * this.forceMag;
+        // Support both:
+        // - discrete actions: 0 (left), 1 (right)
+        // - continuous actions: force value in [-forceMag, forceMag]
+        let F;
+        if (action === 0 || action === 1) {
+            F = (action === 0 ? -1 : 1) * this.forceMag;
+        } else {
+            const a = Number(action);
+            F = Math.max(-this.forceMag, Math.min(this.forceMag, Number.isFinite(a) ? a : 0));
+        }
 
         // Double pendulum on cart physics using Lagrangian mechanics
         // Using absolute angles (both measured from vertical)
@@ -116,7 +124,7 @@ class CartPoleDouble {
         // Avoid division by zero
         if (Math.abs(det) < 1e-10) {
             // Fallback: small perturbation
-            return this.stepFallback(action);
+            return this.stepFallback(F);
         }
 
         // Compute accelerations using Cramer's rule
@@ -176,7 +184,7 @@ class CartPoleDouble {
 
     stepFallback(action) {
         // Simple fallback if matrix is singular
-        this.state[1] += (action === 0 ? -1 : 1) * 0.1;
+        this.state[1] += Math.sign(action) * 0.1;
         const done = Math.abs(this.state[0]) >= this.xLimit || this.steps >= this.maxSteps;
         const reward = 1.0 + 0.5 * Math.cos(this.state[2]) + 0.5 * Math.cos(this.state[4]);
         this.episodeReturn += reward;
