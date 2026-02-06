@@ -152,8 +152,11 @@ class DoubleInferenceRunner {
     async init() {
         this.env = new CartPoleDouble({
             forceMag: POLICY_CONFIG.forceMag,
+            xLimit: POLICY_CONFIG.xLimit,
             dt: POLICY_CONFIG.dt,
-            maxSteps: POLICY_CONFIG.maxSteps
+            maxSteps: POLICY_CONFIG.maxSteps,
+            cartMass: POLICY_CONFIG.cartMass,
+            cartDamping: POLICY_CONFIG.cartDamping
         });
 
         const response = await fetch(POLICY_CONFIG.weightsPath);
@@ -167,7 +170,7 @@ class DoubleInferenceRunner {
             velScale: POLICY_CONFIG.velScale
         });
 
-        this.stats.innerHTML = 'Continuous TD3 actor loaded. Running inference...';
+        this.stats.innerHTML = 'Continuous SB3 SAC actor loaded. Running inference...';
         this.policyStats.textContent = this.buildPolicyText();
 
         this.resetEpisode();
@@ -196,7 +199,8 @@ class DoubleInferenceRunner {
             'Policy:',
             `  checkpoint: ${POLICY_CONFIG.weightsPath}`,
             `  actor input: ${this.actor.obsMode}${this.actor.useTime ? '+time' : ''} (${this.actor.inputSize})`,
-            `  force: +/-${this.env.forceMag.toFixed(1)}, dt: ${this.env.dt.toFixed(3)}, maxSteps: ${this.env.maxSteps}`,
+            `  force: +/-${this.env.forceMag.toFixed(1)}, xLimit: ${this.env.xLimit.toFixed(2)}, dt: ${this.env.dt.toFixed(3)}, maxSteps: ${this.env.maxSteps}`,
+            `  cart mass: ${this.env.cartMass.toFixed(2)}, cart damping: ${this.env.cartDamping.toFixed(3)}`,
             `  gain schedule: early=${POLICY_CONFIG.actionGainEarly}, late=${POLICY_CONFIG.actionGainLate}, switch=${POLICY_CONFIG.actionGainSwitchFrac}`,
             `  smoothing: ${POLICY_CONFIG.actionSmooth}`
         ];
@@ -262,16 +266,19 @@ class DoubleInferenceRunner {
 }
 
 const POLICY_CONFIG = {
-    weightsPath: 'trained-actor-double-sb3-sac-sb3-sac-continue-h512.json',
+    weightsPath: 'trained-actor-double-sb3-sac-sb3-sac-cont8-lr3e6-s716-best-manual.json',
     forceMag: 10.0,
+    xLimit: 2.4,
     dt: 0.02,
     maxSteps: 5000,
+    cartMass: 1.0,
+    cartDamping: 0.0,
     velScale: 5.0,
     actionGain: 1.0,
     actionGainEarly: null,
     actionGainLate: null,
     actionGainSwitchFrac: 0.4,
-    actionSmooth: 0.0
+    actionSmooth: 0.3
 };
 
 window.onload = async () => {

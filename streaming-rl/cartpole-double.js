@@ -9,6 +9,7 @@ class CartPoleDouble {
         this.L2 = config.L2 ?? 0.5;                   // L2: second segment half-length
         this.forceMag = config.forceMag ?? 10.0;
         this.dt = config.dt ?? 0.02;                  // seconds between state updates
+        this.cartDamping = config.cartDamping ?? 0.0; // linear damping on cart velocity
 
         // Boundaries
         this.xLimit = config.xLimit ?? 2.4;
@@ -143,6 +144,9 @@ class CartPoleDouble {
         // Update state with Euler integration
         x = x + this.dt * xDot;
         xDot = xDot + this.dt * xAcc;
+        if (this.cartDamping > 0) {
+            xDot *= Math.max(0, 1 - this.cartDamping * this.dt);
+        }
         theta1 = theta1 + this.dt * theta1Dot;
         theta1Dot = theta1Dot + this.dt * theta1Acc;
         theta2 = theta2 + this.dt * theta2Dot;
