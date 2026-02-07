@@ -46,7 +46,7 @@ let lastFrameTime = 0; // For delta time calculation
 
 // Current muscle activations (shared between physics and UI)
 let currentMuscleActivations = new Float32Array(96);
-let useTestPattern = true; // Flag to toggle between test pattern and CNN
+let useTestPattern = false; // Use CNN inference from neural data
 
 // CNN inference state
 let cnnWeights = null;
