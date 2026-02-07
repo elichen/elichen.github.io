@@ -46,8 +46,6 @@ let lastFrameTime = 0; // For delta time calculation
 
 // Current muscle activations (shared between physics and UI)
 let currentMuscleActivations = new Float32Array(96);
-let useTestPattern = false; // Use CNN inference from neural data
-
 // CNN inference state
 let cnnWeights = null;
 let cnnModel = null;
@@ -82,7 +80,6 @@ async function loadAllData() {
     if (z > zMax) zMax = z;
   }
   meshData.bbox = { zMin, zMax };
-  console.log('Mesh bounding box Z:', { zMin, zMax });
 
   // meshData.vertices are scaled but Dm_inv is in the unscaled basis.
   // Scale Dm_inv so rest state produces F ~ I.
@@ -110,16 +107,6 @@ async function loadAllData() {
 
   updateLoading('Loading CNN weights...', '6/6');
   cnnWeights = await loadJSON(`${basePath}/cnn_weights.json`);
-
-  console.log('Data loaded:', {
-    vertices: meshData.num_vertices,
-    tetrahedra: meshData.num_tetrahedra,
-    surfaceTriangles: meshData.surface_triangles.length,
-    muscles: Object.keys(muscleData.muscles).length,
-    neuralFrames: neuralTraces.timesteps,
-    muscleFrames: sampleMuscle.timesteps,
-    cnnKernel: `${cnnWeights.out_channels}x${cnnWeights.in_channels}x${cnnWeights.kernel_size}`
-  });
 }
 
 // ============================================================================
@@ -173,9 +160,6 @@ async function initCNNModel() {
     const weightTensor = tf.tensor(transposedWeights, [kernelSize, inChannels, outChannels]);
     const biasTensor = tf.tensor(cnnWeights.bias, [outChannels]);
     cnnModel.layers[1].setWeights([weightTensor, biasTensor]);
-
-    console.log('CNN model initialized with TensorFlow.js');
-    cnnModel.summary();
   } catch (error) {
     console.error('Failed to initialize CNN model:', error);
   }
@@ -252,7 +236,6 @@ async function initWebGPU() {
     }
 
     device = await adapter.requestDevice();
-    console.log('WebGPU device initialized');
     return true;
   } catch (e) {
     console.warn('WebGPU initialization failed:', e);
@@ -437,15 +420,10 @@ function initMuscleVertexMap() {
     if (v[2] > meshBounds.maxZ) meshBounds.maxZ = v[2];
   }
   const meshCenterX = (meshBounds.minX + meshBounds.maxX) / 2;
-  console.log('Mesh bounds:', meshBounds, 'centerX:', meshCenterX);
 
   for (const [muscleName, baseIdx] of Object.entries(muscleMap)) {
     const points = muscleData.muscles[muscleName];
-    if (!points) {
-      console.warn('Muscle not found:', muscleName);
-      continue;
-    }
-    console.log('Muscle', muscleName, 'has', points.length, 'points, first point:', points[0]);
+    if (!points) continue;
 
     // Determine if this muscle group is dorsal or ventral for side filtering
     // DR (0-23) + DL (48-71) = dorsal (+X side), VR (24-47) + VL (72-95) = ventral (-X side)
@@ -514,172 +492,17 @@ function initMuscleVertexMap() {
       muscleVertexMap[muscleIdx] = affectedVerts;
     }
   }
-  console.log('Muscle-vertex map initialized:', muscleVertexMap.reduce((sum, arr) => sum + (arr ? arr.length : 0), 0), 'vertex-muscle pairs');
-
-  // Diagnostic: Report muscle segments with sparse vertex coverage
-  let sparseSegments = [];
-  let emptySegments = [];
-  for (let i = 0; i < 96; i++) {
-    const verts = muscleVertexMap[i];
-    if (!verts || verts.length === 0) {
-      emptySegments.push(i);
-    } else if (verts.length < 5) {
-      sparseSegments.push({ idx: i, count: verts.length });
-    }
-  }
-  if (emptySegments.length > 0) {
-    console.warn('DIAGNOSTIC: Empty muscle segments (no vertices):', emptySegments);
-  }
-  if (sparseSegments.length > 0) {
-    console.warn('DIAGNOSTIC: Sparse muscle segments (<5 vertices):', sparseSegments);
-  }
-  console.log('DIAGNOSTIC: Vertex counts per muscle quadrant:',
-    'DR:', muscleVertexMap.slice(0, 24).reduce((s, a) => s + (a?.length || 0), 0),
-    'VR:', muscleVertexMap.slice(24, 48).reduce((s, a) => s + (a?.length || 0), 0),
-    'DL:', muscleVertexMap.slice(48, 72).reduce((s, a) => s + (a?.length || 0), 0),
-    'VL:', muscleVertexMap.slice(72, 96).reduce((s, a) => s + (a?.length || 0), 0)
-  );
-
-  // Expose for debugging
-  window.muscleVertexMap = muscleVertexMap;
-  window.meshData = meshData;
-  window.muscleData = muscleData;
-
-  // Run unit test after initialization
-  setTimeout(() => unitTestPhysics(), 100);
-}
-
-/**
- * Unit test to verify physics parameters produce stable, visible deformation
- */
-function unitTestPhysics() {
-  console.log('\n========== PHYSICS UNIT TEST ==========\n');
-
-  const numVerts = meshData.num_vertices;
-  const totalMass = 1.0;  // Must match simulationStep
-  const massPerVertex = totalMass / numVerts;
-
-  // Test 1: Mass scaling sanity check
-  console.log('TEST 1: Mass Scaling');
-  console.log(`  Total simulation mass: ${totalMass} kg`);
-  console.log(`  Mass per vertex: ${massPerVertex.toExponential(3)} kg`);
-  console.log(`  Expected: ~1e-3 kg per vertex`);
-  const massOK = massPerVertex > 5e-4 && massPerVertex < 5e-3;
-  console.log(`  RESULT: ${massOK ? 'PASS ✓' : 'FAIL ✗'}`);
-
-  // Test 2: Muscle force magnitude
-  console.log('\nTEST 2: Muscle Force Magnitude');
-  const testActivation = 1.0;
-  const testForceMag = testActivation * muscleStiffness * 5e-4;
-  console.log(`  Activation: ${testActivation}`);
-  console.log(`  Muscle stiffness: ${muscleStiffness.toExponential(1)}`);
-  console.log(`  Force magnitude: ${testForceMag.toExponential(3)} N`);
-
-  // With weight ~0.5 avg, force per vertex ≈ forceMag * 0.5
-  const forcePerVertex = testForceMag * 0.5;
-  const expectedAccel = forcePerVertex / massPerVertex;
-  console.log(`  Force per vertex (avg): ${forcePerVertex.toExponential(3)} N`);
-  console.log(`  Expected acceleration: ${expectedAccel.toExponential(3)} m/s²`);
-  console.log(`  Target range: 1-100 m/s²`);
-  const accelOK = expectedAccel > 0.1 && expectedAccel < 1000;
-  console.log(`  RESULT: ${accelOK ? 'PASS ✓' : 'FAIL ✗'}`);
-
-  // Test 3: Simulate 100 steps and check for stability
-  console.log('\nTEST 3: Simulation Stability (100 steps)');
-
-  // Store initial positions
-  const initialPositions = new Float32Array(positions);
-  const initialMaxX = Math.max(...Array.from({length: numVerts}, (_, i) => Math.abs(positions[i*3])));
-
-  // Create test activation pattern (alternating dorsoventral S-curve)
-  const testActivations = new Float32Array(96);
-  for (let i = 0; i < 24; i++) {
-    // Front half: dorsal muscles active
-    if (i < 12) {
-      testActivations[i] = 0.5;       // DR front (dorsal)
-      testActivations[i + 48] = 0.5;  // DL front (dorsal)
-    } else {
-      // Back half: ventral muscles active
-      testActivations[i + 24] = 0.5;  // VR back (ventral)
-      testActivations[i + 72] = 0.5;  // VL back (ventral)
-    }
-  }
-
-  let maxDisplacement = 0;
-  let maxVelocity = 0;
-  let exploded = false;
-
-  for (let step = 0; step < 100; step++) {
-    simulationStep(testActivations);
-
-    // Check for explosion (NaN or huge values)
-    for (let i = 0; i < numVerts; i++) {
-      if (isNaN(positions[i*3]) || Math.abs(positions[i*3]) > 10) {
-        exploded = true;
-        break;
-      }
-
-      const dx = positions[i*3] - initialPositions[i*3];
-      const dy = positions[i*3+1] - initialPositions[i*3+1];
-      const dz = positions[i*3+2] - initialPositions[i*3+2];
-      const disp = Math.sqrt(dx*dx + dy*dy + dz*dz);
-      maxDisplacement = Math.max(maxDisplacement, disp);
-
-      const vx = velocities[i*3];
-      const vy = velocities[i*3+1];
-      const vz = velocities[i*3+2];
-      const vel = Math.sqrt(vx*vx + vy*vy + vz*vz);
-      maxVelocity = Math.max(maxVelocity, vel);
-    }
-
-    if (exploded) break;
-  }
-
-  console.log(`  Max displacement: ${(maxDisplacement * 1000).toFixed(3)} mm`);
-  console.log(`  Max velocity: ${(maxVelocity * 1000).toFixed(3)} mm/s`);
-  console.log(`  Worm body width: ~${(initialMaxX * 2 * 1000).toFixed(1)} mm`);
-  console.log(`  Exploded: ${exploded}`);
-
-  // Check: displacement should be visible (>5% of body width) but not explosive
-  const minDisp = initialMaxX * 0.05;  // 5% of body width
-  const maxDisp = initialMaxX * 2.0;   // 200% of body width (would be explosion)
-  const stabilityOK = !exploded && maxDisplacement > minDisp && maxDisplacement < maxDisp;
-  console.log(`  Target displacement: ${(minDisp*1000).toFixed(3)} - ${(maxDisp*1000).toFixed(3)} mm`);
-  console.log(`  RESULT: ${stabilityOK ? 'PASS ✓' : 'FAIL ✗'}`);
-
-  // Reset positions for actual simulation
-  positions.set(initialPositions);
-  velocities.fill(0);
-  simTime = 0;
-
-  // Summary
-  console.log('\n========== TEST SUMMARY ==========');
-  const allPassed = massOK && accelOK && stabilityOK;
-  console.log(`Mass scaling: ${massOK ? 'PASS' : 'FAIL'}`);
-  console.log(`Force magnitude: ${accelOK ? 'PASS' : 'FAIL'}`);
-  console.log(`Stability: ${stabilityOK ? 'PASS' : 'FAIL'}`);
-  console.log(`\nOVERALL: ${allPassed ? 'ALL TESTS PASSED ✓' : 'SOME TESTS FAILED ✗'}`);
-  console.log('====================================\n');
-
-  return allPassed;
 }
 
 /**
  * Apply muscle forces based on current activations
  *
- * HYBRID FIBER-BENDING MODEL:
- * Combines fiber contraction (original paper) with direct bending force.
+ * Bending force model: dorsal/ventral muscle activation pulls the body
+ * laterally to create undulation.
  *
  * In C. elegans:
  * - DR (0-23) + DL (48-71) are DORSAL (dorsal = +X in this mesh)
  * - VR (24-47) + VL (72-95) are VENTRAL (ventral = -X in this mesh)
- *
- * Typical crawling is dorsoventral bending, so dorsal vs ventral
- * contractions should drive the lateral bend.
- *
- * This model applies:
- * 1. Fiber contraction force (along muscle axis) - creates local shortening
- * 2. Bending force (perpendicular to body axis) - creates lateral undulation
  */
 function applyMuscleForces(forces, muscleActivations) {
   if (!muscleVertexMap) return;
@@ -895,75 +718,6 @@ function laplacianSmooth(alpha) {
   for (let i = 0; i < numVerts; i++) {
     positions[i * 3] = restPositions[i * 3] + smoothBuffer[i];
   }
-}
-
-// Spike detection: identifies vertices with unusually high displacement
-// Call this periodically to diagnose "stretching skin" vs "actual movement"
-let spikeCheckCounter = 0;
-function checkForSpikes() {
-  spikeCheckCounter++;
-  if (spikeCheckCounter % 100 !== 0) return; // Only check every 100 steps
-
-  const numVerts = meshData.num_vertices;
-  let maxDisp = 0;
-  let maxDispIdx = -1;
-  let avgDisp = 0;
-
-  // Calculate displacement for each vertex
-  const displacements = new Float32Array(numVerts);
-  for (let i = 0; i < numVerts; i++) {
-    const dx = positions[i*3] - restPositions[i*3];
-    const dy = positions[i*3+1] - restPositions[i*3+1];
-    const dz = positions[i*3+2] - restPositions[i*3+2];
-    const disp = Math.sqrt(dx*dx + dy*dy + dz*dz);
-    displacements[i] = disp;
-    avgDisp += disp;
-    if (disp > maxDisp) {
-      maxDisp = disp;
-      maxDispIdx = i;
-    }
-  }
-  avgDisp /= numVerts;
-
-  // A "spike" is when a vertex has >5x average displacement
-  const spikeThreshold = avgDisp * 5;
-  const spikes = [];
-  for (let i = 0; i < numVerts; i++) {
-    if (displacements[i] > spikeThreshold) {
-      spikes.push({ idx: i, disp: displacements[i] });
-    }
-  }
-
-  if (spikes.length > 0) {
-    console.warn(`SPIKE DETECTED: ${spikes.length} vertices exceed 5x average displacement`);
-    console.warn(`  Avg displacement: ${(avgDisp * 1000).toFixed(3)} mm`);
-    console.warn(`  Max displacement: ${(maxDisp * 1000).toFixed(3)} mm at vertex ${maxDispIdx}`);
-    console.warn(`  Spike vertices:`, spikes.slice(0, 5)); // Show first 5
-  }
-}
-
-// Diagnostic: Log worm dimensions
-let dimensionCheckCounter = 0;
-function checkWormDimensions() {
-  dimensionCheckCounter++;
-  if (dimensionCheckCounter % 100 !== 0) return; // Every 100 steps
-
-  const numVerts = meshData.num_vertices;
-  let minZ = Infinity, maxZ = -Infinity;
-  let restMinZ = Infinity, restMaxZ = -Infinity;
-
-  for (let i = 0; i < numVerts; i++) {
-    minZ = Math.min(minZ, positions[i*3+2]);
-    maxZ = Math.max(maxZ, positions[i*3+2]);
-    restMinZ = Math.min(restMinZ, restPositions[i*3+2]);
-    restMaxZ = Math.max(restMaxZ, restPositions[i*3+2]);
-  }
-
-  const currentLength = maxZ - minZ;
-  const restLength = restMaxZ - restMinZ;
-  const growth = ((currentLength / restLength) - 1) * 100;
-
-  console.log(`Worm length: ${(currentLength*1000).toFixed(1)}mm (rest: ${(restLength*1000).toFixed(1)}mm) | Growth: ${growth.toFixed(1)}%`);
 }
 
 // ============================================================================
@@ -1300,49 +1054,16 @@ function animate(time) {
       frameAccumulator -= 1;
     }
 
-    // Generate muscle activations
-    if (useTestPattern) {
-      // Synthetic test pattern: traveling sine wave for visible locomotion
-      const waveSpeed = 10.0;  // radians/sec - how fast wave travels down body
-      const waveFreq = 1.5;    // number of waves along body
-
-      for (let segment = 0; segment < 24; segment++) {
-        // Phase varies along body and with time
-        const phase = (segment / 24) * Math.PI * 2 * waveFreq - simTime * waveSpeed;
-        const bendSignal = Math.sin(phase);  // -1 to 1
-
-        // Dorsal/ventral alternation (typical nematode crawling)
-        const dorsalActivation = Math.max(0, bendSignal) * 0.8;
-        const ventralActivation = Math.max(0, -bendSignal) * 0.8;
-
-        // DR (0-23) + DL (48-71) = dorsal
-        currentMuscleActivations[segment] = dorsalActivation;       // DR
-        currentMuscleActivations[segment + 48] = dorsalActivation;  // DL
-        // VR (24-47) + VL (72-95) = ventral
-        currentMuscleActivations[segment + 24] = ventralActivation; // VR
-        currentMuscleActivations[segment + 72] = ventralActivation; // VL
-      }
-    } else {
-      // CNN-based muscle activations from neural data
-      const neuronVoltages = new Float32Array(NUM_MOTOR_NEURONS);
-      for (let i = 0; i < NUM_MOTOR_NEURONS; i++) {
-        neuronVoltages[i] = neuralTraces.motor_neuron_voltages[i]?.[currentFrame] || -65;
-      }
-
-      const cnnResult = runCNNInference(neuronVoltages);
-      if (cnnResult) {
-        currentMuscleActivations.set(cnnResult);
-      } else {
-        // Fallback to sample data
-        const sampleFrame = sampleMuscle.frames[currentFrame] || [];
-        for (let i = 0; i < 96; i++) {
-          currentMuscleActivations[i] = sampleFrame[i] || 0;
-        }
-      }
+    // CNN-based muscle activations from neural data
+    const neuronVoltages = new Float32Array(NUM_MOTOR_NEURONS);
+    for (let i = 0; i < NUM_MOTOR_NEURONS; i++) {
+      neuronVoltages[i] = neuralTraces.motor_neuron_voltages[i]?.[currentFrame] || -65;
     }
 
-    // Expose for debugging
-    window.muscleActivations = currentMuscleActivations;
+    const cnnResult = runCNNInference(neuronVoltages);
+    if (cnnResult) {
+      currentMuscleActivations.set(cnnResult);
+    }
 
     // Run physics substeps (fixed timestep, multiple per frame for stability)
     for (let i = 0; i < SUBSTEPS; i++) {
@@ -1398,12 +1119,7 @@ async function main() {
     updateLoading('Setting up renderer...');
     initThreeJS();
 
-    console.log('BAAIWorm simulation initialized');
-    console.log(`WebGPU: ${hasWebGPU ? 'enabled' : 'disabled (using CPU)'}`);
-    console.log(`CNN inference: ${cnnModel ? 'enabled (TensorFlow.js)' : 'disabled'}`);
-
-    // Expose simulation state for debugging/measurement
-    window.wormSim = { positions, restPositions, velocities, meshData, scene, wormGeometry };
+    console.log('BAAIWorm initialized');
 
     // Start animation
     requestAnimationFrame(animate);
