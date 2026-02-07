@@ -571,25 +571,6 @@ function simulationStep(muscleActivations) {
       positions[i*3+1] = -0.02;
       velocities[i*3+1] = 0;
     }
-
-    // Pin head and tail vertices to prevent runaway expansion
-    // Head is at high Z, tail is at low Z
-    const restZ = restPositions[i*3+2];
-    const zMin = meshData.bbox?.zMin ?? -0.5;
-    const zMax = meshData.bbox?.zMax ?? 0.5;
-    const zRange = zMax - zMin;
-
-    // Vertices in the first/last 5% of the body are pinned (compromise: wave propagation + stability)
-    const headThreshold = zMax - zRange * 0.05;
-    const tailThreshold = zMin + zRange * 0.05;
-
-    if (restZ > headThreshold || restZ < tailThreshold) {
-      // Gentle constraint: allows body wave to propagate while preventing runaway
-      const pullStrength = 0.05;
-      positions[i*3] = positions[i*3] * (1 - pullStrength) + restPositions[i*3] * pullStrength;
-      positions[i*3+1] = positions[i*3+1] * (1 - pullStrength) + restPositions[i*3+1] * pullStrength;
-      positions[i*3+2] = positions[i*3+2] * (1 - pullStrength) + restPositions[i*3+2] * pullStrength;
-    }
   }
 
   simTime += DT;
@@ -973,9 +954,36 @@ function animate(time) {
 
   updateStats();
 
+  // Update camera to follow worm's center of mass
+  updateCameraTarget();
+
   // Render
   controls.update();
   renderer.render(scene, camera);
+}
+
+/**
+ * Compute worm's center of mass and update camera target
+ */
+function updateCameraTarget() {
+  const numVerts = meshData.num_vertices;
+  let cx = 0, cy = 0, cz = 0;
+
+  for (let i = 0; i < numVerts; i++) {
+    cx += positions[i * 3];
+    cy += positions[i * 3 + 1];
+    cz += positions[i * 3 + 2];
+  }
+
+  cx /= numVerts;
+  cy /= numVerts;
+  cz /= numVerts;
+
+  // Smoothly move camera target toward COM
+  const smoothing = 0.05;
+  controls.target.x += (cx - controls.target.x) * smoothing;
+  controls.target.y += (cy - controls.target.y) * smoothing;
+  controls.target.z += (cz - controls.target.z) * smoothing;
 }
 
 // ============================================================================
