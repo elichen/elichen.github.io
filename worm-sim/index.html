@@ -61,21 +61,6 @@
       background: #2a2a3a;
       border-radius: 2px;
     }
-    .btn {
-      background: #2a2a3a;
-      border: 1px solid #3a3a4a;
-      color: #fff;
-      padding: 8px 16px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 0.85rem;
-      margin-right: 8px;
-      margin-bottom: 8px;
-      transition: all 0.15s;
-    }
-    .btn:hover { background: #3a3a4a; border-color: #4a4a5a; }
-    .btn.active { background: #4fc3f7; color: #000; border-color: #4fc3f7; }
-    .btn-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     #neuron-grid {
       display: grid;
       grid-template-columns: repeat(16, 1fr);
@@ -191,11 +176,6 @@
         <div class="stat">
           <span class="stat-label">Substeps</span>
           <span class="stat-value" id="sim-substeps">10</span>
-        </div>
-        <div class="btn-group">
-          <button class="btn" id="btn-play">Play</button>
-          <button class="btn" id="btn-step">Step</button>
-          <button class="btn" id="btn-reset">Reset</button>
         </div>
       </div>
 

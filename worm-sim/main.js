@@ -24,7 +24,7 @@ let wormMesh, wormGeometry;
 
 // Simulation state
 let positions, velocities, restPositions;
-let isPlaying = false;
+let isPlaying = true;
 let currentFrame = 0;
 let playbackSpeed = 1.0;
 let frameAccumulator = 0;
@@ -1198,11 +1198,6 @@ function initUI() {
     }
   }
 
-  // Buttons
-  document.getElementById('btn-play').addEventListener('click', togglePlay);
-  document.getElementById('btn-step').addEventListener('click', stepSimulation);
-  document.getElementById('btn-reset').addEventListener('click', resetSimulation);
-
   // Sliders
   setupSlider('speed', v => { playbackSpeed = v; return `${v.toFixed(1)}x`; });
   setupSlider('frame', v => { currentFrame = Math.floor(v); return v; });
@@ -1239,60 +1234,6 @@ function setupSlider(name, handler) {
     const v = parseFloat(e.target.value);
     valueEl.textContent = handler(v);
   });
-}
-
-function togglePlay() {
-  isPlaying = !isPlaying;
-  const btn = document.getElementById('btn-play');
-  btn.textContent = isPlaying ? 'Pause' : 'Play';
-  btn.classList.toggle('active', isPlaying);
-}
-
-function stepSimulation() {
-  // Use same activation source as animate loop for consistency
-  if (useTestPattern) {
-    // Generate test pattern for current simTime
-    const waveSpeed = 10.0;
-    const waveFreq = 1.5;
-    for (let segment = 0; segment < 24; segment++) {
-      const phase = (segment / 24) * Math.PI * 2 * waveFreq - simTime * waveSpeed;
-      const bendSignal = Math.sin(phase);
-      const dorsalActivation = Math.max(0, bendSignal) * 0.8;
-      const ventralActivation = Math.max(0, -bendSignal) * 0.8;
-      // Dorsal: DR + DL, Ventral: VR + VL
-      currentMuscleActivations[segment] = dorsalActivation;       // DR
-      currentMuscleActivations[segment + 48] = dorsalActivation;  // DL
-      currentMuscleActivations[segment + 24] = ventralActivation; // VR
-      currentMuscleActivations[segment + 72] = ventralActivation; // VL
-    }
-  } else {
-    const sampleFrame = sampleMuscle.frames[currentFrame] || [];
-    for (let i = 0; i < 96; i++) {
-      currentMuscleActivations[i] = sampleFrame[i] || 0;
-    }
-  }
-
-  for (let i = 0; i < SUBSTEPS; i++) {
-    simulationStep(currentMuscleActivations);
-  }
-  checkForSpikes(); // Diagnostic: detect vertices with abnormal displacement
-  checkWormDimensions(); // Diagnostic: track worm length for growth detection
-  updateWormMesh();
-  updateMuscleDisplay(currentMuscleActivations);
-}
-
-function resetSimulation() {
-  // Reset positions to rest state
-  for (let i = 0; i < meshData.num_vertices * 3; i++) {
-    positions[i] = restPositions[i];
-    velocities[i] = 0;
-  }
-  simTime = 0;
-  currentFrame = 0;
-  neuronHistory = []; // Clear CNN input history
-  document.getElementById('frame-slider').value = 0;
-  document.getElementById('frame-val').textContent = '0';
-  updateWormMesh();
 }
 
 function updateNeuronDisplay(frame) {
