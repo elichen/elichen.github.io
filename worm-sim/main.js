@@ -17,8 +17,7 @@ const DT = 0.001; // 1ms timestep per substep
 // ============================================================================
 // Global State
 // ============================================================================
-let device, context, canvasFormat;
-let meshData, muscleData, neuralTraces, sampleMuscle, reservoirWeights;
+let meshData, muscleData, neuralTraces, sampleMuscle;
 let scene, camera, renderer, controls;
 let wormMesh, wormGeometry;
 
@@ -62,6 +61,9 @@ function updateLoading(text, progress = '') {
 
 async function loadJSON(path) {
   const response = await fetch(path);
+  if (!response.ok) {
+    throw new Error(`Failed to load ${path}: ${response.status}`);
+  }
   return response.json();
 }
 
@@ -102,10 +104,7 @@ async function loadAllData() {
   updateLoading('Loading muscle activations...', '4/5');
   sampleMuscle = await loadJSON(`${basePath}/sample_muscle.json`);
 
-  updateLoading('Loading reservoir weights...', '5/6');
-  reservoirWeights = await loadJSON(`${basePath}/reservoir_weights.json`);
-
-  updateLoading('Loading CNN weights...', '6/6');
+  updateLoading('Loading CNN weights...', '5/5');
   cnnWeights = await loadJSON(`${basePath}/cnn_weights.json`);
 }
 
@@ -217,30 +216,6 @@ function runCNNInference(neuronVoltages) {
   outputTensor.dispose();
 
   return muscleActivations;
-}
-
-// ============================================================================
-// WebGPU Initialization (placeholder for full FEM - using CPU for now)
-// ============================================================================
-async function initWebGPU() {
-  if (!navigator.gpu) {
-    console.warn('WebGPU not available, using CPU simulation');
-    return false;
-  }
-
-  try {
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) {
-      console.warn('No WebGPU adapter found, using CPU simulation');
-      return false;
-    }
-
-    device = await adapter.requestDevice();
-    return true;
-  } catch (e) {
-    console.warn('WebGPU initialization failed:', e);
-    return false;
-  }
 }
 
 // ============================================================================
@@ -440,19 +415,6 @@ function initMuscleVertexMap() {
       const end = points[endIdx];
       const center = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2, (start[2] + end[2]) / 2];
 
-      // Compute fiber direction (normalized vector from start to end)
-      const fiberDir = [
-        end[0] - start[0],
-        end[1] - start[1],
-        end[2] - start[2]
-      ];
-      const fiberLen = Math.sqrt(fiberDir[0]**2 + fiberDir[1]**2 + fiberDir[2]**2);
-      if (fiberLen > 1e-6) {
-        fiberDir[0] /= fiberLen;
-        fiberDir[1] /= fiberLen;
-        fiberDir[2] /= fiberLen;
-      }
-
       const affectedVerts = [];
       for (let i = 0; i < meshData.num_vertices; i++) {
         const v = meshData.vertices[i];
@@ -468,25 +430,8 @@ function initMuscleVertexMap() {
         const distSq = dx*dx + dy*dy + dz*dz;
 
         if (distSq < radiusSq) {
-          const dist = Math.sqrt(distSq);
           const weight = Math.exp(-distSq / (radiusSq * 0.5));
-
-          // Compute position along fiber axis (for contraction direction)
-          // t < 0: vertex is behind start, t > 1: vertex is past end
-          const toVert = [v[0] - start[0], v[1] - start[1], v[2] - start[2]];
-          const t = (toVert[0]*fiberDir[0] + toVert[1]*fiberDir[1] + toVert[2]*fiberDir[2]) / fiberLen;
-
-          affectedVerts.push({
-            idx: i,
-            weight,
-            cx: center[0], cy: center[1], cz: center[2],
-            // Store fiber info for contraction model
-            fiberDir: fiberDir,
-            fiberLen: fiberLen,
-            t: t,  // 0 = at start, 1 = at end
-            start: start,
-            end: end
-          });
+          affectedVerts.push({ idx: i, weight });
         }
       }
       muscleVertexMap[muscleIdx] = affectedVerts;
@@ -526,56 +471,21 @@ function applyMuscleForces(forces, muscleActivations) {
     const isDorsal = muscleIdx < 24 || (muscleIdx >= 48 && muscleIdx < 72);
     const bendDirection = isDorsal ? 1.0 : -1.0;  // +X for dorsal, -X for ventral
 
-    // Force magnitudes - increased fiber contraction for visible bending
-    // Bending should emerge from FEM when one side contracts (differential shortening)
-    const fiberForceMag = 0;   // Disabled: fiber contraction causes Poisson expansion without contributing to bending
-    const bendForceMag = activation * muscleStiffness * 2.0e-3;   // Lateral bending (~200 N) - sole driver of undulation
+    const bendForceMag = activation * muscleStiffness * 2.0e-3;
 
     for (const vert of affectedVerts) {
       const i = vert.idx;
       const normalizedWeight = vert.weight / totalWeight;
 
-      // Get fiber direction for this muscle segment
-      const fiberDir = vert.fiberDir;
-      if (!fiberDir) continue;
-
-      const t = vert.t;  // Position along fiber: 0=start, 1=end
-
-      // === COMPONENT 1: Fiber Contraction ===
-      // Pull vertices toward muscle center along fiber axis
-      const contractionSign = (t < 0.5) ? 1.0 : -1.0;
-      const distFromCenter = Math.abs(t - 0.5) * 2;
-      const fiberForce = fiberForceMag * normalizedWeight * (0.3 + distFromCenter * 0.7);
-
-      forces[i*3]   += fiberForce * fiberDir[0] * contractionSign;
-      forces[i*3+1] += fiberForce * fiberDir[1] * contractionSign;
-      forces[i*3+2] += fiberForce * fiberDir[2] * contractionSign;
-
-      // === COMPONENT 2: Lateral Bending Force ===
-      // This is the key force that creates undulation
-      // When muscle contracts, it pulls the body toward that side
-      // The perpendicular direction to fiber (in XY plane) creates bending
-
-      // Compute lateral direction perpendicular to fiber and body axis
-      // Body axis is approximately Z, so lateral (dorsal/ventral) is approximately X
-      const lateralX = 1.0;  // Primary lateral direction
-      const lateralY = 0.0;
-      const lateralZ = 0.0;
-
       // Force-length saturation: reduce force as vertex moves away from rest position
       // Mimics real muscle force-length relationship and prevents unbounded displacement
       const currentLateralDisp = Math.abs(positions[i*3] - restPositions[i*3]);
-      const maxAllowedDisp = 0.04;  // 100% body width — allows significant bending with safety cap
+      const maxAllowedDisp = 0.04;
       const saturationFactor = Math.max(0, 1.0 - currentLateralDisp / maxAllowedDisp);
 
+      // Lateral bending force in X direction
       const bendForce = bendForceMag * normalizedWeight * saturationFactor;
-      forces[i*3] += bendForce * lateralX * bendDirection;
-
-      // === COMPONENT 3: DISABLED - was causing elongation ===
-      // The axial force used current positions which created drift
-      // const axialForce = fiberForceMag * normalizedWeight * 0.2;
-      // const dz = positions[i*3+2] - vert.cz;
-      // forces[i*3+2] -= axialForce * Math.sign(dz);
+      forces[i*3] += bendForce * bendDirection;
     }
   }
 }
@@ -755,12 +665,8 @@ function polarDecomposition(F) {
     [F[2][0], F[2][1], F[2][2]]
   ];
 
-  // Iterate to extract rotation
+  // Iterate to extract rotation: R_new = 0.5 * (R + R^(-T))
   for (let iter = 0; iter < 10; iter++) {
-    const Rt = mat3Transpose(R);
-    const RtR = mat3Mult(Rt, R);
-
-    // R_new = 0.5 * (R + R^(-T))
     const det = mat3Det(R);
     if (Math.abs(det) < 1e-10) break;
 
@@ -931,30 +837,8 @@ function updateWormMesh() {
 // UI
 // ============================================================================
 function initUI() {
-  // Neuron grid
-  const neuronGrid = document.getElementById('neuron-grid');
-  for (let i = 0; i < NUM_MOTOR_NEURONS; i++) {
-    const el = document.createElement('div');
-    el.className = 'neuron';
-    el.id = `neuron-${i}`;
-    neuronGrid.appendChild(el);
-  }
-
-  // Muscle bars
-  const quadrants = ['dr', 'vr', 'dl', 'vl'];
-  for (const q of quadrants) {
-    const container = document.getElementById(`muscle-${q}`);
-    for (let i = 0; i < 24; i++) {
-      const bar = document.createElement('div');
-      bar.className = 'muscle-bar';
-      bar.innerHTML = `<div class="muscle-bar-fill" id="muscle-${q}-${i}"></div>`;
-      container.appendChild(bar);
-    }
-  }
-
   // Sliders
   setupSlider('speed', v => { playbackSpeed = v; return `${v.toFixed(1)}x`; });
-  setupSlider('frame', v => { currentFrame = Math.floor(v); return v; });
   setupSlider('youngs', v => {
     youngsModulus = Math.pow(10, v);
     updateLameParameters();
@@ -990,39 +874,66 @@ function setupSlider(name, handler) {
   });
 }
 
-function updateNeuronDisplay(frame) {
-  for (let i = 0; i < NUM_MOTOR_NEURONS; i++) {
-    const voltage = neuralTraces.motor_neuron_voltages[i]?.[frame] || -65;
-    const normalized = Math.max(0, Math.min(1, (voltage + 70) / 50));
-    const el = document.getElementById(`neuron-${i}`);
-    if (el) {
-      const hue = 200 - normalized * 80;
-      const light = 20 + normalized * 40;
-      el.style.background = `hsl(${hue}, 70%, ${light}%)`;
-    }
-  }
-}
-
-function updateMuscleDisplay(activations) {
-  const quadrants = ['dr', 'vr', 'dl', 'vl'];
-  for (let q = 0; q < 4; q++) {
-    for (let i = 0; i < 24; i++) {
-      const val = activations[q * 24 + i] || 0;
-      const el = document.getElementById(`muscle-${quadrants[q]}-${i}`);
-      if (el) {
-        el.style.width = `${Math.min(100, val * 125)}%`;
-        const hue = 200 - val * 150;
-        el.style.background = `hsl(${hue}, 70%, 50%)`;
-      }
-    }
-  }
-}
-
 function updateStats() {
   document.getElementById('sim-time').textContent = `${simTime.toFixed(3)} s`;
-  document.getElementById('sim-frame').textContent = `${currentFrame} / ${sampleMuscle.timesteps}`;
   document.getElementById('sim-fps').textContent = fps;
   document.getElementById('sim-substeps').textContent = SUBSTEPS;
+}
+
+// ============================================================================
+// Locomotion pattern generator - naturalistic traveling wave
+// ============================================================================
+
+// Perlin-like noise for organic variation
+const noiseCache = new Float32Array(256);
+for (let i = 0; i < 256; i++) noiseCache[i] = Math.random() * 2 - 1;
+
+function noise(x) {
+  const xi = Math.floor(x) & 255;
+  const xf = x - Math.floor(x);
+  const u = xf * xf * (3 - 2 * xf); // smoothstep
+  return noiseCache[xi] * (1 - u) + noiseCache[(xi + 1) & 255] * u;
+}
+
+function generateLocomotionPattern(time) {
+  const waveSpeed = 8.0;      // How fast the wave travels (rad/s)
+  const waveNumber = 1.2;     // Waves along the body
+  const baseAmplitude = 0.7;  // Base activation strength
+
+  for (let seg = 0; seg < 24; seg++) {
+    // Position along body (0 = head, 1 = tail)
+    const bodyPos = seg / 23;
+
+    // Traveling wave phase: wave moves from head to tail
+    const phase = bodyPos * Math.PI * 2 * waveNumber - time * waveSpeed;
+
+    // Base wave with organic variations
+    const baseWave = Math.sin(phase);
+
+    // Add slow-varying amplitude modulation (body doesn't bend uniformly)
+    const ampMod = 0.7 + 0.3 * Math.sin(bodyPos * Math.PI); // stronger in middle
+
+    // Add subtle noise for organic look (varies with position and time)
+    const noiseVal = noise(seg * 0.3 + time * 2) * 0.15;
+
+    // Compute activation with asymmetry (not perfectly symmetric push/pull)
+    const wave = baseWave * ampMod + noiseVal;
+
+    // Dorsal activates on positive wave, ventral on negative (antagonistic)
+    const dorsalAct = Math.max(0, wave) * baseAmplitude;
+    const ventralAct = Math.max(0, -wave) * baseAmplitude;
+
+    // Small baseline tone (muscles never fully off)
+    const baseline = 0.05;
+
+    // DR (0-23) and DL (48-71) - dorsal
+    currentMuscleActivations[seg] = Math.min(1, dorsalAct + baseline);
+    currentMuscleActivations[seg + 48] = Math.min(1, dorsalAct + baseline);
+
+    // VR (24-47) and VL (72-95) - ventral
+    currentMuscleActivations[seg + 24] = Math.min(1, ventralAct + baseline);
+    currentMuscleActivations[seg + 72] = Math.min(1, ventralAct + baseline);
+  }
 }
 
 // ============================================================================
@@ -1045,25 +956,8 @@ function animate(time) {
 
   // Advance simulation if playing
   if (isPlaying) {
-    // Advance neural data frame based on real time (target: 30 neural frames per second at 1x speed)
-    const neuralFrameRate = 30 * playbackSpeed; // frames per second
-    frameAccumulator += deltaTime * neuralFrameRate;
-
-    while (frameAccumulator >= 1) {
-      currentFrame = (currentFrame + 1) % sampleMuscle.timesteps;
-      frameAccumulator -= 1;
-    }
-
-    // CNN-based muscle activations from neural data
-    const neuronVoltages = new Float32Array(NUM_MOTOR_NEURONS);
-    for (let i = 0; i < NUM_MOTOR_NEURONS; i++) {
-      neuronVoltages[i] = neuralTraces.motor_neuron_voltages[i]?.[currentFrame] || -65;
-    }
-
-    const cnnResult = runCNNInference(neuronVoltages);
-    if (cnnResult) {
-      currentMuscleActivations.set(cnnResult);
-    }
+    // Generate muscle activations (traveling wave pattern)
+    generateLocomotionPattern(simTime);
 
     // Run physics substeps (fixed timestep, multiple per frame for stability)
     for (let i = 0; i < SUBSTEPS; i++) {
@@ -1075,15 +969,8 @@ function animate(time) {
 
     // Update mesh
     updateWormMesh();
-
-    // Update UI
-    document.getElementById('frame-slider').value = currentFrame;
-    document.getElementById('frame-val').textContent = currentFrame;
   }
 
-  // Update displays with ACTUAL muscle activations used for physics (not sample data)
-  updateNeuronDisplay(currentFrame);
-  updateMuscleDisplay(currentMuscleActivations);
   updateStats();
 
   // Render
@@ -1096,9 +983,6 @@ function animate(time) {
 // ============================================================================
 async function main() {
   try {
-    updateLoading('Checking WebGPU support...');
-    const hasWebGPU = await initWebGPU();
-
     await loadAllData();
 
     updateLoading('Initializing simulation...');
@@ -1109,6 +993,15 @@ async function main() {
 
     updateLoading('Initializing CNN model...');
     await initCNNModel();
+
+    // Prime neuron history so CNN produces output immediately
+    for (let f = 0; f < CNN_KERNEL_SIZE; f++) {
+      const voltages = new Float32Array(NUM_MOTOR_NEURONS);
+      for (let i = 0; i < NUM_MOTOR_NEURONS; i++) {
+        voltages[i] = neuralTraces.motor_neuron_voltages[i]?.[f] || -65;
+      }
+      neuronHistory.push(Array.from(voltages));
+    }
 
     // Hide loading, show app BEFORE initializing renderer
     // (so container has proper dimensions)
