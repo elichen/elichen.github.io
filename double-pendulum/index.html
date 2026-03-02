@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Double Pendulum Swingup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0c;
+            --surface: #111114;
+            --border: #1e1e24;
+            --text: #c8c5bd;
+            --text-dim: #6b6860;
+            --amber: #d4a039;
+            --amber-dim: rgba(212, 160, 57, 0.15);
+            --amber-glow: rgba(212, 160, 57, 0.06);
+            --red: #c75d48;
+            --green: #5a9a6a;
+            --cyan: #5b8a9a;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Newsreader', Georgia, serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .page {
+            max-width: 740px;
+            margin: 0 auto;
+            padding: 48px 24px 80px;
+        }
+
+        /* ── Header ── */
+        header {
+            margin-bottom: 40px;
+        }
+
+        .breadcrumb {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 300;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+            margin-bottom: 20px;
+        }
+
+        .breadcrumb a {
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .breadcrumb a:hover { color: var(--amber); }
+
+        h1 {
+            font-family: 'Newsreader', Georgia, serif;
+            font-weight: 400;
+            font-size: 32px;
+            letter-spacing: -0.01em;
+            color: #e8e5dd;
+            line-height: 1.2;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            font-style: italic;
+            color: var(--text-dim);
+            line-height: 1.5;
+        }
+
+        /* ── Simulation viewport ── */
+        .viewport {
+            position: relative;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 2px;
+        }
+
+        .viewport canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        .viewport-label {
+            position: absolute;
+            top: 10px;
+            left: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 300;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            pointer-events: none;
+        }
+
+        .phase-badge {
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.04em;
+            padding: 2px 8px;
+            border-radius: 2px;
+            pointer-events: none;
+            transition: all 0.4s ease;
+        }
+
+        .phase-badge.swingup {
+            color: var(--amber);
+            background: var(--amber-dim);
+        }
+
+        .phase-badge.balanced {
+            color: var(--green);
+            background: rgba(90, 154, 106, 0.15);
+        }
+
+        /* ── Telemetry strip ── */
+        .telemetry {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            overflow: hidden;
+        }
+
+        .tel-cell {
+            padding: 12px 14px;
+            border-right: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .tel-cell:last-child { border-right: none; }
+
+        .tel-label {
+            font-size: 9px;
+            font-weight: 300;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+
+        .tel-value {
+            font-size: 18px;
+            font-weight: 400;
+            color: #e8e5dd;
+            letter-spacing: -0.02em;
+        }
+
+        .tel-value .unit {
+            font-size: 11px;
+            font-weight: 300;
+            color: var(--text-dim);
+            margin-left: 2px;
+        }
+
+        /* ── Description ── */
+        .description {
+            margin-top: 36px;
+            font-size: 15.5px;
+            line-height: 1.7;
+            color: var(--text);
+        }
+
+        .description p + p { margin-top: 14px; }
+
+        .tag {
+            display: inline;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12.5px;
+            color: var(--amber);
+            background: var(--amber-dim);
+            padding: 1px 5px;
+            border-radius: 2px;
+        }
+
+        /* ── Specs table ── */
+        .specs {
+            margin-top: 28px;
+            border-top: 1px solid var(--border);
+            padding-top: 20px;
+        }
+
+        .specs h2 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 300;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 14px;
+        }
+
+        .specs-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+        }
+
+        .spec-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .spec-row:nth-last-child(-n+2) { border-bottom: none; }
+
+        .spec-key {
+            color: var(--text-dim);
+            font-weight: 300;
+        }
+
+        .spec-val {
+            color: var(--text);
+            font-weight: 400;
+            text-align: right;
+            padding-left: 12px;
+        }
+
+        /* ── Loading state ── */
+        .loading-msg {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text-dim);
+            letter-spacing: 0.06em;
+            background: var(--surface);
+            z-index: 2;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-msg.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 520px) {
+            .page { padding: 28px 16px 60px; }
+            h1 { font-size: 24px; }
+            .telemetry { grid-template-columns: repeat(2, 1fr); }
+            .tel-cell:nth-child(2) { border-right: none; }
+            .tel-cell:nth-child(1),
+            .tel-cell:nth-child(2) { border-bottom: 1px solid var(--border); }
+            .specs-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="breadcrumb"><a href="../index.html">elichen</a> / experiments</div>
+            <h1>Double Pendulum Swingup</h1>
+            <p class="subtitle">A neural network learns to swing up and balance two chaotic pendulums</p>
+        </header>
+
+        <div class="viewport">
+            <div class="loading-msg" id="loading">Loading policy weights&hellip;</div>
+            <span class="viewport-label">Simulation</span>
+            <span class="phase-badge swingup" id="phaseBadge">Swing-up</span>
+            <canvas id="canvas" width="740" height="420"></canvas>
+        </div>
+
+        <div class="telemetry">
+            <div class="tel-cell">
+                <div class="tel-label">Episode</div>
+                <div class="tel-value" id="telEp">0</div>
+            </div>
+            <div class="tel-cell">
+                <div class="tel-label">Return</div>
+                <div class="tel-value" id="telReturn">&mdash;<span class="unit">/ 1000</span></div>
+            </div>
+            <div class="tel-cell">
+                <div class="tel-label">Avg (20)</div>
+                <div class="tel-value" id="telAvg">&mdash;</div>
+            </div>
+            <div class="tel-cell">
+                <div class="tel-label">Score</div>
+                <div class="tel-value" id="telPct">&mdash;<span class="unit">%</span></div>
+            </div>
+        </div>
+
+        <div class="description">
+            <p>Both pendulums start hanging downward. The agent controls only the cart — pushing it left and right to pump energy into the system. Within about 1.5 seconds it swings both links to vertical and holds them there for the remaining 8.5 seconds of each episode.</p>
+            <p>Trained with <span class="tag">SAC</span> (Soft Actor-Critic) using curriculum learning: the agent first learned to swing up the outer pole while the inner pole was held near vertical, then gradually tackled both poles from hanging. 2M training steps on a single CPU.</p>
+        </div>
+
+        <div class="specs">
+            <h2>System parameters</h2>
+            <div class="specs-grid">
+                <div>
+                    <div class="spec-row"><span class="spec-key">Cart mass</span><span class="spec-val">1.0 kg</span></div>
+                    <div class="spec-row"><span class="spec-key">Rod masses</span><span class="spec-val">0.5 / 0.5 kg</span></div>
+                    <div class="spec-row"><span class="spec-key">Rod lengths</span><span class="spec-val">1.0 / 1.0 m</span></div>
+                    <div class="spec-row"><span class="spec-key">Max force</span><span class="spec-val">100 N</span></div>
+                </div>
+                <div>
+                    <div class="spec-row"><span class="spec-key">Policy</span><span class="spec-val">MLP 256&times;256</span></div>
+                    <div class="spec-row"><span class="spec-key">Activation</span><span class="spec-val">ReLU &rarr; tanh</span></div>
+                    <div class="spec-row"><span class="spec-key">Timestep</span><span class="spec-val">0.02 s (RK4)</span></div>
+                    <div class="spec-row"><span class="spec-key">Episode</span><span class="spec-val">500 steps</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="double-pendulum.js"></script>
+</body>
+</html>
