@@ -26,8 +26,8 @@ class DataLoader {
         this.text = text;
         this.seqLength = seqLength;
 
-        // Build vocabulary
-        this.chars = Array.from(new Set(text));
+        // Build vocabulary (sorted for deterministic ordering across runs)
+        this.chars = Array.from(new Set(text)).sort();
         this.char2idx = {};
         this.idx2char = {};
         this.chars.forEach((c, i) => {
@@ -60,11 +60,14 @@ class DataLoader {
 }
 
 // Multi-Head Self-Attention Layer
+// Uses addWeight() for proper save/load serialization.
+// Flattens [B,S,E] to [B*S,E] before matmul with 2D weights to avoid
+// TF.js BatchMatMul gradient shape mismatch bug.
 class MultiHeadSelfAttention extends tf.layers.Layer {
     static get className() {
         return 'MultiHeadSelfAttention';
     }
-    
+
     constructor(config) {
         super(config);
         this.numHeads = config.numHeads;
@@ -75,27 +78,24 @@ class MultiHeadSelfAttention extends tf.layers.Layer {
         }
 
         this.projectionDim = this.embedDim / this.numHeads;
-
-        // Initialize with Xavier/Glorot initialization
-        const initConfig = {
-            kernelInitializer: 'glorotUniform',
-            biasInitializer: 'zeros'
-        };
-        
-        this.queryDense = tf.layers.dense({ units: this.embedDim, ...initConfig });
-        this.keyDense = tf.layers.dense({ units: this.embedDim, ...initConfig });
-        this.valueDense = tf.layers.dense({ units: this.embedDim, ...initConfig });
-        this.combineHeadsDense = tf.layers.dense({ units: this.embedDim, ...initConfig });
     }
 
     build(inputShape) {
+        const d = inputShape[0][inputShape[0].length - 1]; // embedDim from input
+
+        // Q, K, V projections
+        this.queryKernel = this.addWeight('queryKernel', [d, this.embedDim], 'float32', tf.initializers.glorotUniform());
+        this.queryBias = this.addWeight('queryBias', [this.embedDim], 'float32', tf.initializers.zeros());
+        this.keyKernel = this.addWeight('keyKernel', [d, this.embedDim], 'float32', tf.initializers.glorotUniform());
+        this.keyBias = this.addWeight('keyBias', [this.embedDim], 'float32', tf.initializers.zeros());
+        this.valueKernel = this.addWeight('valueKernel', [d, this.embedDim], 'float32', tf.initializers.glorotUniform());
+        this.valueBias = this.addWeight('valueBias', [this.embedDim], 'float32', tf.initializers.zeros());
+
+        // Output projection
+        this.combineKernel = this.addWeight('combineKernel', [this.embedDim, this.embedDim], 'float32', tf.initializers.glorotUniform());
+        this.combineBias = this.addWeight('combineBias', [this.embedDim], 'float32', tf.initializers.zeros());
+
         super.build(inputShape);
-        const embeddingShape = inputShape[0];
-        
-        this.queryDense.build(embeddingShape);
-        this.keyDense.build(embeddingShape);
-        this.valueDense.build(embeddingShape);
-        this.combineHeadsDense.build(embeddingShape);
     }
 
     call(inputs, kwargs) {
@@ -104,43 +104,40 @@ class MultiHeadSelfAttention extends tf.layers.Layer {
         const batchSize = x.shape[0];
         const seqLength = x.shape[1];
 
-        let query = this.queryDense.apply(x);
-        let key = this.keyDense.apply(x);
-        let value = this.valueDense.apply(x);
+        // Flatten [B,S,E] -> [B*S,E] for matmul with 2D weights
+        const xFlat = tf.reshape(x, [-1, this.embedDim]);
 
-        query = this.splitHeads(query, batchSize);
-        key = this.splitHeads(key, batchSize);
-        value = this.splitHeads(value, batchSize);
+        // Linear projections: (B*S,E) @ (E,E) + (E,) -> reshape to (B,S,E)
+        let query = tf.reshape(tf.add(tf.matMul(xFlat, this.queryKernel.read()), this.queryBias.read()), [batchSize, seqLength, this.embedDim]);
+        let key = tf.reshape(tf.add(tf.matMul(xFlat, this.keyKernel.read()), this.keyBias.read()), [batchSize, seqLength, this.embedDim]);
+        let value = tf.reshape(tf.add(tf.matMul(xFlat, this.valueKernel.read()), this.valueBias.read()), [batchSize, seqLength, this.embedDim]);
 
-        const scaledAttention = this.scaledDotProductAttention(query, key, value, mask);
-        const concatenatedHeads = tf.reshape(scaledAttention, [batchSize, seqLength, this.embedDim]);
-        const output = this.combineHeadsDense.apply(concatenatedHeads);
+        // Split into heads: [B, S, E] -> [B, S, H, D] -> [B, H, S, D]
+        query = tf.transpose(tf.reshape(query, [batchSize, seqLength, this.numHeads, this.projectionDim]), [0, 2, 1, 3]);
+        key = tf.transpose(tf.reshape(key, [batchSize, seqLength, this.numHeads, this.projectionDim]), [0, 2, 1, 3]);
+        value = tf.transpose(tf.reshape(value, [batchSize, seqLength, this.numHeads, this.projectionDim]), [0, 2, 1, 3]);
 
-        return output;
-    }
-
-    splitHeads(x, batchSize) {
-        const seqLength = x.shape[1];
-        const xReshaped = tf.reshape(x, [batchSize, seqLength, this.numHeads, this.projectionDim]);
-        return tf.transpose(xReshaped, [0, 2, 1, 3]);
-    }
-
-    scaledDotProductAttention(query, key, value, mask) {
+        // Scaled dot-product attention
         const matmulQK = tf.matMul(query, key, false, true);
         const scaledMatmulQK = tf.mul(matmulQK, 1 / Math.sqrt(this.projectionDim));
-        
-        // Reshape mask to match the shape of scaledMatmulQK
-        const reshapedMask = tf.reshape(mask, [mask.shape[0], 1, mask.shape[2], mask.shape[3]]);
-        
-        // Apply mask: add large negative value to positions where mask is 0
-        const maskedScaledMatmulQK = tf.where(
-            tf.equal(reshapedMask, 0),
+
+        // Apply causal mask (mask shape: [B, 1, S, S], broadcasts over heads)
+        const maskedScores = tf.where(
+            tf.equal(mask, 0),
             tf.mul(tf.onesLike(scaledMatmulQK), -1e10),
             scaledMatmulQK
         );
-        
-        const attentionWeights = tf.softmax(maskedScaledMatmulQK, -1);
-        return tf.matMul(attentionWeights, value);
+
+        const attentionWeights = tf.softmax(maskedScores, -1);
+        const attnOutput = tf.matMul(attentionWeights, value); // [B, H, S, D]
+
+        // Merge heads: [B, H, S, D] -> [B, S, H, D] -> [B, S, E]
+        const transposed = tf.transpose(attnOutput, [0, 2, 1, 3]);
+        const concatenated = tf.reshape(transposed, [batchSize, seqLength, this.embedDim]);
+
+        // Output projection: flatten to 2D, matmul, reshape back
+        const concatFlat = tf.reshape(concatenated, [-1, this.embedDim]);
+        return tf.reshape(tf.add(tf.matMul(concatFlat, this.combineKernel.read()), this.combineBias.read()), [batchSize, seqLength, this.embedDim]);
     }
 
     computeOutputShape(inputShape) {
@@ -154,10 +151,6 @@ class MultiHeadSelfAttention extends tf.layers.Layer {
             embedDim: this.embedDim
         });
         return config;
-    }
-
-    static get className() {
-        return 'MultiHeadSelfAttention';
     }
 }
 

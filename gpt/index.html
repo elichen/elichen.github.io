@@ -9,72 +9,41 @@
 <body>
     <div id="app">
         <h1>minGPT TensorFlow.js</h1>
-        <div id="status">Status: Loading pre-trained model...</div>
-        <progress id="trainingProgress" value="0" max="100"></progress>
-        <button id="trainButton" disabled>Train 100 More Epochs</button>
-        <button id="generateButton" disabled>Generate Text</button>
-        <div id="modelInfo"></div>
-        <div id="output"></div>
+        <p class="subtitle">A character-level GPT trained on Shakespeare, running entirely in your browser.</p>
+
+        <div id="status">Loading model...</div>
+
+        <div class="controls">
+            <label for="promptInput">Prompt</label>
+            <input type="text" id="promptInput" value="KING RICHARD:" placeholder="Enter a prompt...">
+
+            <label for="temperature">Temperature: <span id="tempValue">0.8</span></label>
+            <input type="range" id="temperature" min="0.2" max="1.5" step="0.1" value="0.8">
+
+            <button id="generateButton" disabled>Generate</button>
+        </div>
+
+        <pre id="output"></pre>
+
         <div id="explanation">
-            <h2>Technical Details</h2>
-            <p>This is a character-level GPT (Generative Pre-trained Transformer) implementation in TensorFlow.js, trained on Shakespeare's works.</p>
-            
-            <h3>Model Architecture</h3>
+            <h2>About</h2>
+            <p>This is Karpathy's <a href="https://github.com/karpathy/minGPT">minGPT</a> (gpt-micro) reimplemented in TensorFlow.js and pre-trained on ~1M characters of Shakespeare. The model was trained offline in Node.js and the weights are loaded for inference here.</p>
+
+            <h3>Architecture</h3>
             <ul>
-                <li><strong>Type:</strong> Decoder-only Transformer (like GPT)</li>
-                <li><strong>Parameters:</strong> ~421K (optimized for fast browser inference)</li>
-                <li><strong>Embedding dimension:</strong> 128</li>
-                <li><strong>Attention heads:</strong> 4</li>
-                <li><strong>Transformer layers:</strong> 3</li>
-                <li><strong>Sequence length:</strong> 64 characters</li>
-                <li><strong>Vocabulary size:</strong> 63 (unique characters in Shakespeare)</li>
+                <li>4 transformer layers, 4 attention heads, 128-dim embeddings (~826K params)</li>
+                <li>128-character context window, 65-character vocabulary</li>
+                <li>Pre-norm decoder-only transformer with causal masking</li>
             </ul>
 
-            <h3>Key Components</h3>
+            <h3>Generation</h3>
             <ul>
-                <li><strong>Character Embeddings:</strong> Converts characters to 128-dimensional vectors</li>
-                <li><strong>Positional Embeddings:</strong> Learned position encodings for sequence order</li>
-                <li><strong>Multi-Head Self-Attention:</strong> Custom implementation with causal masking to prevent looking ahead</li>
-                <li><strong>Feed-Forward Network:</strong> 2-layer MLP with 4x expansion and ReLU activation</li>
-                <li><strong>Layer Normalization:</strong> Applied before each sub-layer (pre-norm architecture)</li>
-                <li><strong>Residual Connections:</strong> Around both attention and FFN blocks</li>
-                <li><strong>Dropout:</strong> 10% dropout rate for regularization</li>
+                <li>Top-k sampling (k=10) with adjustable temperature</li>
+                <li>Lower temperature = more predictable, higher = more creative</li>
             </ul>
-
-            <h3>Training Details</h3>
-            <ul>
-                <li><strong>Optimizer:</strong> Adam with adaptive learning rate and transformer-specific betas</li>
-                <li><strong>Loss:</strong> Cross-entropy loss on next-character prediction</li>
-                <li><strong>Batch size:</strong> 16-32 sequences</li>
-                <li><strong>Training data:</strong> ~1M characters of Shakespeare text</li>
-                <li><strong>Pre-trained epochs:</strong> 150+ with progressive curriculum learning</li>
-                <li><strong>Best achieved loss:</strong> ~1.35 (significant improvement from initial 3.4+)</li>
-                <li><strong>Incremental training:</strong> 100 epochs per button click</li>
-            </ul>
-
-            <h3>Implementation Notes</h3>
-            <p>This implementation demonstrates several key concepts:</p>
-            <ul>
-                <li>Custom TensorFlow.js layers for multi-head attention (since TF.js lacks built-in transformer layers)</li>
-                <li>Causal masking to ensure autoregressive generation</li>
-                <li>Efficient tensor operations using tf.tidy() for memory management</li>
-                <li>Browser-based GPU acceleration via WebGL backend</li>
-            </ul>
-
-            <h3>Current Performance</h3>
-            <p>The improved model has achieved:</p>
-            <ul>
-                <li>Training loss: ~1.35 (down from initial ~3.4)</li>
-                <li>Text quality: Generates recognizable words and basic grammatical structure</li>
-                <li>Vocabulary usage: Shows proper word boundaries and common English patterns</li>
-                <li>Sample outputs demonstrate emerging coherence with words like "the", "to", "be", "in", "what"</li>
-                <li>Model continues to improve with each training session</li>
-            </ul>
-
-            <p><em>Note: This is a minimal educational implementation. Production models like GPT-3 have billions of parameters and train on much larger datasets.</em></p>
         </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"> </script>
-    <script src="script.js?v=12"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="script.js?v=13"></script>
 </body>
 </html>
