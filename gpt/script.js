@@ -117,34 +117,36 @@ class GPT {
                 currentSequence = currentSequence.slice(-this.seqLength);
             }
 
-            const input = tf.tensor([currentSequence], [1, currentSequence.length], 'int32');
-            const positionIndices = tf.tensor2d(
-                [Array.from({ length: currentSequence.length }, (_, i) => i)],
-                [1, currentSequence.length], 'int32'
-            );
-            const attentionMask = this.createCausalMask(1, currentSequence.length);
-
-            const logits = this.model.predict([input, positionIndices, attentionMask], { training: false });
-            let logitsLast = logits.slice([0, currentSequence.length - 1, 0], [1, 1, this.vocabSize]).squeeze([0, 1]);
-
-            let scaledLogits = tf.div(logitsLast, temperature);
-
-            if (topK !== null) {
-                const { values: topValues } = tf.topk(scaledLogits, topK);
-                const minTopK = topValues.min();
-                scaledLogits = tf.where(
-                    tf.less(scaledLogits, minTopK),
-                    tf.mul(tf.onesLike(scaledLogits), -1e10),
-                    scaledLogits
+            const sampled = tf.tidy(() => {
+                const input = tf.tensor([currentSequence], [1, currentSequence.length], 'int32');
+                const positionIndices = tf.tensor2d(
+                    [Array.from({ length: currentSequence.length }, (_, i) => i)],
+                    [1, currentSequence.length], 'int32'
                 );
-                topValues.dispose();
-                minTopK.dispose();
-            }
+                const attentionMask = this.createCausalMask(1, currentSequence.length);
 
-            const sampled = tf.multinomial(scaledLogits.expandDims(0), 1);
+                const logits = this.model.predict([input, positionIndices, attentionMask], { training: false });
+                const logitsLast = logits.slice([0, currentSequence.length - 1, 0], [1, 1, this.vocabSize]).squeeze([0, 1]);
+
+                let scaledLogits = tf.div(logitsLast, temperature);
+
+                if (topK !== null) {
+                    const { values: topValues } = tf.topk(scaledLogits, topK);
+                    const minTopK = topValues.min();
+                    scaledLogits = tf.where(
+                        tf.less(scaledLogits, minTopK),
+                        tf.mul(tf.onesLike(scaledLogits), -1e10),
+                        scaledLogits
+                    );
+                }
+
+                return tf.multinomial(scaledLogits.expandDims(0), 1);
+            });
+
             const predictedIdx = (await sampled.array())[0][0];
-            const predictedChar = this.vocabulary.idx2char[predictedIdx];
+            sampled.dispose();
 
+            const predictedChar = this.vocabulary.idx2char[predictedIdx];
             result.push(predictedChar);
             currentSequence.push(predictedIdx);
 
@@ -152,10 +154,6 @@ class GPT {
 
             if (i === 0) console.log(`First token: "${predictedChar}" (${(performance.now() - t0).toFixed(0)}ms)`);
             if ((i + 1) % 50 === 0) console.log(`Token ${i + 1}/${length} (${(performance.now() - t0).toFixed(0)}ms)`);
-
-            input.dispose(); positionIndices.dispose(); attentionMask.dispose();
-            logits.dispose(); logitsLast.dispose(); scaledLogits.dispose();
-            sampled.dispose();
 
             await tf.nextFrame();
         }
