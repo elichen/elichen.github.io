@@ -169,11 +169,16 @@ let gptModel = null;
 document.addEventListener('DOMContentLoaded', async () => {
     const generateButton = document.getElementById('generateButton');
     const promptInput = document.getElementById('promptInput');
+    const tokensSlider = document.getElementById('numTokens');
+    const tokensValue = document.getElementById('tokensValue');
     const tempSlider = document.getElementById('temperature');
     const tempValue = document.getElementById('tempValue');
     const status = document.getElementById('status');
     const output = document.getElementById('output');
 
+    tokensSlider.addEventListener('input', () => {
+        tokensValue.textContent = tokensSlider.value;
+    });
     tempSlider.addEventListener('input', () => {
         tempValue.textContent = tempSlider.value;
     });
@@ -211,8 +216,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             const prompt = promptInput.value || 'The ';
+            const numTokens = parseInt(tokensSlider.value);
             const temperature = parseFloat(tempSlider.value);
-            await gptModel.generateText(prompt, 300, temperature, 10, (text) => {
+            await gptModel.generateText(prompt, numTokens, temperature, 10, (text) => {
                 output.textContent = text;
             });
             status.textContent = 'Done.';
