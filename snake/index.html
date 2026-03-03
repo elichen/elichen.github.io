@@ -16,7 +16,7 @@
             <div id="loadingOverlay" class="loading-overlay">
                 <div class="loading-spinner"></div>
                 <div class="loading-text">Loading AI model...</div>
-                <div class="loading-subtext">This may take a few seconds (55 MB)</div>
+                <div class="loading-subtext">This may take a few seconds (54 MB)</div>
             </div>
         </div>
 
@@ -38,17 +38,17 @@
         <p id="modelStatus"></p>
 
         <div class="description">
-            <p>This agent uses <strong>egocentric observation</strong>: the grid is rotated so the snake always "faces up", reducing complexity. Combined with <strong>symmetric augmentation</strong> (horizontal flips during training), this achieves strong performance on 20x20 Snake.</p>
+            <p>This agent uses <strong>egocentric observation</strong>: the grid is rotated so the snake always "faces up", reducing complexity. Combined with <strong>symmetric augmentation</strong>, <strong>curriculum spawning</strong>, and extended credit assignment (gamma=0.999, horizon=256), this achieves strong performance on 20x20 Snake.</p>
         </div>
 
         <div class="metrics">
             <div class="metric-card">
                 <div class="label">Training Steps</div>
-                <div class="value">~50M</div>
+                <div class="value">~270M</div>
             </div>
             <div class="metric-card">
                 <div class="label">Best Score</div>
-                <div class="value">254/397</div>
+                <div class="value">313/397</div>
             </div>
             <div class="metric-card">
                 <div class="label">Observation</div>
