@@ -31,7 +31,7 @@ let INCEPTION_LAYERS = {
     },
     'Mixed_6e': {
         name: `${INCEPTION_PREFIX}Mixed_6e/concat`,
-        channels: 1280,
+        channels: 768,
         description: 'Late layer - complex object representations'
     }
 };
@@ -295,27 +295,6 @@ function gaussianBlur(image) {
 
 // ========== Transformation Robustness ==========
 
-function applyRandomTransform(image, strength = 0.5) {
-    // Simplified transform - just jitter for now to avoid disposal issues
-    const maxJitter = Math.floor(8 * strength);
-    const jitterY = Math.floor(Math.random() * (maxJitter * 2 + 1)) - maxJitter;
-    const jitterX = Math.floor(Math.random() * (maxJitter * 2 + 1)) - maxJitter;
-
-    const transformed = rollImage(image, jitterY, jitterX);
-
-    return {
-        transformed,
-        params: { jitterY, jitterX }
-    };
-}
-
-function reverseTransform(gradient, params) {
-    return tf.tidy(() => {
-        // Reverse jitter
-        return rollImage(gradient, -params.jitterY, -params.jitterX);
-    });
-}
-
 function rollImage(image, shiftY, shiftX) {
     // For zero shift, just return a clone
     if (shiftY === 0 && shiftX === 0) {
@@ -358,19 +337,6 @@ function rollImage(image, shiftY, shiftX) {
         }
 
         return result;
-    });
-}
-
-function rotateImage(image, angleDegrees) {
-    return tf.tidy(() => {
-        // Simple rotation using affine transform
-        // For small angles, we can approximate
-        const radians = angleDegrees * Math.PI / 180;
-        const cos = Math.cos(radians);
-        const sin = Math.sin(radians);
-
-        // This is a simplified rotation - for production, use tf.image.transform
-        return image; // Placeholder - implement proper rotation if needed
     });
 }
 
@@ -433,7 +399,9 @@ function scaleImage(image, scale) {
     if (result.shape[0] !== height || result.shape[1] !== width || result.shape[2] !== channels) {
         console.warn(`scaleImage: correcting shape from [${result.shape}] to [${height},${width},${channels}]`);
         const b = result.expandDims(0);
-        const corrected = tf.image.resizeBilinear(b, [height, width]).squeeze();
+        const resized = tf.image.resizeBilinear(b, [height, width]);
+        const corrected = resized.squeeze();
+        resized.dispose();
         b.dispose();
         result.dispose();
         return corrected;
@@ -470,31 +438,6 @@ function totalVariation(image) {
 function l2Penalty(image) {
     return tf.tidy(() => {
         return tf.mean(tf.square(image));
-    });
-}
-
-function frequencyPenalty(image, alpha = 1.5) {
-    return tf.tidy(() => {
-        // Approximate frequency penalty using gradient magnitude
-        // High frequencies correspond to rapid changes (high gradients)
-        const [height, width, channels] = image.shape;
-
-        // Compute gradients (approximates high-frequency content)
-        // We need to compute on the overlapping region only
-        const dx = image.slice([0, 1, 0], [height - 1, width - 1, channels])
-            .sub(image.slice([0, 0, 0], [height - 1, width - 1, channels]));
-        const dy = image.slice([1, 0, 0], [height - 1, width - 1, channels])
-            .sub(image.slice([0, 0, 0], [height - 1, width - 1, channels]));
-
-        // Now both dx and dy have shape [height-1, width-1, channels]
-        // Gradient magnitude
-        const gradMagnitude = tf.sqrt(dx.square().add(dy.square()));
-
-        // Apply higher penalty to larger gradients (high frequencies)
-        // This approximates the 1/f^alpha weighting
-        const penalty = tf.mean(tf.pow(gradMagnitude, alpha));
-
-        return penalty;
     });
 }
 
@@ -538,106 +481,110 @@ async function optimizeNeuron(layerKey, channelIndex, config) {
     const imageVar = tf.variable(image);
     image.dispose();
 
-    updateProgress(0, 'Starting optimization...');
+    let finalImage = null;
+    let resizedImage = null;
 
-    // Main optimization loop
-    for (let step = 0; step < totalSteps; step++) {
-        // Apply random jitter for robustness
-        const jitterAmount = Math.floor(8 * config.transformStrength);
-        const jitterY = Math.floor(Math.random() * (jitterAmount * 2 + 1)) - jitterAmount;
-        const jitterX = Math.floor(Math.random() * (jitterAmount * 2 + 1)) - jitterAmount;
+    try {
+        updateProgress(0, 'Starting optimization...');
 
-        // Compute gradient
-        const { value: loss, grads } = tf.variableGrads(() => {
-            return tf.tidy(() => {
-                // Apply jitter
-                const jittered = rollImage(imageVar, jitterY, jitterX);
+        // Main optimization loop
+        for (let step = 0; step < totalSteps; step++) {
+            // Apply random jitter for robustness
+            const jitterAmount = Math.floor(8 * config.transformStrength);
+            const jitterY = Math.floor(Math.random() * (jitterAmount * 2 + 1)) - jitterAmount;
+            const jitterX = Math.floor(Math.random() * (jitterAmount * 2 + 1)) - jitterAmount;
 
-                // Prepare for model (add batch dimension)
-                const batched = jittered.expandDims(0);
+            // Compute gradient
+            const { value: loss, grads } = tf.variableGrads(() => {
+                return tf.tidy(() => {
+                    // Apply jitter
+                    const jittered = rollImage(imageVar, jitterY, jitterX);
 
-                // Compute neuron activation (objective to maximize)
-                const activation = computeNeuronObjective(batched, layerInfo.name, channelIndex);
+                    // Prepare for model (add batch dimension)
+                    const batched = jittered.expandDims(0);
 
-                // Regularization
-                const l2 = l2Penalty(imageVar).mul(config.l2Weight);
-                const tv = totalVariation(imageVar).mul(config.tvWeight);
+                    // Compute neuron activation (objective to maximize)
+                    const activation = computeNeuronObjective(batched, layerInfo.name, channelIndex);
 
-                // Return negative because we want to maximize activation
-                // (variableGrads minimizes by default)
-                return activation.sub(l2).sub(tv).neg();
-            });
-        });
+                    // Regularization
+                    const l2 = l2Penalty(imageVar).mul(config.l2Weight);
+                    const tv = totalVariation(imageVar).mul(config.tvWeight);
 
-        // Get the gradient for our image variable
-        const grad = grads[imageVar.name];
-
-        if (grad) {
-            // Normalize gradient and apply update (gradient ASCENT)
-            const updateResult = tf.tidy(() => {
-                const gradStd = tf.moments(grad).variance.sqrt().add(1e-8);
-                const normalizedGrad = grad.div(gradStd);
-                // Subtract because we negated the loss above
-                const updated = imageVar.sub(normalizedGrad.mul(config.learningRate));
-                return tf.clipByValue(updated, -1, 1);
+                    // Return negative because we want to maximize activation
+                    // (variableGrads minimizes by default)
+                    return activation.sub(l2).sub(tv).neg();
+                });
             });
 
-            imageVar.assign(updateResult);
-            updateResult.dispose();
-            grad.dispose();
-        }
+            // Get the gradient for our image variable
+            const grad = grads[imageVar.name];
 
-        // Apply periodic blur to suppress high frequencies (every 4 steps)
-        if (step % 4 === 0 && step > 0) {
-            const blurred = gaussianBlur(imageVar);
-            imageVar.assign(blurred);
-            blurred.dispose();
-        }
+            if (grad) {
+                // Normalize gradient and apply update (gradient ASCENT)
+                const updateResult = tf.tidy(() => {
+                    const gradStd = tf.moments(grad).variance.sqrt().add(1e-8);
+                    const normalizedGrad = grad.div(gradStd);
+                    // Subtract because we negated the loss above
+                    const updated = imageVar.sub(normalizedGrad.mul(config.learningRate));
+                    return tf.clipByValue(updated, -1, 1);
+                });
 
-        finalLoss = (await loss.data())[0];
-        loss.dispose();
-
-        stepCount++;
-
-        // Update progress and show preview
-        if (step % 5 === 0 || step === totalSteps - 1) {
-            const progress = ((step + 1) / totalSteps) * 100;
-            updateProgress(progress, `Step ${stepCount}/${totalSteps} (activation: ${(-finalLoss).toFixed(3)})`);
-
-            if (config.showProgress && step % 10 === 0) {
-                await displayImage(imageVar);
+                imageVar.assign(updateResult);
+                updateResult.dispose();
+                grad.dispose();
             }
 
-            await tf.nextFrame();
+            // Apply periodic blur to suppress high frequencies (every 4 steps)
+            if (step % 4 === 0 && step > 0) {
+                const blurred = gaussianBlur(imageVar);
+                imageVar.assign(blurred);
+                blurred.dispose();
+            }
+
+            finalLoss = (await loss.data())[0];
+            loss.dispose();
+
+            stepCount++;
+
+            // Update progress and show preview
+            if (step % 5 === 0 || step === totalSteps - 1) {
+                const progress = ((step + 1) / totalSteps) * 100;
+                updateProgress(progress, `Step ${stepCount}/${totalSteps} (activation: ${(-finalLoss).toFixed(3)})`);
+
+                if (config.showProgress && step % 10 === 0) {
+                    await displayImage(imageVar);
+                }
+
+                await tf.nextFrame();
+            }
         }
+
+        // Final display
+        finalImage = imageVar.clone();
+
+        // Resize to 512x512 for display
+        const displaySize = 512;
+        resizedImage = tf.tidy(() => {
+            const batched = finalImage.expandDims(0);
+            const resized = tf.image.resizeBilinear(batched, [displaySize, displaySize]);
+            return resized.squeeze();
+        });
+
+        await displayImage(resizedImage);
+
+        const endTime = Date.now();
+        const elapsedTime = ((endTime - startTime) / 1000).toFixed(1);
+
+        // Update info panel (negate loss since we negated it for optimization)
+        updateVisualizationInfo(layerKey, channelIndex, -finalLoss, elapsedTime);
+
+        // Add to history
+        await addToHistory(layerKey, channelIndex, resizedImage);
+    } finally {
+        imageVar.dispose();
+        if (finalImage) finalImage.dispose();
+        if (resizedImage) resizedImage.dispose();
     }
-
-    // Final display
-    const finalImage = imageVar.clone();
-
-    // Resize to 512x512 for display
-    const displaySize = 512;
-    const resizedImage = tf.tidy(() => {
-        const batched = finalImage.expandDims(0);
-        const resized = tf.image.resizeBilinear(batched, [displaySize, displaySize]);
-        return resized.squeeze();
-    });
-
-    await displayImage(resizedImage);
-
-    const endTime = Date.now();
-    const elapsedTime = ((endTime - startTime) / 1000).toFixed(1);
-
-    // Update info panel (negate loss since we negated it for optimization)
-    updateVisualizationInfo(layerKey, channelIndex, -finalLoss, elapsedTime);
-
-    // Add to history
-    await addToHistory(layerKey, channelIndex, resizedImage);
-
-    // Cleanup
-    imageVar.dispose();
-    finalImage.dispose();
-    resizedImage.dispose();
 }
 
 // ========== Display Functions ==========
