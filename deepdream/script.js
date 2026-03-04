@@ -21,7 +21,6 @@ const progressSection = document.getElementById('progressSection');
 const progressFill = document.getElementById('progressFill');
 const progressText = document.getElementById('progressText');
 const resultsSection = document.getElementById('resultsSection');
-const originalCanvas = document.getElementById('originalCanvas');
 const outputCanvas = document.getElementById('outputCanvas');
 const downloadBtn = document.getElementById('downloadBtn');
 const resetBtn = document.getElementById('resetBtn');
@@ -313,7 +312,7 @@ async function deepDreamWithOctaves(inputTensor, stepsPerOctave, options = {}) {
 
         // Run gradient ascent for this octave
         updateProgress(
-            20 + (i / octaves.length) * 60,
+            20 + ((i + 1) / octaves.length) * 60,
             `Processing octave ${i + 1}/${octaves.length} (${newWidth}x${newHeight})`
         );
 
@@ -471,7 +470,7 @@ async function generateDream() {
         if (checkForNaNs(dreamedImage, 'dreamedImage')) {
             throw new Error('Dream result contains invalid values.');
         }
-        displayResults(inputImage, dreamedImage);
+        await displayResults(dreamedImage);
 
         dreamedImage.dispose();
 
@@ -493,13 +492,13 @@ async function generateDream() {
 }
 
 // Display Results
-function displayResults(original, dreamed) {
+async function displayResults(dreamed) {
     // Dreamed image is in [0, 1] range
     outputCanvas.width = dreamed.shape[1];
     outputCanvas.height = dreamed.shape[0];
 
     // tf.browser.toPixels expects [0, 1] and handles conversion to [0, 255]
-    tf.browser.toPixels(dreamed, outputCanvas);
+    await tf.browser.toPixels(dreamed, outputCanvas);
 }
 
 // Update Progress
