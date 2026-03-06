@@ -5,6 +5,19 @@ let stream = null;
 
 // DOM Elements
 const DEFAULT_IMAGE_PATH = 'doggy.png';
+const QUERY_PARAMS = new URLSearchParams(window.location.search);
+const FULL_PROFILE = {
+    maxImageSize: 512,
+    octaves: [-2, -1, 0, 1, 2],
+    defaultSteps: 100,
+    sliderMax: 150
+};
+const FAST_PROFILE = {
+    maxImageSize: 320,
+    octaves: [-1, 0, 1],
+    defaultSteps: 20,
+    sliderMax: 60
+};
 const cameraBtn = document.getElementById('cameraBtn');
 const uploadBtn = document.getElementById('uploadBtn');
 const fileInput = document.getElementById('fileInput');
@@ -28,16 +41,17 @@ const layerSelect = document.getElementById('layerSelect');
 
 // Deep Dream configuration
 const INCEPTION_PREFIX = 'module_apply_default/InceptionV3/InceptionV3/';
+const RELU_SUFFIX = '/Branch_0/Conv2d_0a_1x1/Relu';
 const LAYER_PRESETS = {
     multi: [
         { name: `${INCEPTION_PREFIX}Mixed_6a/concat`, weight: 1.0 },
-        { name: `${INCEPTION_PREFIX}Mixed_6c/concat`, weight: 1.0 }
+        { name: `${INCEPTION_PREFIX}Mixed_6c${RELU_SUFFIX}`, weight: 1.0 }
     ],
     mixed3: [{ name: `${INCEPTION_PREFIX}Mixed_6a/concat`, weight: 1 }],
-    mixed4: [{ name: `${INCEPTION_PREFIX}Mixed_6b/concat`, weight: 1 }],
-    mixed5: [{ name: `${INCEPTION_PREFIX}Mixed_6c/concat`, weight: 1 }],
-    mixed6: [{ name: `${INCEPTION_PREFIX}Mixed_6d/concat`, weight: 1 }],
-    mixed7: [{ name: `${INCEPTION_PREFIX}Mixed_6e/concat`, weight: 1 }]
+    mixed4: [{ name: `${INCEPTION_PREFIX}Mixed_6b${RELU_SUFFIX}`, weight: 1 }],
+    mixed5: [{ name: `${INCEPTION_PREFIX}Mixed_6c${RELU_SUFFIX}`, weight: 1 }],
+    mixed6: [{ name: `${INCEPTION_PREFIX}Mixed_6d${RELU_SUFFIX}`, weight: 1 }],
+    mixed7: [{ name: `${INCEPTION_PREFIX}Mixed_6e${RELU_SUFFIX}`, weight: 1 }]
 };
 
 const DREAM_OPTIONS = {
@@ -49,8 +63,83 @@ const DREAM_OPTIONS = {
     smoothing: 0
 };
 
-let activeLayerKey = 'multi';
-let activeLayers = LAYER_PRESETS[activeLayerKey];
+let activeLayers = LAYER_PRESETS.multi;
+let runtimeProfile = { ...FULL_PROFILE };
+
+function webglTensorSelfTest() {
+    return tf.tidy(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'rgb(160, 165, 99)';
+        ctx.fillRect(0, 0, 1, 1);
+
+        const pixel = Array.from(tf.browser.fromPixels(canvas).dataSync());
+        return pixel.length === 3
+            && pixel[0] === 160
+            && pixel[1] === 165
+            && pixel[2] === 99;
+    });
+}
+
+async function ensureStableBackend() {
+    const requestedBackend = QUERY_PARAMS.get('backend');
+    const supportedBackends = new Set(['webgl', 'cpu']);
+    const backendCandidates = requestedBackend && supportedBackends.has(requestedBackend)
+        ? [requestedBackend]
+        : ['webgl', 'cpu'];
+
+    let backendReady = false;
+    for (const backendName of backendCandidates) {
+        try {
+            const switched = await tf.setBackend(backendName);
+            if (!switched) {
+                continue;
+            }
+            await tf.ready();
+            backendReady = true;
+            break;
+        } catch (error) {
+            console.warn(`Unable to initialize TensorFlow.js backend "${backendName}".`, error);
+        }
+    }
+
+    if (!backendReady) {
+        throw new Error(`Unable to initialize any TensorFlow.js backend (${backendCandidates.join(', ')}).`);
+    }
+
+    if (tf.getBackend() !== 'webgl') {
+        return;
+    }
+
+    if (!webglTensorSelfTest()) {
+        console.warn('TensorFlow.js WebGL tensor self-test failed; falling back to CPU backend.');
+        const switched = await tf.setBackend('cpu');
+        if (!switched) {
+            throw new Error('WebGL backend failed self-test and CPU fallback was unavailable.');
+        }
+        await tf.ready();
+    }
+}
+
+function configureRuntimeProfile() {
+    const requestedProfile = QUERY_PARAMS.get('profile');
+
+    if (requestedProfile === 'full') {
+        runtimeProfile = { ...FULL_PROFILE };
+    } else if (requestedProfile === 'fast') {
+        runtimeProfile = { ...FAST_PROFILE };
+    } else {
+        runtimeProfile = tf.getBackend() === 'cpu'
+            ? { ...FAST_PROFILE }
+            : { ...FULL_PROFILE };
+    }
+
+    iterationsSlider.max = String(runtimeProfile.sliderMax);
+    iterationsSlider.value = String(runtimeProfile.defaultSteps);
+    iterationsValue.textContent = iterationsSlider.value;
+}
 
 // Event Listeners
 cameraBtn.addEventListener('click', openCamera);
@@ -67,7 +156,6 @@ iterationsSlider.addEventListener('input', (e) => {
 if (layerSelect) {
     layerSelect.addEventListener('change', (e) => {
         const key = e.target.value;
-        activeLayerKey = key;
         activeLayers = LAYER_PRESETS[key] || LAYER_PRESETS.multi;
     });
 }
@@ -76,8 +164,9 @@ if (layerSelect) {
 async function init() {
     console.log('Initializing Deep Dream...');
     await tf.ready();
+    await ensureStableBackend();
+    configureRuntimeProfile();
     console.log('TensorFlow.js backend:', tf.getBackend());
-    iterationsValue.textContent = iterationsSlider.value;
     await loadDefaultImage();
 }
 
@@ -103,6 +192,11 @@ function closeCamera() {
 }
 
 function capturePhoto() {
+    if (!video.videoWidth || !video.videoHeight) {
+        alert('Camera is still warming up. Try again in a moment.');
+        return;
+    }
+
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -110,6 +204,10 @@ function capturePhoto() {
     ctx.drawImage(video, 0, 0);
 
     canvas.toBlob(blob => {
+        if (!blob) {
+            alert('Could not capture the current camera frame.');
+            return;
+        }
         displayImage(blob);
         closeCamera();
     });
@@ -128,8 +226,7 @@ function displayImage(source) {
     const img = new Image();
     let objectURL = null;
     img.onload = () => {
-        // Use a larger size for better quality (512x512)
-        const maxSize = 512;
+        const maxSize = runtimeProfile.maxImageSize;
         const ctx = inputCanvas.getContext('2d');
 
         // Calculate dimensions maintaining aspect ratio
@@ -144,6 +241,7 @@ function displayImage(source) {
 
         inputCanvas.width = width;
         inputCanvas.height = height;
+        ctx.clearRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
         imagePreview.classList.remove('hidden');
@@ -181,34 +279,32 @@ async function loadModel() {
     return inceptionModel;
 }
 
-// InceptionV3 preprocessing - image is already in [-1, 1]
+// TF Hub's InceptionV3 graph performs the DeepDream x * 2 - 1 preprocessing internally.
 function preprocessForInception(image) {
     return tf.tidy(() => {
         const rank = image.shape.length;
-        // Just add batch dimension if needed - image is already in [-1,1]
+        // Only add a batch dimension; keep the image in [0, 1].
         return rank === 4 ? image : tf.expandDims(image, 0);
     });
 }
 
 function computeLayerObjective(batchedImage, layers = activeLayers) {
     return tf.tidy(() => {
-        const scores = layers.map(({ name, weight }) =>
-            tf.tidy(() => {
-                const activation = inferLayer(batchedImage, name);
-                // Match TF tutorial: maximize mean activation per layer
-                const energy = tf.mean(activation);
-                return energy.mul(weight);
-            })
+        const outputs = inceptionModel.execute(
+            batchedImage,
+            layers.map(({ name }) => name)
         );
-        return tf.addN(scores);
-    });
-}
+        const activations = Array.isArray(outputs) ? outputs : [outputs];
+        const scores = activations.map((activation, index) => {
+            // Match the TensorFlow DeepDream tutorial: maximize mean layer activation.
+            return tf.mean(activation).mul(layers[index].weight);
+        });
 
-function inferLayer(batchedImage, layerName) {
-    // InceptionV3 is a GraphModel, so we need to execute it and get intermediate outputs
-    return tf.tidy(() => {
-        const result = inceptionModel.execute(batchedImage, layerName);
-        return result;
+        if (scores.length === 1) {
+            return scores[0];
+        }
+
+        return tf.addN(scores).div(tf.scalar(scores.length));
     });
 }
 
@@ -259,8 +355,6 @@ function rollImage(image, shiftY, shiftX) {
             const top = shifted.slice([height - yShift, 0, 0], [yShift, width, channels]);
             const bottom = shifted.slice([0, 0, 0], [height - yShift, width, channels]);
             shifted = tf.concat([top, bottom], 0);
-        } else {
-            shifted = tf.clone(shifted);
         }
 
         if (xShift !== 0) {
@@ -283,12 +377,11 @@ async function deepDreamWithOctaves(inputTensor, stepsPerOctave, options = {}) {
 
     // Octave parameters from TensorFlow tutorial
     const octaveScale = 1.3;
-    const octaves = [-2, -1, 0, 1, 2]; // 5 octaves total
+    const octaves = runtimeProfile.octaves;
 
-    // Preprocess to [-1, 1] range like the tutorial (do this ONCE)
+    // Convert pixels to float32 [0, 1]. The TF Hub graph handles x * 2 - 1 internally.
     const baseImage = tf.tidy(() => {
-        const normalized = tf.cast(inputTensor, 'float32').div(255);
-        return normalized.mul(2).sub(1); // [0,1] -> [-1,1]
+        return tf.cast(inputTensor, 'float32').div(255);
     });
     const [originalHeight, originalWidth] = [baseImage.shape[0], baseImage.shape[1]];
 
@@ -326,11 +419,7 @@ async function deepDreamWithOctaves(inputTensor, stepsPerOctave, options = {}) {
     const final = tf.tidy(() => {
         const expanded = img.expandDims(0);
         const resizedExpanded = tf.image.resizeBilinear(expanded, [originalHeight, originalWidth]);
-        const squeezed = resizedExpanded.squeeze();
-        // Convert back from [-1, 1] to [0, 1] for display
-        const converted = squeezed.add(1).div(2);
-        // Ensure values are in valid range
-        return tf.clipByValue(converted, 0, 1);
+        return tf.clipByValue(resizedExpanded.squeeze(), 0, 1);
     });
 
     img.dispose();
@@ -338,32 +427,6 @@ async function deepDreamWithOctaves(inputTensor, stepsPerOctave, options = {}) {
 
     updateProgress(85, 'Polishing details...');
     return final;
-}
-
-// Deep Dream Core Algorithm (single-scale)
-async function deepDream(inputTensor, iterations, options = {}) {
-    const config = {
-        ...DREAM_OPTIONS,
-        ...options
-    };
-    config.layers = config.layers || activeLayers;
-
-    const baseImage = tf.tidy(() => {
-        const normalized = tf.cast(inputTensor, 'float32').div(255);
-        return normalized.mul(2).sub(1); // [0,1] -> [-1,1]
-    });
-    const dreamed = await gradientAscent(baseImage, iterations, config);
-    baseImage.dispose();
-
-    // Convert back from [-1, 1] to [0, 1]
-    const result = tf.tidy(() => {
-        const converted = dreamed.add(1).div(2);
-        return tf.clipByValue(converted, 0, 1);
-    });
-    dreamed.dispose();
-
-    updateProgress(85, 'Polishing details...');
-    return result;
 }
 
 // Gradient Ascent
@@ -391,11 +454,13 @@ async function gradientAscent(baseImage, steps, config) {
         const shiftX = Math.floor(Math.random() * (config.jitter * 2 + 1)) - config.jitter;
         const shiftY = Math.floor(Math.random() * (config.jitter * 2 + 1)) - config.jitter;
 
-        const grads = tf.tidy(() => {
-            const rolled = rollImage(dreamVar, shiftY, shiftX);
-            const gradTensor = computeGrad(rolled);
-            return rollImage(gradTensor, -shiftY, -shiftX);
-        });
+        const grads = shiftX === 0 && shiftY === 0
+            ? computeGrad(dreamVar)
+            : tf.tidy(() => {
+                const rolled = rollImage(dreamVar, shiftY, shiftX);
+                const gradTensor = computeGrad(rolled);
+                return rollImage(gradTensor, -shiftY, -shiftX);
+            });
 
         const stepUpdate = tf.tidy(() => {
             // Normalize gradients using standard deviation (TensorFlow tutorial method)
@@ -406,7 +471,7 @@ async function gradientAscent(baseImage, steps, config) {
             return normalized;
         });
 
-        dreamVar.assign(tf.tidy(() => tf.clipByValue(dreamVar.add(stepUpdate), -1, 1)));
+        dreamVar.assign(tf.tidy(() => tf.clipByValue(dreamVar.add(stepUpdate), 0, 1)));
 
         if (config.smoothing > 0) {
             const smoothed = tf.tidy(() => {
@@ -519,6 +584,7 @@ function downloadResult() {
 function reset() {
     resultsSection.classList.add('hidden');
     imagePreview.classList.remove('hidden');
+    fileInput.value = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
