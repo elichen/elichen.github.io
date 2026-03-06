@@ -4,14 +4,15 @@ A browser-based implementation of neural network feature visualization, inspired
 
 ## Overview
 
-This tool visualizes what units in InceptionV3's late layers "see" by optimizing an input image to maximally activate either a center neuron or an entire channel. Unlike DeepDream which enhances all features, this focuses on targeted internal activations to show what patterns each unit responds to.
+This tool visualizes what units in InceptionV3 "see" by optimizing an input image to maximally activate either a center neuron, an entire channel, or a final ImageNet class output. Unlike DeepDream which enhances all features, this focuses on targeted internal activations to show what patterns each unit responds to.
 
 ## Features
 
 ### Core Visualization
-- **Switchable Objective Modes**: Choose between center-neuron and full-channel maximization
+- **Switchable Objective Modes**: Choose between center-neuron, full-channel, and final-class maximization
 - **Fourier Parameterization**: Optimize a learned Fourier basis instead of raw pixels
 - **Progressive Resolution**: Optimize at 128, 192, 256, and 299 px, then display at 512 px
+- **ImageNet Labels**: Class mode exposes the final classifier output with human-readable labels
 
 ### Regularization Techniques
 - **Transformation Robustness**: Constant padding, jitter crops, and random scaling
@@ -31,8 +32,9 @@ This tool visualizes what units in InceptionV3's late layers "see" by optimizing
 1. **Select Layer**: Choose which InceptionV3 layer to visualize
 2. **Choose Channel**: Select a specific channel index
 3. **Choose Objective**:
-   - **Center Neuron**: More localized and closer to classic Lucid neuron renders
-   - **Full Channel**: Faster and often cleaner in-browser
+    - **Center Neuron**: More localized and closer to classic Lucid neuron renders
+    - **Full Channel**: Faster and often cleaner in-browser
+    - **ImageNet Class**: Optimize directly against the final classifier output
 4. **Adjust Settings** (optional):
    - **Steps**: Number of optimization iterations (default: 128)
    - **Learning Rate**: Adam learning rate (default: 0.05)
@@ -53,7 +55,7 @@ Instead of optimizing pixels directly, the app learns Fourier coefficients:
 2. Optimize over progressive stages (128, 192, 256, 299):
    - Resize the rendered image to the current stage
    - Apply padded jitter and random scaling
-   - Maximize either the selected channel's center neuron or the full channel map
+   - Maximize either the selected channel's center neuron, the full channel map, or a final ImageNet class output
    - Apply L2 and total-variation penalties on the rendered image
 3. Render the final result at 512x512 for display and download
 
@@ -63,7 +65,7 @@ Instead of optimizing pixels directly, the app learns Fourier coefficients:
 - **WebGL Backend**: GPU acceleration in the browser
 - **No Build Process**: Pure JavaScript, runs directly in browser
 
-## Interesting Neurons to Try
+## Interesting Targets to Try
 
 ### Mixed_6e (Late Layer)
 - Channel 0-100: Often shows animal-like features
@@ -75,6 +77,11 @@ Instead of optimizing pixels directly, the app learns Fourier coefficients:
 - Channel 0-100: Basic textures and patterns
 - Channel 300-400: Repeating geometric structures
 - Channel 500-600: Curved and organic shapes
+
+### Final ImageNet Classes
+- Class 281: tabby, tabby cat
+- Class 388: giant panda, panda, panda bear, coon bear, Ailuropoda melanoleuca
+- Class 948: Granny Smith
 
 ## Tips for Best Results
 
@@ -90,9 +97,9 @@ Instead of optimizing pixels directly, the app learns Fourier coefficients:
 
 | Aspect | Lucid (This Tool) | DeepDream |
 |--------|------------------|-----------|
-| **Goal** | Understand targeted units/channels | Enhance all features |
+| **Goal** | Understand targeted units/channels/classes | Enhance all features |
 | **Initialization** | Fourier basis | Existing image |
-| **Optimization** | Maximize one neuron or one channel | Maximize all activations |
+| **Optimization** | Maximize one neuron, one channel, or one class | Maximize all activations |
 | **Result** | Clean, isolated patterns | Psychedelic, enhanced image |
 | **Use Case** | Scientific visualization | Artistic effect |
 

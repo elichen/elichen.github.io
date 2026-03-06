@@ -8,7 +8,12 @@ let visualizationHistory = [];
 const MODEL_INPUT_RESOLUTION = 299;
 const DISPLAY_RESOLUTION = 512;
 const DEFAULT_FOURIER_FREQUENCIES = 48;
+const IMAGENET_LABELS_URL = 'https://storage.googleapis.com/download.tensorflow.org/data/ImageNetLabels.txt';
+const IMAGENET_OUTPUT_LABEL = 'ImageNet Classification';
+const DEFAULT_IMAGENET_CLASS_COUNT = 1001;
 const fourierBasisCache = new Map();
+let imagenetLabels = [];
+let imagenetClassCount = DEFAULT_IMAGENET_CLASS_COUNT;
 
 // Layer configuration for InceptionV3
 const INCEPTION_PREFIX = 'module_apply_default/InceptionV3/InceptionV3/';
@@ -49,8 +54,12 @@ const elements = {
 
     // Controls
     layerSelect: document.getElementById('layerSelect'),
+    targetHeading: document.getElementById('targetHeading'),
     objectiveMode: document.getElementById('objectiveMode'),
     objectiveDescription: document.getElementById('objectiveDescription'),
+    targetDescription: document.getElementById('targetDescription'),
+    targetDetail: document.getElementById('targetDetail'),
+    targetDetailValue: document.getElementById('targetDetailValue'),
     channelIndex: document.getElementById('channelIndex'),
     channelSlider: document.getElementById('channelSlider'),
     channelMax: document.getElementById('channelMax'),
@@ -114,11 +123,15 @@ async function loadModel() {
             { fromTFHub: true }
         );
 
+        configureImageNetOutput();
+
         // Discover and populate all available layers
         discoverAllLayers();
+        await loadImageNetLabels();
 
         updateStatus('Model ready', 'ready');
         enableControls(true);
+        updateObjectiveModeUI();
 
         console.log('InceptionV3 model loaded successfully');
     } catch (error) {
@@ -238,6 +251,64 @@ function discoverAllLayers() {
     }
 
     console.log(`Discovered ${Object.keys(allLayers).length} layers in InceptionV3`);
+}
+
+function configureImageNetOutput() {
+    const outputShape = inceptionModel?.outputs?.[0]?.shape;
+    const outputUnits = Array.isArray(outputShape) ? outputShape[outputShape.length - 1] : null;
+
+    if (Number.isInteger(outputUnits) && outputUnits > 0) {
+        imagenetClassCount = outputUnits;
+    }
+}
+
+async function loadImageNetLabels() {
+    try {
+        const response = await fetch(IMAGENET_LABELS_URL);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const text = await response.text();
+        const labels = text
+            .split(/\r?\n/)
+            .map(label => label.trim())
+            .filter(Boolean);
+
+        imagenetLabels = labels.slice(0, imagenetClassCount);
+        console.log(`Loaded ${imagenetLabels.length} ImageNet labels`);
+    } catch (error) {
+        console.warn('Failed to load ImageNet labels:', error);
+        imagenetLabels = [];
+    }
+}
+
+function getImageNetLabel(classIndex) {
+    if (classIndex === 0) {
+        return imagenetLabels[0] || 'background';
+    }
+
+    return imagenetLabels[classIndex] || `ImageNet class ${classIndex}`;
+}
+
+function getVisualizationLayerLabel(objectiveMode, layerKey) {
+    return objectiveMode === 'class' ? IMAGENET_OUTPUT_LABEL : layerKey;
+}
+
+function formatTargetValue(objectiveMode, targetIndex) {
+    if (objectiveMode === 'class') {
+        return `${targetIndex} (${getImageNetLabel(targetIndex)})`;
+    }
+
+    return `${targetIndex}`;
+}
+
+function sanitizeForFilename(value) {
+    return value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40) || 'target';
 }
 
 // ========== Color Decorrelation ==========
@@ -591,7 +662,26 @@ function computeNeuronObjective(batchedImage, layerName, channelIndex) {
     });
 }
 
+function computeClassObjective(batchedImage, classIndex) {
+    return tf.tidy(() => {
+        const output = inceptionModel.execute(batchedImage);
+        const scores = Array.isArray(output) ? output[0] : output;
+        const flattenedScores = scores.reshape([scores.shape[0], -1]);
+        const classActivation = flattenedScores.slice([0, classIndex], [1, 1]);
+
+        return tf.mean(classActivation);
+    });
+}
+
 function getObjectiveMeta(mode) {
+    if (mode === 'class') {
+        return {
+            label: 'Class',
+            buttonText: 'Visualize Class',
+            description: 'Target the model output directly by maximizing a final ImageNet class activation'
+        };
+    }
+
     if (mode === 'channel') {
         return {
             label: 'Channel',
@@ -614,18 +704,27 @@ function updateObjectiveModeUI() {
     if (!isOptimizing) {
         elements.btnText.textContent = meta.buttonText;
     }
+
+    updateChannelRange();
 }
 
 // ========== Main Optimization Loop ==========
 
 async function optimizeVisualization(layerKey, channelIndex, config) {
     const startTime = Date.now();
-    const layerInfo = INCEPTION_LAYERS[layerKey];
+    const layerInfo = config.objectiveMode === 'class' ? null : INCEPTION_LAYERS[layerKey];
+    const resultLayerLabel = getVisualizationLayerLabel(config.objectiveMode, layerKey);
     const totalSteps = config.steps;
     const stages = buildOptimizationStages(totalSteps);
-    const objectiveFn = config.objectiveMode === 'channel'
-        ? computeChannelObjective
-        : computeNeuronObjective;
+    let objectiveFn;
+
+    if (config.objectiveMode === 'class') {
+        objectiveFn = batchedImage => computeClassObjective(batchedImage, channelIndex);
+    } else if (config.objectiveMode === 'channel') {
+        objectiveFn = batchedImage => computeChannelObjective(batchedImage, layerInfo.name, channelIndex);
+    } else {
+        objectiveFn = batchedImage => computeNeuronObjective(batchedImage, layerInfo.name, channelIndex);
+    }
 
     let completedSteps = 0;
     let finalObjective = 0;
@@ -645,7 +744,7 @@ async function optimizeVisualization(layerKey, channelIndex, config) {
                     const stagedImage = resizeImage(baseImage, stage.resolution);
                     const transformedImage = applyStandardTransforms(stagedImage, config.transformStrength);
                     const batchedImage = transformedImage.expandDims(0);
-                    const activation = objectiveFn(batchedImage, layerInfo.name, channelIndex);
+                    const activation = objectiveFn(batchedImage);
                     const l2 = l2Penalty(baseImage).mul(config.l2Weight);
                     const tv = totalVariation(baseImage).mul(config.tvWeight);
 
@@ -686,7 +785,7 @@ async function optimizeVisualization(layerKey, channelIndex, config) {
         const endTime = Date.now();
         const elapsedTime = ((endTime - startTime) / 1000).toFixed(1);
 
-        updateVisualizationInfo(config.objectiveMode, layerKey, channelIndex, finalObjective, elapsedTime);
+        updateVisualizationInfo(config.objectiveMode, resultLayerLabel, channelIndex, finalObjective, elapsedTime);
 
         await addToHistory(config.objectiveMode, layerKey, channelIndex, displayTensor);
     } finally {
@@ -735,7 +834,7 @@ function updateStatus(message, status) {
 function updateVisualizationInfo(objectiveMode, layerKey, channelIndex, loss, time) {
     elements.infoLayer.textContent = layerKey;
     elements.infoMode.textContent = getObjectiveMeta(objectiveMode).label;
-    elements.infoChannel.textContent = channelIndex;
+    elements.infoChannel.textContent = formatTargetValue(objectiveMode, channelIndex);
     elements.infoLoss.textContent = loss.toFixed(4);
     elements.infoTime.textContent = `${time}s`;
 
@@ -743,7 +842,7 @@ function updateVisualizationInfo(objectiveMode, layerKey, channelIndex, loss, ti
 }
 
 function enableControls(enabled) {
-    elements.layerSelect.disabled = !enabled;
+    elements.layerSelect.disabled = !enabled || elements.objectiveMode.value === 'class';
     elements.objectiveMode.disabled = !enabled;
     elements.channelIndex.disabled = !enabled;
     elements.channelSlider.disabled = !enabled;
@@ -774,8 +873,10 @@ async function addToHistory(objectiveMode, layerKey, channelIndex, imageTensor) 
     // Add to history
     visualizationHistory.unshift({
         mode: objectiveMode,
-        layer: layerKey,
+        layer: getVisualizationLayerLabel(objectiveMode, layerKey),
+        sourceLayer: layerKey,
         channel: channelIndex,
+        targetLabel: formatTargetValue(objectiveMode, channelIndex),
         image: thumbnailCanvas.toDataURL(),
         timestamp: Date.now()
     });
@@ -803,18 +904,23 @@ function updateGallery() {
         galleryItem.innerHTML = `
             <img src="${item.image}" alt="Feature visualization">
             <div class="gallery-info">
-                ${item.mode === 'channel' ? 'channel' : 'neuron'} • ${item.layer}:${item.channel}
+                ${item.mode} • ${item.layer}:${item.targetLabel || item.channel}
             </div>
         `;
 
         galleryItem.addEventListener('click', () => {
             // Load this configuration
-            elements.layerSelect.value = item.layer;
             elements.objectiveMode.value = item.mode || 'neuron';
             updateObjectiveModeUI();
+
+            if (item.mode !== 'class' && item.sourceLayer) {
+                elements.layerSelect.value = item.sourceLayer;
+            }
+
             updateChannelRange();
             elements.channelIndex.value = item.channel;
             elements.channelSlider.value = item.channel;
+            updateTargetDetail();
         });
 
         elements.galleryGrid.appendChild(galleryItem);
@@ -831,10 +937,12 @@ function setupEventListeners() {
     // Channel input sync
     elements.channelIndex.addEventListener('input', (e) => {
         elements.channelSlider.value = e.target.value;
+        updateTargetDetail();
     });
 
     elements.channelSlider.addEventListener('input', (e) => {
         elements.channelIndex.value = e.target.value;
+        updateTargetDetail();
     });
 
     // Visualize button
@@ -848,23 +956,51 @@ function setupEventListeners() {
 }
 
 function updateChannelRange() {
-    const layerKey = elements.layerSelect.value;
-    if (!layerKey) return; // Exit if no layer selected
+    const objectiveMode = elements.objectiveMode.value;
+    const isClassMode = objectiveMode === 'class';
+    const maxTarget = isClassMode
+        ? imagenetClassCount - 1
+        : (INCEPTION_LAYERS[elements.layerSelect.value]?.channels || 0) - 1;
 
-    const layerInfo = INCEPTION_LAYERS[layerKey];
-    if (!layerInfo) return; // Exit if layer info not found
+    elements.layerSelect.disabled = !inceptionModel || isClassMode;
+    elements.targetHeading.textContent = isClassMode ? 'ImageNet Class' : 'Feature Channel';
+    elements.targetDescription.textContent = isClassMode
+        ? 'Choose a final ImageNet class index to maximize at the model output'
+        : 'Choose a channel; the objective setting decides whether to target its center neuron or full activation map';
 
-    const maxChannel = layerInfo.channels - 1;
+    if (maxTarget < 0) {
+        elements.channelIndex.max = 0;
+        elements.channelSlider.max = 0;
+        elements.channelMax.textContent = '/ -';
+        updateTargetDetail();
+        return;
+    }
 
-    elements.channelIndex.max = maxChannel;
-    elements.channelSlider.max = maxChannel;
-    elements.channelMax.textContent = `/ ${layerInfo.channels}`;
+    elements.channelIndex.max = maxTarget;
+    elements.channelSlider.max = maxTarget;
+    elements.channelMax.textContent = isClassMode
+        ? `/ ${imagenetClassCount}`
+        : `/ ${maxTarget + 1}`;
 
     // Clamp current value
-    if (elements.channelIndex.value > maxChannel) {
+    if (Number.parseInt(elements.channelIndex.value, 10) > maxTarget) {
         elements.channelIndex.value = 0;
         elements.channelSlider.value = 0;
     }
+
+    updateTargetDetail();
+}
+
+function updateTargetDetail() {
+    if (elements.objectiveMode.value === 'class') {
+        const classIndex = Number.parseInt(elements.channelIndex.value, 10) || 0;
+        elements.targetDetailValue.textContent = getImageNetLabel(classIndex);
+        elements.targetDetail.hidden = false;
+        return;
+    }
+
+    elements.targetDetailValue.textContent = '';
+    elements.targetDetail.hidden = true;
 }
 
 async function startVisualization() {
@@ -908,7 +1044,12 @@ function downloadVisualization() {
     const layerKey = elements.layerSelect.value;
     const channelIndex = elements.channelIndex.value;
     const objectiveMode = elements.objectiveMode.value;
-    link.download = `lucid_${objectiveMode}_${layerKey}_channel${channelIndex}.png`;
+    if (objectiveMode === 'class') {
+        const classSlug = sanitizeForFilename(getImageNetLabel(Number.parseInt(channelIndex, 10) || 0));
+        link.download = `lucid_class_imagenet_${channelIndex}_${classSlug}.png`;
+    } else {
+        link.download = `lucid_${objectiveMode}_${layerKey}_channel${channelIndex}.png`;
+    }
     link.href = elements.canvas.toDataURL();
     link.click();
 }
@@ -924,6 +1065,10 @@ function shareSettings() {
         tvWeight: elements.tvWeight.value,
         transformStrength: elements.transformStrength.value
     };
+
+    if (settings.objectiveMode === 'class') {
+        settings.classLabel = getImageNetLabel(Number.parseInt(settings.channel, 10) || 0);
+    }
 
     const settingsText = JSON.stringify(settings, null, 2);
     navigator.clipboard.writeText(settingsText).then(() => {

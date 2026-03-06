@@ -12,7 +12,7 @@
     <div class="container">
         <header>
             <h1>Lucid Feature Visualization</h1>
-            <p class="subtitle">Explore neuron and channel features in InceptionV3's internal layers</p>
+            <p class="subtitle">Explore neuron, channel, and class features in InceptionV3</p>
         </header>
 
         <main>
@@ -35,7 +35,7 @@
                 </div>
 
                 <div class="control-group">
-                    <h3>Feature Channel</h3>
+                    <h3 id="targetHeading">Feature Channel</h3>
                     <div class="channel-controls">
                         <input type="number" id="channelIndex" class="channel-input"
                                min="0" max="0" value="0" disabled>
@@ -43,14 +43,19 @@
                     </div>
                     <input type="range" id="channelSlider" class="channel-slider"
                            min="0" max="0" value="0" disabled>
-                    <p class="control-description">Choose a channel; the objective setting decides whether to target its center neuron or full activation map</p>
+                    <p id="targetDescription" class="control-description">Choose a channel; the objective setting decides whether to target its center neuron or full activation map</p>
+                    <div id="targetDetail" class="target-detail" hidden>
+                        <span class="target-detail-label">Class Name</span>
+                        <span id="targetDetailValue" class="target-detail-value">-</span>
+                    </div>
                 </div>
 
                 <div class="control-group">
                     <h3>Objective</h3>
-                    <select id="objectiveMode" class="layer-select">
+                    <select id="objectiveMode" class="layer-select" disabled>
                         <option value="neuron" selected>Center Neuron</option>
                         <option value="channel">Full Channel</option>
+                        <option value="class">ImageNet Class</option>
                     </select>
                     <p id="objectiveDescription" class="control-description">Target the center neuron of the selected channel for Lucid-style localized features</p>
                 </div>
@@ -126,7 +131,7 @@
                         <dd id="infoLayer">-</dd>
                         <dt>Mode:</dt>
                         <dd id="infoMode">-</dd>
-                        <dt>Channel:</dt>
+                        <dt>Target:</dt>
                         <dd id="infoChannel">-</dd>
                         <dt>Final Objective:</dt>
                         <dd id="infoLoss">-</dd>

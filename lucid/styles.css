@@ -118,6 +118,32 @@ h1 {
     margin-top: 0.5rem;
 }
 
+.target-detail {
+    margin-top: 0.75rem;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+}
+
+.target-detail-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.target-detail-value {
+    display: block;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
 /* Layer Selection */
 .layer-select {
     width: 100%;
