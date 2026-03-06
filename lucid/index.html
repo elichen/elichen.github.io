@@ -12,7 +12,7 @@
     <div class="container">
         <header>
             <h1>Lucid Feature Visualization</h1>
-            <p class="subtitle">Explore what neurons see in InceptionV3's late layers</p>
+            <p class="subtitle">Explore neuron and channel features in InceptionV3's internal layers</p>
         </header>
 
         <main>
@@ -29,25 +29,30 @@
                 <div class="control-group">
                     <h3>Layer Selection</h3>
                     <select id="layerSelect" class="layer-select" disabled>
-                        <option value="Mixed_6a">Mixed_6a (768 channels)</option>
-                        <option value="Mixed_6b">Mixed_6b (768 channels)</option>
-                        <option value="Mixed_6c">Mixed_6c (768 channels)</option>
-                        <option value="Mixed_6d">Mixed_6d (768 channels)</option>
-                        <option value="Mixed_6e" selected>Mixed_6e (1280 channels)</option>
+                        <option value="" selected>Loading layers...</option>
                     </select>
-                    <p class="control-description">Late layers capture high-level features</p>
+                    <p class="control-description">Browse the internal InceptionV3 layers discovered from the loaded graph</p>
                 </div>
 
                 <div class="control-group">
-                    <h3>Neuron/Channel</h3>
+                    <h3>Feature Channel</h3>
                     <div class="channel-controls">
                         <input type="number" id="channelIndex" class="channel-input"
-                               min="0" max="1279" value="0" disabled>
-                        <span id="channelMax" class="channel-max">/ 1280</span>
+                               min="0" max="0" value="0" disabled>
+                        <span id="channelMax" class="channel-max">/ -</span>
                     </div>
                     <input type="range" id="channelSlider" class="channel-slider"
-                           min="0" max="1279" value="0" disabled>
-                    <p class="control-description">Select which neuron to visualize</p>
+                           min="0" max="0" value="0" disabled>
+                    <p class="control-description">Choose a channel; the objective setting decides whether to target its center neuron or full activation map</p>
+                </div>
+
+                <div class="control-group">
+                    <h3>Objective</h3>
+                    <select id="objectiveMode" class="layer-select">
+                        <option value="neuron" selected>Center Neuron</option>
+                        <option value="channel">Full Channel</option>
+                    </select>
+                    <p id="objectiveDescription" class="control-description">Target the center neuron of the selected channel for Lucid-style localized features</p>
                 </div>
 
                 <div class="control-group">
@@ -119,9 +124,11 @@
                     <dl class="info-list">
                         <dt>Layer:</dt>
                         <dd id="infoLayer">-</dd>
+                        <dt>Mode:</dt>
+                        <dd id="infoMode">-</dd>
                         <dt>Channel:</dt>
                         <dd id="infoChannel">-</dd>
-                        <dt>Final Loss:</dt>
+                        <dt>Final Objective:</dt>
                         <dd id="infoLoss">-</dd>
                         <dt>Optimization Time:</dt>
                         <dd id="infoTime">-</dd>

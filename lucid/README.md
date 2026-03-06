@@ -4,19 +4,18 @@ A browser-based implementation of neural network feature visualization, inspired
 
 ## Overview
 
-This tool visualizes what individual neurons in InceptionV3's late layers "see" by optimizing an input image to maximally activate specific neurons. Unlike DeepDream which enhances all features, this focuses on single neuron activations to understand what patterns each neuron responds to.
+This tool visualizes what units in InceptionV3's late layers "see" by optimizing an input image to maximally activate either a center neuron or an entire channel. Unlike DeepDream which enhances all features, this focuses on targeted internal activations to show what patterns each unit responds to.
 
 ## Features
 
 ### Core Visualization
-- **Single Neuron Maximization**: Visualize individual neurons/channels in InceptionV3 layers
-- **Fourier Basis Initialization**: Generates cleaner, more structured patterns than random noise
-- **Progressive Resolution**: Starts at 128x128, scales up to 512x512 for better quality
+- **Switchable Objective Modes**: Choose between center-neuron and full-channel maximization
+- **Fourier Parameterization**: Optimize a learned Fourier basis instead of raw pixels
+- **Progressive Resolution**: Optimize at 128, 192, 256, and 299 px, then display at 512 px
 
 ### Regularization Techniques
-All techniques from the original Lucid library:
-- **Transformation Robustness**: Random jitter, rotation, and scaling
-- **Frequency Penalization**: Reduces high-frequency artifacts
+- **Transformation Robustness**: Constant padding, jitter crops, and random scaling
+- **Frequency Bias**: Low frequencies are favored directly in the Fourier parameterization
 - **Total Variation**: Encourages spatial smoothness
 - **L2 Decay**: Prevents extreme pixel values
 
@@ -25,36 +24,38 @@ All techniques from the original Lucid library:
 - **Mixed_6b** (768 channels): Mid-level features and parts
 - **Mixed_6c** (768 channels): Complex recurring patterns
 - **Mixed_6d** (768 channels): Higher-level object parts
-- **Mixed_6e** (1280 channels): Late layer complex representations
+- **Mixed_6e** (768 channels): Late layer abstract features
 
 ## Usage
 
 1. **Select Layer**: Choose which InceptionV3 layer to visualize
-2. **Choose Channel**: Select a specific neuron/channel index (0 to max channels)
-3. **Adjust Settings** (optional):
-   - **Steps**: Number of optimization iterations (default: 500)
-   - **Learning Rate**: Step size for gradient ascent (default: 0.05)
+2. **Choose Channel**: Select a specific channel index
+3. **Choose Objective**:
+   - **Center Neuron**: More localized and closer to classic Lucid neuron renders
+   - **Full Channel**: Faster and often cleaner in-browser
+4. **Adjust Settings** (optional):
+   - **Steps**: Number of optimization iterations (default: 128)
+   - **Learning Rate**: Adam learning rate (default: 0.05)
    - **Regularization Weights**: Fine-tune different penalties
-4. **Click "Visualize Neuron"** to start the optimization
-5. **Download** the resulting visualization
+5. **Click the visualize button** to start the optimization
+6. **Download** the resulting visualization
 
 ## Technical Details
 
-### Fourier Initialization
-Instead of starting from random noise, we initialize images using a Fourier basis:
-- Generates frequency components with 1/f^1.5 power spectrum
-- Random phase for each frequency
-- Creates more natural, structured patterns
+### Fourier Parameterization
+Instead of optimizing pixels directly, the app learns Fourier coefficients:
+- Uses a decayed frequency spectrum so low frequencies dominate early
+- Keeps the image in the model's expected `[0, 1]` range
+- Applies Lucid-style color decorrelation before the final sigmoid
 
 ### Optimization Process
-1. Initialize image with Fourier basis at 128x128
-2. For each resolution stage (128, 256, 512):
-   - Apply random transformations for robustness
-   - Compute gradient of neuron activation
-   - Apply regularization penalties
-   - Update image using gradient ascent
-   - Clip values to valid range [-1, 1]
-3. Display final 512x512 visualization
+1. Initialize a Fourier basis at the model's native resolution
+2. Optimize over progressive stages (128, 192, 256, 299):
+   - Resize the rendered image to the current stage
+   - Apply padded jitter and random scaling
+   - Maximize either the selected channel's center neuron or the full channel map
+   - Apply L2 and total-variation penalties on the rendered image
+3. Render the final result at 512x512 for display and download
 
 ### Implementation Stack
 - **TensorFlow.js**: Neural network operations and model execution
@@ -68,8 +69,7 @@ Instead of starting from random noise, we initialize images using a Fourier basi
 - Channel 0-100: Often shows animal-like features
 - Channel 200-300: Architectural and geometric patterns
 - Channel 400-500: Text and symbol-like patterns
-- Channel 800-900: Natural textures and landscapes
-- Channel 1000-1279: Complex object parts
+- Channel 600-767: More abstract object parts and motifs
 
 ### Mixed_6c (Mid Layer)
 - Channel 0-100: Basic textures and patterns
@@ -90,9 +90,9 @@ Instead of starting from random noise, we initialize images using a Fourier basi
 
 | Aspect | Lucid (This Tool) | DeepDream |
 |--------|------------------|-----------|
-| **Goal** | Understand single neurons | Enhance all features |
+| **Goal** | Understand targeted units/channels | Enhance all features |
 | **Initialization** | Fourier basis | Existing image |
-| **Optimization** | Maximize one neuron | Maximize all activations |
+| **Optimization** | Maximize one neuron or one channel | Maximize all activations |
 | **Result** | Clean, isolated patterns | Psychedelic, enhanced image |
 | **Use Case** | Scientific visualization | Artistic effect |
 
