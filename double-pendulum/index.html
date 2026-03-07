@@ -292,21 +292,21 @@
             </div>
             <div class="tel-cell">
                 <div class="tel-label">Return</div>
-                <div class="tel-value" id="telReturn">&mdash;<span class="unit">/ 1000</span></div>
+                <div class="tel-value" id="telReturn">&mdash;</div>
             </div>
             <div class="tel-cell">
                 <div class="tel-label">Avg (20)</div>
                 <div class="tel-value" id="telAvg">&mdash;</div>
             </div>
             <div class="tel-cell">
-                <div class="tel-label">Score</div>
-                <div class="tel-value" id="telPct">&mdash;<span class="unit">%</span></div>
+                <div class="tel-label">Mean |x|</div>
+                <div class="tel-value" id="telBias">&mdash;<span class="unit">m</span></div>
             </div>
         </div>
 
         <div class="description">
-            <p>Both pendulums start hanging downward. The agent controls only the cart — pushing it left and right to pump energy into the system. Within about 1.5 seconds it swings both links to vertical and holds them there for the remaining 8.5 seconds of each episode.</p>
-            <p>Trained with <span class="tag">SAC</span> (Soft Actor-Critic) using curriculum learning: the agent first learned to swing up the outer pole while the inner pole was held near vertical, then gradually tackled both poles from hanging. 2M training steps on a single CPU.</p>
+            <p>Both pendulums start hanging downward. The agent controls only the cart — pushing it left and right to pump energy into the system. Within about 1.5 seconds it swings both links to vertical, recenters the cart, and holds them there for the remaining 8.5 seconds of each episode.</p>
+            <p>The base policy was trained with <span class="tag">SAC</span> (Soft Actor-Critic) using curriculum learning. The shipped weights are then refined with a closed-loop distillation pass that teaches the same 256&times;256 actor to recenter the cart after swing-up without any runtime stabilization hack.</p>
         </div>
 
         <div class="specs">

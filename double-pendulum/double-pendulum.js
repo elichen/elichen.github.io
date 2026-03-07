@@ -1,6 +1,15 @@
-// Double Pendulum on Cart — SAC policy inference
+// Double Pendulum on Cart — policy inference
 // Physics: Lagrangian dynamics, RK4 integration
-// Policy: 2×256 MLP with ReLU, tanh output — trained with SB3 SAC
+// Policy: 2×256 MLP with ReLU, tanh output — SAC base refined by closed-loop distillation
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function smoothstep(edge0, edge1, x) {
+    const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+    return t * t * (3 - 2 * t);
+}
 
 // ── Environment ──────────────────────────────────────────────────────────────
 
@@ -13,8 +22,8 @@ class DoublePendulumEnv {
         this.cartMass = 1.0;
         this.m1 = 0.5;
         this.m2 = 0.5;
-        this.L1 = 0.5;
-        this.L2 = 0.5;
+        this.L1 = 1.0;
+        this.L2 = 1.0;
         this.forceMag = 100.0;
         this.dt = 0.02;
         this.jointDamping = 1.0;
@@ -22,10 +31,13 @@ class DoublePendulumEnv {
         this.maxSteps = 500;
 
         this.scale = (canvas.width - 120) / (2 * this.xLimit);
+        // Keep the trained dynamics intact while giving the rods a larger on-canvas span.
+        this.visualLengthScale = 1.45;
 
         this.state = null;
         this.steps = 0;
         this.episodeReturn = 0;
+        this.episodeAbsCart = 0;
 
         // Trail for tip position (visual only)
         this.trail = [];
@@ -40,6 +52,7 @@ class DoublePendulumEnv {
         ];
         this.steps = 0;
         this.episodeReturn = 0;
+        this.episodeAbsCart = 0;
         this.trail = [];
         return this.getObs();
     }
@@ -53,6 +66,10 @@ class DoublePendulumEnv {
         return Math.cos(this.state[2]) > 0.9 && Math.cos(this.state[4]) > 0.9;
     }
 
+    uprightness() {
+        return 0.5 * (Math.cos(this.state[2]) + Math.cos(this.state[4]));
+    }
+
     derivatives(s, F) {
         const [x, xd, t1, t1d, t2, t2d] = s;
         const { gravity: g, cartMass: M, m1, m2, L1: l1, L2: l2, jointDamping: damp } = this;
@@ -60,22 +77,21 @@ class DoublePendulumEnv {
         const c1 = Math.cos(t1), s1 = Math.sin(t1);
         const c2 = Math.cos(t2), s2 = Math.sin(t2);
         const c12 = Math.cos(t1 - t2), s12 = Math.sin(t1 - t2);
-        const L1f = 2 * l1, L2f = 2 * l2;
 
         const d1 = M + m1 + m2;
-        const d2 = (m1 / 2 + m2) * L1f;
-        const d3 = m2 * L2f / 2;
-        const d4 = (m1 / 3 + m2) * L1f * L1f;
-        const d5 = m2 * L1f * L2f / 2;
-        const d6 = m2 * L2f * L2f / 3;
+        const d2 = (m1 / 2 + m2) * l1;
+        const d3 = m2 * l2 / 2;
+        const d4 = (m1 / 3 + m2) * l1 * l1;
+        const d5 = m2 * l1 * l2 / 2;
+        const d6 = m2 * l2 * l2 / 3;
 
         const M11 = d1, M12 = d2 * c1, M13 = d3 * c2;
         const M21 = d2 * c1, M22 = d4, M23 = d5 * c12;
         const M31 = d3 * c2, M32 = d5 * c12, M33 = d6;
 
         const f1 = F + d2 * t1d * t1d * s1 + d3 * t2d * t2d * s2;
-        const f2 = d5 * t2d * t2d * s12 + (m1 / 2 + m2) * g * L1f * s1 - damp * t1d;
-        const f3 = -d5 * t1d * t1d * s12 + m2 * g * L2f * s2 / 2 - damp * t2d;
+        const f2 = d5 * t2d * t2d * s12 + (m1 / 2 + m2) * g * l1 * s1 - damp * t1d;
+        const f3 = -d5 * t1d * t1d * s12 + m2 * g * l2 * s2 / 2 - damp * t2d;
 
         const det = M11 * (M22 * M33 - M23 * M32)
                   - M12 * (M21 * M33 - M23 * M31)
@@ -92,7 +108,7 @@ class DoublePendulumEnv {
 
     step(action) {
         this.steps++;
-        const a = Math.max(-1, Math.min(1, action));
+        const a = clamp(action, -1, 1);
         const F = a * this.forceMag;
         const s = [...this.state];
         const dt = this.dt;
@@ -115,11 +131,31 @@ class DoublePendulumEnv {
             this.state[1] = 0;
         }
 
-        const reward = 1.0 + 0.5 * Math.cos(this.state[2]) + 0.5 * Math.cos(this.state[4]);
+        const reward = this.computeReward(a);
         this.episodeReturn += reward;
+        this.episodeAbsCart += Math.abs(this.state[0]);
         const done = this.steps >= this.maxSteps;
 
-        return { obs: this.getObs(), reward, done, episodeReturn: this.episodeReturn };
+        return {
+            obs: this.getObs(),
+            reward,
+            done,
+            episodeReturn: this.episodeReturn,
+            meanAbsCart: this.episodeAbsCart / this.steps,
+        };
+    }
+
+    computeReward(action) {
+        const [x, xd, t1, t1d, t2, t2d] = this.state;
+        const uprightReward = 1.0 + 0.5 * Math.cos(t1) + 0.5 * Math.cos(t2);
+        const balanceBlend = smoothstep(0.55, 0.92, this.uprightness());
+        const centerPenalty = (0.06 + 0.42 * balanceBlend) * (x / this.xLimit) ** 2;
+        const cartVelocityPenalty = (0.004 + 0.018 * balanceBlend) * Math.min(xd * xd, 9);
+        const angularVelocityPenalty = 0.0025 * Math.min(t1d * t1d + t2d * t2d, 49);
+        const controlPenalty = (0.004 + 0.010 * balanceBlend) * action * action;
+        const railPenalty = (0.04 + 0.14 * balanceBlend) * smoothstep(0.72, 1.0, Math.abs(x) / this.xLimit);
+        const recenterBonus = 0.15 * balanceBlend * Math.exp(-0.5 * (x / 1.25) ** 2);
+        return uprightReward - centerPenalty - cartVelocityPenalty - angularVelocityPenalty - controlPenalty - railPenalty + recenterBonus;
     }
 
     render() {
@@ -128,7 +164,7 @@ class DoublePendulumEnv {
         const W = this.canvas.width, H = this.canvas.height;
         const cx = x * this.scale + W / 2;
         const cy = H * 0.52;
-        const poleScale = this.scale;
+        const poleScale = this.scale * this.visualLengthScale;
 
         // ── Background
         ctx.fillStyle = '#111114';
@@ -177,10 +213,10 @@ class DoublePendulumEnv {
         ctx.setLineDash([]);
 
         // ── Compute positions
-        const j1x = cx + Math.sin(t1) * this.L1 * 2 * poleScale;
-        const j1y = cy - Math.cos(t1) * this.L1 * 2 * poleScale;
-        const tipx = j1x + Math.sin(t2) * this.L2 * 2 * poleScale;
-        const tipy = j1y - Math.cos(t2) * this.L2 * 2 * poleScale;
+        const j1x = cx + Math.sin(t1) * this.L1 * poleScale;
+        const j1y = cy - Math.cos(t1) * this.L1 * poleScale;
+        const tipx = j1x + Math.sin(t2) * this.L2 * poleScale;
+        const tipy = j1y - Math.cos(t2) * this.L2 * poleScale;
 
         // ── Tip trail
         this.trail.push({ x: tipx, y: tipy });
@@ -311,7 +347,7 @@ async function main() {
     const telEp = document.getElementById('telEp');
     const telReturn = document.getElementById('telReturn');
     const telAvg = document.getElementById('telAvg');
-    const telPct = document.getElementById('telPct');
+    const telBias = document.getElementById('telBias');
 
     const env = new DoublePendulumEnv(canvas);
 
@@ -330,42 +366,62 @@ async function main() {
     const returns = [];
     let epCount = 0;
 
-    function runEpisode() {
-        let obs = env.reset();
+    let obs = env.reset();
+    let lastFrameTime = null;
+    let accumulator = 0;
 
-        function animate() {
-            const action = policy.predict(obs);
-            const result = env.step(action);
+    function updatePhaseBadge() {
+        const up = env.bothUpright();
+        phaseBadge.textContent = up ? 'Balanced' : 'Swing-up';
+        phaseBadge.className = 'phase-badge ' + (up ? 'balanced' : 'swingup');
+    }
+
+    function updateTelemetry(result) {
+        epCount++;
+        returns.push(result.episodeReturn);
+        if (returns.length > 20) returns.shift();
+        const avg = returns.reduce((a, b) => a + b, 0) / returns.length;
+
+        telEp.textContent = epCount;
+        telReturn.textContent = result.episodeReturn.toFixed(1);
+        telAvg.textContent = avg.toFixed(1);
+        telBias.innerHTML = result.meanAbsCart.toFixed(2) + '<span class="unit">m</span>';
+    }
+
+    function startEpisode() {
+        obs = env.reset();
+        accumulator = 0;
+        updatePhaseBadge();
+        env.render();
+    }
+
+    function animate(frameTime) {
+        if (lastFrameTime === null) lastFrameTime = frameTime;
+        const elapsed = clamp((frameTime - lastFrameTime) / 1000, 0, 0.1);
+        lastFrameTime = frameTime;
+        accumulator += elapsed;
+
+        let result = null;
+        while (accumulator >= env.dt) {
+            result = env.step(policy.predict(obs));
             obs = result.obs;
-
-            // Update phase badge
-            const up = env.bothUpright();
-            phaseBadge.textContent = up ? 'Balanced' : 'Swing-up';
-            phaseBadge.className = 'phase-badge ' + (up ? 'balanced' : 'swingup');
-
-            env.render();
+            accumulator -= env.dt;
 
             if (result.done) {
-                epCount++;
-                returns.push(result.episodeReturn);
-                if (returns.length > 20) returns.shift();
-                const avg = returns.reduce((a, b) => a + b, 0) / returns.length;
-                const pct = (result.episodeReturn / 1000 * 100);
-
-                telEp.textContent = epCount;
-                telReturn.innerHTML = result.episodeReturn.toFixed(0) + '<span class="unit">/ 1000</span>';
-                telAvg.textContent = avg.toFixed(0);
-                telPct.innerHTML = pct.toFixed(0) + '<span class="unit">%</span>';
-
-                requestAnimationFrame(runEpisode);
-            } else {
-                requestAnimationFrame(animate);
+                updateTelemetry(result);
+                startEpisode();
+                result = null;
+                break;
             }
         }
+
+        updatePhaseBadge();
+        env.render();
         requestAnimationFrame(animate);
     }
 
-    runEpisode();
+    startEpisode();
+    requestAnimationFrame(animate);
 }
 
 window.onload = main;
