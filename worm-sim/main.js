@@ -74,6 +74,7 @@ let currentDriftSpeed = 0;
 
 let muscleCells = { dorsal: [], ventral: [] };
 let neuronRows = [];
+let lastUserZoomAtMs = -Infinity;
 
 let bodyPose = { x: 0, z: 0, yaw: 0 };
 let bodyVelocity = { x: 0, z: 0, omega: 0 };
@@ -634,7 +635,14 @@ function initThreeJS() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
+  controls.enableZoom = true;
+  controls.zoomSpeed = 0.9;
+  controls.minDistance = 0.35;
+  controls.maxDistance = 1.4;
   controls.target.set(0, -0.005, 0);
+  renderer.domElement.addEventListener('wheel', () => {
+    lastUserZoomAtMs = performance.now();
+  }, { passive: true });
 
   const ambientLight = new THREE.AmbientLight(0x404060, 0.75);
   scene.add(ambientLight);
@@ -655,6 +663,9 @@ function initThreeJS() {
   scene.add(axesHelper);
 
   createWormMesh();
+
+  window.camera = camera;
+  window.controls = controls;
 
   window.addEventListener('resize', () => {
     const w = container.clientWidth;
@@ -819,7 +830,20 @@ function updateCameraTarget() {
   centerY /= numVerts;
   centerZ /= numVerts;
 
+  let maxRadiusSq = 0;
+  for (let i = 0; i < numVerts; i++) {
+    const dxVertex = positions[i * 3] - centerX;
+    const dyVertex = positions[i * 3 + 1] - centerY;
+    const dzVertex = positions[i * 3 + 2] - centerZ;
+    const radiusSq = dxVertex * dxVertex + dyVertex * dyVertex + dzVertex * dzVertex;
+    if (radiusSq > maxRadiusSq) {
+      maxRadiusSq = radiusSq;
+    }
+  }
+  const wormRadius = Math.sqrt(maxRadiusSq);
+
   const dx = centerX - controls.target.x;
+  const dy = centerY - controls.target.y;
   const dz = centerZ - controls.target.z;
   const planarOffset = Math.hypot(dx, dz);
   let smoothing = 0.01;
@@ -830,9 +854,37 @@ function updateCameraTarget() {
     smoothing = 0.05;
   }
 
-  controls.target.x += dx * smoothing;
-  controls.target.z += dz * smoothing;
-  controls.target.y += (centerY - controls.target.y) * 0.04;
+  const targetShiftX = dx * smoothing;
+  const targetShiftY = dy * 0.04;
+  const targetShiftZ = dz * smoothing;
+
+  controls.target.x += targetShiftX;
+  controls.target.y += targetShiftY;
+  controls.target.z += targetShiftZ;
+
+  // Keep the orbit radius stable while recentering. Moving only the target
+  // makes the worm appear to shrink because the camera is left behind.
+  camera.position.x += targetShiftX;
+  camera.position.y += targetShiftY;
+  camera.position.z += targetShiftZ;
+
+  const msSinceUserZoom = performance.now() - lastUserZoomAtMs;
+  if (msSinceUserZoom < 2500) {
+    return;
+  }
+
+  const offset = camera.position.clone().sub(controls.target);
+  const currentDistance = offset.length();
+  const desiredDistance = clamp(wormRadius * 2.15, controls.minDistance, 0.95);
+  const zoomBlend = currentDistance > desiredDistance ? 0.08 : 0.03;
+  const nextDistance = lerp(currentDistance, desiredDistance, zoomBlend);
+
+  if (Math.abs(nextDistance - currentDistance) < 1e-4 || currentDistance < 1e-6) {
+    return;
+  }
+
+  offset.setLength(nextDistance);
+  camera.position.copy(controls.target).add(offset);
 }
 
 function animate(time) {
