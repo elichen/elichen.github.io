@@ -280,7 +280,7 @@
 
         <div class="viewport">
             <div class="loading-msg" id="loading">Loading policy weights&hellip;</div>
-            <span class="viewport-label">Simulation</span>
+            <span class="viewport-label">Simulation · Left/Right to perturb</span>
             <span class="phase-badge swingup" id="phaseBadge">Swing-up</span>
             <canvas id="canvas" width="740" height="420"></canvas>
         </div>
@@ -305,7 +305,7 @@
         </div>
 
         <div class="description">
-            <p>Both pendulums start hanging downward. The agent controls only the cart — pushing it left and right to pump energy into the system. Within about 1.5 seconds it swings both links to vertical, recenters the cart, and holds them there for the remaining 8.5 seconds of each episode.</p>
+            <p>Both pendulums start hanging downward. The agent controls only the cart — pushing it left and right to pump energy into the system. Within about 1.5 seconds it swings both links to vertical, recenters the cart, and holds them there for the remaining 8.5 seconds of each episode. You can tap the left and right arrow keys to shove the cart and watch the policy recover.</p>
             <p>The base policy was trained with <span class="tag">SAC</span> (Soft Actor-Critic) using curriculum learning. The shipped weights are then refined with a closed-loop distillation pass that teaches the same 256&times;256 actor to recenter the cart after swing-up without any runtime stabilization hack.</p>
         </div>
 

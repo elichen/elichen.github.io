@@ -341,6 +341,12 @@ class SACPolicy {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
+    const MANUAL_NUDGE = {
+        target: 0.38,
+        rise: 0.35,
+        decay: 0.78,
+    };
+
     const canvas = document.getElementById('canvas');
     const loading = document.getElementById('loading');
     const phaseBadge = document.getElementById('phaseBadge');
@@ -369,6 +375,27 @@ async function main() {
     let obs = env.reset();
     let lastFrameTime = null;
     let accumulator = 0;
+    let manualAction = 0;
+    const pressedKeys = new Set();
+
+    function manualTarget() {
+        if (pressedKeys.has('ArrowLeft') === pressedKeys.has('ArrowRight')) return 0;
+        return pressedKeys.has('ArrowLeft') ? -MANUAL_NUDGE.target : MANUAL_NUDGE.target;
+    }
+
+    function onArrowKey(event) {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+
+        if (event.type === 'keydown') {
+            pressedKeys.add(event.key);
+        } else {
+            pressedKeys.delete(event.key);
+        }
+    }
+
+    window.addEventListener('keydown', onArrowKey, { passive: false });
+    window.addEventListener('keyup', onArrowKey, { passive: false });
 
     function updatePhaseBadge() {
         const up = env.bothUpright();
@@ -391,6 +418,7 @@ async function main() {
     function startEpisode() {
         obs = env.reset();
         accumulator = 0;
+        manualAction = 0;
         updatePhaseBadge();
         env.render();
     }
@@ -403,7 +431,14 @@ async function main() {
 
         let result = null;
         while (accumulator >= env.dt) {
-            result = env.step(policy.predict(obs));
+            const target = manualTarget();
+            if (target === 0) {
+                manualAction *= MANUAL_NUDGE.decay;
+            } else {
+                manualAction += (target - manualAction) * MANUAL_NUDGE.rise;
+            }
+
+            result = env.step(clamp(policy.predict(obs) + manualAction, -1, 1));
             obs = result.obs;
             accumulator -= env.dt;
 
