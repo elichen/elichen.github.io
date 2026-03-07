@@ -215,9 +215,15 @@ pre code {
 .current-state {
     display: flex;
     gap: 0.75rem;
+    position: relative;
+    padding-bottom: 1.2rem;
+    --motion-ms: 260ms;
 }
 
 .element {
+    --tx: 0px;
+    --ty: 0px;
+    --scale: 1;
     width: 56px;
     height: 56px;
     display: flex;
@@ -229,25 +235,77 @@ pre code {
     background: white;
     border: 2px solid var(--border);
     border-radius: 10px;
-    transition: all 0.2s ease;
+    position: relative;
+    overflow: visible;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+    transform: translate(var(--tx), var(--ty)) scale(var(--scale));
+    transition:
+        transform var(--motion-ms) cubic-bezier(0.22, 1, 0.36, 1),
+        background-color 180ms ease,
+        color 180ms ease,
+        border-color 180ms ease,
+        box-shadow var(--motion-ms) ease;
+    will-change: transform;
+    backface-visibility: hidden;
 }
 
 .element.swapping {
+    --scale: 1.08;
     background: var(--accent);
     color: white;
     border-color: var(--accent);
-    transform: scale(1.1);
+    box-shadow: 0 14px 32px rgba(37, 99, 235, 0.24);
+}
+
+.element.fixed-tail:not(.swapping) {
+    border-color: #67e8f9;
+    box-shadow: 0 12px 26px rgba(8, 145, 178, 0.14);
+}
+
+.element.fixed-tail::after {
+    content: 'fixed';
+    position: absolute;
+    left: 50%;
+    bottom: -1rem;
+    transform: translateX(-50%);
+    font-family: var(--sans);
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding: 0.12rem 0.35rem;
+    border-radius: 999px;
+    background: #ecfeff;
+    color: #155e75;
+    border: 1px solid #a5f3fc;
+}
+
+.element.preparing-tail::after {
+    content: 'preparing';
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fcd34d;
 }
 
 .swap-info {
     font-family: var(--sans);
     font-size: 0.9rem;
+    line-height: 1.4;
     color: var(--text-light);
-    min-height: 1.5rem;
+    min-height: 2.75rem;
 }
 
-.level-indicator {
-    margin-top: 0.5rem;
+.demo-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.level-indicator,
+.block-indicator {
+    margin-top: 0.25rem;
 }
 
 .level-badge {
@@ -259,11 +317,72 @@ pre code {
     border-radius: 999px;
 }
 
+.block-badge {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: #ecfeff;
+    color: #155e75;
+}
+
+.block-badge.preparing {
+    background: #fef3c7;
+    color: #92400e;
+}
+
 .permutation-trail, .permutation-grid {
+    display: grid;
+    gap: 0.75rem;
+    --trail-ms: 180ms;
+}
+
+.trail-group {
+    display: grid;
+    grid-template-columns: minmax(120px, auto) 1fr;
+    align-items: start;
+    gap: 0.75rem 1rem;
+    padding: 0.9rem 1rem;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    transition:
+        border-color 160ms ease,
+        box-shadow var(--trail-ms) ease,
+        transform var(--trail-ms) ease;
+}
+
+.trail-group.current {
+    border-color: #93c5fd;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.08);
+}
+
+.trail-group-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    text-align: left;
+}
+
+.trail-group-title {
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+
+.trail-group-fixed {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    color: var(--accent);
+}
+
+.trail-group-items {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    justify-content: center;
 }
 
 .trail-item {
@@ -273,19 +392,35 @@ pre code {
     background: white;
     border: 1px solid var(--border);
     border-radius: 4px;
-    transition: all 0.2s;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition:
+        transform var(--trail-ms) cubic-bezier(0.22, 1, 0.36, 1),
+        opacity var(--trail-ms) ease,
+        background-color 160ms ease,
+        color 160ms ease,
+        border-color 160ms ease,
+        box-shadow var(--trail-ms) ease;
+    will-change: transform, opacity;
 }
 
 .trail-item.active {
     background: var(--accent);
     color: white;
     border-color: var(--accent);
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.16);
+}
+
+.trail-item.entering {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
 }
 
 .stats {
     display: flex;
     justify-content: center;
     gap: 2rem;
+    flex-wrap: wrap;
     margin-top: 1rem;
     font-family: var(--sans);
     font-size: 0.9rem;
@@ -320,33 +455,63 @@ pre code {
     flex-wrap: wrap;
 }
 
-.sub-problem {
-    display: flex;
-    align-items: center;
-    font-family: var(--mono);
-    font-size: 0.95rem;
+.block-flow {
+    gap: 1rem;
 }
 
-.bracket {
+.block-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    min-width: 180px;
+    padding: 1rem;
+    text-align: left;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.block-card-label {
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     color: var(--text-light);
 }
 
-.varying {
+.prefix-task {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 0.9rem;
     background: var(--accent-light);
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
     color: var(--accent);
+    padding: 0.35rem 0.6rem;
+    border-radius: 999px;
 }
 
-.fixed {
+.fixed-slot {
+    font-family: var(--mono);
+    font-size: 0.88rem;
     font-weight: 600;
-    margin-left: 0.25rem;
+    color: var(--text);
 }
 
 .then {
     color: var(--text-light);
     font-family: var(--sans);
     font-size: 0.875rem;
+}
+
+.diagram-note {
+    margin: 1rem auto 0;
+    max-width: 560px;
+    font-family: var(--sans);
+    font-size: 0.9rem;
+    color: var(--text-light);
 }
 
 /* Rule comparison */
@@ -426,85 +591,6 @@ pre code {
     color: var(--text-light);
 }
 
-/* Gear demo */
-.gear-demo {
-    margin: 2rem 0;
-    display: flex;
-    justify-content: center;
-}
-
-.gear-pair {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.gear {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--sans);
-    font-size: 0.9rem;
-    font-weight: 600;
-    text-align: center;
-    line-height: 1.3;
-}
-
-.gear.outer {
-    background: var(--accent-light);
-    border: 3px dashed var(--accent);
-    color: var(--accent);
-}
-
-.gear.inner {
-    background: #fef3c7;
-    border: 3px dashed #f59e0b;
-    color: #92400e;
-}
-
-.gear small {
-    font-weight: 400;
-    font-size: 0.75rem;
-    opacity: 0.8;
-}
-
-.meshing {
-    font-size: 1.5rem;
-    color: var(--text-light);
-}
-
-/* State table */
-.state-table {
-    margin: 2rem 0;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.state-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    padding: 1rem;
-    font-size: 0.95rem;
-}
-
-.state-row.header {
-    background: var(--bg-alt);
-    font-family: var(--sans);
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: var(--text-light);
-}
-
-.state-row:not(.header) {
-    border-top: 1px solid var(--border);
-}
-
 /* Key insight */
 .key-insight {
     background: linear-gradient(135deg, #1e293b, #334155);
@@ -550,6 +636,14 @@ footer p {
     color: var(--text-light);
 }
 
+@media (prefers-reduced-motion: reduce) {
+    .element,
+    .trail-item,
+    .btn {
+        transition: none !important;
+    }
+}
+
 /* Responsive */
 @media (max-width: 640px) {
     body {
@@ -572,9 +666,8 @@ footer p {
         grid-template-columns: 1fr;
     }
 
-    .state-row {
+    .trail-group {
         grid-template-columns: 1fr;
-        gap: 0.5rem;
     }
 
     .level-content {
@@ -587,9 +680,8 @@ footer p {
         font-size: 1.25rem;
     }
 
-    .gear {
-        width: 100px;
-        height: 100px;
-        font-size: 0.8rem;
+    .element.fixed-tail::after {
+        font-size: 0.5rem;
+        bottom: -0.9rem;
     }
 }

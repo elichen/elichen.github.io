@@ -22,8 +22,8 @@
             </p>
 
             <p>
-                This means to generate all 24 permutations of [A,B,C,D], Heap's algorithm
-                performs exactly 23 swaps. One swap, one new arrangement. No wasted motion.
+                Starting from the first permutation, Heap's algorithm reaches each later output
+                with exactly one swap. For [A,B,C,D], that means 24 permutations and 23 swaps.
             </p>
         </section>
 
@@ -63,17 +63,38 @@
                         <div class="element" data-idx="1">B</div>
                         <div class="element" data-idx="2">C</div>
                     </div>
-                    <div class="swap-info" id="swap-info-3">Click Play or Step</div>
+                    <div class="swap-info" id="swap-info-3">Play or Step. Each action either emits a permutation or prepares the next block.</div>
+                    <div class="demo-badges">
+                        <div class="level-indicator" id="level-3">
+                            <span class="level-badge">k=3 (odd)</span>
+                        </div>
+                        <div class="block-indicator" id="block-3">
+                            <span class="block-badge current">Current block: slot 2 fixed = C</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="permutation-trail" id="trail-3">
-                    <div class="trail-item active">ABC</div>
+                    <section class="trail-group current" data-slot="2" data-fixed="C">
+                        <div class="trail-group-label">
+                            <span class="trail-group-title">Block 1</span>
+                            <span class="trail-group-fixed">slot 2 fixed = C</span>
+                        </div>
+                        <div class="trail-group-items">
+                            <div class="trail-item active">ABC</div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="stats" id="stats-3">
+                    <span>Permutations: <strong id="perm-count-3">1</strong>/6</span>
+                    <span>Swaps: <strong id="swap-count-3">0</strong></span>
                 </div>
             </div>
 
             <p>
-                Notice the pattern: we generate all permutations where C is in the last position,
-                then swap to put a different element there, and repeat.
+                Notice the trail groups: each group keeps one value fixed in the last slot,
+                then one swap prepares the next group.
             </p>
         </section>
 
@@ -81,45 +102,49 @@
             <h2>The Key Insight</h2>
 
             <p>
-                Heap's algorithm is recursive. To permute n elements:
+                Heap's algorithm makes more sense if you think in <em>blocks</em>.
+                A call to <code>heapPermute(arr, k)</code> emits <code>k</code> blocks of
+                <code>(k - 1)!</code> permutations each. Inside one block,
+                <code>arr[k - 1]</code> stays fixed while the recursive call permutes the prefix.
             </p>
 
             <ol class="insight-list">
-                <li>Generate all permutations of the first n-1 elements (keeping the last element fixed)</li>
-                <li>Swap to bring a new element into the last position</li>
-                <li>Repeat until every element has had a turn in the last position</li>
+                <li>Run <code>heapPermute(arr, k - 1)</code> to generate all permutations of <code>arr[0..k-2]</code></li>
+                <li>If another block remains, do one swap to move a new element into <code>arr[k - 1]</code></li>
+                <li>Repeat until every element has occupied the last slot once</li>
             </ol>
 
             <div class="visual-recursion">
                 <div class="recursion-level">
-                    <div class="level-label">Permute 3 elements:</div>
-                    <div class="level-content">
-                        <div class="sub-problem">
-                            <span class="bracket">[</span>
-                            <span class="varying">permute A,B</span>
-                            <span class="bracket">]</span>
-                            <span class="fixed">C</span>
+                    <div class="level-label">For <code>k = 3</code>, each block runs the same recursive subproblem on the prefix:</div>
+                    <div class="level-content block-flow">
+                        <div class="block-card">
+                            <span class="block-card-label">Block 1</span>
+                            <span class="prefix-task">permute slots 0..1</span>
+                            <span class="fixed-slot">slot 2 fixed = C</span>
                         </div>
-                        <div class="then">→ swap →</div>
-                        <div class="sub-problem">
-                            <span class="bracket">[</span>
-                            <span class="varying">permute B,C</span>
-                            <span class="bracket">]</span>
-                            <span class="fixed">A</span>
+                        <div class="then">→ <code>swap(0, 2)</code> →</div>
+                        <div class="block-card">
+                            <span class="block-card-label">Block 2</span>
+                            <span class="prefix-task">permute slots 0..1</span>
+                            <span class="fixed-slot">slot 2 fixed = B</span>
                         </div>
-                        <div class="then">→ swap →</div>
-                        <div class="sub-problem">
-                            <span class="bracket">[</span>
-                            <span class="varying">permute C,A</span>
-                            <span class="bracket">]</span>
-                            <span class="fixed">B</span>
+                        <div class="then">→ <code>swap(0, 2)</code> →</div>
+                        <div class="block-card">
+                            <span class="block-card-label">Block 3</span>
+                            <span class="prefix-task">permute slots 0..1</span>
+                            <span class="fixed-slot">slot 2 fixed = A</span>
                         </div>
                     </div>
+                    <p class="diagram-note">
+                        The recursive call shape never changes. Only the value fixed in the last slot changes between blocks.
+                    </p>
                 </div>
             </div>
 
             <p>
-                But here's the puzzle: <em>which</em> element should we swap into the last position each time?
+                The swap does not output a new permutation by itself. It prepares the next block.
+                The only non-obvious question is: <em>which</em> element should move into the last position?
             </p>
         </section>
 
@@ -127,37 +152,41 @@
             <h2>The Parity Rule</h2>
 
             <p>
-                This is where Heap's genius shows. The swap rule depends on whether n is even or odd:
+                The answer depends on parity. After <code>heapPermute(arr, k - 1)</code> returns,
+                the prefix is left in a different shape for even-sized and odd-sized subproblems,
+                so the parent needs two different swap rules:
             </p>
 
             <div class="rule-comparison">
                 <div class="rule-box odd">
-                    <h3>When n is odd</h3>
+                    <h3>When k is odd</h3>
                     <div class="rule-visual">
                         <div class="array-viz">
                             <span class="el swap-source">0</span>
                             <span class="el">1</span>
                             <span class="el">2</span>
-                            <span class="el swap-target">n-1</span>
+                            <span class="el swap-target">k-1</span>
                         </div>
-                        <div class="rule-desc">Always swap first element with last</div>
+                        <div class="rule-desc">The child returns with the next candidate at index <code>0</code>, so use <code>swap(0, k - 1)</code>.</div>
                     </div>
                 </div>
                 <div class="rule-box even">
-                    <h3>When n is even</h3>
+                    <h3>When k is even</h3>
                     <div class="rule-visual">
                         <div class="array-viz">
                             <span class="el swap-source">i</span>
                             <span class="el">...</span>
-                            <span class="el swap-target">n-1</span>
+                            <span class="el swap-target">k-1</span>
                         </div>
-                        <div class="rule-desc">Swap position i with last (i goes 0, 1, 2, ...)</div>
+                        <div class="rule-desc">The child returns with the next candidate aligned to loop index <code>i</code>, so use <code>swap(i, k - 1)</code>.</div>
                     </div>
                 </div>
             </div>
 
             <p>
-                Why these specific rules? They're not arbitrary—they're the <em>only</em> rules that work.
+                These rules are not arbitrary. They are what preserve Heap's invariant:
+                each block starts with a different element fixed in the last slot, and the
+                transition between blocks costs exactly one swap.
             </p>
         </section>
 
@@ -165,42 +194,36 @@
             <h2>Why Parity Matters</h2>
 
             <p>
-                Think of nested gears in a clock. If two adjacent gears spin the same direction,
-                they grind. They must spin <em>opposite</em> directions to mesh properly.
+                A useful mental model is that <code>heapPermute(arr, k)</code> is a scheduler for blocks.
+                Each recursive call emits one full block of <code>(k - 1)!</code> permutations, then the parent
+                performs a single swap to choose the element that will be fixed at <code>k - 1</code> in the next block.
             </p>
-
-            <div class="gear-demo">
-                <div class="gear-pair">
-                    <div class="gear outer">n even<br><small>rotates through positions</small></div>
-                    <div class="meshing">⚙</div>
-                    <div class="gear inner">n-1 odd<br><small>pivots on position 0</small></div>
-                </div>
-            </div>
 
             <p>
-                The same principle applies here. After the recursive call returns, the first n-1
-                elements are in a specific state that depends on parity:
+                For <code>k = 3</code>, the odd rule is easy to see:
             </p>
 
-            <div class="state-table">
-                <div class="state-row header">
-                    <span>After permuting n-1 elements...</span>
-                    <span>So the outer level must...</span>
-                </div>
-                <div class="state-row">
-                    <span><strong>If n-1 is odd:</strong> elements return to ~original order</span>
-                    <span>Rotate through positions to create new combinations</span>
-                </div>
-                <div class="state-row">
-                    <span><strong>If n-1 is even:</strong> elements end up shuffled differently</span>
-                    <span>Use fixed position (inner provides the variation)</span>
-                </div>
-            </div>
+            <pre><code>ABC, BAC   // C fixed at the end
+swap(0, 2)
+CAB, ACB   // B fixed at the end
+swap(0, 2)
+BCA, CBA   // A fixed at the end</code></pre>
+
+            <p>
+                For <code>k = 4</code>, each call to <code>heapPermute(arr, 3)</code> emits a six-permutation block.
+                After each block, the parent uses <code>swap(i, 3)</code>, so a different element from positions
+                <code>0</code>, <code>1</code>, and <code>2</code> gets promoted into the last slot for the next block.
+            </p>
+
+            <ul>
+                <li><strong>Odd k:</strong> the even-sized child block has already rotated the next candidate into index <code>0</code>, so the parent always swaps <code>0</code> with <code>k - 1</code>.</li>
+                <li><strong>Even k:</strong> the odd-sized child block leaves the next candidate aligned with the loop index <code>i</code>, so the parent swaps <code>i</code> with <code>k - 1</code>.</li>
+            </ul>
 
             <div class="key-insight">
                 <p>
-                    <strong>The one-liner:</strong> When inside rotates, outside pivots.
-                    When inside pivots, outside rotates.
+                    <strong>Engineer's version:</strong> the parity check tells the parent how to interpret
+                    the array state returned by the child call.
                 </p>
             </div>
         </section>
@@ -209,8 +232,8 @@
             <h2>Four Elements: See It All Together</h2>
 
             <p>
-                Now watch the full algorithm on four elements. Notice how the parity rule
-                creates a meshing pattern between levels:
+                Now watch the full algorithm on four elements. Each group of six permutations
+                keeps one element fixed at the end, and one swap prepares the next group:
             </p>
 
             <div class="interactive-demo large" id="demo-4">
@@ -220,7 +243,7 @@
                     <button id="reset-4" class="btn">Reset</button>
                     <div class="speed-control">
                         <label>Speed:</label>
-                        <input type="range" id="speed-4" min="100" max="1000" value="400">
+                        <input type="range" id="speed-4" min="100" max="1000" value="700">
                     </div>
                 </div>
 
@@ -231,14 +254,27 @@
                         <div class="element" data-idx="2">C</div>
                         <div class="element" data-idx="3">D</div>
                     </div>
-                    <div class="swap-info" id="swap-info-4">Click Play or Step</div>
-                    <div class="level-indicator" id="level-4">
-                        <span class="level-badge">k=4</span>
+                    <div class="swap-info" id="swap-info-4">Play or Step. Each action either emits a permutation or prepares the next block.</div>
+                    <div class="demo-badges">
+                        <div class="level-indicator" id="level-4">
+                            <span class="level-badge">k=4 (even)</span>
+                        </div>
+                        <div class="block-indicator" id="block-4">
+                            <span class="block-badge current">Current block: slot 3 fixed = D</span>
+                        </div>
                     </div>
                 </div>
 
                 <div class="permutation-grid" id="trail-4">
-                    <div class="trail-item active">ABCD</div>
+                    <section class="trail-group current" data-slot="3" data-fixed="D">
+                        <div class="trail-group-label">
+                            <span class="trail-group-title">Block 1</span>
+                            <span class="trail-group-fixed">slot 3 fixed = D</span>
+                        </div>
+                        <div class="trail-group-items">
+                            <div class="trail-item active">ABCD</div>
+                        </div>
+                    </section>
                 </div>
 
                 <div class="stats" id="stats-4">
@@ -253,28 +289,29 @@
 
             <p>The entire algorithm in just a few lines:</p>
 
-            <pre><code>function heapPermute(arr, n = arr.length) {
-    if (n === 1) {
+<pre><code>function heapPermute(arr, k = arr.length) {
+    if (k === 1) {
         output(arr);
         return;
     }
 
-    for (let i = 0; i < n; i++) {
-        heapPermute(arr, n - 1);
+    for (let i = 0; i < k; i++) {
+        heapPermute(arr, k - 1);
 
-        if (i < n - 1) {  // don't swap after last iteration
-            if (n % 2 === 0) {
-                swap(arr, i, n - 1);
+        if (i < k - 1) {  // don't swap after last iteration
+            if (k % 2 === 0) {
+                swap(arr, i, k - 1);
             } else {
-                swap(arr, 0, n - 1);
+                swap(arr, 0, k - 1);
             }
         }
     }
 }</code></pre>
 
             <p>
-                That's it. The parity check <code>n % 2 === 0</code> is the entire secret.
-                Everything else is just recursion and a loop.
+                That's the whole algorithm. The only subtle line is the parity check:
+                it decides which element should move into slot <code>k - 1</code> before the
+                next recursive block starts.
             </p>
         </section>
 
@@ -282,8 +319,9 @@
             <h2>Why This Matters</h2>
 
             <p>
-                Heap's algorithm achieves the theoretical minimum: n! - 1 swaps for n! permutations.
-                Each swap produces exactly one new arrangement. This makes it:
+                Heap's algorithm achieves the theoretical minimum: <code>n! - 1</code> swaps for
+                <code>n!</code> permutations. After the first output, each later arrangement is reached
+                by one swap. This makes it:
             </p>
 
             <ul>
