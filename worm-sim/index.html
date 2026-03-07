@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BAAIWorm - C. elegans FEM Simulation</title>
+  <title>BAAIWorm - WetNet Locomotion</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -42,25 +42,10 @@
       justify-content: space-between;
       margin-bottom: 8px;
       font-size: 0.85rem;
+      gap: 12px;
     }
     .stat-label { color: #666; }
     .stat-value { color: #4fc3f7; font-family: 'SF Mono', Monaco, monospace; font-size: 0.8rem; }
-    .slider-group { margin-bottom: 14px; }
-    .slider-group label {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.8rem;
-      color: #888;
-      margin-bottom: 4px;
-    }
-    .slider-group label span { color: #4fc3f7; font-family: monospace; }
-    input[type="range"] {
-      width: 100%;
-      height: 4px;
-      accent-color: #4fc3f7;
-      background: #2a2a3a;
-      border-radius: 2px;
-    }
     #loading {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -106,68 +91,212 @@
       border-radius: 8px;
       margin-bottom: 16px;
     }
+    .hero-copy {
+      color: #8d93a6;
+      font-size: 0.92rem;
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+    .truth-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.72rem;
+      color: #d8e7ff;
+      background: rgba(79, 195, 247, 0.08);
+      border: 1px solid rgba(79, 195, 247, 0.2);
+      border-radius: 999px;
+      padding: 7px 10px;
+      margin-bottom: 18px;
+    }
+    .truth-pill::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #4fc3f7;
+      box-shadow: 0 0 10px rgba(79, 195, 247, 0.45);
+    }
+    .source-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .microcopy {
+      color: #71778a;
+      font-size: 0.76rem;
+      line-height: 1.45;
+      margin-bottom: 12px;
+    }
+    .pipeline {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .pipeline-step {
+      border: 1px solid #272b39;
+      background: #151924;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 0.8rem;
+      color: #d8deed;
+    }
+    .pipeline-step strong {
+      color: #fff;
+      display: block;
+      margin-bottom: 3px;
+      font-size: 0.76rem;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .source-tag {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #10141f;
+      color: #8dcfff;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 0.68rem;
+    }
+    .muscle-strip {
+      display: grid;
+      grid-template-columns: repeat(24, minmax(0, 1fr));
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+    .muscle-cell {
+      aspect-ratio: 1 / 1;
+      border-radius: 4px;
+      background: #121726;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    }
+    .strip-axis {
+      display: flex;
+      justify-content: space-between;
+      color: #646b7d;
+      font-size: 0.72rem;
+    }
+    .strip-legend {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 10px;
+      color: #8c93a7;
+      font-size: 0.72rem;
+    }
+    .legend-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .legend-dot.dorsal { background: #55d8ff; }
+    .legend-dot.ventral { background: #ff9d57; }
+    .neuron-list {
+      display: grid;
+      gap: 10px;
+    }
+    .neuron-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .neuron-name {
+      color: #f0f3fb;
+      font-size: 0.78rem;
+      min-width: 42px;
+      font-family: 'SF Mono', Monaco, monospace;
+    }
+    .neuron-bar {
+      position: relative;
+      height: 7px;
+      background: #10141f;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .neuron-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #3d79ff, #4fc3f7);
+    }
+    .neuron-value {
+      color: #8dcfff;
+      font-size: 0.76rem;
+      font-family: 'SF Mono', Monaco, monospace;
+    }
   </style>
 </head>
 <body>
   <div id="loading">
     <div class="loader"></div>
-    <div id="loading-text">Initializing WebGPU...</div>
+    <div id="loading-text">Loading WetNet locomotion model...</div>
     <div id="loading-progress"></div>
   </div>
 
   <div id="container" style="display: none;">
     <div id="canvas-container"></div>
     <div id="sidebar">
-      <h1>BAAIWorm <span class="webgpu-badge">WebGPU</span></h1>
-      <p class="subtitle">C. elegans connectome-driven FEM simulation</p>
+      <h1>BAAIWorm <span class="webgpu-badge">WetNet</span></h1>
+      <p class="subtitle">Downloaded WetNet replay</p>
+      <p class="hero-copy">What is real here: the neural traces and muscle activations come from a downloaded WetNet run. What is approximated here: the browser uses a reduced-order body replay instead of the original FEM stack or a live neural solve.</p>
+      <div class="truth-pill">Real WetNet output, simplified browser biomechanics</div>
+      <div class="source-row">
+        <div class="source-tag">data/neural_traces.json</div>
+        <div class="source-tag">data/sample_muscle.json</div>
+      </div>
 
       <div id="error-container"></div>
 
       <div class="panel">
-        <h2>Simulation</h2>
+        <h2>Live Run</h2>
         <div class="stat">
-          <span class="stat-label">Time</span>
+          <span class="stat-label">Dataset Frame</span>
+          <span class="stat-value" id="live-frame">0 / 300</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Replay Time</span>
           <span class="stat-value" id="sim-time">0.000 s</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Drift Speed</span>
+          <span class="stat-value" id="live-speed">0.00 body/s</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Dominant Side</span>
+          <span class="stat-value" id="live-side">Balanced</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Activation Center</span>
+          <span class="stat-value" id="live-centroid">seg 0.0</span>
         </div>
         <div class="stat">
           <span class="stat-label">FPS</span>
           <span class="stat-value" id="sim-fps">0</span>
         </div>
-        <div class="stat">
-          <span class="stat-label">Substeps</span>
-          <span class="stat-value" id="sim-substeps">10</span>
-        </div>
       </div>
 
       <div class="panel">
-        <h2>Playback</h2>
-        <div class="slider-group">
-          <label>Speed <span id="speed-val">1.0x</span></label>
-          <input type="range" id="speed-slider" min="0.1" max="3" step="0.1" value="1">
+        <h2>Muscle Drive</h2>
+        <p class="microcopy">Current WetNet activation packet across the 24 body segments. Dorsal is the top row, ventral is the bottom row.</p>
+        <div class="strip-legend">
+          <span><span class="legend-dot dorsal"></span>Dorsal</span>
+          <span><span class="legend-dot ventral"></span>Ventral</span>
         </div>
+        <div id="muscle-strip" class="muscle-strip"></div>
+        <div class="strip-axis"><span>segment 0</span><span>segment 23</span></div>
       </div>
 
       <div class="panel">
-        <h2>FEM Physics</h2>
-        <div class="slider-group">
-          <label>Young's Modulus <span id="youngs-val">1e2</span></label>
-          <input type="range" id="youngs-slider" min="0" max="5" step="0.1" value="1.7">
-        </div>
-        <div class="slider-group">
-          <label>Poisson Ratio <span id="poisson-val">0.45</span></label>
-          <input type="range" id="poisson-slider" min="0.1" max="0.49" step="0.01" value="0.45">
-        </div>
-        <div class="slider-group">
-          <label>Muscle Stiffness <span id="muscle-stiff-val">1e5</span></label>
-          <input type="range" id="muscle-stiff-slider" min="3" max="6" step="0.1" value="5">
-        </div>
-        <div class="slider-group">
-          <label>Damping <span id="damping-val">0.970</span></label>
-          <input type="range" id="damping-slider" min="0.8" max="0.999" step="0.001" value="0.970">
-        </div>
+        <h2>Neural Snapshot</h2>
+        <p class="microcopy">Most depolarized motor neurons from the same downloaded frame. This gives provenance for the replay: the motion comes from recorded WetNet output, not a browser-side sine wave.</p>
+        <div id="neuron-list" class="neuron-list"></div>
       </div>
-
-
 
       <div class="panel">
         <h2>Model Info</h2>
@@ -195,7 +324,6 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
   <script type="importmap">
   {
     "imports": {

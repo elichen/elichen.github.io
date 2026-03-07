@@ -1,59 +1,83 @@
 /**
- * BAAIWorm WebGPU FEM Simulation
- * Faithful port of the C. elegans connectome-driven body simulation
+ * BAAIWorm browser locomotion player
+ *
+ * The original browser port loaded WetNet muscle data but then ignored it in
+ * favor of a synthetic sine wave. This version replays the downloaded muscle
+ * drive directly, solves a lightweight hydrodynamic locomotion step, and skins
+ * the existing tetrahedral mesh onto a moving centerline so the worm actually
+ * swims instead of wriggling in place.
  */
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// ============================================================================
-// Constants
-// ============================================================================
-const NUM_MOTOR_NEURONS = 80;
 const NUM_MUSCLES = 96;
-const SUBSTEPS = 5;  // Reduced for better FPS
-const DT = 0.001; // 1ms timestep per substep
+const MUSCLE_SEGMENTS = 24;
+const CENTERLINE_SAMPLES = 128;
+const MIN_DELTA_TIME = 1 / 120;
+const MAX_DELTA_TIME = 0.05;
 
-// ============================================================================
-// Global State
-// ============================================================================
-let meshData, muscleData, neuralTraces, sampleMuscle;
-let scene, camera, renderer, controls;
-let wormMesh, wormGeometry;
+let meshData;
+let muscleData;
+let neuralTraces;
+let sampleMuscle;
 
-// Simulation state
-let positions, velocities, restPositions;
-let isPlaying = true;
-let currentFrame = 0;
-let playbackSpeed = 1.0;
-let frameAccumulator = 0;
+let scene;
+let camera;
+let renderer;
+let controls;
+let wormMesh;
+let wormGeometry;
+
+let positions;
+let restPositions;
+
+let restCenterlineX;
+let restCenterlineY;
+let restCenterlineZ;
+let centerlineX;
+let centerlineY;
+let centerlineZ;
+let previousCenterlineX;
+let previousCenterlineZ;
+let centerlineAngles;
+let smoothedCurvature;
+
+let vertexRig;
+let bodyLength = 0;
+
 let simTime = 0;
+let driveTime = 0;
+let playbackSpeed = 1.0;
+let bodyStiffness = 0.55;
+let fluidAnisotropy = 4.4;
+let muscleGain = 1.9;
+let hydroDamping = 0.72;
 
-// Physics parameters
-// Based on C. elegans literature: Young's modulus ~3.77 kPa (bending), muscle force ~2.7 nN
-// Scaled for mesh coordinates (mesh is ~400x larger than real worm)
-let youngsModulus = 50;  // 50 Pa - structural stability proven; bending from force magnitude
-let poissonRatio = 0.45;
-let muscleStiffness = 1e5; // Strong muscle forces
-let damping = 0.97;  // Aggressive damping: removes ~75% velocity/sec, prevents energy accumulation
-
-// FPS tracking
 let lastTime = 0;
+let lastFrameTime = 0;
 let frameCount = 0;
 let fps = 0;
-let lastFrameTime = 0; // For delta time calculation
 
-// Current muscle activations (shared between physics and UI)
-let currentMuscleActivations = new Float32Array(96);
-// CNN inference state
-let cnnWeights = null;
-let cnnModel = null;
-let neuronHistory = []; // Sliding window of neuron states for CNN input
-const CNN_KERNEL_SIZE = 21;
+let currentMuscleActivations = new Float32Array(NUM_MUSCLES);
+let shapeVelocityX = new Float32Array(CENTERLINE_SAMPLES);
+let shapeVelocityZ = new Float32Array(CENTERLINE_SAMPLES);
+let dorsalSegments = new Float32Array(MUSCLE_SEGMENTS);
+let ventralSegments = new Float32Array(MUSCLE_SEGMENTS);
 
-// ============================================================================
-// Loading
-// ============================================================================
+let currentFrameFloat = 0;
+let currentFrameIndex = 0;
+let currentReplayTime = 0;
+let currentDominantSide = 'Balanced';
+let currentActivationCentroid = 11.5;
+let currentDriftSpeed = 0;
+
+let muscleCells = { dorsal: [], ventral: [] };
+let neuronRows = [];
+
+let bodyPose = { x: 0, z: 0, yaw: 0 };
+let bodyVelocity = { x: 0, z: 0, omega: 0 };
+
 function updateLoading(text, progress = '') {
   document.getElementById('loading-text').textContent = text;
   document.getElementById('loading-progress').textContent = progress;
@@ -70,684 +94,568 @@ async function loadJSON(path) {
 async function loadAllData() {
   const basePath = './data';
 
-  updateLoading('Loading mesh data...', '1/5');
+  updateLoading('Loading mesh data...', '1/4');
   meshData = await loadJSON(`${basePath}/mesh_data.json`);
 
-  // Compute bounding box for endpoint constraints
-  const verts = meshData.vertices;
-  let zMin = Infinity, zMax = -Infinity;
-  for (let i = 0; i < verts.length; i++) {
-    const z = verts[i][2];
-    if (z < zMin) zMin = z;
-    if (z > zMax) zMax = z;
-  }
-  meshData.bbox = { zMin, zMax };
-
-  // meshData.vertices are scaled but Dm_inv is in the unscaled basis.
-  // Scale Dm_inv so rest state produces F ~ I.
-  if (meshData.scale && meshData.scale !== 1) {
-    const invScale = 1 / meshData.scale;
-    for (let i = 0; i < meshData.Dm_inv.length; i++) {
-      const m = meshData.Dm_inv[i];
-      for (let j = 0; j < m.length; j++) {
-        m[j] *= invScale;
-      }
-    }
-  }
-
-  updateLoading('Loading muscle data...', '2/5');
+  updateLoading('Loading muscle centerlines...', '2/4');
   muscleData = await loadJSON(`${basePath}/muscle_data.json`);
 
-  updateLoading('Loading neural traces...', '3/5');
+  updateLoading('Loading neural traces...', '3/4');
   neuralTraces = await loadJSON(`${basePath}/neural_traces.json`);
 
-  updateLoading('Loading muscle activations...', '4/5');
+  updateLoading('Loading WetNet muscle drive...', '4/4');
   sampleMuscle = await loadJSON(`${basePath}/sample_muscle.json`);
-
-  updateLoading('Loading CNN weights...', '5/5');
-  cnnWeights = await loadJSON(`${basePath}/cnn_weights.json`);
 }
 
-// ============================================================================
-// CNN Model (TensorFlow.js)
-// ============================================================================
-/**
- * Initialize the CNN model with pre-trained weights from BAAIWorm
- * Architecture: Conv1d(in_channels=80, out_channels=96, kernel_size=21)
- */
-async function initCNNModel() {
-  if (!cnnWeights || typeof tf === 'undefined') {
-    console.warn('CNN weights or TensorFlow.js not available');
-    return;
-  }
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
 
-  try {
-    // PyTorch Conv1d weight shape: (out_channels, in_channels, kernel_size) = (96, 80, 21)
-    // TensorFlow Conv1d expects: (kernel_size, in_channels, out_channels) = (21, 80, 96)
-    // Need to transpose the weights
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
 
-    const outChannels = cnnWeights.out_channels; // 96
-    const inChannels = cnnWeights.in_channels;   // 80
-    const kernelSize = cnnWeights.kernel_size;   // 21
+function createCenterlineArrays() {
+  return {
+    x: new Float32Array(CENTERLINE_SAMPLES),
+    y: new Float32Array(CENTERLINE_SAMPLES),
+    z: new Float32Array(CENTERLINE_SAMPLES)
+  };
+}
 
-    // Transpose weights from (96, 80, 21) to (21, 80, 96)
-    const transposedWeights = new Float32Array(kernelSize * inChannels * outChannels);
-    for (let k = 0; k < kernelSize; k++) {
-      for (let i = 0; i < inChannels; i++) {
-        for (let o = 0; o < outChannels; o++) {
-          // PyTorch index: [o][i][k]
-          // TF index: k * (inChannels * outChannels) + i * outChannels + o
-          transposedWeights[k * inChannels * outChannels + i * outChannels + o] =
-            cnnWeights.weight[o][i][k];
-        }
-      }
+function buildRestCenterline() {
+  const muscleNames = muscleData.muscle_names || Object.keys(muscleData.muscles);
+  const pointCount = muscleData.muscles[muscleNames[0]].length;
+  const averaged = new Array(pointCount);
+
+  for (let i = 0; i < pointCount; i++) {
+    let x = 0;
+    let y = 0;
+    let z = 0;
+
+    for (const name of muscleNames) {
+      const point = muscleData.muscles[name][i];
+      x += point[0];
+      y += point[1];
+      z += point[2];
     }
 
-    // Create TensorFlow.js model
-    const input = tf.input({ shape: [CNN_KERNEL_SIZE, NUM_MOTOR_NEURONS] });
-    const conv = tf.layers.conv1d({
-      filters: NUM_MUSCLES,
-      kernelSize: kernelSize,
-      padding: 'valid',
-      activation: 'linear',
-      useBias: true
-    }).apply(input);
-
-    cnnModel = tf.model({ inputs: input, outputs: conv });
-
-    // Set the weights
-    const weightTensor = tf.tensor(transposedWeights, [kernelSize, inChannels, outChannels]);
-    const biasTensor = tf.tensor(cnnWeights.bias, [outChannels]);
-    cnnModel.layers[1].setWeights([weightTensor, biasTensor]);
-  } catch (error) {
-    console.error('Failed to initialize CNN model:', error);
+    const scale = 1 / muscleNames.length;
+    averaged[i] = [x * scale, y * scale, z * scale];
   }
+
+  const cumulative = new Float32Array(pointCount);
+  let totalLength = 0;
+  for (let i = 1; i < pointCount; i++) {
+    const dx = averaged[i][0] - averaged[i - 1][0];
+    const dy = averaged[i][1] - averaged[i - 1][1];
+    const dz = averaged[i][2] - averaged[i - 1][2];
+    totalLength += Math.hypot(dx, dy, dz);
+    cumulative[i] = totalLength;
+  }
+  bodyLength = totalLength;
+
+  const resampled = createCenterlineArrays();
+  for (let sample = 0; sample < CENTERLINE_SAMPLES; sample++) {
+    const targetLength = (sample / (CENTERLINE_SAMPLES - 1)) * totalLength;
+    let seg = 0;
+    while (seg < pointCount - 2 && cumulative[seg + 1] < targetLength) {
+      seg++;
+    }
+
+    const segStart = cumulative[seg];
+    const segEnd = cumulative[seg + 1];
+    const span = Math.max(segEnd - segStart, 1e-6);
+    const t = clamp((targetLength - segStart) / span, 0, 1);
+    const a = averaged[seg];
+    const b = averaged[seg + 1];
+
+    resampled.x[sample] = lerp(a[0], b[0], t);
+    resampled.y[sample] = lerp(a[1], b[1], t);
+    resampled.z[sample] = lerp(a[2], b[2], t);
+  }
+
+  return resampled;
 }
 
-/**
- * Run CNN inference to compute muscle activations from motor neuron voltages
- * @param {Float32Array} neuronVoltages - Current motor neuron voltages (80 values)
- * @returns {Float32Array} - Muscle activations (96 values)
- */
-function runCNNInference(neuronVoltages) {
-  if (!cnnModel) {
-    return null;
-  }
+function projectPointToCenterline(x, z) {
+  let bestDistSq = Infinity;
+  let bestS = 0;
+  let bestPointX = 0;
+  let bestPointZ = 0;
+  let bestNormalX = 1;
+  let bestNormalZ = 0;
+  let bestTangentX = 0;
+  let bestTangentZ = 1;
+  let bestCenterY = 0;
 
-  // Add current voltages to history
-  neuronHistory.push(Array.from(neuronVoltages));
+  const segmentLength = bodyLength / (CENTERLINE_SAMPLES - 1);
 
-  // Keep only the last CNN_KERNEL_SIZE frames
-  if (neuronHistory.length > CNN_KERNEL_SIZE) {
-    neuronHistory.shift();
-  }
+  for (let i = 0; i < CENTERLINE_SAMPLES - 1; i++) {
+    const ax = restCenterlineX[i];
+    const az = restCenterlineZ[i];
+    const bx = restCenterlineX[i + 1];
+    const bz = restCenterlineZ[i + 1];
+    const dx = bx - ax;
+    const dz = bz - az;
+    const lenSq = dx * dx + dz * dz;
+    if (lenSq < 1e-12) {
+      continue;
+    }
 
-  // Need enough history for convolution
-  if (neuronHistory.length < CNN_KERNEL_SIZE) {
-    return null;
-  }
+    const t = clamp(((x - ax) * dx + (z - az) * dz) / lenSq, 0, 1);
+    const px = ax + dx * t;
+    const pz = az + dz * t;
+    const distX = x - px;
+    const distZ = z - pz;
+    const distSq = distX * distX + distZ * distZ;
 
-  // Create input tensor: (1, kernel_size, in_channels)
-  const inputData = new Float32Array(CNN_KERNEL_SIZE * NUM_MOTOR_NEURONS);
-  for (let t = 0; t < CNN_KERNEL_SIZE; t++) {
-    for (let n = 0; n < NUM_MOTOR_NEURONS; n++) {
-      // Normalize voltage: original range ~[-70, -20] to [0, 1]
-      const voltage = neuronHistory[t][n];
-      const normalized = (voltage + 70) / 50;
-      inputData[t * NUM_MOTOR_NEURONS + n] = normalized;
+    if (distSq < bestDistSq) {
+      const invLen = 1 / Math.sqrt(lenSq);
+      bestDistSq = distSq;
+      bestPointX = px;
+      bestPointZ = pz;
+      bestTangentX = dx * invLen;
+      bestTangentZ = dz * invLen;
+      bestNormalX = bestTangentZ;
+      bestNormalZ = -bestTangentX;
+      bestS = (i + t) * segmentLength;
+      bestCenterY = lerp(restCenterlineY[i], restCenterlineY[i + 1], t);
     }
   }
 
-  // Run inference
-  const inputTensor = tf.tensor3d(inputData, [1, CNN_KERNEL_SIZE, NUM_MOTOR_NEURONS]);
-  const outputTensor = cnnModel.predict(inputTensor);
+  const offsetX = x - bestPointX;
+  const offsetZ = z - bestPointZ;
 
-  // Output shape is (1, 1, 96) due to valid padding with kernel=21 on input of 21
-  const outputData = outputTensor.dataSync();
-
-  // Apply sigmoid activation to get muscle activations in [0, 1]
-  const muscleActivations = new Float32Array(NUM_MUSCLES);
-  for (let i = 0; i < NUM_MUSCLES; i++) {
-    muscleActivations[i] = 1 / (1 + Math.exp(-outputData[i]));
-  }
-
-  // Clean up tensors
-  inputTensor.dispose();
-  outputTensor.dispose();
-
-  return muscleActivations;
+  return {
+    s: bestS / bodyLength,
+    lateral: offsetX * bestNormalX + offsetZ * bestNormalZ,
+    axial: offsetX * bestTangentX + offsetZ * bestTangentZ,
+    centerY: bestCenterY
+  };
 }
 
-// ============================================================================
-// FEM Simulation (CPU implementation - faithful to BAAIWorm)
-// ============================================================================
+function initVertexRig() {
+  const numVerts = meshData.num_vertices;
+  const rig = {
+    s: new Float32Array(numVerts),
+    lateral: new Float32Array(numVerts),
+    axial: new Float32Array(numVerts),
+    vertical: new Float32Array(numVerts)
+  };
+
+  for (let i = 0; i < numVerts; i++) {
+    const vertex = meshData.vertices[i];
+    const projection = projectPointToCenterline(vertex[0], vertex[2]);
+    rig.s[i] = projection.s;
+    rig.lateral[i] = projection.lateral;
+    rig.axial[i] = projection.axial;
+    rig.vertical[i] = vertex[1] - projection.centerY;
+  }
+
+  vertexRig = rig;
+}
+
 function initSimulation() {
   const numVerts = meshData.num_vertices;
 
-  // Initialize position and velocity arrays
   positions = new Float32Array(numVerts * 3);
-  velocities = new Float32Array(numVerts * 3);
   restPositions = new Float32Array(numVerts * 3);
 
-  // Copy initial positions
   for (let i = 0; i < numVerts; i++) {
-    const v = meshData.vertices[i];
-    positions[i * 3] = v[0];
-    positions[i * 3 + 1] = v[1];
-    positions[i * 3 + 2] = v[2];
-    restPositions[i * 3] = v[0];
-    restPositions[i * 3 + 1] = v[1];
-    restPositions[i * 3 + 2] = v[2];
+    const vertex = meshData.vertices[i];
+    positions[i * 3] = vertex[0];
+    positions[i * 3 + 1] = vertex[1];
+    positions[i * 3 + 2] = vertex[2];
+    restPositions[i * 3] = vertex[0];
+    restPositions[i * 3 + 1] = vertex[1];
+    restPositions[i * 3 + 2] = vertex[2];
   }
 
-  // Expose to window for debugging
+  const restCenterline = buildRestCenterline();
+  restCenterlineX = restCenterline.x;
+  restCenterlineY = restCenterline.y;
+  restCenterlineZ = restCenterline.z;
+
+  centerlineX = new Float32Array(restCenterlineX);
+  centerlineY = new Float32Array(restCenterlineY);
+  centerlineZ = new Float32Array(restCenterlineZ);
+  previousCenterlineX = new Float32Array(restCenterlineX);
+  previousCenterlineZ = new Float32Array(restCenterlineZ);
+  centerlineAngles = new Float32Array(CENTERLINE_SAMPLES);
+  smoothedCurvature = new Float32Array(CENTERLINE_SAMPLES);
+
+  initVertexRig();
+  updateMuscleActivations(0);
+  updateCenterlineShape(MIN_DELTA_TIME, true);
+  updateSkinnedVertices();
+
   window.positions = positions;
   window.restPositions = restPositions;
+  window.currentMuscleActivations = currentMuscleActivations;
   window.meshData = meshData;
-
-  // Precompute Lame parameters
-  updateLameParameters();
-
-  // Initialize muscle-vertex mapping for efficient force computation
-  initMuscleVertexMap();
-
-  // Build vertex neighbor map from tetrahedra for Laplacian smoothing
-  buildNeighborMap();
 }
 
-// Vertex neighbor map for Laplacian smoothing
-let vertexNeighbors = null;
+function updateMuscleActivations(timeSeconds) {
+  const frameCount = sampleMuscle.frames.length;
+  const frameDuration = sampleMuscle.dt_ms / 1000;
+  const frameFloat = ((timeSeconds / frameDuration) % frameCount + frameCount) % frameCount;
+  const frame0 = Math.floor(frameFloat);
+  const frame1 = (frame0 + 1) % frameCount;
+  const alpha = frameFloat - frame0;
+  const a = sampleMuscle.frames[frame0];
+  const b = sampleMuscle.frames[frame1];
 
-function buildNeighborMap() {
-  const numVerts = meshData.num_vertices;
-  const neighborSets = new Array(numVerts);
-  for (let i = 0; i < numVerts; i++) neighborSets[i] = new Set();
+  currentFrameFloat = frameFloat;
+  currentFrameIndex = frame0;
+  currentReplayTime = frameFloat * frameDuration;
 
-  for (let t = 0; t < meshData.num_tetrahedra; t++) {
-    const tet = meshData.tetrahedra[t];
-    // Every pair of vertices in a tet are neighbors
-    for (let a = 0; a < 4; a++) {
-      for (let b = a + 1; b < 4; b++) {
-        neighborSets[tet[a]].add(tet[b]);
-        neighborSets[tet[b]].add(tet[a]);
-      }
+  for (let i = 0; i < NUM_MUSCLES; i++) {
+    currentMuscleActivations[i] = lerp(a[i], b[i], alpha);
+  }
+}
+
+function smoothSegments(values) {
+  const current = new Float32Array(values);
+  const next = new Float32Array(values.length);
+  const passes = 1 + Math.round(bodyStiffness * 2);
+
+  for (let pass = 0; pass < passes; pass++) {
+    for (let i = 0; i < current.length; i++) {
+      const prev = current[Math.max(0, i - 1)];
+      const value = current[i];
+      const upcoming = current[Math.min(current.length - 1, i + 1)];
+      next[i] = (prev + value * (1.8 + bodyStiffness) + upcoming) / (3.8 + bodyStiffness);
     }
+    current.set(next);
   }
 
-  // Convert to arrays for faster iteration
-  vertexNeighbors = neighborSets.map(s => Array.from(s));
+  return current;
 }
 
-let lambda, mu; // Lame parameters
-function updateLameParameters() {
-  mu = youngsModulus / (2 * (1 + poissonRatio));
-  lambda = youngsModulus * poissonRatio / ((1 + poissonRatio) * (1 - 2 * poissonRatio));
+function sampleArrayLinear(values, u) {
+  const clamped = clamp(u, 0, values.length - 1);
+  const i0 = Math.floor(clamped);
+  const i1 = Math.min(values.length - 1, i0 + 1);
+  const t = clamped - i0;
+  return lerp(values[i0], values[i1], t);
 }
 
-/**
- * Compute Corotated FEM forces for a single tetrahedron
- * Based on "FEM Simulation of 3D Deformable Solids" by Sifakis & Barbic
- */
-function computeTetForce(tetIdx, forces) {
-  const tet = meshData.tetrahedra[tetIdx];
-  const i0 = tet[0], i1 = tet[1], i2 = tet[2], i3 = tet[3];
+function updateCenterlineShape(deltaTime, forceInstant = false) {
+  const segmentDrive = new Float32Array(MUSCLE_SEGMENTS);
+  let driveBias = 0;
+  let dorsalSum = 0;
+  let ventralSum = 0;
+  let centroid = 0;
+  let centroidWeight = 0;
 
-  // Get current positions
-  const p0 = [positions[i0*3], positions[i0*3+1], positions[i0*3+2]];
-  const p1 = [positions[i1*3], positions[i1*3+1], positions[i1*3+2]];
-  const p2 = [positions[i2*3], positions[i2*3+1], positions[i2*3+2]];
-  const p3 = [positions[i3*3], positions[i3*3+1], positions[i3*3+2]];
-
-  // Compute deformed edge matrix Ds
-  const Ds = [
-    [p1[0] - p0[0], p2[0] - p0[0], p3[0] - p0[0]],
-    [p1[1] - p0[1], p2[1] - p0[1], p3[1] - p0[1]],
-    [p1[2] - p0[2], p2[2] - p0[2], p3[2] - p0[2]]
-  ];
-
-  // Get inverse of rest edge matrix (precomputed, stored row-major from numpy)
-  const DmInv = meshData.Dm_inv[tetIdx];
-  // NumPy flatten is row-major: [[a,b,c],[d,e,f],[g,h,i]] -> [a,b,c,d,e,f,g,h,i]
-  const Bm = [
-    [DmInv[0], DmInv[1], DmInv[2]],
-    [DmInv[3], DmInv[4], DmInv[5]],
-    [DmInv[6], DmInv[7], DmInv[8]]
-  ];
-
-  // Compute deformation gradient F = Ds * Dm^(-1)
-  const F = mat3Mult(Ds, Bm);
-
-  // Polar decomposition: F = R * S (rotation * stretch)
-  const { R, S } = polarDecomposition(F);
-
-  // Compute strain: E = S - I (or Green strain for large deformations)
-  const strain = [
-    [S[0][0] - 1, S[0][1], S[0][2]],
-    [S[1][0], S[1][1] - 1, S[1][2]],
-    [S[2][0], S[2][1], S[2][2] - 1]
-  ];
-
-  // Compute stress using linear elasticity: sigma = lambda * tr(E) * I + 2 * mu * E
-  const trE = strain[0][0] + strain[1][1] + strain[2][2];
-  const stress = [
-    [lambda * trE + 2 * mu * strain[0][0], 2 * mu * strain[0][1], 2 * mu * strain[0][2]],
-    [2 * mu * strain[1][0], lambda * trE + 2 * mu * strain[1][1], 2 * mu * strain[1][2]],
-    [2 * mu * strain[2][0], 2 * mu * strain[2][1], lambda * trE + 2 * mu * strain[2][2]]
-  ];
-
-  // Rotate stress back to world frame: P = R * sigma
-  const P = mat3Mult(R, stress);
-
-  // Compute forces: H = -V * P * Bm^T
-  const volume = meshData.volumes[tetIdx];
-  const BmT = mat3Transpose(Bm);
-  const H = mat3Mult(P, BmT);
-
-  // Scale by -volume
-  for (let i = 0; i < 3; i++) {
-    for (let j = 0; j < 3; j++) {
-      H[i][j] *= -volume;
-    }
+  for (let seg = 0; seg < MUSCLE_SEGMENTS; seg++) {
+    const dorsal = 0.5 * (currentMuscleActivations[seg] + currentMuscleActivations[seg + 48]);
+    const ventral = 0.5 * (currentMuscleActivations[seg + 24] + currentMuscleActivations[seg + 72]);
+    dorsalSegments[seg] = dorsal;
+    ventralSegments[seg] = ventral;
+    segmentDrive[seg] = ventral - dorsal;
+    driveBias += segmentDrive[seg];
+    dorsalSum += dorsal;
+    ventralSum += ventral;
+    const total = dorsal + ventral;
+    centroid += seg * total;
+    centroidWeight += total;
   }
 
-  // Forces on vertices 1, 2, 3
-  const f1 = [H[0][0], H[1][0], H[2][0]];
-  const f2 = [H[0][1], H[1][1], H[2][1]];
-  const f3 = [H[0][2], H[1][2], H[2][2]];
-
-  // Force on vertex 0 (balance)
-  const f0 = [-(f1[0] + f2[0] + f3[0]), -(f1[1] + f2[1] + f3[1]), -(f1[2] + f2[2] + f3[2])];
-
-  // Accumulate forces
-  forces[i0*3] += f0[0]; forces[i0*3+1] += f0[1]; forces[i0*3+2] += f0[2];
-  forces[i1*3] += f1[0]; forces[i1*3+1] += f1[1]; forces[i1*3+2] += f1[2];
-  forces[i2*3] += f2[0]; forces[i2*3+1] += f2[1]; forces[i2*3+2] += f2[2];
-  forces[i3*3] += f3[0]; forces[i3*3+1] += f3[1]; forces[i3*3+2] += f3[2];
-}
-
-// Precomputed muscle-vertex mappings for performance
-let muscleVertexMap = null;
-
-/**
- * Precompute which vertices are affected by each muscle segment
- */
-function initMuscleVertexMap() {
-  muscleVertexMap = [];
-  // Tight influence radius — must be smaller than body cross-section (~0.04 units)
-  // so dorsal muscles only reach dorsal vertices and vice-versa
-  const radius = 0.035;  // Wider radius smooths force transitions between adjacent muscle segments
-  const radiusSq = radius * radius;
-
-  const muscleMap = {
-    'MDR_curve_BezierCurve.001': 0,
-    'MVR_curve_BezierCurve.005': 24,
-    'MDL_curve_BezierCurve.006': 48,
-    'MVL_curve_BezierCurve.007': 72
-  };
-
-  // Compute mesh center X for dorsal/ventral side filtering
-  const meshBounds = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
-  for (let i = 0; i < meshData.num_vertices; i++) {
-    const v = meshData.vertices[i];
-    if (v[0] < meshBounds.minX) meshBounds.minX = v[0];
-    if (v[0] > meshBounds.maxX) meshBounds.maxX = v[0];
-    if (v[2] < meshBounds.minZ) meshBounds.minZ = v[2];
-    if (v[2] > meshBounds.maxZ) meshBounds.maxZ = v[2];
+  driveBias /= MUSCLE_SEGMENTS;
+  for (let seg = 0; seg < MUSCLE_SEGMENTS; seg++) {
+    segmentDrive[seg] -= driveBias;
   }
-  const meshCenterX = (meshBounds.minX + meshBounds.maxX) / 2;
 
-  for (const [muscleName, baseIdx] of Object.entries(muscleMap)) {
-    const points = muscleData.muscles[muscleName];
-    if (!points) continue;
+  currentActivationCentroid = centroidWeight > 1e-5 ? centroid / centroidWeight : 11.5;
+  if (dorsalSum > ventralSum + 0.08) {
+    currentDominantSide = 'Dorsal lead';
+  } else if (ventralSum > dorsalSum + 0.08) {
+    currentDominantSide = 'Ventral lead';
+  } else {
+    currentDominantSide = 'Balanced';
+  }
 
-    // Determine if this muscle group is dorsal or ventral for side filtering
-    // DR (0-23) + DL (48-71) = dorsal (+X side), VR (24-47) + VL (72-95) = ventral (-X side)
-    const isDorsalGroup = (baseIdx === 0 || baseIdx === 48);
+  const smoothedSegments = smoothSegments(segmentDrive);
+  const curvatureGain = 6.5 * muscleGain / Math.max(0.35, bodyStiffness);
+  const response = forceInstant ? 1 : 1 - Math.pow(hydroDamping, deltaTime * 60);
 
-    const numSegments = 24;
-    const pointsPerSegment = Math.floor(points.length / numSegments);
+  for (let i = 0; i < CENTERLINE_SAMPLES; i++) {
+    const bodyU = i / (CENTERLINE_SAMPLES - 1);
+    const segmentU = bodyU * (MUSCLE_SEGMENTS - 1);
+    const taper = 0.25 + 0.75 * Math.sin(Math.PI * bodyU);
+    const target = sampleArrayLinear(smoothedSegments, segmentU) * curvatureGain * taper;
+    smoothedCurvature[i] = lerp(smoothedCurvature[i], target, response);
+  }
 
-    for (let seg = 0; seg < numSegments; seg++) {
-      const muscleIdx = baseIdx + seg;
-      const startIdx = seg * pointsPerSegment;
-      const endIdx = Math.min(startIdx + pointsPerSegment, points.length - 1);
-      const start = points[startIdx];
-      const end = points[endIdx];
-      const center = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2, (start[2] + end[2]) / 2];
+  const ds = bodyLength / (CENTERLINE_SAMPLES - 1);
+  centerlineAngles[0] = 0;
+  for (let i = 1; i < CENTERLINE_SAMPLES; i++) {
+    const curvatureMid = 0.5 * (smoothedCurvature[i - 1] + smoothedCurvature[i]);
+    centerlineAngles[i] = centerlineAngles[i - 1] + curvatureMid * ds;
+  }
 
-      const affectedVerts = [];
-      for (let i = 0; i < meshData.num_vertices; i++) {
-        const v = meshData.vertices[i];
+  let meanAngle = 0;
+  for (let i = 0; i < CENTERLINE_SAMPLES; i++) {
+    meanAngle += centerlineAngles[i];
+  }
+  meanAngle /= CENTERLINE_SAMPLES;
+  for (let i = 0; i < CENTERLINE_SAMPLES; i++) {
+    centerlineAngles[i] -= meanAngle;
+  }
 
-        // Anatomical side filtering: dorsal muscles only affect dorsal vertices (X > center)
-        // ventral muscles only affect ventral vertices (X < center)
-        if (isDorsalGroup && v[0] < meshCenterX) continue;
-        if (!isDorsalGroup && v[0] > meshCenterX) continue;
+  centerlineX[0] = 0;
+  centerlineZ[0] = 0;
+  centerlineY[0] = restCenterlineY[0];
 
-        const dx = v[0] - center[0];
-        const dy = v[1] - center[1];
-        const dz = v[2] - center[2];
-        const distSq = dx*dx + dy*dy + dz*dz;
+  for (let i = 1; i < CENTERLINE_SAMPLES; i++) {
+    const heading = 0.5 * (centerlineAngles[i - 1] + centerlineAngles[i]);
+    centerlineX[i] = centerlineX[i - 1] + Math.sin(heading) * ds;
+    centerlineZ[i] = centerlineZ[i - 1] + Math.cos(heading) * ds;
+    centerlineY[i] = restCenterlineY[i];
+  }
 
-        if (distSq < radiusSq) {
-          const weight = Math.exp(-distSq / (radiusSq * 0.5));
-          affectedVerts.push({ idx: i, weight });
-        }
-      }
-      muscleVertexMap[muscleIdx] = affectedVerts;
-    }
+  let centerX = 0;
+  let centerZ = 0;
+  for (let i = 0; i < CENTERLINE_SAMPLES; i++) {
+    centerX += centerlineX[i];
+    centerZ += centerlineZ[i];
+  }
+  centerX /= CENTERLINE_SAMPLES;
+  centerZ /= CENTERLINE_SAMPLES;
+
+  for (let i = 0; i < CENTERLINE_SAMPLES; i++) {
+    centerlineX[i] -= centerX;
+    centerlineZ[i] -= centerZ;
   }
 }
 
-/**
- * Apply muscle forces based on current activations
- *
- * Bending force model: dorsal/ventral muscle activation pulls the body
- * laterally to create undulation.
- *
- * In C. elegans:
- * - DR (0-23) + DL (48-71) are DORSAL (dorsal = +X in this mesh)
- * - VR (24-47) + VL (72-95) are VENTRAL (ventral = -X in this mesh)
- */
-function applyMuscleForces(forces, muscleActivations) {
-  if (!muscleVertexMap) return;
+function computeDragTotals(vx, vz, omega, includeShapeVelocity) {
+  let forceX = 0;
+  let forceZ = 0;
+  let torque = 0;
 
-  for (let muscleIdx = 0; muscleIdx < 96; muscleIdx++) {
-    const activation = muscleActivations[muscleIdx] || 0;
-    if (Math.abs(activation) < 0.01) continue;
+  const xiParallel = 1;
+  const xiPerpendicular = fluidAnisotropy;
 
-    const affectedVerts = muscleVertexMap[muscleIdx];
-    if (!affectedVerts || affectedVerts.length === 0) continue;
-
-    // Compute total weight for normalization
-    let totalWeight = 0;
-    for (const vert of affectedVerts) {
-      totalWeight += vert.weight;
-    }
-    if (totalWeight < 1e-6) continue;
-
-    // Determine dorsal vs ventral for bending direction
-    // DR (0-23) + DL (48-71) = dorsal (+X), VR (24-47) + VL (72-95) = ventral (-X)
-    const isDorsal = muscleIdx < 24 || (muscleIdx >= 48 && muscleIdx < 72);
-    const bendDirection = isDorsal ? 1.0 : -1.0;  // +X for dorsal, -X for ventral
-
-    const bendForceMag = activation * muscleStiffness * 2.0e-3;
-
-    for (const vert of affectedVerts) {
-      const i = vert.idx;
-      const normalizedWeight = vert.weight / totalWeight;
-
-      // Force-length saturation: reduce force as vertex moves away from rest position
-      // Mimics real muscle force-length relationship and prevents unbounded displacement
-      const currentLateralDisp = Math.abs(positions[i*3] - restPositions[i*3]);
-      const maxAllowedDisp = 0.04;
-      const saturationFactor = Math.max(0, 1.0 - currentLateralDisp / maxAllowedDisp);
-
-      // Lateral bending force in X direction
-      const bendForce = bendForceMag * normalizedWeight * saturationFactor;
-      forces[i*3] += bendForce * bendDirection;
-    }
-  }
-}
-
-/**
- * Compute drag forces (simplified fluid interaction)
- */
-function computeDragForces(forces) {
-  const dragCoeff = 15.0;  // Tuned: equilibrium v ≈ 0.25 m/s gives amplitude ~60% body width
-  // Anisotropic drag: real C. elegans has higher resistance to lateral (sideways)
-  // motion than axial (forward) motion. This converts undulation into net locomotion.
-  const lateralDragMult = 3.0;  // X, Y: resist sideways sliding
-  const axialDragMult = 1.0;    // Z: allow forward movement
-  const numVerts = meshData.num_vertices;
-
-  for (let i = 0; i < numVerts; i++) {
-    const vx = velocities[i*3];
-    const vy = velocities[i*3+1];
-    const vz = velocities[i*3+2];
-    const speed = Math.sqrt(vx*vx + vy*vy + vz*vz);
-
-    if (speed > 1e-6) {
-      forces[i*3]   -= dragCoeff * lateralDragMult * vx * speed;
-      forces[i*3+1] -= dragCoeff * lateralDragMult * vy * speed;
-      forces[i*3+2] -= dragCoeff * axialDragMult * vz * speed;
-    }
-  }
-}
-
-/**
- * Single simulation substep
- */
-function simulationStep(muscleActivations) {
-  const numVerts = meshData.num_vertices;
-  const forces = new Float32Array(numVerts * 3);
-
-  // Compute elastic forces from all tetrahedra
-  for (let t = 0; t < meshData.num_tetrahedra; t++) {
-    computeTetForce(t, forces);
-  }
-
-  // Apply muscle forces
-  applyMuscleForces(forces, muscleActivations);
-
-  // Apply drag forces
-  computeDragForces(forces);
-
-  // Integrate (semi-implicit Euler)
-  // NOTE: Use artificially higher mass for numerical stability with explicit integration
-  // Real C. elegans is ~1 microgram, but we scale up for stable simulation
-  const totalMass = 1.0; // Scaled mass for stable explicit Euler (1 kg simulation mass)
-  const massPerVertex = totalMass / numVerts;  // ~1e-3 kg per vertex
-
-  for (let i = 0; i < numVerts; i++) {
-    // Get forces (no aggressive clamping - mass scaling provides stability)
-    let fx = forces[i*3];
-    let fy = forces[i*3+1];
-    let fz = forces[i*3+2];
-
-    // Update velocity: a = F/m, dv = a*dt
-    velocities[i*3] += (fx / massPerVertex) * DT;
-    velocities[i*3+1] += (fy / massPerVertex) * DT;
-    velocities[i*3+2] += (fz / massPerVertex) * DT;
-
-    // Safety-only velocity clamp — drag forces handle natural speed limiting
-    const maxVel = 0.3;  // 0.3 m/s max — prevents numerical instability while allowing visible motion
-    velocities[i*3] = Math.max(-maxVel, Math.min(maxVel, velocities[i*3]));
-    velocities[i*3+1] = Math.max(-maxVel, Math.min(maxVel, velocities[i*3+1]));
-    velocities[i*3+2] = Math.max(-maxVel, Math.min(maxVel, velocities[i*3+2]));
-
-    // Apply damping
-    velocities[i*3] *= damping;
-    velocities[i*3+1] *= damping;
-    velocities[i*3+2] *= damping;
-
-    // Update position
-    positions[i*3] += velocities[i*3] * DT;
-    positions[i*3+1] += velocities[i*3+1] * DT;
-    positions[i*3+2] += velocities[i*3+2] * DT;
-
-    // Ground collision (keep above y=0)
-    if (positions[i*3+1] < -0.02) {
-      positions[i*3+1] = -0.02;
-      velocities[i*3+1] = 0;
-    }
-  }
-
-  simTime += DT;
-}
-
-/**
- * Laplacian smoothing on lateral (X) displacement from rest position.
- * Smooths displacement rather than absolute position to preserve body width.
- * This prevents the cross-section shrinkage artifact of standard Laplacian smoothing.
- */
-let smoothBuffer = null;
-function laplacianSmooth(alpha) {
-  if (!vertexNeighbors) return;
-  const numVerts = meshData.num_vertices;
-  if (!smoothBuffer || smoothBuffer.length !== numVerts) {
-    smoothBuffer = new Float32Array(numVerts);
-  }
-
-  // Compute smoothed X displacement (not absolute position)
-  for (let i = 0; i < numVerts; i++) {
-    const neighbors = vertexNeighbors[i];
-    const myDisp = positions[i * 3] - restPositions[i * 3];
-    if (neighbors.length === 0) {
-      smoothBuffer[i] = myDisp;
+  for (let i = 0; i < CENTERLINE_SAMPLES - 1; i++) {
+    const x0 = centerlineX[i];
+    const z0 = centerlineZ[i];
+    const x1 = centerlineX[i + 1];
+    const z1 = centerlineZ[i + 1];
+    const dx = x1 - x0;
+    const dz = z1 - z0;
+    const ds = Math.hypot(dx, dz);
+    if (ds < 1e-8) {
       continue;
     }
-    let avgDisp = 0;
-    for (let j = 0; j < neighbors.length; j++) {
-      avgDisp += positions[neighbors[j] * 3] - restPositions[neighbors[j] * 3];
-    }
-    avgDisp /= neighbors.length;
-    smoothBuffer[i] = myDisp * (1 - alpha) + avgDisp * alpha;
+
+    const tx = dx / ds;
+    const tz = dz / ds;
+    const nx = tz;
+    const nz = -tx;
+
+    const mx = 0.5 * (x0 + x1);
+    const mz = 0.5 * (z0 + z1);
+    const shapeVXMid = includeShapeVelocity ? 0.5 * (shapeVelocityX[i] + shapeVelocityX[i + 1]) : 0;
+    const shapeVZMid = includeShapeVelocity ? 0.5 * (shapeVelocityZ[i] + shapeVelocityZ[i + 1]) : 0;
+    const totalVX = vx + omega * mz + shapeVXMid;
+    const totalVZ = vz - omega * mx + shapeVZMid;
+
+    const vParallel = totalVX * tx + totalVZ * tz;
+    const vPerpendicular = totalVX * nx + totalVZ * nz;
+
+    const dragX = -(xiParallel * vParallel * tx + xiPerpendicular * vPerpendicular * nx) * ds;
+    const dragZ = -(xiParallel * vParallel * tz + xiPerpendicular * vPerpendicular * nz) * ds;
+
+    forceX += dragX;
+    forceZ += dragZ;
+    torque += mx * dragZ - mz * dragX;
   }
 
-  // Apply smoothed displacement back to positions
-  for (let i = 0; i < numVerts; i++) {
-    positions[i * 3] = restPositions[i * 3] + smoothBuffer[i];
-  }
+  return { forceX, forceZ, torque };
 }
 
-// ============================================================================
-// Matrix Math Utilities
-// ============================================================================
-function mat3Mult(A, B) {
-  const C = [[0,0,0], [0,0,0], [0,0,0]];
-  for (let i = 0; i < 3; i++) {
-    for (let j = 0; j < 3; j++) {
-      for (let k = 0; k < 3; k++) {
-        C[i][j] += A[i][k] * B[k][j];
-      }
-    }
-  }
-  return C;
-}
+function solve3x3(matrix, vector) {
+  const a00 = matrix[0][0];
+  const a01 = matrix[0][1];
+  const a02 = matrix[0][2];
+  const a10 = matrix[1][0];
+  const a11 = matrix[1][1];
+  const a12 = matrix[1][2];
+  const a20 = matrix[2][0];
+  const a21 = matrix[2][1];
+  const a22 = matrix[2][2];
 
-function mat3Transpose(A) {
+  const det =
+    a00 * (a11 * a22 - a12 * a21) -
+    a01 * (a10 * a22 - a12 * a20) +
+    a02 * (a10 * a21 - a11 * a20);
+
+  if (Math.abs(det) < 1e-10) {
+    return null;
+  }
+
+  const invDet = 1 / det;
+  const inv = [
+    [
+      (a11 * a22 - a12 * a21) * invDet,
+      (a02 * a21 - a01 * a22) * invDet,
+      (a01 * a12 - a02 * a11) * invDet
+    ],
+    [
+      (a12 * a20 - a10 * a22) * invDet,
+      (a00 * a22 - a02 * a20) * invDet,
+      (a02 * a10 - a00 * a12) * invDet
+    ],
+    [
+      (a10 * a21 - a11 * a20) * invDet,
+      (a01 * a20 - a00 * a21) * invDet,
+      (a00 * a11 - a01 * a10) * invDet
+    ]
+  ];
+
   return [
-    [A[0][0], A[1][0], A[2][0]],
-    [A[0][1], A[1][1], A[2][1]],
-    [A[0][2], A[1][2], A[2][2]]
+    inv[0][0] * vector[0] + inv[0][1] * vector[1] + inv[0][2] * vector[2],
+    inv[1][0] * vector[0] + inv[1][1] * vector[1] + inv[1][2] * vector[2],
+    inv[2][0] * vector[0] + inv[2][1] * vector[1] + inv[2][2] * vector[2]
   ];
 }
 
-/**
- * Polar decomposition of 3x3 matrix: F = R * S
- * Uses iterative method
- */
-function polarDecomposition(F) {
-  // Start with F
-  let R = [
-    [F[0][0], F[0][1], F[0][2]],
-    [F[1][0], F[1][1], F[1][2]],
-    [F[2][0], F[2][1], F[2][2]]
-  ];
-
-  // Iterate to extract rotation: R_new = 0.5 * (R + R^(-T))
-  for (let iter = 0; iter < 10; iter++) {
-    const det = mat3Det(R);
-    if (Math.abs(det) < 1e-10) break;
-
-    const Rinv = mat3Inverse(R);
-    const RinvT = mat3Transpose(Rinv);
-
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 3; j++) {
-        R[i][j] = 0.5 * (R[i][j] + RinvT[i][j]);
-      }
-    }
+function updateHydrodynamics(deltaTime) {
+  for (let i = 0; i < CENTERLINE_SAMPLES; i++) {
+    shapeVelocityX[i] = (centerlineX[i] - previousCenterlineX[i]) / deltaTime;
+    shapeVelocityZ[i] = (centerlineZ[i] - previousCenterlineZ[i]) / deltaTime;
   }
 
-  // S = R^T * F
-  const Rt = mat3Transpose(R);
-  const S = mat3Mult(Rt, F);
+  const basisX = computeDragTotals(1, 0, 0, false);
+  const basisZ = computeDragTotals(0, 1, 0, false);
+  const basisOmega = computeDragTotals(0, 0, 1, false);
+  const shapeDrag = computeDragTotals(0, 0, 0, true);
 
-  return { R, S };
-}
-
-function mat3Det(M) {
-  return M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1])
-       - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0])
-       + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]);
-}
-
-function mat3Inverse(M) {
-  const det = mat3Det(M);
-  if (Math.abs(det) < 1e-10) return [[1,0,0], [0,1,0], [0,0,1]];
-
-  const invDet = 1.0 / det;
-  return [
-    [(M[1][1]*M[2][2] - M[1][2]*M[2][1]) * invDet,
-     (M[0][2]*M[2][1] - M[0][1]*M[2][2]) * invDet,
-     (M[0][1]*M[1][2] - M[0][2]*M[1][1]) * invDet],
-    [(M[1][2]*M[2][0] - M[1][0]*M[2][2]) * invDet,
-     (M[0][0]*M[2][2] - M[0][2]*M[2][0]) * invDet,
-     (M[0][2]*M[1][0] - M[0][0]*M[1][2]) * invDet],
-    [(M[1][0]*M[2][1] - M[1][1]*M[2][0]) * invDet,
-     (M[0][1]*M[2][0] - M[0][0]*M[2][1]) * invDet,
-     (M[0][0]*M[1][1] - M[0][1]*M[1][0]) * invDet]
+  const matrix = [
+    [basisX.forceX, basisZ.forceX, basisOmega.forceX],
+    [basisX.forceZ, basisZ.forceZ, basisOmega.forceZ],
+    [basisX.torque, basisZ.torque, basisOmega.torque]
   ];
+  const rhs = [-shapeDrag.forceX, -shapeDrag.forceZ, -shapeDrag.torque];
+  const solution = solve3x3(matrix, rhs);
+
+  if (!solution) {
+    bodyVelocity.x *= 0.9;
+    bodyVelocity.z *= 0.9;
+    bodyVelocity.omega *= 0.9;
+    return;
+  }
+
+  const blend = 1 - Math.pow(0.25, deltaTime * 8);
+  bodyVelocity.x = lerp(bodyVelocity.x, solution[0], blend);
+  bodyVelocity.z = lerp(bodyVelocity.z, solution[1], blend);
+  bodyVelocity.omega = lerp(bodyVelocity.omega, solution[2], blend);
+
+  bodyPose.yaw += bodyVelocity.omega * deltaTime;
+
+  const cosYaw = Math.cos(bodyPose.yaw);
+  const sinYaw = Math.sin(bodyPose.yaw);
+  const worldVX = cosYaw * bodyVelocity.x + sinYaw * bodyVelocity.z;
+  const worldVZ = -sinYaw * bodyVelocity.x + cosYaw * bodyVelocity.z;
+
+  bodyPose.x += worldVX * deltaTime;
+  bodyPose.z += worldVZ * deltaTime;
+  currentDriftSpeed = Math.hypot(worldVX, worldVZ) / bodyLength;
 }
 
-// ============================================================================
-// Three.js Rendering
-// ============================================================================
+function sampleCenterlinePoint(sampleU) {
+  const scaled = clamp(sampleU, 0, 1) * (CENTERLINE_SAMPLES - 1);
+  const i0 = Math.floor(scaled);
+  const i1 = Math.min(CENTERLINE_SAMPLES - 1, i0 + 1);
+  const t = scaled - i0;
+  return {
+    x: lerp(centerlineX[i0], centerlineX[i1], t),
+    y: lerp(centerlineY[i0], centerlineY[i1], t),
+    z: lerp(centerlineZ[i0], centerlineZ[i1], t),
+    angle: lerp(centerlineAngles[i0], centerlineAngles[i1], t)
+  };
+}
+
+function updateSkinnedVertices() {
+  const cosYaw = Math.cos(bodyPose.yaw);
+  const sinYaw = Math.sin(bodyPose.yaw);
+
+  for (let i = 0; i < meshData.num_vertices; i++) {
+    const center = sampleCenterlinePoint(vertexRig.s[i]);
+    const tangentX = Math.sin(center.angle);
+    const tangentZ = Math.cos(center.angle);
+    const normalX = tangentZ;
+    const normalZ = -tangentX;
+
+    const localX = center.x + vertexRig.lateral[i] * normalX + vertexRig.axial[i] * tangentX;
+    const localY = center.y + vertexRig.vertical[i];
+    const localZ = center.z + vertexRig.lateral[i] * normalZ + vertexRig.axial[i] * tangentZ;
+
+    positions[i * 3] = bodyPose.x + cosYaw * localX + sinYaw * localZ;
+    positions[i * 3 + 1] = localY;
+    positions[i * 3 + 2] = bodyPose.z - sinYaw * localX + cosYaw * localZ;
+  }
+}
+
+function advanceSimulation(deltaTime) {
+  const step = clamp(deltaTime, MIN_DELTA_TIME, MAX_DELTA_TIME);
+  simTime += step;
+  driveTime += step * playbackSpeed;
+
+  updateMuscleActivations(driveTime);
+  updateCenterlineShape(step);
+  updateHydrodynamics(step);
+  updateSkinnedVertices();
+
+  previousCenterlineX.set(centerlineX);
+  previousCenterlineZ.set(centerlineZ);
+}
+
 function initThreeJS() {
   const container = document.getElementById('canvas-container');
   const width = container.clientWidth;
   const height = container.clientHeight;
 
-  // Scene
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0a0f);
 
-  // Camera
-  camera = new THREE.PerspectiveCamera(50, width / height, 0.001, 10);
-  // Position camera to see full worm from above (best view for sinusoidal motion)
-  // Worm is ~0.63 units long on Z-axis
-  camera.position.set(0, 0.8, 0.1);
+  camera = new THREE.PerspectiveCamera(46, width / height, 0.001, 10);
+  camera.position.set(0.18, 0.6, 0.22);
   camera.lookAt(0, 0, 0);
 
-  // Renderer
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   container.appendChild(renderer.domElement);
 
-  // Controls
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
-  controls.target.set(0, 0, 0);
+  controls.target.set(0, -0.005, 0);
 
-  // Lighting
-  const ambientLight = new THREE.AmbientLight(0x404060, 0.6);
+  const ambientLight = new THREE.AmbientLight(0x404060, 0.75);
   scene.add(ambientLight);
 
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-  directionalLight.position.set(0.1, 0.2, 0.1);
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 1.1);
+  directionalLight.position.set(0.15, 0.25, 0.15);
   scene.add(directionalLight);
 
-  const directionalLight2 = new THREE.DirectionalLight(0x8888ff, 0.3);
-  directionalLight2.position.set(-0.1, -0.1, 0.1);
-  scene.add(directionalLight2);
+  const fillLight = new THREE.DirectionalLight(0x88aaff, 0.3);
+  fillLight.position.set(-0.1, 0.05, -0.15);
+  scene.add(fillLight);
 
-  // Grid
-  const gridHelper = new THREE.GridHelper(0.4, 40, 0x2a2a3a, 0x1a1a24);
+  const gridHelper = new THREE.GridHelper(0.55, 44, 0x2a2a3a, 0x1a1a24);
   gridHelper.position.y = -0.02;
   scene.add(gridHelper);
 
-  // Axes
   const axesHelper = new THREE.AxesHelper(0.05);
   scene.add(axesHelper);
 
-  // Create worm mesh
   createWormMesh();
 
-  // Handle resize
   window.addEventListener('resize', () => {
     const w = container.clientWidth;
     const h = container.clientHeight;
@@ -758,19 +666,12 @@ function initThreeJS() {
 }
 
 function createWormMesh() {
-  // Create geometry from surface triangles
   wormGeometry = new THREE.BufferGeometry();
 
-  // Position attribute
   const positionArray = new Float32Array(meshData.num_vertices * 3);
-  for (let i = 0; i < meshData.num_vertices; i++) {
-    positionArray[i*3] = positions[i*3];
-    positionArray[i*3+1] = positions[i*3+1];
-    positionArray[i*3+2] = positions[i*3+2];
-  }
+  positionArray.set(positions);
   wormGeometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
 
-  // Index attribute (surface triangles)
   const indices = [];
   for (const tri of meshData.surface_triangles) {
     indices.push(tri[0], tri[1], tri[2]);
@@ -778,156 +679,168 @@ function createWormMesh() {
   wormGeometry.setIndex(indices);
   wormGeometry.computeVertexNormals();
 
-  // Material
   const material = new THREE.MeshPhongMaterial({
-    color: 0x6699cc,
-    specular: 0x222244,
-    shininess: 30,
-    side: THREE.DoubleSide,
-    flatShading: false
+    color: 0x6d9cc8,
+    specular: 0x1f2d44,
+    shininess: 25,
+    side: THREE.DoubleSide
   });
 
   wormMesh = new THREE.Mesh(wormGeometry, material);
   scene.add(wormMesh);
 
-  // Add wireframe overlay
   const wireframeMaterial = new THREE.MeshBasicMaterial({
-    color: 0x4488aa,
+    color: 0x3e6f8d,
     wireframe: true,
     transparent: true,
-    opacity: 0.1
+    opacity: 0.09
   });
-  const wireframeMesh = new THREE.Mesh(wormGeometry, wireframeMaterial);
-  wormMesh.add(wireframeMesh);
+  wormMesh.add(new THREE.Mesh(wormGeometry, wireframeMaterial));
 }
 
 function updateWormMesh() {
-  const posAttr = wormGeometry.getAttribute('position');
-
-  for (let i = 0; i < meshData.num_vertices; i++) {
-    posAttr.array[i*3] = positions[i*3];
-    posAttr.array[i*3+1] = positions[i*3+1];
-    posAttr.array[i*3+2] = positions[i*3+2];
-  }
-
-  posAttr.needsUpdate = true;
+  const positionAttr = wormGeometry.getAttribute('position');
+  positionAttr.array.set(positions);
+  positionAttr.needsUpdate = true;
   wormGeometry.computeVertexNormals();
 }
 
-// ============================================================================
-// UI
-// ============================================================================
 function initUI() {
-  // Sliders
-  setupSlider('speed', v => { playbackSpeed = v; return `${v.toFixed(1)}x`; });
-  setupSlider('youngs', v => {
-    youngsModulus = Math.pow(10, v);
-    updateLameParameters();
-    return `1e${v.toFixed(0)}`;
-  });
-  setupSlider('poisson', v => {
-    poissonRatio = v;
-    updateLameParameters();
-    return v.toFixed(2);
-  });
-  setupSlider('muscle-stiff', v => {
-    muscleStiffness = Math.pow(10, v);
-    return `${Math.pow(10, v).toExponential(0)}`;
-  });
-  setupSlider('damping', v => { damping = v; return v.toFixed(3); });
+  const strip = document.getElementById('muscle-strip');
+  strip.innerHTML = '';
+  muscleCells = { dorsal: [], ventral: [] };
 
-  // Update info
+  for (let row = 0; row < 2; row++) {
+    for (let seg = 0; seg < MUSCLE_SEGMENTS; seg++) {
+      const cell = document.createElement('div');
+      cell.className = 'muscle-cell';
+      cell.title = `${row === 0 ? 'Dorsal' : 'Ventral'} segment ${seg}`;
+      strip.appendChild(cell);
+      if (row === 0) {
+        muscleCells.dorsal.push(cell);
+      } else {
+        muscleCells.ventral.push(cell);
+      }
+    }
+  }
+
+  const neuronList = document.getElementById('neuron-list');
+  neuronList.innerHTML = '';
+  neuronRows = [];
+  for (let i = 0; i < 5; i++) {
+    const row = document.createElement('div');
+    row.className = 'neuron-row';
+
+    const name = document.createElement('span');
+    name.className = 'neuron-name';
+    name.textContent = '--';
+
+    const bar = document.createElement('div');
+    bar.className = 'neuron-bar';
+
+    const fill = document.createElement('div');
+    fill.className = 'neuron-fill';
+    bar.appendChild(fill);
+
+    const value = document.createElement('span');
+    value.className = 'neuron-value';
+    value.textContent = '--';
+
+    row.append(name, bar, value);
+    neuronList.appendChild(row);
+    neuronRows.push({ name, fill, value });
+  }
+
   document.getElementById('info-vertices').textContent = meshData.num_vertices;
   document.getElementById('info-tets').textContent = meshData.num_tetrahedra;
   document.getElementById('info-tris').textContent = meshData.surface_triangles.length;
 }
 
-function setupSlider(name, handler) {
-  const slider = document.getElementById(`${name}-slider`);
-  const valueEl = document.getElementById(`${name}-val`);
-  // Initialize display with current slider value
-  const initialValue = parseFloat(slider.value);
-  valueEl.textContent = handler(initialValue);
-  // Update on change
-  slider.addEventListener('input', e => {
-    const v = parseFloat(e.target.value);
-    valueEl.textContent = handler(v);
-  });
+function colorizeMuscleCell(cell, intensity, hue) {
+  const normalized = clamp(intensity / 0.8, 0, 1);
+  const saturation = 18 + normalized * 72;
+  const lightness = 11 + normalized * 55;
+  cell.style.backgroundColor = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
-function updateStats() {
-  document.getElementById('sim-time').textContent = `${simTime.toFixed(3)} s`;
-  document.getElementById('sim-fps').textContent = fps;
-  document.getElementById('sim-substeps').textContent = SUBSTEPS;
-}
+function updateNeuronSnapshot() {
+  const frame = currentFrameIndex % neuralTraces.timesteps;
+  const ranked = [];
 
-// ============================================================================
-// Locomotion pattern generator - naturalistic traveling wave
-// ============================================================================
+  for (let i = 0; i < neuralTraces.neuron_names.length; i++) {
+    ranked.push({
+      name: neuralTraces.neuron_names[i],
+      value: neuralTraces.motor_neuron_voltages[i][frame]
+    });
+  }
 
-// Perlin-like noise for organic variation
-const noiseCache = new Float32Array(256);
-for (let i = 0; i < 256; i++) noiseCache[i] = Math.random() * 2 - 1;
+  ranked.sort((a, b) => b.value - a.value);
 
-function noise(x) {
-  const xi = Math.floor(x) & 255;
-  const xf = x - Math.floor(x);
-  const u = xf * xf * (3 - 2 * xf); // smoothstep
-  return noiseCache[xi] * (1 - u) + noiseCache[(xi + 1) & 255] * u;
-}
-
-function generateLocomotionPattern(time) {
-  const waveSpeed = 8.0;      // How fast the wave travels (rad/s)
-  const waveNumber = 1.2;     // Waves along the body
-  const baseAmplitude = 0.7;  // Base activation strength
-
-  for (let seg = 0; seg < 24; seg++) {
-    // Position along body (0 = head, 1 = tail)
-    const bodyPos = seg / 23;
-
-    // Traveling wave phase: wave moves from head to tail
-    const phase = bodyPos * Math.PI * 2 * waveNumber - time * waveSpeed;
-
-    // Base wave with organic variations
-    const baseWave = Math.sin(phase);
-
-    // Add slow-varying amplitude modulation (body doesn't bend uniformly)
-    const ampMod = 0.7 + 0.3 * Math.sin(bodyPos * Math.PI); // stronger in middle
-
-    // Add subtle noise for organic look (varies with position and time)
-    const noiseVal = noise(seg * 0.3 + time * 2) * 0.15;
-
-    // Compute activation with asymmetry (not perfectly symmetric push/pull)
-    const wave = baseWave * ampMod + noiseVal;
-
-    // Dorsal activates on positive wave, ventral on negative (antagonistic)
-    const dorsalAct = Math.max(0, wave) * baseAmplitude;
-    const ventralAct = Math.max(0, -wave) * baseAmplitude;
-
-    // Small baseline tone (muscles never fully off)
-    const baseline = 0.05;
-
-    // DR (0-23) and DL (48-71) - dorsal
-    currentMuscleActivations[seg] = Math.min(1, dorsalAct + baseline);
-    currentMuscleActivations[seg + 48] = Math.min(1, dorsalAct + baseline);
-
-    // VR (24-47) and VL (72-95) - ventral
-    currentMuscleActivations[seg + 24] = Math.min(1, ventralAct + baseline);
-    currentMuscleActivations[seg + 72] = Math.min(1, ventralAct + baseline);
+  for (let i = 0; i < neuronRows.length; i++) {
+    const row = neuronRows[i];
+    const neuron = ranked[i];
+    const normalized = clamp((neuron.value + 80) / 100, 0, 1);
+    row.name.textContent = neuron.name;
+    row.fill.style.width = `${(normalized * 100).toFixed(1)}%`;
+    row.value.textContent = `${neuron.value >= 0 ? '+' : ''}${neuron.value.toFixed(1)} mV`;
   }
 }
 
-// ============================================================================
-// Animation Loop
-// ============================================================================
+function updateDashboard() {
+  const loopDuration = sampleMuscle.frames.length * (sampleMuscle.dt_ms / 1000);
+  document.getElementById('live-frame').textContent = `${currentFrameIndex + 1} / ${sampleMuscle.frames.length}`;
+  document.getElementById('sim-time').textContent = `${currentReplayTime.toFixed(2)} / ${loopDuration.toFixed(1)} s`;
+  document.getElementById('sim-fps').textContent = fps;
+  document.getElementById('live-speed').textContent = `${currentDriftSpeed.toFixed(2)} body/s`;
+  document.getElementById('live-side').textContent = currentDominantSide;
+  document.getElementById('live-centroid').textContent = `seg ${currentActivationCentroid.toFixed(1)}`;
+
+  for (let seg = 0; seg < MUSCLE_SEGMENTS; seg++) {
+    colorizeMuscleCell(muscleCells.dorsal[seg], dorsalSegments[seg], 194);
+    colorizeMuscleCell(muscleCells.ventral[seg], ventralSegments[seg], 24);
+  }
+
+  updateNeuronSnapshot();
+}
+
+function updateCameraTarget() {
+  const numVerts = meshData.num_vertices;
+  let centerX = 0;
+  let centerY = 0;
+  let centerZ = 0;
+
+  for (let i = 0; i < numVerts; i++) {
+    centerX += positions[i * 3];
+    centerY += positions[i * 3 + 1];
+    centerZ += positions[i * 3 + 2];
+  }
+
+  centerX /= numVerts;
+  centerY /= numVerts;
+  centerZ /= numVerts;
+
+  const dx = centerX - controls.target.x;
+  const dz = centerZ - controls.target.z;
+  const planarOffset = Math.hypot(dx, dz);
+  let smoothing = 0.01;
+
+  if (planarOffset > bodyLength * 0.35) {
+    smoothing = 0.13;
+  } else if (planarOffset > bodyLength * 0.18) {
+    smoothing = 0.05;
+  }
+
+  controls.target.x += dx * smoothing;
+  controls.target.z += dz * smoothing;
+  controls.target.y += (centerY - controls.target.y) * 0.04;
+}
+
 function animate(time) {
   requestAnimationFrame(animate);
 
-  // Calculate delta time for FPS-independent simulation
-  const deltaTime = lastFrameTime > 0 ? (time - lastFrameTime) / 1000 : 0.016; // Default ~60fps
+  const deltaTime = lastFrameTime > 0 ? (time - lastFrameTime) / 1000 : 1 / 60;
   lastFrameTime = time;
 
-  // FPS calculation
   frameCount++;
   if (time - lastTime >= 1000) {
     fps = frameCount;
@@ -935,96 +848,30 @@ function animate(time) {
     lastTime = time;
   }
 
-  // Advance simulation if playing
-  if (isPlaying) {
-    // Generate muscle activations (traveling wave pattern)
-    generateLocomotionPattern(simTime);
-
-    // Run physics substeps (fixed timestep, multiple per frame for stability)
-    for (let i = 0; i < SUBSTEPS; i++) {
-      simulationStep(currentMuscleActivations);
-    }
-
-    // Laplacian smoothing: once per frame (not per substep) to prevent crinkly mesh
-    laplacianSmooth(0.15);
-
-    // Update mesh
-    updateWormMesh();
-  }
-
-  updateStats();
-
-  // Update camera to follow worm's center of mass
+  advanceSimulation(deltaTime);
+  updateWormMesh();
+  updateDashboard();
   updateCameraTarget();
 
-  // Render
   controls.update();
   renderer.render(scene, camera);
 }
 
-/**
- * Compute worm's center of mass and update camera target
- */
-function updateCameraTarget() {
-  const numVerts = meshData.num_vertices;
-  let cx = 0, cy = 0, cz = 0;
-
-  for (let i = 0; i < numVerts; i++) {
-    cx += positions[i * 3];
-    cy += positions[i * 3 + 1];
-    cz += positions[i * 3 + 2];
-  }
-
-  cx /= numVerts;
-  cy /= numVerts;
-  cz /= numVerts;
-
-  // Smoothly move camera target toward COM
-  const smoothing = 0.05;
-  controls.target.x += (cx - controls.target.x) * smoothing;
-  controls.target.y += (cy - controls.target.y) * smoothing;
-  controls.target.z += (cz - controls.target.z) * smoothing;
-}
-
-// ============================================================================
-// Main Entry Point
-// ============================================================================
 async function main() {
   try {
     await loadAllData();
 
-    updateLoading('Initializing simulation...');
+    updateLoading('Rigging the worm mesh...');
     initSimulation();
 
-    updateLoading('Initializing UI...');
+    updateLoading('Initializing controls...');
     initUI();
 
-    updateLoading('Initializing CNN model...');
-    await initCNNModel();
-
-    // Prime neuron history so CNN produces output immediately
-    for (let f = 0; f < CNN_KERNEL_SIZE; f++) {
-      const voltages = new Float32Array(NUM_MOTOR_NEURONS);
-      for (let i = 0; i < NUM_MOTOR_NEURONS; i++) {
-        voltages[i] = neuralTraces.motor_neuron_voltages[i]?.[f] || -65;
-      }
-      neuronHistory.push(Array.from(voltages));
-    }
-
-    // Hide loading, show app BEFORE initializing renderer
-    // (so container has proper dimensions)
     document.getElementById('loading').style.display = 'none';
     document.getElementById('container').style.display = 'flex';
 
-    // Now initialize Three.js (needs container to be visible for dimensions)
-    updateLoading('Setting up renderer...');
     initThreeJS();
-
-    console.log('BAAIWorm initialized');
-
-    // Start animation
     requestAnimationFrame(animate);
-
   } catch (error) {
     console.error('Initialization failed:', error);
     document.getElementById('loading-text').textContent = 'Initialization failed';
