@@ -10,12 +10,14 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { ReducedMotorNet } from './reduced_motor_net.js';
 
 const NUM_MUSCLES = 96;
 const MUSCLE_SEGMENTS = 24;
 const CENTERLINE_SAMPLES = 128;
 const MIN_DELTA_TIME = 1 / 120;
 const MAX_DELTA_TIME = 0.05;
+const REDUCED_SOLVER_STEP = 1 / 180;
 
 let meshData;
 let muscleData;
@@ -71,10 +73,16 @@ let currentReplayTime = 0;
 let currentDominantSide = 'Balanced';
 let currentActivationCentroid = 11.5;
 let currentDriftSpeed = 0;
+let currentNeuronVoltages = new Float32Array(0);
+let driveSourceLabel = 'WetNet replay';
+let modelMode = 'replay';
+let reducedMotorNet;
+let reducedSolverAccumulator = 0;
 
 let muscleCells = { dorsal: [], ventral: [] };
 let neuronRows = [];
 let lastUserZoomAtMs = -Infinity;
+let uiRefs = {};
 
 let bodyPose = { x: 0, z: 0, yaw: 0 };
 let bodyVelocity = { x: 0, z: 0, omega: 0 };
@@ -114,6 +122,101 @@ function clamp(value, min, max) {
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
+}
+
+function formatSigned(value, digits = 2) {
+  return `${value >= 0 ? '+' : ''}${value.toFixed(digits)}`;
+}
+
+function syncReducedControls() {
+  if (!uiRefs.forwardDrive) {
+    return;
+  }
+
+  uiRefs.forwardDrive.value = reducedMotorNet.params.forwardDrive.toFixed(2);
+  uiRefs.forwardDriveValue.textContent = reducedMotorNet.params.forwardDrive.toFixed(2);
+  uiRefs.turnBias.value = reducedMotorNet.params.turnBias.toFixed(2);
+  uiRefs.turnBiasValue.textContent = formatSigned(reducedMotorNet.params.turnBias);
+  uiRefs.wavePeriod.value = reducedMotorNet.params.wavePeriod.toFixed(2);
+  uiRefs.wavePeriodValue.textContent = `${reducedMotorNet.params.wavePeriod.toFixed(2)} s`;
+}
+
+function applyReducedControlState() {
+  const reducedActive = modelMode === 'reduced';
+  if (!uiRefs.forwardDrive) {
+    return;
+  }
+
+  uiRefs.forwardDrive.disabled = !reducedActive;
+  uiRefs.turnBias.disabled = !reducedActive;
+  uiRefs.wavePeriod.disabled = !reducedActive;
+
+  for (const button of uiRefs.modeButtons) {
+    button.classList.toggle('active', button.dataset.modelMode === modelMode);
+  }
+}
+
+function updateSourcePanel() {
+  const replayMode = modelMode === 'replay';
+
+  document.getElementById('mode-subtitle').textContent = replayMode
+    ? 'Downloaded WetNet replay'
+    : 'Live reduced motor net';
+  document.getElementById('hero-copy').textContent = replayMode
+    ? 'What is real here: the neural traces and muscle activations come from a downloaded WetNet run. What is approximated here: the browser uses a reduced-order body replay instead of the original FEM stack or a live neural solve.'
+    : 'What is real here: the browser still uses the downloaded mesh and muscle layout. What is approximated here: a reduced c302-style motor net now generates the drive live in the browser instead of replaying the downloaded WetNet trace.';
+  document.getElementById('truth-pill').textContent = replayMode
+    ? 'Real WetNet output, simplified browser biomechanics'
+    : 'Live browser motor net, simplified browser biomechanics';
+  document.getElementById('source-tag-a').textContent = replayMode
+    ? 'data/neural_traces.json'
+    : 'browser reduced motor net';
+  document.getElementById('source-tag-b').textContent = replayMode
+    ? 'data/sample_muscle.json'
+    : 'live neuromuscular drive';
+  document.getElementById('mode-copy').textContent = replayMode
+    ? 'Switch between the downloaded WetNet replay and a live reduced motor net that runs directly in the browser.'
+    : 'The reduced motor net is a browser-side approximation: descending drive, segmental wave propagation, and named neuron snapshots are synthesized live.';
+  document.getElementById('muscle-copy').textContent = replayMode
+    ? 'Current WetNet activation packet across the 24 body segments. Dorsal is the top row, ventral is the bottom row.'
+    : 'Current output of the reduced browser motor net across the 24 body segments. Dorsal is the top row, ventral is the bottom row.';
+  document.getElementById('neuron-copy').textContent = replayMode
+    ? 'Most depolarized motor neurons from the same downloaded frame. This gives provenance for the replay: the motion comes from recorded WetNet output, not a browser-side sine wave.'
+    : 'Most depolarized named neurons from the live reduced motor net. These voltages are synthetic browser-side states, not recorded WetNet traces.';
+  document.getElementById('frame-label').textContent = replayMode ? 'Dataset Frame' : 'Solver Step';
+  document.getElementById('time-label').textContent = replayMode ? 'Replay Time' : 'Model Time';
+  document.getElementById('drive-source').textContent = driveSourceLabel;
+}
+
+function setModelMode(nextMode) {
+  if (nextMode === modelMode) {
+    return;
+  }
+
+  modelMode = nextMode;
+  simTime = 0;
+  driveTime = 0;
+  currentFrameFloat = 0;
+  currentFrameIndex = 0;
+  currentReplayTime = 0;
+  reducedSolverAccumulator = 0;
+  bodyVelocity = { x: 0, z: 0, omega: 0 };
+  bodyPose = { x: 0, z: 0, yaw: 0 };
+
+  if (modelMode === 'replay') {
+    driveSourceLabel = 'WetNet replay';
+    updateMuscleActivations(0);
+  } else {
+    driveSourceLabel = 'Reduced motor net';
+    reducedMotorNet.reset();
+    syncReducedControls();
+    stepReducedMotorNet(REDUCED_SOLVER_STEP);
+  }
+
+  updateCenterlineShape(MIN_DELTA_TIME, true);
+  updateSkinnedVertices();
+  applyReducedControlState();
+  updateSourcePanel();
 }
 
 function createCenterlineArrays() {
@@ -260,6 +363,10 @@ function initVertexRig() {
 function initSimulation() {
   const numVerts = meshData.num_vertices;
 
+  currentNeuronVoltages = new Float32Array(neuralTraces.neuron_names.length);
+  reducedMotorNet = new ReducedMotorNet(neuralTraces.neuron_names);
+  syncReducedControls();
+
   positions = new Float32Array(numVerts * 3);
   restPositions = new Float32Array(numVerts * 3);
 
@@ -310,10 +417,28 @@ function updateMuscleActivations(timeSeconds) {
   currentFrameFloat = frameFloat;
   currentFrameIndex = frame0;
   currentReplayTime = frameFloat * frameDuration;
+  driveSourceLabel = 'WetNet replay';
 
   for (let i = 0; i < NUM_MUSCLES; i++) {
     currentMuscleActivations[i] = lerp(a[i], b[i], alpha);
   }
+
+  for (let i = 0; i < currentNeuronVoltages.length; i++) {
+    const values = neuralTraces.motor_neuron_voltages[i];
+    currentNeuronVoltages[i] = lerp(values[frame0], values[frame1], alpha);
+  }
+}
+
+function stepReducedMotorNet(deltaTime) {
+  reducedMotorNet.step(deltaTime);
+  const outputs = reducedMotorNet.getOutputs();
+
+  currentMuscleActivations.set(outputs.muscles);
+  currentNeuronVoltages.set(outputs.neuronVoltages);
+  currentFrameFloat = outputs.stepCount;
+  currentFrameIndex = outputs.stepCount;
+  currentReplayTime = outputs.time;
+  driveSourceLabel = 'Reduced motor net';
 }
 
 function smoothSegments(values) {
@@ -604,9 +729,22 @@ function updateSkinnedVertices() {
 function advanceSimulation(deltaTime) {
   const step = clamp(deltaTime, MIN_DELTA_TIME, MAX_DELTA_TIME);
   simTime += step;
-  driveTime += step * playbackSpeed;
 
-  updateMuscleActivations(driveTime);
+  if (modelMode === 'replay') {
+    driveTime += step * playbackSpeed;
+    updateMuscleActivations(driveTime);
+  } else {
+    reducedSolverAccumulator += step * playbackSpeed;
+    while (reducedSolverAccumulator >= REDUCED_SOLVER_STEP) {
+      stepReducedMotorNet(REDUCED_SOLVER_STEP);
+      reducedSolverAccumulator -= REDUCED_SOLVER_STEP;
+    }
+    if (reducedSolverAccumulator > 1e-6) {
+      stepReducedMotorNet(reducedSolverAccumulator);
+      reducedSolverAccumulator = 0;
+    }
+  }
+
   updateCenterlineShape(step);
   updateHydrodynamics(step);
   updateSkinnedVertices();
@@ -698,6 +836,9 @@ function createWormMesh() {
   });
 
   wormMesh = new THREE.Mesh(wormGeometry, material);
+  // The worm vertices are rewritten directly in geometry space each frame,
+  // so default frustum culling can drop it using stale bounds.
+  wormMesh.frustumCulled = false;
   scene.add(wormMesh);
 
   const wireframeMaterial = new THREE.MeshBasicMaterial({
@@ -706,7 +847,9 @@ function createWormMesh() {
     transparent: true,
     opacity: 0.09
   });
-  wormMesh.add(new THREE.Mesh(wormGeometry, wireframeMaterial));
+  const wireframeMesh = new THREE.Mesh(wormGeometry, wireframeMaterial);
+  wireframeMesh.frustumCulled = false;
+  wormMesh.add(wireframeMesh);
 }
 
 function updateWormMesh() {
@@ -717,6 +860,16 @@ function updateWormMesh() {
 }
 
 function initUI() {
+  uiRefs = {
+    modeButtons: [...document.querySelectorAll('[data-model-mode]')],
+    forwardDrive: document.getElementById('forward-drive'),
+    forwardDriveValue: document.getElementById('forward-drive-value'),
+    turnBias: document.getElementById('turn-bias'),
+    turnBiasValue: document.getElementById('turn-bias-value'),
+    wavePeriod: document.getElementById('wave-period'),
+    wavePeriodValue: document.getElementById('wave-period-value')
+  };
+
   const strip = document.getElementById('muscle-strip');
   strip.innerHTML = '';
   muscleCells = { dorsal: [], ventral: [] };
@@ -765,6 +918,31 @@ function initUI() {
   document.getElementById('info-vertices').textContent = meshData.num_vertices;
   document.getElementById('info-tets').textContent = meshData.num_tetrahedra;
   document.getElementById('info-tris').textContent = meshData.surface_triangles.length;
+
+  for (const button of uiRefs.modeButtons) {
+    button.addEventListener('click', () => {
+      setModelMode(button.dataset.modelMode);
+    });
+  }
+
+  uiRefs.forwardDrive.addEventListener('input', (event) => {
+    reducedMotorNet.setParams({ forwardDrive: Number(event.target.value) });
+    syncReducedControls();
+  });
+
+  uiRefs.turnBias.addEventListener('input', (event) => {
+    reducedMotorNet.setParams({ turnBias: Number(event.target.value) });
+    syncReducedControls();
+  });
+
+  uiRefs.wavePeriod.addEventListener('input', (event) => {
+    reducedMotorNet.setParams({ wavePeriod: Number(event.target.value) });
+    syncReducedControls();
+  });
+
+  syncReducedControls();
+  applyReducedControlState();
+  updateSourcePanel();
 }
 
 function colorizeMuscleCell(cell, intensity, hue) {
@@ -775,13 +953,12 @@ function colorizeMuscleCell(cell, intensity, hue) {
 }
 
 function updateNeuronSnapshot() {
-  const frame = currentFrameIndex % neuralTraces.timesteps;
   const ranked = [];
 
   for (let i = 0; i < neuralTraces.neuron_names.length; i++) {
     ranked.push({
       name: neuralTraces.neuron_names[i],
-      value: neuralTraces.motor_neuron_voltages[i][frame]
+      value: currentNeuronVoltages[i]
     });
   }
 
@@ -799,12 +976,19 @@ function updateNeuronSnapshot() {
 
 function updateDashboard() {
   const loopDuration = sampleMuscle.frames.length * (sampleMuscle.dt_ms / 1000);
-  document.getElementById('live-frame').textContent = `${currentFrameIndex + 1} / ${sampleMuscle.frames.length}`;
-  document.getElementById('sim-time').textContent = `${currentReplayTime.toFixed(2)} / ${loopDuration.toFixed(1)} s`;
+  const replayMode = modelMode === 'replay';
+
+  document.getElementById('live-frame').textContent = replayMode
+    ? `${currentFrameIndex + 1} / ${sampleMuscle.frames.length}`
+    : `${currentFrameIndex.toLocaleString()} steps`;
+  document.getElementById('sim-time').textContent = replayMode
+    ? `${currentReplayTime.toFixed(2)} / ${loopDuration.toFixed(1)} s`
+    : `${currentReplayTime.toFixed(2)} s`;
   document.getElementById('sim-fps').textContent = fps;
   document.getElementById('live-speed').textContent = `${currentDriftSpeed.toFixed(2)} body/s`;
   document.getElementById('live-side').textContent = currentDominantSide;
   document.getElementById('live-centroid').textContent = `seg ${currentActivationCentroid.toFixed(1)}`;
+  document.getElementById('drive-source').textContent = driveSourceLabel;
 
   for (let seg = 0; seg < MUSCLE_SEGMENTS; seg++) {
     colorizeMuscleCell(muscleCells.dorsal[seg], dorsalSegments[seg], 194);
@@ -814,16 +998,28 @@ function updateDashboard() {
   updateNeuronSnapshot();
 }
 
-function updateCameraTarget() {
+function measureWormFrame() {
   const numVerts = meshData.num_vertices;
   let centerX = 0;
   let centerY = 0;
   let centerZ = 0;
 
   for (let i = 0; i < numVerts; i++) {
-    centerX += positions[i * 3];
-    centerY += positions[i * 3 + 1];
-    centerZ += positions[i * 3 + 2];
+    const x = positions[i * 3];
+    const y = positions[i * 3 + 1];
+    const z = positions[i * 3 + 2];
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
+      return {
+        centerX: NaN,
+        centerY: NaN,
+        centerZ: NaN,
+        wormRadius: NaN,
+        valid: false
+      };
+    }
+    centerX += x;
+    centerY += y;
+    centerZ += z;
   }
 
   centerX /= numVerts;
@@ -840,22 +1036,47 @@ function updateCameraTarget() {
       maxRadiusSq = radiusSq;
     }
   }
-  const wormRadius = Math.sqrt(maxRadiusSq);
+
+  return {
+    centerX,
+    centerY,
+    centerZ,
+    wormRadius: Math.sqrt(maxRadiusSq),
+    valid: true
+  };
+}
+
+function updateCameraTarget() {
+  const { centerX, centerY, centerZ, wormRadius, valid } = measureWormFrame();
+
+  if (!valid) {
+    return;
+  }
 
   const dx = centerX - controls.target.x;
   const dy = centerY - controls.target.y;
   const dz = centerZ - controls.target.z;
   const planarOffset = Math.hypot(dx, dz);
-  let smoothing = 0.01;
+  const projected = new THREE.Vector3(centerX, centerY, centerZ).project(camera);
+  const offscreen =
+    Math.abs(projected.x) > 0.82 ||
+    Math.abs(projected.y) > 0.82 ||
+    projected.z < -1 ||
+    projected.z > 1;
+  let smoothing = modelMode === 'reduced' ? 0.02 : 0.01;
 
-  if (planarOffset > bodyLength * 0.35) {
-    smoothing = 0.13;
+  if (offscreen) {
+    smoothing = 1;
+  } else if (planarOffset > bodyLength * 0.45) {
+    smoothing = 0.24;
+  } else if (planarOffset > bodyLength * 0.24) {
+    smoothing = 0.09;
   } else if (planarOffset > bodyLength * 0.18) {
     smoothing = 0.05;
   }
 
   const targetShiftX = dx * smoothing;
-  const targetShiftY = dy * 0.04;
+  const targetShiftY = dy * (offscreen ? 0.2 : 0.04);
   const targetShiftZ = dz * smoothing;
 
   controls.target.x += targetShiftX;
@@ -868,15 +1089,16 @@ function updateCameraTarget() {
   camera.position.y += targetShiftY;
   camera.position.z += targetShiftZ;
 
+  const offset = camera.position.clone().sub(controls.target);
+  const currentDistance = offset.length();
+  const desiredDistance = clamp(wormRadius * 2.25, controls.minDistance, controls.maxDistance);
+
   const msSinceUserZoom = performance.now() - lastUserZoomAtMs;
   if (msSinceUserZoom < 2500) {
     return;
   }
 
-  const offset = camera.position.clone().sub(controls.target);
-  const currentDistance = offset.length();
-  const desiredDistance = clamp(wormRadius * 2.15, controls.minDistance, 0.95);
-  const zoomBlend = currentDistance > desiredDistance ? 0.08 : 0.03;
+  const zoomBlend = offscreen ? 0.2 : currentDistance > desiredDistance ? 0.08 : 0.03;
   const nextDistance = lerp(currentDistance, desiredDistance, zoomBlend);
 
   if (Math.abs(nextDistance - currentDistance) < 1e-4 || currentDistance < 1e-6) {

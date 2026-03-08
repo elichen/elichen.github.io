@@ -230,6 +230,79 @@
       font-size: 0.76rem;
       font-family: 'SF Mono', Monaco, monospace;
     }
+    .mode-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .mode-chip {
+      border: 1px solid #2b3143;
+      background: #111522;
+      color: #aab3c8;
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 0.73rem;
+      cursor: pointer;
+      transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+    }
+    .mode-chip.active {
+      background: rgba(79, 195, 247, 0.12);
+      border-color: rgba(79, 195, 247, 0.35);
+      color: #e7f7ff;
+    }
+    .control-grid {
+      display: grid;
+      gap: 10px;
+    }
+    .control {
+      display: grid;
+      gap: 6px;
+    }
+    .control label {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: #9aa2b8;
+      font-size: 0.74rem;
+    }
+    .control output {
+      color: #d9ebff;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 0.72rem;
+    }
+    .control input[type="range"] {
+      width: 100%;
+      accent-color: #4fc3f7;
+    }
+    .control input[type="range"]:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    @media (max-width: 900px) {
+      body {
+        overflow: auto;
+      }
+      #container {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+      }
+      #canvas-container {
+        flex: none;
+        width: 100%;
+        height: 46vh;
+        min-height: 320px;
+      }
+      #sidebar {
+        width: 100%;
+        border-left: 0;
+        border-top: 1px solid #2a2a3a;
+        padding: 16px;
+      }
+      .mode-row {
+        flex-wrap: wrap;
+      }
+    }
   </style>
 </head>
 <body>
@@ -243,25 +316,61 @@
     <div id="canvas-container"></div>
     <div id="sidebar">
       <h1>BAAIWorm <span class="webgpu-badge">WetNet</span></h1>
-      <p class="subtitle">Downloaded WetNet replay</p>
-      <p class="hero-copy">What is real here: the neural traces and muscle activations come from a downloaded WetNet run. What is approximated here: the browser uses a reduced-order body replay instead of the original FEM stack or a live neural solve.</p>
-      <div class="truth-pill">Real WetNet output, simplified browser biomechanics</div>
+      <p class="subtitle" id="mode-subtitle">Downloaded WetNet replay</p>
+      <p class="hero-copy" id="hero-copy">What is real here: the neural traces and muscle activations come from a downloaded WetNet run. What is approximated here: the browser uses a reduced-order body replay instead of the original FEM stack or a live neural solve.</p>
+      <div class="truth-pill" id="truth-pill">Real WetNet output, simplified browser biomechanics</div>
       <div class="source-row">
-        <div class="source-tag">data/neural_traces.json</div>
-        <div class="source-tag">data/sample_muscle.json</div>
+        <div class="source-tag" id="source-tag-a">data/neural_traces.json</div>
+        <div class="source-tag" id="source-tag-b">data/sample_muscle.json</div>
       </div>
 
       <div id="error-container"></div>
 
       <div class="panel">
+        <h2>Drive Source</h2>
+        <p class="microcopy" id="mode-copy">Switch between the downloaded WetNet replay and a live reduced motor net that runs directly in the browser.</p>
+        <div class="mode-row">
+          <button class="mode-chip active" type="button" data-model-mode="replay">WetNet Replay</button>
+          <button class="mode-chip" type="button" data-model-mode="reduced">Reduced Motor Net</button>
+        </div>
+        <div class="control-grid">
+          <div class="control">
+            <label for="forward-drive">
+              <span>Forward Drive</span>
+              <output id="forward-drive-value" for="forward-drive">0.68</output>
+            </label>
+            <input id="forward-drive" type="range" min="0.20" max="1.05" step="0.01" value="0.68" disabled>
+          </div>
+          <div class="control">
+            <label for="turn-bias">
+              <span>Turn Bias</span>
+              <output id="turn-bias-value" for="turn-bias">0.00</output>
+            </label>
+            <input id="turn-bias" type="range" min="-0.35" max="0.35" step="0.01" value="0.00" disabled>
+          </div>
+          <div class="control">
+            <label for="wave-period">
+              <span>Wave Period</span>
+              <output id="wave-period-value" for="wave-period">1.15 s</output>
+            </label>
+            <input id="wave-period" type="range" min="0.70" max="2.20" step="0.01" value="1.15" disabled>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
         <h2>Live Run</h2>
         <div class="stat">
-          <span class="stat-label">Dataset Frame</span>
+          <span class="stat-label" id="frame-label">Dataset Frame</span>
           <span class="stat-value" id="live-frame">0 / 300</span>
         </div>
         <div class="stat">
-          <span class="stat-label">Replay Time</span>
+          <span class="stat-label" id="time-label">Replay Time</span>
           <span class="stat-value" id="sim-time">0.000 s</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Drive Source</span>
+          <span class="stat-value" id="drive-source">WetNet replay</span>
         </div>
         <div class="stat">
           <span class="stat-label">Drift Speed</span>
@@ -283,7 +392,7 @@
 
       <div class="panel">
         <h2>Muscle Drive</h2>
-        <p class="microcopy">Current WetNet activation packet across the 24 body segments. Dorsal is the top row, ventral is the bottom row.</p>
+        <p class="microcopy" id="muscle-copy">Current WetNet activation packet across the 24 body segments. Dorsal is the top row, ventral is the bottom row.</p>
         <div class="strip-legend">
           <span><span class="legend-dot dorsal"></span>Dorsal</span>
           <span><span class="legend-dot ventral"></span>Ventral</span>
@@ -294,7 +403,7 @@
 
       <div class="panel">
         <h2>Neural Snapshot</h2>
-        <p class="microcopy">Most depolarized motor neurons from the same downloaded frame. This gives provenance for the replay: the motion comes from recorded WetNet output, not a browser-side sine wave.</p>
+        <p class="microcopy" id="neuron-copy">Most depolarized motor neurons from the same downloaded frame. This gives provenance for the replay: the motion comes from recorded WetNet output, not a browser-side sine wave.</p>
         <div id="neuron-list" class="neuron-list"></div>
       </div>
 
@@ -321,6 +430,7 @@
           <span class="stat-value">80</span>
         </div>
       </div>
+
     </div>
   </div>
 
