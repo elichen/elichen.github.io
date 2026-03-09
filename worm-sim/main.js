@@ -360,6 +360,49 @@ function initVertexRig() {
   vertexRig = rig;
 }
 
+function buildWormColorAttribute() {
+  const numVerts = meshData.num_vertices;
+  const colors = new Float32Array(numVerts * 3);
+
+  let maxAbsLateral = 1e-6;
+  let maxAbsVertical = 1e-6;
+  for (let i = 0; i < numVerts; i++) {
+    maxAbsLateral = Math.max(maxAbsLateral, Math.abs(vertexRig.lateral[i]));
+    maxAbsVertical = Math.max(maxAbsVertical, Math.abs(vertexRig.vertical[i]));
+  }
+
+  const dorsalTone = new THREE.Color(0x93715f);
+  const ventralTone = new THREE.Color(0xe0c0ad);
+  const headTone = new THREE.Color(0xd7a488);
+  const tailTone = new THREE.Color(0x7b5f4f);
+  const midbodyTone = new THREE.Color(0xbc8d72);
+  const rimTone = new THREE.Color(0xf2ddcf);
+  const color = new THREE.Color();
+
+  for (let i = 0; i < numVerts; i++) {
+    const s = vertexRig.s[i];
+    const vertical = clamp(vertexRig.vertical[i] / maxAbsVertical, -1, 1);
+    const lateral = clamp(Math.abs(vertexRig.lateral[i]) / maxAbsLateral, 0, 1);
+    const dorsalMix = clamp(vertical * 0.5 + 0.5, 0, 1);
+    const headMix = Math.exp(-Math.pow(s / 0.17, 2));
+    const tailMix = Math.exp(-Math.pow((1 - s) / 0.16, 2));
+    const midbodyMix = Math.exp(-Math.pow((s - 0.5) / 0.34, 2));
+    const rimMix = Math.pow(lateral, 1.35);
+
+    color.copy(ventralTone).lerp(dorsalTone, dorsalMix);
+    color.lerp(headTone, headMix * 0.45);
+    color.lerp(tailTone, tailMix * 0.55);
+    color.lerp(midbodyTone, midbodyMix * 0.16);
+    color.lerp(rimTone, rimMix * 0.12);
+
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+
+  return new THREE.BufferAttribute(colors, 3);
+}
+
 function initSimulation() {
   const numVerts = meshData.num_vertices;
 
@@ -759,7 +802,7 @@ function initThreeJS() {
   const height = container.clientHeight;
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0a0f);
+  scene.background = new THREE.Color(0x090807);
 
   camera = new THREE.PerspectiveCamera(46, width / height, 0.001, 10);
   camera.position.set(0.18, 0.6, 0.22);
@@ -768,6 +811,8 @@ function initThreeJS() {
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
   container.appendChild(renderer.domElement);
 
   controls = new OrbitControls(camera, renderer.domElement);
@@ -782,18 +827,18 @@ function initThreeJS() {
     lastUserZoomAtMs = performance.now();
   }, { passive: true });
 
-  const ambientLight = new THREE.AmbientLight(0x404060, 0.75);
+  const ambientLight = new THREE.AmbientLight(0x5f564a, 0.95);
   scene.add(ambientLight);
 
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 1.1);
-  directionalLight.position.set(0.15, 0.25, 0.15);
+  const directionalLight = new THREE.DirectionalLight(0xfff2e3, 1.25);
+  directionalLight.position.set(0.18, 0.34, 0.12);
   scene.add(directionalLight);
 
-  const fillLight = new THREE.DirectionalLight(0x88aaff, 0.3);
-  fillLight.position.set(-0.1, 0.05, -0.15);
+  const fillLight = new THREE.DirectionalLight(0xbec7b5, 0.24);
+  fillLight.position.set(-0.16, 0.08, -0.18);
   scene.add(fillLight);
 
-  const gridHelper = new THREE.GridHelper(0.55, 44, 0x2a2a3a, 0x1a1a24);
+  const gridHelper = new THREE.GridHelper(0.55, 44, 0x312a23, 0x171411);
   gridHelper.position.y = -0.02;
   scene.add(gridHelper);
 
@@ -820,6 +865,7 @@ function createWormMesh() {
   const positionArray = new Float32Array(meshData.num_vertices * 3);
   positionArray.set(positions);
   wormGeometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
+  wormGeometry.setAttribute('color', buildWormColorAttribute());
 
   const indices = [];
   for (const tri of meshData.surface_triangles) {
@@ -828,10 +874,17 @@ function createWormMesh() {
   wormGeometry.setIndex(indices);
   wormGeometry.computeVertexNormals();
 
-  const material = new THREE.MeshPhongMaterial({
-    color: 0x6d9cc8,
-    specular: 0x1f2d44,
-    shininess: 25,
+  const material = new THREE.MeshPhysicalMaterial({
+    color: 0xf4d7c7,
+    vertexColors: true,
+    roughness: 0.88,
+    metalness: 0,
+    clearcoat: 0.18,
+    clearcoatRoughness: 0.72,
+    sheen: 0.3,
+    sheenColor: 0xf6d2c0,
+    emissive: 0x20140f,
+    emissiveIntensity: 0.1,
     side: THREE.DoubleSide
   });
 
@@ -842,10 +895,10 @@ function createWormMesh() {
   scene.add(wormMesh);
 
   const wireframeMaterial = new THREE.MeshBasicMaterial({
-    color: 0x3e6f8d,
+    color: 0x5f4638,
     wireframe: true,
     transparent: true,
-    opacity: 0.09
+    opacity: 0.035
   });
   const wireframeMesh = new THREE.Mesh(wormGeometry, wireframeMaterial);
   wireframeMesh.frustumCulled = false;
