@@ -403,6 +403,113 @@ function buildWormColorAttribute() {
   return new THREE.BufferAttribute(colors, 3);
 }
 
+function buildConsistentSurfaceIndices() {
+  const triangles = meshData.surface_triangles;
+  const vertices = meshData.vertices;
+  const triangleCount = triangles.length;
+  const flipFlags = new Int8Array(triangleCount);
+  const visited = new Uint8Array(triangleCount);
+  const neighbors = new Map();
+
+  function addNeighbor(a, b, sameDirection) {
+    let list = neighbors.get(a);
+    if (!list) {
+      list = [];
+      neighbors.set(a, list);
+    }
+    list.push({ index: b, sameDirection });
+  }
+
+  const edgeMap = new Map();
+  for (let triIndex = 0; triIndex < triangleCount; triIndex++) {
+    const tri = triangles[triIndex];
+    for (const [u, v] of [[tri[0], tri[1]], [tri[1], tri[2]], [tri[2], tri[0]]]) {
+      const key = u < v ? `${u},${v}` : `${v},${u}`;
+      const direction = u < v ? 1 : -1;
+      const match = edgeMap.get(key);
+      if (!match) {
+        edgeMap.set(key, { index: triIndex, direction });
+        continue;
+      }
+
+      const sameDirection = match.direction === direction;
+      addNeighbor(triIndex, match.index, sameDirection);
+      addNeighbor(match.index, triIndex, sameDirection);
+    }
+  }
+
+  function triangleOrientationScore(tri, flip) {
+    const ia = tri[0];
+    const ib = flip ? tri[2] : tri[1];
+    const ic = flip ? tri[1] : tri[2];
+    const a = vertices[ia];
+    const b = vertices[ib];
+    const c = vertices[ic];
+    const abx = b[0] - a[0];
+    const aby = b[1] - a[1];
+    const abz = b[2] - a[2];
+    const acx = c[0] - a[0];
+    const acy = c[1] - a[1];
+    const acz = c[2] - a[2];
+    const nx = aby * acz - abz * acy;
+    const ny = abz * acx - abx * acz;
+    const nz = abx * acy - aby * acx;
+    const mx = (a[0] + b[0] + c[0]) / 3;
+    const my = (a[1] + b[1] + c[1]) / 3;
+    const mz = (a[2] + b[2] + c[2]) / 3;
+    return nx * mx + ny * my + nz * mz;
+  }
+
+  for (let start = 0; start < triangleCount; start++) {
+    if (visited[start]) {
+      continue;
+    }
+
+    const stack = [start];
+    const component = [];
+    flipFlags[start] = 0;
+    visited[start] = 1;
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      component.push(current);
+      const adjacent = neighbors.get(current) || [];
+
+      for (const neighbor of adjacent) {
+        const requiredFlip = neighbor.sameDirection ? flipFlags[current] ^ 1 : flipFlags[current];
+        if (!visited[neighbor.index]) {
+          visited[neighbor.index] = 1;
+          flipFlags[neighbor.index] = requiredFlip;
+          stack.push(neighbor.index);
+        }
+      }
+    }
+
+    let orientationSum = 0;
+    for (const triIndex of component) {
+      orientationSum += triangleOrientationScore(triangles[triIndex], flipFlags[triIndex] === 1);
+    }
+
+    if (orientationSum < 0) {
+      for (const triIndex of component) {
+        flipFlags[triIndex] ^= 1;
+      }
+    }
+  }
+
+  const indices = [];
+  for (let triIndex = 0; triIndex < triangleCount; triIndex++) {
+    const tri = triangles[triIndex];
+    if (flipFlags[triIndex]) {
+      indices.push(tri[0], tri[2], tri[1]);
+    } else {
+      indices.push(tri[0], tri[1], tri[2]);
+    }
+  }
+
+  return indices;
+}
+
 function initSimulation() {
   const numVerts = meshData.num_vertices;
 
@@ -867,24 +974,21 @@ function createWormMesh() {
   wormGeometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
   wormGeometry.setAttribute('color', buildWormColorAttribute());
 
-  const indices = [];
-  for (const tri of meshData.surface_triangles) {
-    indices.push(tri[0], tri[1], tri[2]);
-  }
+  const indices = buildConsistentSurfaceIndices();
   wormGeometry.setIndex(indices);
   wormGeometry.computeVertexNormals();
 
   const material = new THREE.MeshPhysicalMaterial({
     color: 0xf4d7c7,
     vertexColors: true,
-    roughness: 0.88,
-    metalness: 0,
-    clearcoat: 0.18,
-    clearcoatRoughness: 0.72,
-    sheen: 0.3,
-    sheenColor: 0xf6d2c0,
     emissive: 0x20140f,
-    emissiveIntensity: 0.1,
+    emissiveIntensity: 0.08,
+    roughness: 0.9,
+    metalness: 0,
+    clearcoat: 0.08,
+    clearcoatRoughness: 0.85,
+    sheen: 0.18,
+    sheenColor: 0xf0d2c4,
     side: THREE.DoubleSide
   });
 
