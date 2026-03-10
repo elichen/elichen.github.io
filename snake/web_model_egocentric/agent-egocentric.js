@@ -16,10 +16,13 @@ class SnakeEgocentricAgent {
         this.obsSize = null;
     }
 
-    async load(weightsUrl = 'web_model_egocentric/weights.json') {
+    async load(weightsUrl = 'web_model_egocentric/weights.json.gz') {
         console.log('Loading egocentric agent weights...');
         const response = await fetch(weightsUrl);
-        const data = await response.json();
+        const ds = new DecompressionStream('gzip');
+        const decompressed = response.body.pipeThrough(ds);
+        const text = await new Response(decompressed).text();
+        const data = JSON.parse(text);
         this.metadata = data.metadata;
         this.obsSize = this.metadata.obs_size;
 
