@@ -14,7 +14,7 @@ async function init() {
     game.draw();
 
     try {
-        await agent.load('web_model_egocentric/weights.json.gz');
+        await agent.load('web_model_egocentric/weights.bin');
         agent.reset(game);
         loadingOverlay.classList.add('hidden');
         setTimeout(startGame, 100);

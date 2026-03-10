@@ -16,20 +16,53 @@ class SnakeEgocentricAgent {
         this.obsSize = null;
     }
 
-    async load(weightsUrl = 'web_model_egocentric/weights.json.gz') {
+    async load(weightsUrl = 'web_model_egocentric/weights.bin') {
         console.log('Loading egocentric agent weights...');
         const response = await fetch(weightsUrl);
-        const ds = new DecompressionStream('gzip');
-        const decompressed = response.body.pipeThrough(ds);
-        const text = await new Response(decompressed).text();
-        const data = JSON.parse(text);
-        this.metadata = data.metadata;
+        const buffer = await response.arrayBuffer();
+        const view = new DataView(buffer);
+        let offset = 0;
+
+        // Read metadata (length-prefixed JSON)
+        const metaLen = view.getUint32(offset, true); offset += 4;
+        const metaJson = new TextDecoder().decode(new Uint8Array(buffer, offset, metaLen));
+        this.metadata = JSON.parse(metaJson);
+        offset += metaLen;
         this.obsSize = this.metadata.obs_size;
 
-        // Reconstruct weights from compact format (shape + flat data)
+        // Read weights (binary float32)
+        const numWeights = view.getUint16(offset, true); offset += 2;
         this.weights = {};
-        for (const [name, w] of Object.entries(data.weights)) {
-            this.weights[name] = this.unflatten(w.data, w.shape);
+
+        for (let w = 0; w < numWeights; w++) {
+            const nameLen = view.getUint16(offset, true); offset += 2;
+            const name = new TextDecoder().decode(new Uint8Array(buffer, offset, nameLen));
+            offset += nameLen;
+
+            const ndims = view.getUint8(offset); offset += 1;
+            const shape = [];
+            let totalSize = 1;
+            for (let d = 0; d < ndims; d++) {
+                shape.push(view.getUint32(offset, true)); offset += 4;
+                totalSize *= shape[shape.length - 1];
+            }
+
+            // Copy to aligned Float32Array
+            const byteLen = totalSize * 4;
+            const aligned = new Float32Array(totalSize);
+            new Uint8Array(aligned.buffer).set(new Uint8Array(buffer, offset, byteLen));
+            offset += byteLen;
+
+            // Unflatten 2D weights into array of row views
+            if (shape.length === 2) {
+                const rows = [];
+                for (let i = 0; i < shape[0]; i++) {
+                    rows.push(aligned.subarray(i * shape[1], (i + 1) * shape[1]));
+                }
+                this.weights[name] = rows;
+            } else {
+                this.weights[name] = aligned;
+            }
         }
 
         // Validate weight dimensions match observation size
@@ -44,19 +77,6 @@ class SnakeEgocentricAgent {
         console.log('  Network scale:', this.metadata.network_scale + 'x');
         console.log('  Head-centered:', this.metadata.head_centered);
         console.log('  Observation:', this.nChannels + 'x' + this.obsSize + 'x' + this.obsSize, '=', expectedInput, 'features');
-    }
-
-    // Reconstruct nested array from flat data and shape
-    unflatten(data, shape) {
-        if (shape.length === 1) {
-            return data.slice(0, shape[0]);
-        }
-        const result = [];
-        const subSize = shape.slice(1).reduce((a, b) => a * b, 1);
-        for (let i = 0; i < shape[0]; i++) {
-            result.push(this.unflatten(data.slice(i * subSize, (i + 1) * subSize), shape.slice(1)));
-        }
-        return result;
     }
 
     // LayerNorm: normalize, then scale and shift
