@@ -1,17 +1,19 @@
 /**
- * Snake RL Agent - Egocentric FC Network
- * 5-channel egocentric input (rotated so snake faces up), 3 relative actions
+ * Snake RL Agent - Egocentric FC Network (Head-Centered)
+ * 5-channel head-centered input (rotated so snake faces up), 3 relative actions
  * Architecture: FC with LayerNorm (2x scale = 4.4M params)
+ * Observation: 5 x 39 x 39 centered on snake head
  */
 
 class SnakeEgocentricAgent {
     constructor(gridSize = 20) {
         this.gridSize = gridSize;
-        this.obsSize = gridSize + 2;  // With wall padding
         this.nChannels = 5;
         this.nActions = 3;
         this.weights = null;
         this.currentDirection = 0; // 0=up, 1=right, 2=down, 3=left
+        // Set after loading metadata
+        this.obsSize = null;
     }
 
     async load(weightsUrl = 'web_model_egocentric/weights.json') {
@@ -19,6 +21,7 @@ class SnakeEgocentricAgent {
         const response = await fetch(weightsUrl);
         const data = await response.json();
         this.metadata = data.metadata;
+        this.obsSize = this.metadata.obs_size;
 
         // Reconstruct weights from compact format (shape + flat data)
         this.weights = {};
@@ -26,10 +29,18 @@ class SnakeEgocentricAgent {
             this.weights[name] = this.unflatten(w.data, w.shape);
         }
 
+        // Validate weight dimensions match observation size
+        const expectedInput = this.nChannels * this.obsSize * this.obsSize;
+        const actualInput = this.weights['features.1.weight'][0].length;
+        if (actualInput !== expectedInput) {
+            throw new Error(`Weight/obs mismatch: weights expect ${actualInput} inputs but obs is ${expectedInput} (${this.nChannels}x${this.obsSize}x${this.obsSize}). Clear cache and reload.`);
+        }
+
         console.log('Snake egocentric agent loaded');
         console.log('  Board size:', this.metadata.board_size);
         console.log('  Network scale:', this.metadata.network_scale + 'x');
-        console.log('  Observation:', this.metadata.n_channels + 'x' + this.metadata.obs_size + 'x' + this.metadata.obs_size);
+        console.log('  Head-centered:', this.metadata.head_centered);
+        console.log('  Observation:', this.nChannels + 'x' + this.obsSize + 'x' + this.obsSize, '=', expectedInput, 'features');
     }
 
     // Reconstruct nested array from flat data and shape
@@ -89,15 +100,12 @@ class SnakeEgocentricAgent {
 
     // Rotate grid so snake faces "up" (direction 0)
     rotateGrid(grid, direction) {
-        // grid is [channels, height, width]
-        // direction: 0=up (no rotation), 1=right (rot90 once), 2=down (rot90 twice), 3=left (rot90 thrice)
         if (direction === 0) return grid;
 
         const c = grid.length;
         const h = grid[0].length;
         const w = grid[0][0].length;
 
-        // Rotate by direction * 90 degrees counterclockwise
         const rotated = [];
         for (let ch = 0; ch < c; ch++) {
             const newChannel = [];
@@ -112,15 +120,12 @@ class SnakeEgocentricAgent {
                 for (let col = 0; col < w; col++) {
                     let newR, newC;
                     if (direction === 1) {
-                        // 90 degrees CCW: (r, c) -> (w-1-c, r)
                         newR = w - 1 - col;
                         newC = r;
                     } else if (direction === 2) {
-                        // 180 degrees: (r, c) -> (h-1-r, w-1-c)
                         newR = h - 1 - r;
                         newC = w - 1 - col;
-                    } else { // direction === 3
-                        // 270 degrees CCW (90 CW): (r, c) -> (c, h-1-r)
+                    } else {
                         newR = col;
                         newC = h - 1 - r;
                     }
@@ -133,10 +138,12 @@ class SnakeEgocentricAgent {
     }
 
     buildObservation(game) {
-        // Build 5-channel egocentric observation with wall padding
+        // Head-centered 5-channel observation (39x39 for 20x20 board)
+        // Head is always at the center of the grid
         // Channels: head, body, food, normalized_length, walls
         const n = this.gridSize;
-        const obsN = this.obsSize;  // n + 2 for wall padding
+        const obsN = this.obsSize;  // 39 for n=20
+        const center = Math.floor(obsN / 2);  // 19
 
         // Initialize 3D grid [channels][row][col]
         const grid = [];
@@ -148,31 +155,32 @@ class SnakeEgocentricAgent {
             grid.push(channel);
         }
 
-        // Channel 4: Walls (border cells)
-        for (let r = 0; r < obsN; r++) {
-            grid[4][r][0] = 1.0;         // Left wall
-            grid[4][r][obsN - 1] = 1.0;  // Right wall
-        }
-        for (let c = 0; c < obsN; c++) {
-            grid[4][0][c] = 1.0;         // Top wall
-            grid[4][obsN - 1][c] = 1.0;  // Bottom wall
-        }
+        const dir = this.currentDirection;
 
-        // Get current direction (0=up, 1=right, 2=down, 3=left)
-        let dir = this.currentDirection;
-
-        // Channel 0: Head (offset by 1 for wall padding)
+        // Head position in board coordinates (game uses x,y where y=row, x=col)
         const head = game.snake[0];
-        grid[0][head.y + 1][head.x + 1] = 1.0;
+        const headRow = head.y;
+        const headCol = head.x;
 
-        // Channel 1: Body (all segments)
+        // Channel 0: Head (always at center)
+        grid[0][center][center] = 1.0;
+
+        // Channel 1: Body (all segments, offset relative to head)
         for (const segment of game.snake) {
-            grid[1][segment.y + 1][segment.x + 1] = 1.0;
+            const obsR = segment.y - headRow + center;
+            const obsC = segment.x - headCol + center;
+            if (obsR >= 0 && obsR < obsN && obsC >= 0 && obsC < obsN) {
+                grid[1][obsR][obsC] = 1.0;
+            }
         }
 
-        // Channel 2: Food
+        // Channel 2: Food (offset relative to head)
         if (game.food) {
-            grid[2][game.food.y + 1][game.food.x + 1] = 1.0;
+            const foodR = game.food.y - headRow + center;
+            const foodC = game.food.x - headCol + center;
+            if (foodR >= 0 && foodR < obsN && foodC >= 0 && foodC < obsN) {
+                grid[2][foodR][foodC] = 1.0;
+            }
         }
 
         // Channel 3: Normalized length (broadcast)
@@ -180,6 +188,17 @@ class SnakeEgocentricAgent {
         for (let r = 0; r < obsN; r++) {
             for (let c = 0; c < obsN; c++) {
                 grid[3][r][c] = normalizedLength;
+            }
+        }
+
+        // Channel 4: Walls (everything outside the board)
+        for (let r = 0; r < obsN; r++) {
+            const boardRow = r + headRow - center;
+            for (let c = 0; c < obsN; c++) {
+                const boardCol = c + headCol - center;
+                if (boardRow < 0 || boardRow >= n || boardCol < 0 || boardCol >= n) {
+                    grid[4][r][c] = 1.0;
+                }
             }
         }
 
@@ -254,21 +273,19 @@ class SnakeEgocentricAgent {
         }
 
         // Convert relative action to absolute direction
-        // 0=turn left, 1=straight, 2=turn right
         const delta = [-1, 0, 1];
         const newDir = (this.currentDirection + delta[maxIdx] + 4) % 4;
 
-        return newDir; // Return absolute direction (0=up, 1=right, 2=down, 3=left)
+        return newDir;
     }
 
     reset(game) {
-        // Sync with game's actual direction
         if (game) {
             const d = game.direction;
-            if (d.x === 0 && d.y === -1) this.currentDirection = 0; // up
-            else if (d.x === 1 && d.y === 0) this.currentDirection = 1; // right
-            else if (d.x === 0 && d.y === 1) this.currentDirection = 2; // down
-            else if (d.x === -1 && d.y === 0) this.currentDirection = 3; // left
+            if (d.x === 0 && d.y === -1) this.currentDirection = 0;
+            else if (d.x === 1 && d.y === 0) this.currentDirection = 1;
+            else if (d.x === 0 && d.y === 1) this.currentDirection = 2;
+            else if (d.x === -1 && d.y === 0) this.currentDirection = 3;
         } else {
             this.currentDirection = 0;
         }

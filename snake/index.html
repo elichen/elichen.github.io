@@ -16,7 +16,7 @@
             <div id="loadingOverlay" class="loading-overlay">
                 <div class="loading-spinner"></div>
                 <div class="loading-text">Loading AI model...</div>
-                <div class="loading-subtext">This may take a few seconds (54 MB)</div>
+                <div class="loading-subtext">This may take a few seconds (128 MB)</div>
             </div>
         </div>
 
@@ -44,15 +44,15 @@
         <div class="metrics">
             <div class="metric-card">
                 <div class="label">Training Steps</div>
-                <div class="value">~484M</div>
+                <div class="value">~411M</div>
             </div>
             <div class="metric-card">
                 <div class="label">Best Score</div>
-                <div class="value">327/397</div>
+                <div class="value">394/397</div>
             </div>
             <div class="metric-card">
                 <div class="label">Observation</div>
-                <div class="value">5x22x22</div>
+                <div class="value">5x39x39</div>
             </div>
             <div class="metric-card">
                 <div class="label">Parameters</div>
@@ -61,25 +61,25 @@
         </div>
 
         <div class="technical-details">
-            <h3>5-Channel Egocentric Observations</h3>
-            <p>The agent sees a 22x22 grid (20x20 + wall padding) rotated so it always faces "up":</p>
+            <h3>5-Channel Head-Centered Observations</h3>
+            <p>The agent sees a 39x39 grid centered on the snake's head, rotated so it always faces "up":</p>
             <ul>
-                <li><strong>Channel 0 - Head:</strong> 1 at head position</li>
-                <li><strong>Channel 1 - Body:</strong> 1 at all snake segments</li>
-                <li><strong>Channel 2 - Food:</strong> 1 at food position</li>
+                <li><strong>Channel 0 - Head:</strong> Always at grid center (19, 19)</li>
+                <li><strong>Channel 1 - Body:</strong> 1 at all snake segments (relative to head)</li>
+                <li><strong>Channel 2 - Food:</strong> 1 at food position (relative to head)</li>
                 <li><strong>Channel 3 - Length:</strong> Normalized snake length (snake_len / 400)</li>
-                <li><strong>Channel 4 - Walls:</strong> 1 at border cells</li>
+                <li><strong>Channel 4 - Walls:</strong> 1 at cells outside the board boundary</li>
             </ul>
-            <p>By rotating the grid based on the snake's direction, the agent learns direction-invariant patterns.</p>
+            <p>Head-centered observation combined with egocentric rotation gives the agent translation and rotation invariance.</p>
 
             <h3>Network Architecture (2x Scale)</h3>
             <ul>
                 <li><strong>Algorithm:</strong> PPO (Proximal Policy Optimization)</li>
-                <li><strong>Input:</strong> 5 x 22 x 22 = 2,420 features (flattened)</li>
+                <li><strong>Input:</strong> 5 x 39 x 39 = 7,605 features (flattened)</li>
                 <li><strong>Backbone:</strong> FC 2048 + FC 1024 + FC 512 + FC 256 (with LayerNorm)</li>
                 <li><strong>Policy Head:</strong> FC 128 + FC 3 (left/straight/right)</li>
                 <li><strong>Total Parameters:</strong> 4.4 million</li>
-                <li><strong>Training:</strong> 256 parallel environments on Apple Silicon (MPS)</li>
+                <li><strong>Training:</strong> 256 parallel environments on Apple Silicon (MPS), gamma=0.999, horizon=256, curriculum spawning</li>
             </ul>
         </div>
     </div>

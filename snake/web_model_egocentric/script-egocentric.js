@@ -10,11 +10,11 @@ async function init() {
     const loadingOverlay = document.getElementById('loadingOverlay');
 
     game = new SnakeGame('gameCanvas', 20);
-    game.maxMovesWithoutFood = 200;
+    game.maxMovesWithoutFood = 800;
     game.draw();
 
     try {
-        await agent.load('web_model_egocentric/weights.json');
+        await agent.load('web_model_egocentric/weights.json?v=2');
         agent.reset(game);
         loadingOverlay.classList.add('hidden');
         setTimeout(startGame, 100);
