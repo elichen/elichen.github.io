@@ -29,8 +29,8 @@
           incoming pressure, repair attempts, and whether the most dominant speaker is being amplified by other people in the room.
         </p>
         <p>
-          That is where a graph model helps. A trait-only baseline can read <em>a participant in isolation</em>.
-          The GNN can also read <em>the neighborhood around them</em>.
+          The examples below are intentionally cascade-heavy, so the group structure is easy to see at a glance.
+          A trait-only baseline can read <em>a participant in isolation</em>. The GNN can also read <em>the neighborhood around them</em>.
         </p>
       </div>
 
@@ -46,7 +46,7 @@
             <strong id="mlp-f1">--</strong>
           </div>
           <div class="metric-chip metric-chip-strong">
-            <span>Hard-case lift</span>
+            <span>High-pressure lift</span>
             <strong id="subset-gap">--</strong>
           </div>
         </div>
@@ -58,12 +58,16 @@
       <div class="prose">
         <p>
           Nodes encode conversational preferences such as expressiveness, reciprocity, processing need, and resilience.
-          Directed edges encode what one person does to another: airtime pressure, interruption rate, repair support,
+          Directed edges are built from signals such as airtime pressure, interruption rate, repair support,
           redirect pressure, and long-turn intensity.
         </p>
         <p>
+          Here, pressure means someone repeatedly pushes attention onto another person.
+          Repair means attempts to soften, steady, or redirect a rough exchange.
+        </p>
+        <p>
           The label is a synthetic estimate of who tips into overload once those interactions accumulate.
-          The most useful cases are the ones where one participant becomes structurally powerful because the rest of the room keeps feeding them.
+          This explainer focuses on rooms where that reinforcement spreads broadly enough to be visible, rather than on narrow edge cases.
         </p>
       </div>
       <div class="annotation-strip">
@@ -107,9 +111,17 @@
                 <button data-view="pressure" type="button">Pressure Map</button>
               </div>
               <div class="legend">
-                <span><i class="legend-dot danger"></i> overload</span>
-                <span><i class="legend-dot calm"></i> stable</span>
-                <span><i class="legend-dot support"></i> repair</span>
+                <div class="legend-group">
+                  <span class="legend-title">Nodes</span>
+                  <span id="legend-node-primary"><i class="legend-dot danger"></i> overload</span>
+                  <span id="legend-node-secondary"><i class="legend-dot calm"></i> stable</span>
+                  <span id="legend-node-size" class="legend-note">size = total pressure</span>
+                </div>
+                <div class="legend-group">
+                  <span class="legend-title">Edges</span>
+                  <span><i class="legend-line pressure"></i> pressure</span>
+                  <span><i class="legend-line support"></i> repair</span>
+                </div>
               </div>
             </div>
 
@@ -122,7 +134,10 @@
 
               <aside class="figure-rail">
                 <section class="margin-note figure-margin-notes">
-                  <p class="note-label">Margin notes</p>
+                  <p class="note-label">Reading guide</p>
+                  <p class="guide-copy">
+                    These guideposts come from simple graph summaries. They help orient the figure; they are not model explanations.
+                  </p>
                   <div id="figure-notes" class="figure-notes-list"></div>
                 </section>
 
@@ -151,11 +166,11 @@
                         <strong id="incoming-relief">--</strong>
                       </div>
                       <div>
-                        <span>Top source</span>
+                        <span>Largest contributor</span>
                         <strong id="strongest-source">--</strong>
                       </div>
                       <div>
-                        <span>Social pressure</span>
+                        <span>Total pressure score</span>
                         <strong id="social-pressure">--</strong>
                       </div>
                     </div>
@@ -167,7 +182,7 @@
                   </section>
 
                   <section class="inspector-card">
-                    <p class="note-label">Top contributors</p>
+                    <p class="note-label">Largest incoming contributors</p>
                     <div id="contributors" class="contributors-list"></div>
                   </section>
                 </div>
@@ -180,7 +195,7 @@
               <p class="step-index">01</p>
               <h3>Start with the outcome</h3>
               <p>
-                The first view marks the threshold directly. Some cases are obvious; the harder ones only tip once the room coheres around a dominant speaker.
+                The first view marks the final threshold directly. These rooms are cascade-heavy, so several participants may already be over the line; the useful comparison is who the trait-only baseline still misses.
               </p>
             </article>
             <article class="figure-step" data-step="pressure" data-view="pressure" data-focus-mode="dominant" tabindex="0">
@@ -194,14 +209,14 @@
               <p class="step-index">03</p>
               <h3>Look at the trait-only baseline</h3>
               <p>
-                This view only sees the node profile. It can spot vulnerability, but it misses how the room amplifies pressure through repeated redirects and long turns.
+                This view only sees the node profile. It can spot vulnerability, but it misses how the room amplifies pressure through repeated interaction.
               </p>
             </article>
             <article class="figure-step" data-step="graph" data-view="gnn" data-focus-mode="contrast" tabindex="0">
               <p class="step-index">04</p>
-              <h3>Then let the graph in</h3>
+              <h3>Then compare the graph-aware view</h3>
               <p>
-                Once the neighborhood is visible, the prediction sharpens. The useful correction usually appears where repeated pressure is being routed through the same part of the room.
+                This final view is best read as a comparison, not as an explanation. The clearest difference usually appears where the two models disagree about the same participant.
               </p>
             </article>
           </div>
@@ -245,9 +260,9 @@
         <div class="figure-head compact">
           <div class="figure-copy">
             <p class="figure-label">Figure 2</p>
-            <h2>Training History and Selected Cases</h2>
-            <p class="figure-intro">
-              The graph model pulls away once it starts learning which speakers become structurally amplified in a room.
+            <h2>Validation F1 Across Training</h2>
+            <p id="history-caption" class="figure-intro">
+              X-axis: training epoch. Y-axis: validation F1.
             </p>
           </div>
         </div>
@@ -260,9 +275,9 @@
           <div class="archive-head">
             <div>
               <p class="figure-label">Case archive</p>
-              <h3>Browse relational failure modes</h3>
+              <h3>Browse held-out cascade rooms</h3>
             </div>
-            <p class="archive-copy">These are held-out conversations where structure matters more than isolated traits.</p>
+            <p class="archive-copy">These held-out rooms are intentionally cascade-heavy, so the structure and model differences are easy to inspect.</p>
           </div>
           <div id="scenario-list" class="scenario-list"></div>
         </div>
@@ -273,7 +288,7 @@
       <div class="prose">
         <h2>Why This Is a Good Intuition Builder</h2>
         <p>
-          The experiment stays small on purpose. You can see the nodes, inspect the edges, click the participants, and read exactly where the pressure comes from.
+          The experiment stays small on purpose. You can see the nodes, trace the strongest pressure and repair links, click the participants, and inspect how much pressure lands on each person.
           That makes the model easier to reason about.
         </p>
         <p>

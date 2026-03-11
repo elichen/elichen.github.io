@@ -4,6 +4,7 @@ const state = {
   view: 'truth',
   selectedNodeId: null,
   activeStepId: 'truth',
+  stepLockScrollY: null,
 };
 
 const svgNS = 'http://www.w3.org/2000/svg';
@@ -15,6 +16,9 @@ const refs = {
   overallGap: document.getElementById('overall-gap'),
   hardGap: document.getElementById('hard-gap'),
   sampleCount: document.getElementById('sample-count'),
+  legendNodePrimary: document.getElementById('legend-node-primary'),
+  legendNodeSecondary: document.getElementById('legend-node-secondary'),
+  legendNodeSize: document.getElementById('legend-node-size'),
   figureBlock: document.getElementById('primary-figure'),
   figureNotes: document.getElementById('figure-notes'),
   scenarioTitle: document.getElementById('scenario-title'),
@@ -33,6 +37,7 @@ const refs = {
   traitBars: document.getElementById('trait-bars'),
   contributors: document.getElementById('contributors'),
   historyChart: document.getElementById('history-chart'),
+  historyCaption: document.getElementById('history-caption'),
   viewToggle: document.getElementById('view-toggle'),
   prevSample: document.getElementById('prev-sample'),
   nextSample: document.getElementById('next-sample'),
@@ -43,12 +48,18 @@ const refs = {
 const calmColor = '#78d9b2';
 const dangerColor = '#ff7a59';
 const supportColor = '#ffc46b';
+const viewToStep = {
+  truth: 'truth',
+  pressure: 'pressure',
+  mlp: 'traits',
+  gnn: 'graph',
+};
 
 const figureNoteConfigs = [
-  { id: 'dominant', label: 'Floor holder', view: 'pressure', focusMode: 'dominant', stepId: 'pressure' },
-  { id: 'target', label: 'Pressure sink', view: 'truth', focusMode: 'target', stepId: 'truth' },
-  { id: 'contrast', label: 'Where graph helps', view: 'gnn', focusMode: 'contrast', stepId: 'graph' },
-  { id: 'anchor', label: 'Repair hub', view: 'pressure', focusMode: 'anchor', stepId: null },
+  { id: 'dominant', label: 'Most floor control', view: 'pressure', focusMode: 'dominant', stepId: 'pressure' },
+  { id: 'target', label: 'Most incoming pressure', view: 'truth', focusMode: 'target', stepId: 'truth' },
+  { id: 'contrast', label: 'Comparison point', view: 'gnn', focusMode: 'contrast', stepId: 'graph' },
+  { id: 'anchor', label: 'Most repair support', view: 'pressure', focusMode: 'anchor', stepId: null },
 ];
 
 async function loadData() {
@@ -56,7 +67,23 @@ async function loadData() {
   if (!response.ok) {
     throw new Error(`Failed to load data: ${response.status}`);
   }
-  return response.json();
+  const data = await response.json();
+  data.samples = data.samples
+    .slice()
+    .sort((left, right) => {
+      const leftStats = getSampleStats(left);
+      const rightStats = getSampleStats(right);
+      const ratioGap = leftStats.overloaded / leftStats.total - rightStats.overloaded / rightStats.total;
+      if (ratioGap !== 0) {
+        return ratioGap;
+      }
+      const baselineGap = rightStats.baselineGap - leftStats.baselineGap;
+      if (baselineGap !== 0) {
+        return baselineGap;
+      }
+      return left.id.localeCompare(right.id);
+    });
+  return data;
 }
 
 function formatMetric(value) {
@@ -112,6 +139,20 @@ function getCurrentSample() {
 
 function sampleLabel(sample) {
   return `Conversation ${sample.id.replace(/^graph-/, '')}`;
+}
+
+function getSampleStats(sample) {
+  const overloaded = sample.nodes.filter((node) => node.label === 1).length;
+  const total = sample.nodes.length;
+  const gnnMisses = sample.nodes.filter((node) => node.gnn_prediction !== node.label).length;
+  const mlpMisses = sample.nodes.filter((node) => node.mlp_prediction !== node.label).length;
+  return {
+    overloaded,
+    total,
+    gnnMisses,
+    mlpMisses,
+    baselineGap: mlpMisses - gnnMisses,
+  };
 }
 
 function getStepElement(stepId) {
@@ -199,12 +240,37 @@ function getCurrentFigureFocus(sample) {
   };
 }
 
-function composeScenarioSummary(sample, short = false) {
-  const overloadedCount = sample.nodes.filter((node) => node.label === 1).length;
-  if (short) {
-    return `Dominant speaker ${sample.dominant_name}; repair centered on ${sample.anchor_name}; ${overloadedCount} of ${sample.nodes.length} above threshold.`;
+function lockStepSync() {
+  state.stepLockScrollY = window.scrollY;
+}
+
+function releaseStepSyncIfScrolled() {
+  if (state.stepLockScrollY == null) {
+    return true;
   }
-  return `${sample.dominant_name} holds the floor hardest. Repair is most concentrated around ${sample.anchor_name}. ${overloadedCount} of ${sample.nodes.length} participants cross the overload threshold.`;
+  if (Math.abs(window.scrollY - state.stepLockScrollY) > 96) {
+    state.stepLockScrollY = null;
+    return true;
+  }
+  return false;
+}
+
+function contrastNarrative(node) {
+  if (node.gnn_prediction === node.label && node.mlp_prediction !== node.label) {
+    return `${node.name} is useful because the graph-aware model matches the label here while the trait-only baseline does not.`;
+  }
+  if (node.gnn_prediction !== node.label && node.mlp_prediction === node.label) {
+    return `${node.name} is useful because the two models separate here, even though only the trait-only baseline matches the label.`;
+  }
+  return `${node.name} is useful because the two models separate most clearly here.`;
+}
+
+function composeScenarioSummary(sample, short = false) {
+  const stats = getSampleStats(sample);
+  if (short) {
+    return `Dominant speaker ${sample.dominant_name}; repair centered on ${sample.anchor_name}; ${stats.overloaded} of ${stats.total} above threshold.`;
+  }
+  return `${sample.dominant_name} holds the floor hardest. Repair is most concentrated around ${sample.anchor_name}. ${stats.overloaded} of ${stats.total} participants cross the overload threshold.`;
 }
 
 function getDisplayColor(node) {
@@ -270,34 +336,36 @@ function scenarioTitle(sample) {
 
 function manualScenarioCaption(sample) {
   if (state.view === 'truth') {
-    return `${composeScenarioSummary(sample)} Meeting intensity ${formatCompact(sample.meeting_intensity)}.`;
+    return `${composeScenarioSummary(sample)} Node size still marks total pressure.`;
   }
   if (state.view === 'gnn') {
-    return 'Node color shows the GNN prediction for overload probability.';
+    return 'Node color runs from lower to higher overload probability. Node size still marks total pressure.';
   }
   if (state.view === 'mlp') {
-    return 'Node color shows the trait-only baseline prediction.';
+    return 'Node color runs from lower to higher overload probability for the trait-only baseline. Node size still marks total pressure.';
   }
-  return 'Node color shows social pressure; thicker arrows mark the strongest pressure links.';
+  return 'Node color and node size both reflect total pressure. Thicker arrows mark the strongest pressure links.';
 }
 
 function scenarioCaption(sample) {
   const insights = getSampleInsights(sample);
+  const stats = getSampleStats(sample);
   const contrastSource = getTopContributorNode(insights.contrast, sample);
 
   if (state.activeStepId === 'truth') {
-    return `${insights.target.name} receives the heaviest incoming pressure in this room. The red nodes are the participants who cross the threshold in the final label.`;
+    return `${stats.overloaded} of ${stats.total} participants cross the threshold in this room. ${insights.target.name} receives the most incoming pressure.`;
   }
   if (state.activeStepId === 'pressure') {
-    return `${insights.dominant.name} holds the floor hardest, while ${insights.target.name} absorbs the densest incoming pressure. The highlighted arrow marks the strongest pressure route in this case.`;
+    return `${insights.dominant.name} has the highest floor-control score, while ${insights.target.name} receives the most incoming pressure. The highlighted arrow is the strongest outgoing pressure link from ${insights.dominant.name}.`;
   }
   if (state.activeStepId === 'traits') {
-    return `The trait-only model reads ${insights.contrast.name} as ${predictionLabel(insights.contrast.mlp_prediction).toLowerCase()} from node features alone. It cannot follow the rerouting happening around them.`;
+    return `This is the trait-only baseline. ${insights.contrast.name} is the cleanest comparison point here: the baseline predicts ${predictionLabel(insights.contrast.mlp_prediction).toLowerCase()} from node features alone.`;
   }
   if (state.activeStepId === 'graph') {
-    return contrastSource
-      ? `Once the graph is visible, ${insights.contrast.name} is read through the room around them. The strongest pressure into that node comes from ${contrastSource.name}.`
-      : `Once the graph is visible, ${insights.contrast.name} is read through the room around them rather than from traits alone.`;
+    if (contrastSource) {
+      return `${contrastNarrative(insights.contrast)} In this room, the largest incoming contributor to ${insights.contrast.name} is ${contrastSource.name}.`;
+    }
+    return contrastNarrative(insights.contrast);
   }
   return manualScenarioCaption(sample);
 }
@@ -315,6 +383,7 @@ function activateStep(stepId) {
   }
 
   const sample = getCurrentSample();
+  state.stepLockScrollY = null;
   state.activeStepId = stepId;
   state.view = step.dataset.view;
   state.selectedNodeId = getFocusNodeForMode(sample, step.dataset.focusMode).id;
@@ -325,7 +394,7 @@ function nodeSummary(node, sample) {
   const truthText = node.label ? 'is above the overload threshold' : 'remains below the overload threshold';
   const dominantSource = node.contributors[0] ? sample.nodes.find((item) => item.id === node.contributors[0].source) : null;
   const dominantText = dominantSource
-    ? `Strongest pressure source: ${dominantSource.name}.`
+    ? `Largest incoming contributor: ${dominantSource.name}.`
     : 'No single source dominates the pressure pattern.';
   return `${node.name} ${truthText}. ${dominantText} Incoming pressure ${formatCompact(node.incoming_pressure)}; repair support ${formatCompact(node.incoming_relief)}.`;
 }
@@ -344,12 +413,32 @@ function contributorRows(node, sample) {
     row.innerHTML = `
       <div>
         <div class="contributor-name">${sourceNode.name}</div>
-        <div class="contributor-value">floor ${formatCompact(sourceNode.floor_control)} · support ${formatCompact(sourceNode.endorsement)}</div>
+        <div class="contributor-value">floor ${formatCompact(sourceNode.floor_control)} · room backing ${formatCompact(sourceNode.endorsement)}</div>
       </div>
-      <div class="contributor-value">${formatCompact(contributor.weight)}</div>
+      <div class="contributor-value">pressure ${formatCompact(contributor.weight)}</div>
     `;
     refs.contributors.appendChild(row);
   });
+}
+
+function renderLegend() {
+  if (state.view === 'truth') {
+    refs.legendNodePrimary.innerHTML = '<i class="legend-dot danger"></i> overload';
+    refs.legendNodeSecondary.innerHTML = '<i class="legend-dot calm"></i> stable';
+    refs.legendNodeSize.textContent = 'size = total pressure';
+    return;
+  }
+
+  if (state.view === 'pressure') {
+    refs.legendNodePrimary.innerHTML = '<i class="legend-dot danger"></i> more total pressure';
+    refs.legendNodeSecondary.innerHTML = '<i class="legend-dot pressure-low"></i> less total pressure';
+    refs.legendNodeSize.textContent = 'size = total pressure';
+    return;
+  }
+
+  refs.legendNodePrimary.innerHTML = '<i class="legend-dot danger"></i> higher overload probability';
+  refs.legendNodeSecondary.innerHTML = '<i class="legend-dot calm"></i> lower overload probability';
+  refs.legendNodeSize.textContent = 'size = total pressure';
 }
 
 function renderTraitBars(node) {
@@ -372,19 +461,19 @@ function renderFigureNotes(sample) {
   const notes = {
     dominant: {
       node: insights.dominant,
-      copy: `${insights.dominant.name} sets the pace here with the highest floor control and the widest outward pressure.`,
+      copy: `${insights.dominant.name} is picked here because this node has the highest floor-control score in the room.`,
     },
     target: {
       node: insights.target,
-      copy: `${insights.target.name} takes the heaviest incoming pressure in this room and is the clearest pressure sink in the graph.`,
+      copy: `${insights.target.name} is picked here because this node receives the most incoming pressure in the room.`,
     },
     contrast: {
       node: insights.contrast,
-      copy: `${insights.contrast.name} is the clearest place to compare the graph view against the trait-only baseline.`,
+      copy: contrastNarrative(insights.contrast),
     },
     anchor: {
       node: insights.anchor,
-      copy: `${insights.anchor.name} receives the most repair attempts, which changes how pressure redistributes nearby.`,
+      copy: `${insights.anchor.name} is picked here because this node receives the most repair support in the room.`,
     },
   };
 
@@ -400,6 +489,7 @@ function renderFigureNotes(sample) {
       <p>${note.copy}</p>
     `;
     button.addEventListener('click', () => {
+      lockStepSync();
       state.view = config.view;
       state.selectedNodeId = note.node.id;
       state.activeStepId = config.stepId;
@@ -554,15 +644,15 @@ function renderGraph(sample) {
     label.textContent = node.name;
 
     group.addEventListener('click', () => {
-      state.selectedNodeId = node.id;
       state.activeStepId = null;
+      state.selectedNodeId = node.id;
       renderScenario();
     });
     group.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        state.selectedNodeId = node.id;
         state.activeStepId = null;
+        state.selectedNodeId = node.id;
         renderScenario();
       }
     });
@@ -596,7 +686,9 @@ function renderScenarioList() {
     `;
     button.addEventListener('click', () => {
       state.sampleIndex = index;
-      state.selectedNodeId = chooseDefaultNode(sample);
+      state.selectedNodeId = state.activeStepId
+        ? getFocusNodeForMode(sample, getStepElement(state.activeStepId)?.dataset.focusMode ?? 'contrast').id
+        : chooseDefaultNode(sample);
       renderScenario();
       renderScenarioList();
     });
@@ -612,6 +704,7 @@ function renderScenario() {
 
   refs.scenarioTitle.textContent = scenarioTitle(sample);
   refs.scenarioCaption.textContent = scenarioCaption(sample);
+  renderLegend();
   renderFigureNotes(sample);
   renderGraph(sample);
   updateNodePanel(sample, state.selectedNodeId ?? chooseDefaultNode(sample));
@@ -636,14 +729,18 @@ function renderHistoryChart() {
 
   const gnnHistory = state.data.histories.gnn;
   const mlpHistory = state.data.histories.mlp;
+  const maxEpoch = Math.max(
+    ...gnnHistory.map((item) => item.epoch),
+    ...mlpHistory.map((item) => item.epoch),
+  );
   const allValues = [...gnnHistory, ...mlpHistory].map((item) => item.val_f1);
   const minValue = Math.min(...allValues) - 0.02;
   const maxValue = Math.max(...allValues) + 0.02;
 
-  const xForEpoch = (epoch) => margin.left + ((epoch - 1) / Math.max(1, gnnHistory.length - 1)) * chartWidth;
+  const xForEpoch = (epoch) => margin.left + ((epoch - 1) / Math.max(1, maxEpoch - 1)) * chartWidth;
   const yForValue = (value) => margin.top + chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight;
-
-  [0, 0.5, 1].forEach(() => {});
+  refs.historyCaption.textContent = `X-axis: training epoch. Y-axis: validation F1. The graph model stops after epoch ${gnnHistory.at(-1).epoch}; the trait-only baseline continues to epoch ${mlpHistory.at(-1).epoch}.`;
+  svg.setAttribute('aria-label', `Validation F1 by epoch. Graph model ends at epoch ${gnnHistory.at(-1).epoch}; trait-only baseline ends at epoch ${mlpHistory.at(-1).epoch}.`);
 
   const axis = svgElement('g');
   axis.appendChild(svgElement('line', {
@@ -680,10 +777,48 @@ function renderHistoryChart() {
     axis.appendChild(label);
   });
 
+  Array.from(new Set([1, Math.ceil(maxEpoch / 2), maxEpoch])).forEach((epoch) => {
+    const x = xForEpoch(epoch);
+    axis.appendChild(svgElement('line', {
+      x1: x,
+      y1: margin.top + chartHeight,
+      x2: x,
+      y2: margin.top + chartHeight + 6,
+      class: 'chart-axis',
+    }));
+    const label = svgElement('text', {
+      x,
+      y: height - 12,
+      'text-anchor': 'middle',
+      class: 'chart-label',
+    });
+    label.textContent = epoch.toString();
+    axis.appendChild(label);
+  });
+
+  const xAxisTitle = svgElement('text', {
+    x: margin.left + chartWidth / 2,
+    y: height - 2,
+    'text-anchor': 'middle',
+    class: 'chart-axis-title',
+  });
+  xAxisTitle.textContent = 'Epoch';
+  axis.appendChild(xAxisTitle);
+
+  const yAxisTitle = svgElement('text', {
+    x: 18,
+    y: margin.top + chartHeight / 2,
+    transform: `rotate(-90 18 ${margin.top + chartHeight / 2})`,
+    'text-anchor': 'middle',
+    class: 'chart-axis-title',
+  });
+  yAxisTitle.textContent = 'Validation F1';
+  axis.appendChild(yAxisTitle);
+
   svg.appendChild(axis);
 
   const makePath = (history) => history.map((item, index) => {
-    const x = xForEpoch(index + 1);
+    const x = xForEpoch(item.epoch);
     const y = yForValue(item.val_f1);
     return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
   }).join(' ');
@@ -764,6 +899,10 @@ function attachFigureObservers() {
       stepVisibility.set(entry.target.dataset.step, entry.isIntersecting ? entry.intersectionRatio : 0);
     });
 
+    if (!releaseStepSyncIfScrolled()) {
+      return;
+    }
+
     const bestStep = refs.figureSteps
       .map((step) => ({ step, ratio: stepVisibility.get(step.dataset.step) ?? 0 }))
       .sort((left, right) => right.ratio - left.ratio)[0];
@@ -785,8 +924,15 @@ function attachEvents() {
     if (!button) {
       return;
     }
-    state.activeStepId = null;
+    lockStepSync();
+    state.activeStepId = viewToStep[button.dataset.view] ?? null;
     state.view = button.dataset.view;
+    if (state.activeStepId) {
+      state.selectedNodeId = getFocusNodeForMode(
+        getCurrentSample(),
+        getStepElement(state.activeStepId)?.dataset.focusMode ?? 'contrast',
+      ).id;
+    }
     renderScenario();
   });
 

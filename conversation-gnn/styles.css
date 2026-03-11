@@ -317,17 +317,14 @@ h1 {
 
 .figure-block-primary .figure-actions,
 .figure-block-primary .figure-toolbar {
-  opacity: 0.16;
-  transform: translateY(4px);
-  pointer-events: none;
-  transition: opacity 180ms ease, transform 180ms ease;
+  opacity: 0.58;
+  pointer-events: auto;
+  transition: opacity 180ms ease;
 }
 
 .figure-block-primary.is-active .figure-actions,
 .figure-block-primary.is-active .figure-toolbar {
   opacity: 1;
-  transform: none;
-  pointer-events: auto;
 }
 
 button {
@@ -391,12 +388,34 @@ button {
 
 .legend {
   display: flex;
-  gap: 14px;
+  gap: 20px;
   flex-wrap: wrap;
   align-items: center;
   color: var(--ink-muted);
   font-family: "IBM Plex Sans", sans-serif;
   font-size: 0.92rem;
+}
+
+.legend-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.legend-title {
+  color: var(--ink-muted);
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.legend-note {
+  color: var(--ink-soft);
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.85rem;
 }
 
 .legend-dot {
@@ -410,7 +429,26 @@ button {
 
 .legend-dot.danger { background: var(--coral); }
 .legend-dot.calm { background: var(--mint); }
+.legend-dot.pressure-low { background: #274655; }
 .legend-dot.support { background: var(--gold); }
+
+.legend-line {
+  width: 22px;
+  height: 0;
+  display: inline-block;
+  margin-right: 7px;
+  vertical-align: middle;
+  border-top: 2px solid currentColor;
+}
+
+.legend-line.pressure {
+  color: rgba(220, 105, 81, 0.9);
+}
+
+.legend-line.support {
+  color: rgba(201, 165, 95, 0.9);
+  border-top-style: dashed;
+}
 
 .figure-layout {
   display: grid;
@@ -492,6 +530,14 @@ button {
   font-family: "IBM Plex Sans", sans-serif;
   font-size: 0.98rem;
   font-weight: 700;
+}
+
+.guide-copy {
+  margin: 0 0 14px;
+  color: var(--ink-soft);
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.88rem;
+  line-height: 1.6;
 }
 
 .figure-note p {
@@ -772,6 +818,13 @@ button {
   fill: var(--ink-muted);
   font-family: "IBM Plex Mono", monospace;
   font-size: 12px;
+}
+
+.chart-axis-title {
+  fill: var(--ink-soft);
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 @media (max-width: 1120px) {
