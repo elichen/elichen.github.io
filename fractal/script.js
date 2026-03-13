@@ -4,8 +4,11 @@ let quadBuffer;
 let fractalType = 'mandelbrot';
 let mousePosition = { x: 0, y: 0 };
 let deepPrecisionWarningShown = false;
+let juliaDeepPrecisionWarningShown = false;
 let mandelbrotQualityHold = false;
 let mandelbrotQualityHoldWarningShown = false;
+let juliaQualityHold = false;
+let juliaQualityHoldWarningShown = false;
 
 const ZOOM_SPEED = 0.994;
 const MIN_DECIMAL_DIGITS = 80;
@@ -27,6 +30,8 @@ const REFERENCE_REFINEMENT_ESCAPE_MARGIN = 8;
 const REFERENCE_REUSE_RADIUS_PIXELS = 192;
 const STABLE_REFERENCE_REUSE_RADIUS_PIXELS = 512;
 const REFERENCE_REUSE_ESCAPE_RATIO = 0.9;
+const JULIA_CONSTANT_REAL = '-0.8';
+const JULIA_CONSTANT_IMAGINARY = '0.156';
 
 let decimalDigits = MIN_DECIMAL_DIGITS;
 let decimalScale = 10n ** BigInt(decimalDigits);
@@ -145,6 +150,8 @@ uniform sampler2D u_referenceOrbit;
 uniform int u_maxIterations;
 uniform int u_referenceOrbitLength;
 uniform float u_glitchThreshold;
+uniform int u_deepFractalType;
+uniform vec2 u_juliaConstant;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outMask;
@@ -209,13 +216,51 @@ float mandelbrotPerturbation(vec2 deltaPixels) {
     return 0.0;
 }
 
+float juliaPerturbation(vec2 deltaPixels) {
+    vec2 scaledDelta = deltaPixels;
+
+    for (int i = 0; i < ${MAX_GPU_ITERATIONS}; ++i) {
+        if (i >= u_maxIterations) break;
+        if (i + 1 >= u_referenceOrbitLength) {
+            outMask = vec4(1.0, 0.0, 0.0, 1.0);
+            return -1.0;
+        }
+
+        vec2 reference = getOrbit(i);
+        vec2 nextReference = getOrbit(i + 1);
+        vec2 nextScaledDelta = (
+            2.0 * complexMul(reference, scaledDelta)
+        ) + (
+            u_pixelScale * complexMul(scaledDelta, scaledDelta)
+        );
+        vec2 z = nextReference + (u_pixelScale * nextScaledDelta);
+        float mag2 = dot(z, z);
+        if (mag2 > 4.0) {
+            float smoothValue = float(i + 1) - log2(log2(max(length(z), 1.0001)));
+            outMask = vec4(0.0, 0.0, 0.0, 1.0);
+            return smoothValue / float(u_maxIterations);
+        }
+        float referenceMag2 = dot(nextReference, nextReference);
+        if (referenceMag2 > 4.0 && mag2 < (u_glitchThreshold * referenceMag2)) {
+            outMask = vec4(1.0, 0.0, 0.0, 1.0);
+            return -1.0;
+        }
+        scaledDelta = nextScaledDelta;
+    }
+
+    outMask = vec4(0.0, 0.0, 0.0, 1.0);
+    return 0.0;
+}
+
 void main() {
     vec2 pixelOffset = vec2(
         gl_FragCoord.x - 0.5 * u_resolution.x,
         gl_FragCoord.y - 0.5 * u_resolution.y
     );
     vec2 deltaPixels = u_referenceDeltaPixels + pixelOffset;
-    float value = mandelbrotPerturbation(deltaPixels);
+    float value = u_deepFractalType == 1
+        ? juliaPerturbation(deltaPixels)
+        : mandelbrotPerturbation(deltaPixels);
     vec3 color = value <= 0.0 ? vec3(0.0) : getPalette(value);
     outColor = vec4(color, 1.0);
 }
@@ -250,10 +295,18 @@ let mandelbrotRenderTargetWidth = 0;
 let mandelbrotRenderTargetHeight = 0;
 let mandelbrotZoomStepCount = 0;
 let mandelbrotLastFrameStats = null;
+let juliaFrameReady = false;
+let juliaReferenceCache = new Map();
+let juliaZoomStepCount = 0;
+let juliaLastFrameStats = null;
+let juliaConstantCache = null;
+let juliaConstantCacheDigits = 0;
 
 let simpleCamera = createSimpleCamera(-0.745, 0.1, 1.6);
 let mandelbrotCamera = null;
 let mandelbrotReference = createEmptyReference();
+let juliaCamera = null;
+let juliaReference = createEmptyReference();
 
 function createSimpleCamera(centerX, centerY, viewWidth) {
     return {
@@ -298,6 +351,148 @@ function cloneMandelbrotReference(reference) {
         escapeIteration: reference.escapeIteration,
         useSimpleFallback: reference.useSimpleFallback,
     };
+}
+
+function cloneDeepCamera(camera) {
+    return cloneMandelbrotCamera(camera);
+}
+
+function cloneDeepReference(reference) {
+    return cloneMandelbrotReference(reference);
+}
+
+function isDeepFractalType(type = fractalType) {
+    return type === 'mandelbrot' || type === 'julia';
+}
+
+function getDeepLabel(type) {
+    return type === 'julia' ? 'Julia' : 'Mandelbrot';
+}
+
+function getDeepConstant(type) {
+    if (type === 'julia') {
+        if (!juliaConstantCache || juliaConstantCacheDigits !== decimalDigits) {
+            juliaConstantCache = {
+                x: decimalFromString(JULIA_CONSTANT_REAL),
+                y: decimalFromString(JULIA_CONSTANT_IMAGINARY),
+            };
+            juliaConstantCacheDigits = decimalDigits;
+        }
+        return juliaConstantCache;
+    }
+    return null;
+}
+
+function getDeepCamera(type = fractalType) {
+    return type === 'julia' ? juliaCamera : mandelbrotCamera;
+}
+
+function setDeepCamera(type, camera) {
+    if (type === 'julia') {
+        juliaCamera = camera;
+        return;
+    }
+    mandelbrotCamera = camera;
+}
+
+function getDeepReference(type = fractalType) {
+    return type === 'julia' ? juliaReference : mandelbrotReference;
+}
+
+function setDeepReference(type, reference) {
+    if (type === 'julia') {
+        juliaReference = reference;
+        return;
+    }
+    mandelbrotReference = reference;
+}
+
+function getDeepReferenceCache(type = fractalType) {
+    return type === 'julia' ? juliaReferenceCache : mandelbrotReferenceCache;
+}
+
+function setDeepReferenceCache(type, cache) {
+    if (type === 'julia') {
+        juliaReferenceCache = cache;
+        return;
+    }
+    mandelbrotReferenceCache = cache;
+}
+
+function getDeepFrameReady(type = fractalType) {
+    return type === 'julia' ? juliaFrameReady : mandelbrotFrameReady;
+}
+
+function setDeepFrameReady(type, value) {
+    if (type === 'julia') {
+        juliaFrameReady = value;
+        return;
+    }
+    mandelbrotFrameReady = value;
+}
+
+function getDeepQualityHold(type = fractalType) {
+    return type === 'julia' ? juliaQualityHold : mandelbrotQualityHold;
+}
+
+function setDeepQualityHold(type, value) {
+    if (type === 'julia') {
+        juliaQualityHold = value;
+        return;
+    }
+    mandelbrotQualityHold = value;
+}
+
+function getDeepQualityHoldWarningShown(type = fractalType) {
+    return type === 'julia' ? juliaQualityHoldWarningShown : mandelbrotQualityHoldWarningShown;
+}
+
+function setDeepQualityHoldWarningShown(type, value) {
+    if (type === 'julia') {
+        juliaQualityHoldWarningShown = value;
+        return;
+    }
+    mandelbrotQualityHoldWarningShown = value;
+}
+
+function getDeepPrecisionWarningShown(type = fractalType) {
+    return type === 'julia' ? juliaDeepPrecisionWarningShown : deepPrecisionWarningShown;
+}
+
+function setDeepPrecisionWarningShown(type, value) {
+    if (type === 'julia') {
+        juliaDeepPrecisionWarningShown = value;
+        return;
+    }
+    deepPrecisionWarningShown = value;
+}
+
+function getDeepZoomStepCount(type = fractalType) {
+    return type === 'julia' ? juliaZoomStepCount : mandelbrotZoomStepCount;
+}
+
+function setDeepZoomStepCount(type, value) {
+    if (type === 'julia') {
+        juliaZoomStepCount = value;
+        return;
+    }
+    mandelbrotZoomStepCount = value;
+}
+
+function incrementDeepZoomStepCount(type) {
+    setDeepZoomStepCount(type, getDeepZoomStepCount(type) + 1);
+}
+
+function getDeepLastFrameStats(type = fractalType) {
+    return type === 'julia' ? juliaLastFrameStats : mandelbrotLastFrameStats;
+}
+
+function setDeepLastFrameStats(type, frameStats) {
+    if (type === 'julia') {
+        juliaLastFrameStats = frameStats;
+        return;
+    }
+    mandelbrotLastFrameStats = frameStats;
 }
 
 function createEmptyMandelbrotFrameStats() {
@@ -382,7 +577,7 @@ function getPaletteColor(t) {
     ];
 }
 
-function finalizeMandelbrotFrameStats(frameStats, status, reason = null, extra = {}) {
+function finalizeDeepFrameStats(type, frameStats, status, reason = null, extra = {}) {
     const finalized = {
         ...frameStats,
         ...extra,
@@ -390,34 +585,47 @@ function finalizeMandelbrotFrameStats(frameStats, status, reason = null, extra =
         reason,
         repairPasses: Math.max(0, frameStats.referencesUsed - 1),
     };
-    mandelbrotLastFrameStats = finalized;
+    setDeepLastFrameStats(type, finalized);
     return finalized;
 }
 
-function getMandelbrotDebugSnapshot() {
+function finalizeMandelbrotFrameStats(frameStats, status, reason = null, extra = {}) {
+    return finalizeDeepFrameStats('mandelbrot', frameStats, status, reason, extra);
+}
+
+function getDeepDebugSnapshot(type) {
+    const camera = getDeepCamera(type);
     return {
-        step: mandelbrotZoomStepCount,
-        pixelScaleApprox: mandelbrotCamera ? roundDebugNumber(mandelbrotCamera.pixelScaleApprox) : null,
-        maxIterations: mandelbrotCamera ? mandelbrotCamera.maxIterations : null,
-        hold: mandelbrotQualityHold,
-        frameReady: mandelbrotFrameReady,
+        step: getDeepZoomStepCount(type),
+        pixelScaleApprox: camera ? roundDebugNumber(camera.pixelScaleApprox) : null,
+        maxIterations: camera ? camera.maxIterations : null,
+        hold: getDeepQualityHold(type),
+        frameReady: getDeepFrameReady(type),
         mouseX: roundDebugNumber(mousePosition.x),
         mouseY: roundDebugNumber(mousePosition.y),
-        lastFrame: mandelbrotLastFrameStats || createEmptyMandelbrotFrameStats(),
+        lastFrame: getDeepLastFrameStats(type) || createEmptyMandelbrotFrameStats(),
     };
 }
 
-function logMandelbrotProgress() {
+function getMandelbrotDebugSnapshot() {
+    return getDeepDebugSnapshot('mandelbrot');
+}
+
+function logDeepProgress(type) {
     if (
-        fractalType !== 'mandelbrot'
+        fractalType !== type
         || !MANDELBROT_LOG_INTERVAL
-        || mandelbrotZoomStepCount === 0
-        || (mandelbrotZoomStepCount % MANDELBROT_LOG_INTERVAL) !== 0
+        || getDeepZoomStepCount(type) === 0
+        || (getDeepZoomStepCount(type) % MANDELBROT_LOG_INTERVAL) !== 0
     ) {
         return;
     }
 
-    console.info(`Mandelbrot zoom progress ${JSON.stringify(getMandelbrotDebugSnapshot())}`);
+    console.info(`${getDeepLabel(type)} zoom progress ${JSON.stringify(getDeepDebugSnapshot(type))}`);
+}
+
+function logMandelbrotProgress() {
+    logDeepProgress('mandelbrot');
 }
 
 function decimalFromString(value) {
@@ -520,9 +728,20 @@ function ensureDecimalDigits(requiredDigits) {
         mandelbrotCamera.pixelScale *= factor;
     }
 
+    if (juliaCamera) {
+        juliaCamera.centerX *= factor;
+        juliaCamera.centerY *= factor;
+        juliaCamera.pixelScale *= factor;
+    }
+
     if (mandelbrotReference.centerX !== null) {
         mandelbrotReference.centerX *= factor;
         mandelbrotReference.centerY *= factor;
+    }
+
+    if (juliaReference.centerX !== null) {
+        juliaReference.centerX *= factor;
+        juliaReference.centerY *= factor;
     }
 
     decimalDigits = requiredDigits;
@@ -561,20 +780,27 @@ function updateSimpleCameraScale(camera) {
     camera.maxIterations = computeSimpleIterationBudget(camera.pixelScale);
 }
 
-function createMandelbrotCamera() {
+function createDeepCamera(centerX, centerY, viewWidth) {
     const minDimension = Math.max(1, Math.min(gl.canvas.width, gl.canvas.height));
-    const viewWidth = 1.6;
     const pixelScaleApprox = viewWidth / minDimension;
     ensureDecimalDigits(requiredDecimalDigits(pixelScaleApprox));
 
     return {
-        centerX: decimalFromString('-0.745'),
-        centerY: decimalFromString('0.1'),
+        centerX: decimalFromString(centerX),
+        centerY: decimalFromString(centerY),
         pixelScale: decimalFromNumber(pixelScaleApprox),
         pixelScaleApprox,
         maxIterations: computeIterationBudget(pixelScaleApprox),
         viewWidth,
     };
+}
+
+function createMandelbrotCamera() {
+    return createDeepCamera('-0.745', '0.1', 1.6);
+}
+
+function createJuliaCamera() {
+    return createDeepCamera('0', '0', 3.0);
 }
 
 function getCanvasPixelOffset(pointer = mousePosition) {
@@ -622,8 +848,8 @@ function planeToScreenDeep(camera, plane) {
 }
 
 function getActivePointerPlane(pointer = mousePosition) {
-    if (fractalType === 'mandelbrot') {
-        const plane = screenToPlaneDeep(mandelbrotCamera, pointer);
+    if (isDeepFractalType(fractalType)) {
+        const plane = screenToPlaneDeep(getDeepCamera(fractalType), pointer);
         return {
             x: decimalToNumber(plane.x),
             y: decimalToNumber(plane.y),
@@ -636,6 +862,11 @@ function getActivePointerPlane(pointer = mousePosition) {
 function stepActiveZoomOnce() {
     if (fractalType === 'mandelbrot') {
         stepMandelbrotCameraWithQualityPriority();
+        return;
+    }
+
+    if (fractalType === 'julia') {
+        stepJuliaCameraWithQualityPriority();
         return;
     }
 
@@ -654,20 +885,28 @@ function updateSimpleCamera(camera) {
     camera.maxIterations = computeSimpleIterationBudget(camera.pixelScale);
 }
 
-function updateMandelbrotCamera() {
-    const nextPixelScaleApprox = mandelbrotCamera.pixelScaleApprox * ZOOM_SPEED;
+function updateDeepCamera(camera) {
+    const nextPixelScaleApprox = camera.pixelScaleApprox * ZOOM_SPEED;
     ensureDecimalDigits(requiredDecimalDigits(nextPixelScaleApprox));
 
-    const anchor = screenToPlaneDeep(mandelbrotCamera, mousePosition);
+    const anchor = screenToPlaneDeep(camera, mousePosition);
     const offset = getCanvasPixelOffset(mousePosition);
-    const nextPixelScale = mulDecimal(mandelbrotCamera.pixelScale, decimalFromString(String(ZOOM_SPEED)));
+    const nextPixelScale = mulDecimal(camera.pixelScale, decimalFromString(String(ZOOM_SPEED)));
 
-    mandelbrotCamera.centerX = subDecimal(anchor.x, mulDecimalNumber(nextPixelScale, offset.x));
-    mandelbrotCamera.centerY = subDecimal(anchor.y, mulDecimalNumber(nextPixelScale, offset.y));
-    mandelbrotCamera.pixelScale = nextPixelScale;
-    mandelbrotCamera.pixelScaleApprox = nextPixelScaleApprox;
-    mandelbrotCamera.viewWidth = nextPixelScaleApprox * Math.min(gl.canvas.width, gl.canvas.height);
-    mandelbrotCamera.maxIterations = computeIterationBudget(nextPixelScaleApprox);
+    camera.centerX = subDecimal(anchor.x, mulDecimalNumber(nextPixelScale, offset.x));
+    camera.centerY = subDecimal(anchor.y, mulDecimalNumber(nextPixelScale, offset.y));
+    camera.pixelScale = nextPixelScale;
+    camera.pixelScaleApprox = nextPixelScaleApprox;
+    camera.viewWidth = nextPixelScaleApprox * Math.min(gl.canvas.width, gl.canvas.height);
+    camera.maxIterations = computeIterationBudget(nextPixelScaleApprox);
+}
+
+function updateMandelbrotCamera() {
+    updateDeepCamera(mandelbrotCamera);
+}
+
+function updateJuliaCamera() {
+    updateDeepCamera(juliaCamera);
 }
 
 function createShader(shaderType, source) {
@@ -764,6 +1003,7 @@ function ensureMandelbrotRenderTargets() {
     mandelbrotRenderTargetWidth = width;
     mandelbrotRenderTargetHeight = height;
     mandelbrotFrameReady = false;
+    juliaFrameReady = false;
 
     if (mandelbrotWorkingFramebuffer) {
         gl.deleteFramebuffer(mandelbrotWorkingFramebuffer);
@@ -829,6 +1069,7 @@ function initWebGL() {
             'u_maxIterations',
             'u_referenceOrbitLength',
             'u_glitchThreshold',
+            'u_deepFractalType',
         ]
     );
 
@@ -848,6 +1089,7 @@ function initWebGL() {
 
     gl.clearColor(0, 0, 0, 1);
     mandelbrotCamera = createMandelbrotCamera();
+    juliaCamera = createJuliaCamera();
     resetSimpleCamera('mandelbrot');
     return true;
 }
@@ -926,27 +1168,6 @@ function getReferenceSearchRings(baseRings) {
     return rings;
 }
 
-function computeEscapeIteration(centerX, centerY, iterations) {
-    let zr = 0n;
-    let zi = 0n;
-
-    for (let i = 0; i < iterations; i += 1) {
-        const zr2 = mulDecimal(zr, zr);
-        const zi2 = mulDecimal(zi, zi);
-        const zrzi = mulDecimal(zr, zi);
-
-        zr = addDecimal(subDecimal(zr2, zi2), centerX);
-        zi = addDecimal(mulDecimalInt(zrzi, 2), centerY);
-
-        const magnitude = addDecimal(mulDecimal(zr, zr), mulDecimal(zi, zi));
-        if (magnitude > mulDecimalInt(decimalScale, 4)) {
-            return i + 1;
-        }
-    }
-
-    return iterations;
-}
-
 function isReferenceCandidateBetter(candidate, bestCandidate) {
     if (!candidate) {
         return false;
@@ -960,13 +1181,14 @@ function isReferenceCandidateBetter(candidate, bestCandidate) {
     return candidate.distanceSquared < bestCandidate.distanceSquared;
 }
 
-function getReferenceSearchAnchors(anchorPoint) {
+function getReferenceSearchAnchors(type, anchorPoint) {
     const anchors = [anchorPoint];
+    const reference = getDeepReference(type);
 
-    if (mandelbrotReference.centerX !== null && mandelbrotReference.centerY !== null) {
+    if (reference.centerX !== null && reference.centerY !== null) {
         const previousReferenceAnchor = createDeepPoint(
-            mandelbrotReference.centerX,
-            mandelbrotReference.centerY
+            reference.centerX,
+            reference.centerY
         );
         const key = `${previousReferenceAnchor.x.toString()}:${previousReferenceAnchor.y.toString()}`;
         if (key !== `${anchorPoint.x.toString()}:${anchorPoint.y.toString()}`) {
@@ -977,18 +1199,19 @@ function getReferenceSearchAnchors(anchorPoint) {
     return anchors;
 }
 
-function searchReferenceCandidates(anchorPoint, iterations, rings, sampleSpacing) {
+function searchReferenceCandidates(type, anchorPoint, iterations, rings, sampleSpacing) {
     let bestCandidate = null;
+    const camera = getDeepCamera(type);
 
-    for (const searchAnchor of getReferenceSearchAnchors(anchorPoint)) {
+    for (const searchAnchor of getReferenceSearchAnchors(type, anchorPoint)) {
         const isPrimaryAnchor = searchAnchor === anchorPoint;
         for (const radius of getReferenceSearchRings(rings)) {
             for (const offset of getReferenceRingOffsets(radius, sampleSpacing)) {
-                const candidatePoint = offsetDeepPoint(mandelbrotCamera, searchAnchor, offset.x, offset.y);
-                const escapeIteration = computeEscapeIteration(candidatePoint.x, candidatePoint.y, iterations);
+                const candidatePoint = offsetDeepPoint(camera, searchAnchor, offset.x, offset.y);
+                const escapeIteration = computeEscapeIteration(candidatePoint.x, candidatePoint.y, iterations, type);
                 const distanceSquared = isPrimaryAnchor
                     ? ((offset.x * offset.x) + (offset.y * offset.y))
-                    : getDeepPointScreenDistanceSquared(mandelbrotCamera, candidatePoint);
+                    : getDeepPointScreenDistanceSquared(camera, candidatePoint);
                 const candidate = { point: candidatePoint, distanceSquared, escapeIteration };
 
                 if (isReferenceCandidateBetter(candidate, bestCandidate)) {
@@ -1001,8 +1224,9 @@ function searchReferenceCandidates(anchorPoint, iterations, rings, sampleSpacing
     return bestCandidate;
 }
 
-function findBestReferencePoint(anchorPoint, iterations) {
+function findBestReferencePoint(anchorPoint, iterations, type = fractalType) {
     const coarseCandidate = searchReferenceCandidates(
+        type,
         anchorPoint,
         iterations,
         BASE_REFERENCE_SEARCH_RINGS,
@@ -1017,6 +1241,7 @@ function findBestReferencePoint(anchorPoint, iterations) {
     }
 
     const denseCandidate = searchReferenceCandidates(
+        type,
         anchorPoint,
         iterations,
         DENSE_REFERENCE_SEARCH_RINGS,
@@ -1044,12 +1269,12 @@ function isReusableReferenceStrong(reference, iterations) {
     return reference.escapeIteration >= minimumEscapeIteration;
 }
 
-function getReferenceReuseRadiusPixels() {
+function getReferenceReuseRadiusPixels(type) {
     if (
-        mandelbrotLastFrameStats
-        && mandelbrotLastFrameStats.status === 'success'
-        && mandelbrotLastFrameStats.referencesUsed === 1
-        && mandelbrotLastFrameStats.cpuResolvedTiles === 0
+        getDeepLastFrameStats(type)
+        && getDeepLastFrameStats(type).status === 'success'
+        && getDeepLastFrameStats(type).referencesUsed === 1
+        && getDeepLastFrameStats(type).cpuResolvedTiles === 0
     ) {
         return STABLE_REFERENCE_REUSE_RADIUS_PIXELS;
     }
@@ -1057,20 +1282,23 @@ function getReferenceReuseRadiusPixels() {
     return REFERENCE_REUSE_RADIUS_PIXELS;
 }
 
-function getReusableReferenceSelection(anchorPoint, iterations) {
-    if (mandelbrotReference.centerX === null || mandelbrotReference.centerY === null) {
+function getReusableReferenceSelection(anchorPoint, iterations, type = fractalType) {
+    const reference = getDeepReference(type);
+    const camera = getDeepCamera(type);
+
+    if (reference.centerX === null || reference.centerY === null) {
         return null;
     }
 
-    const point = createDeepPoint(mandelbrotReference.centerX, mandelbrotReference.centerY);
-    const distanceSquared = getDeepPointScreenDistanceSquared(mandelbrotCamera, point);
-    const reuseRadiusPixels = getReferenceReuseRadiusPixels();
+    const point = createDeepPoint(reference.centerX, reference.centerY);
+    const distanceSquared = getDeepPointScreenDistanceSquared(camera, point);
+    const reuseRadiusPixels = getReferenceReuseRadiusPixels(type);
     if (distanceSquared > (reuseRadiusPixels * reuseRadiusPixels)) {
         return null;
     }
 
-    const reference = getReferenceOrbit(point, iterations);
-    if (!isReusableReferenceStrong(reference, iterations)) {
+    const cachedReference = getReferenceOrbit(point, iterations, type);
+    if (!isReusableReferenceStrong(cachedReference, iterations)) {
         return null;
     }
 
@@ -1078,46 +1306,81 @@ function getReusableReferenceSelection(anchorPoint, iterations) {
         candidate: {
             point,
             distanceSquared,
-            escapeIteration: reference.escapeIteration,
+            escapeIteration: cachedReference.escapeIteration,
         },
-        reference,
+        reference: cachedReference,
         mode: 'reuse',
     };
 }
 
-function selectInitialReference(anchorPoint, iterations) {
-    const reusableSelection = getReusableReferenceSelection(anchorPoint, iterations);
+function selectInitialReference(anchorPoint, iterations, type = fractalType) {
+    const reusableSelection = getReusableReferenceSelection(anchorPoint, iterations, type);
     if (reusableSelection) {
         return reusableSelection;
     }
 
-    const candidate = findBestReferencePoint(anchorPoint, iterations);
+    const candidate = findBestReferencePoint(anchorPoint, iterations, type);
     if (!candidate) {
         return null;
     }
 
     return {
         candidate,
-        reference: getReferenceOrbit(candidate.point, iterations),
+        reference: getReferenceOrbit(candidate.point, iterations, type),
         mode: 'search',
     };
 }
 
-function computeReferenceOrbit(centerX, centerY, iterations) {
-    const orbitData = new Float32Array((iterations + 1) * 4);
-    let zr = 0n;
-    let zi = 0n;
-
-    orbitData[0] = 0;
-    orbitData[1] = 0;
+function computeEscapeIteration(centerX, centerY, iterations, type = fractalType) {
+    const juliaConstant = type === 'julia' ? getDeepConstant(type) : null;
+    let zr = type === 'julia' ? centerX : 0n;
+    let zi = type === 'julia' ? centerY : 0n;
 
     for (let i = 0; i < iterations; i += 1) {
         const zr2 = mulDecimal(zr, zr);
         const zi2 = mulDecimal(zi, zi);
         const zrzi = mulDecimal(zr, zi);
 
-        const nextZr = addDecimal(subDecimal(zr2, zi2), centerX);
-        const nextZi = addDecimal(mulDecimalInt(zrzi, 2), centerY);
+        zr = addDecimal(
+            subDecimal(zr2, zi2),
+            type === 'julia' ? juliaConstant.x : centerX
+        );
+        zi = addDecimal(
+            mulDecimalInt(zrzi, 2),
+            type === 'julia' ? juliaConstant.y : centerY
+        );
+
+        const magnitude = addDecimal(mulDecimal(zr, zr), mulDecimal(zi, zi));
+        if (magnitude > mulDecimalInt(decimalScale, 4)) {
+            return i + 1;
+        }
+    }
+
+    return iterations;
+}
+
+function computeReferenceOrbit(centerX, centerY, iterations, type = fractalType) {
+    const orbitData = new Float32Array((iterations + 1) * 4);
+    const juliaConstant = type === 'julia' ? getDeepConstant(type) : null;
+    let zr = type === 'julia' ? centerX : 0n;
+    let zi = type === 'julia' ? centerY : 0n;
+
+    orbitData[0] = decimalToNumber(zr);
+    orbitData[1] = decimalToNumber(zi);
+
+    for (let i = 0; i < iterations; i += 1) {
+        const zr2 = mulDecimal(zr, zr);
+        const zi2 = mulDecimal(zi, zi);
+        const zrzi = mulDecimal(zr, zi);
+
+        const nextZr = addDecimal(
+            subDecimal(zr2, zi2),
+            type === 'julia' ? juliaConstant.x : centerX
+        );
+        const nextZi = addDecimal(
+            mulDecimalInt(zrzi, 2),
+            type === 'julia' ? juliaConstant.y : centerY
+        );
 
         zr = nextZr;
         zi = nextZi;
@@ -1149,13 +1412,14 @@ function getReferenceCacheKey(point, iterations) {
     return `${point.x.toString()}:${point.y.toString()}:${iterations}`;
 }
 
-function getReferenceOrbit(point, iterations) {
+function getReferenceOrbit(point, iterations, type = fractalType) {
+    const referenceCache = getDeepReferenceCache(type);
     const key = getReferenceCacheKey(point, iterations);
-    if (mandelbrotReferenceCache.has(key)) {
-        return mandelbrotReferenceCache.get(key);
+    if (referenceCache.has(key)) {
+        return referenceCache.get(key);
     }
 
-    const referenceOrbit = computeReferenceOrbit(point.x, point.y, iterations);
+    const referenceOrbit = computeReferenceOrbit(point.x, point.y, iterations, type);
     const reference = {
         point,
         orbitData: referenceOrbit.orbitData,
@@ -1163,22 +1427,27 @@ function getReferenceOrbit(point, iterations) {
         escapeIteration: referenceOrbit.escapeIteration,
         escapedEarly: referenceOrbit.escapedEarly,
     };
-    mandelbrotReferenceCache.set(key, reference);
-    while (mandelbrotReferenceCache.size > MAX_REFERENCE_CACHE_ENTRIES) {
-        const oldestKey = mandelbrotReferenceCache.keys().next().value;
-        mandelbrotReferenceCache.delete(oldestKey);
+    referenceCache.set(key, reference);
+    while (referenceCache.size > MAX_REFERENCE_CACHE_ENTRIES) {
+        const oldestKey = referenceCache.keys().next().value;
+        referenceCache.delete(oldestKey);
     }
     return reference;
 }
 
+function commitDeepReference(type, reference) {
+    const deepReference = getDeepReference(type);
+    deepReference.centerX = reference.point.x;
+    deepReference.centerY = reference.point.y;
+    deepReference.orbitData = reference.orbitData;
+    deepReference.orbitLength = reference.orbitLength;
+    deepReference.maxIterations = getDeepCamera(type).maxIterations;
+    deepReference.escapeIteration = reference.escapeIteration;
+    deepReference.useSimpleFallback = false;
+}
+
 function commitMandelbrotReference(reference) {
-    mandelbrotReference.centerX = reference.point.x;
-    mandelbrotReference.centerY = reference.point.y;
-    mandelbrotReference.orbitData = reference.orbitData;
-    mandelbrotReference.orbitLength = reference.orbitLength;
-    mandelbrotReference.maxIterations = mandelbrotCamera.maxIterations;
-    mandelbrotReference.escapeIteration = reference.escapeIteration;
-    mandelbrotReference.useSimpleFallback = false;
+    commitDeepReference('mandelbrot', reference);
 }
 
 function clearWorkingFramebuffer() {
@@ -1296,17 +1565,24 @@ function framebufferPixelToPointer(pixel) {
     };
 }
 
-function computeCpuMandelbrotColor(centerX, centerY, iterations) {
-    let zr = 0n;
-    let zi = 0n;
+function computeCpuDeepColor(type, centerX, centerY, iterations) {
+    const juliaConstant = type === 'julia' ? getDeepConstant(type) : null;
+    let zr = type === 'julia' ? centerX : 0n;
+    let zi = type === 'julia' ? centerY : 0n;
 
     for (let i = 0; i < iterations; i += 1) {
         const zr2 = mulDecimal(zr, zr);
         const zi2 = mulDecimal(zi, zi);
         const zrzi = mulDecimal(zr, zi);
 
-        zr = addDecimal(subDecimal(zr2, zi2), centerX);
-        zi = addDecimal(mulDecimalInt(zrzi, 2), centerY);
+        zr = addDecimal(
+            subDecimal(zr2, zi2),
+            type === 'julia' ? juliaConstant.x : centerX
+        );
+        zi = addDecimal(
+            mulDecimalInt(zrzi, 2),
+            type === 'julia' ? juliaConstant.y : centerY
+        );
 
         const magnitude = addDecimal(mulDecimal(zr, zr), mulDecimal(zi, zi));
         if (magnitude > mulDecimalInt(decimalScale, 4)) {
@@ -1329,7 +1605,12 @@ function computeCpuMandelbrotColor(centerX, centerY, iterations) {
     return [0, 0, 0, 255];
 }
 
-function resolveMandelbrotTileOnCPU(tile) {
+function computeCpuMandelbrotColor(centerX, centerY, iterations) {
+    return computeCpuDeepColor('mandelbrot', centerX, centerY, iterations);
+}
+
+function resolveDeepTileOnCPU(type, tile) {
+    const camera = getDeepCamera(type);
     const colorData = new Uint8Array(tile.width * tile.height * 4);
     const maskData = new Uint8Array(tile.width * tile.height * 4);
 
@@ -1339,8 +1620,8 @@ function resolveMandelbrotTileOnCPU(tile) {
                 x: tile.x + column,
                 y: tile.y + row,
             });
-            const point = screenToPlaneDeep(mandelbrotCamera, pointer);
-            const color = computeCpuMandelbrotColor(point.x, point.y, mandelbrotCamera.maxIterations);
+            const point = screenToPlaneDeep(camera, pointer);
+            const color = computeCpuDeepColor(type, point.x, point.y, camera.maxIterations);
             const baseIndex = ((row * tile.width) + column) * 4;
 
             colorData[baseIndex] = color[0];
@@ -1384,7 +1665,12 @@ function resolveMandelbrotTileOnCPU(tile) {
     );
 }
 
-function renderMandelbrotPass(reference, tile) {
+function resolveMandelbrotTileOnCPU(tile) {
+    resolveDeepTileOnCPU('mandelbrot', tile);
+}
+
+function renderDeepPass(type, reference, tile) {
+    const camera = getDeepCamera(type);
     uploadReferenceOrbit(reference.orbitData, reference.orbitLength);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotWorkingFramebuffer);
@@ -1396,24 +1682,29 @@ function renderMandelbrotPass(reference, tile) {
     gl.useProgram(deepProgramInfo.program);
     bindQuad(deepProgramInfo);
     gl.uniform2f(deepProgramInfo.uniforms.u_resolution, gl.canvas.width, gl.canvas.height);
-    gl.uniform1f(deepProgramInfo.uniforms.u_pixelScale, mandelbrotCamera.pixelScaleApprox);
+    gl.uniform1f(deepProgramInfo.uniforms.u_pixelScale, camera.pixelScaleApprox);
     gl.uniform1f(deepProgramInfo.uniforms.u_glitchThreshold, GLITCH_THRESHOLD);
+    gl.uniform1i(deepProgramInfo.uniforms.u_deepFractalType, type === 'julia' ? 1 : 0);
     gl.uniform1i(deepProgramInfo.uniforms.u_referenceOrbitLength, reference.orbitLength);
     gl.uniform1i(deepProgramInfo.uniforms.u_referenceOrbit, 0);
-    gl.uniform1i(deepProgramInfo.uniforms.u_maxIterations, mandelbrotCamera.maxIterations);
+    gl.uniform1i(deepProgramInfo.uniforms.u_maxIterations, camera.maxIterations);
 
-    const referenceDeltaX = decimalToNumber(subDecimal(mandelbrotCamera.centerX, reference.point.x));
-    const referenceDeltaY = decimalToNumber(subDecimal(mandelbrotCamera.centerY, reference.point.y));
+    const referenceDeltaX = decimalToNumber(subDecimal(camera.centerX, reference.point.x));
+    const referenceDeltaY = decimalToNumber(subDecimal(camera.centerY, reference.point.y));
     gl.uniform2f(
         deepProgramInfo.uniforms.u_referenceDeltaPixels,
-        referenceDeltaX / mandelbrotCamera.pixelScaleApprox,
-        referenceDeltaY / mandelbrotCamera.pixelScaleApprox
+        referenceDeltaX / camera.pixelScaleApprox,
+        referenceDeltaY / camera.pixelScaleApprox
     );
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, orbitTexture);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.disable(gl.SCISSOR_TEST);
+}
+
+function renderMandelbrotPass(reference, tile) {
+    renderDeepPass('mandelbrot', reference, tile);
 }
 
 function copyWorkingFrameToCommitted() {
@@ -1435,7 +1726,7 @@ function copyWorkingFrameToCommitted() {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
-function drawCommittedMandelbrotFrame() {
+function drawCommittedDeepFrame() {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
@@ -1449,13 +1740,18 @@ function drawCommittedMandelbrotFrame() {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-function renderSharpMandelbrotFrame() {
-    const frameStats = createEmptyMandelbrotFrameStats();
-    frameStats.attemptedPixelScaleApprox = roundDebugNumber(mandelbrotCamera.pixelScaleApprox);
-    frameStats.attemptedMaxIterations = mandelbrotCamera.maxIterations;
+function drawCommittedMandelbrotFrame() {
+    drawCommittedDeepFrame();
+}
 
-    if (mandelbrotCamera.pixelScaleApprox < MIN_GPU_SCALE) {
-        finalizeMandelbrotFrameStats(frameStats, 'failed', 'gpu_delta_precision_floor');
+function renderSharpDeepFrame(type) {
+    const camera = getDeepCamera(type);
+    const frameStats = createEmptyMandelbrotFrameStats();
+    frameStats.attemptedPixelScaleApprox = roundDebugNumber(camera.pixelScaleApprox);
+    frameStats.attemptedMaxIterations = camera.maxIterations;
+
+    if (camera.pixelScaleApprox < MIN_GPU_SCALE) {
+        finalizeDeepFrameStats(type, frameStats, 'failed', 'gpu_delta_precision_floor');
         return false;
     }
 
@@ -1463,10 +1759,10 @@ function renderSharpMandelbrotFrame() {
     clearWorkingFramebuffer();
 
     const fullFrameTile = createRepairTile(0, 0, gl.canvas.width, gl.canvas.height, 0, null);
-    const anchorPoint = screenToPlaneDeep(mandelbrotCamera, mousePosition);
-    const initialSelection = selectInitialReference(anchorPoint, mandelbrotCamera.maxIterations);
+    const anchorPoint = screenToPlaneDeep(camera, mousePosition);
+    const initialSelection = selectInitialReference(anchorPoint, camera.maxIterations, type);
     if (!initialSelection) {
-        finalizeMandelbrotFrameStats(frameStats, 'failed', 'no_initial_reference');
+        finalizeDeepFrameStats(type, frameStats, 'failed', 'no_initial_reference');
         return false;
     }
 
@@ -1476,7 +1772,7 @@ function renderSharpMandelbrotFrame() {
     frameStats.initialEscapedEarly = initialReference.escapedEarly;
     frameStats.initialReferenceMode = initialReferenceMode;
     frameStats.referencesUsed = 1;
-    renderMandelbrotPass(initialReference, fullFrameTile);
+    renderDeepPass(type, initialReference, fullFrameTile);
     fullFrameTile.maskData = readGlitchMask(fullFrameTile);
 
     const repairQueue = [];
@@ -1486,7 +1782,7 @@ function renderSharpMandelbrotFrame() {
             || fullFrameTile.width <= MIN_REPAIR_TILE_SIZE
             || fullFrameTile.height <= MIN_REPAIR_TILE_SIZE
         ) {
-            finalizeMandelbrotFrameStats(frameStats, 'failed', 'full_frame_tile_limit', {
+            finalizeDeepFrameStats(type, frameStats, 'failed', 'full_frame_tile_limit', {
                 queuedTilesRemaining: repairQueue.length,
             });
             return false;
@@ -1500,7 +1796,7 @@ function renderSharpMandelbrotFrame() {
 
     while (repairQueue.length > 0) {
         if (referencesUsed >= MAX_REPAIR_REFERENCES) {
-            finalizeMandelbrotFrameStats(frameStats, 'failed', 'repair_reference_budget_exhausted', {
+            finalizeDeepFrameStats(type, frameStats, 'failed', 'repair_reference_budget_exhausted', {
                 queuedTilesRemaining: repairQueue.length,
             });
             return false;
@@ -1518,10 +1814,10 @@ function renderSharpMandelbrotFrame() {
         }
 
         const repairPointer = framebufferPixelToPointer(glitchedPixel);
-        const repairAnchor = screenToPlaneDeep(mandelbrotCamera, repairPointer);
-        const repairCandidate = findBestReferencePoint(repairAnchor, mandelbrotCamera.maxIterations);
+        const repairAnchor = screenToPlaneDeep(camera, repairPointer);
+        const repairCandidate = findBestReferencePoint(repairAnchor, camera.maxIterations, type);
         if (!repairCandidate) {
-            finalizeMandelbrotFrameStats(frameStats, 'failed', 'no_repair_reference', {
+            finalizeDeepFrameStats(type, frameStats, 'failed', 'no_repair_reference', {
                 queuedTilesRemaining: repairQueue.length,
                 lastTileWidth: tile.width,
                 lastTileHeight: tile.height,
@@ -1531,8 +1827,8 @@ function renderSharpMandelbrotFrame() {
         }
 
         frameStats.lastRepairEscapeIteration = repairCandidate.escapeIteration;
-        const repairReference = getReferenceOrbit(repairCandidate.point, mandelbrotCamera.maxIterations);
-        renderMandelbrotPass(repairReference, tile);
+        const repairReference = getReferenceOrbit(repairCandidate.point, camera.maxIterations, type);
+        renderDeepPass(type, repairReference, tile);
         tile.maskData = readGlitchMask(tile);
         referencesUsed += 1;
         frameStats.referencesUsed = referencesUsed;
@@ -1546,7 +1842,7 @@ function renderSharpMandelbrotFrame() {
             || tile.width <= MIN_REPAIR_TILE_SIZE
             || tile.height <= MIN_REPAIR_TILE_SIZE
         ) {
-            resolveMandelbrotTileOnCPU(tile);
+            resolveDeepTileOnCPU(type, tile);
             frameStats.cpuResolvedTiles += 1;
             frameStats.cpuResolvedPixels += tile.width * tile.height;
             continue;
@@ -1558,40 +1854,60 @@ function renderSharpMandelbrotFrame() {
     }
 
     copyWorkingFrameToCommitted();
-    commitMandelbrotReference(initialReference);
-    mandelbrotFrameReady = true;
-    finalizeMandelbrotFrameStats(frameStats, 'success');
+    commitDeepReference(type, initialReference);
+    setDeepFrameReady(type, true);
+    finalizeDeepFrameStats(type, frameStats, 'success');
     return true;
 }
 
-function stepMandelbrotCameraWithQualityPriority() {
-    if (mandelbrotQualityHold) {
+function renderSharpMandelbrotFrame() {
+    return renderSharpDeepFrame('mandelbrot');
+}
+
+function renderSharpJuliaFrame() {
+    return renderSharpDeepFrame('julia');
+}
+
+function stepDeepCameraWithQualityPriority(type) {
+    if (getDeepQualityHold(type)) {
         return false;
     }
 
-    const previousCamera = cloneMandelbrotCamera(mandelbrotCamera);
-    const previousReference = cloneMandelbrotReference(mandelbrotReference);
-    const previousWarningShown = deepPrecisionWarningShown;
+    const previousCamera = cloneDeepCamera(getDeepCamera(type));
+    const previousReference = cloneDeepReference(getDeepReference(type));
+    const previousWarningShown = getDeepPrecisionWarningShown(type);
 
-    updateMandelbrotCamera();
+    if (type === 'julia') {
+        updateJuliaCamera();
+    } else {
+        updateMandelbrotCamera();
+    }
 
-    if (!renderSharpMandelbrotFrame()) {
-        mandelbrotCamera = previousCamera;
-        mandelbrotReference = previousReference;
-        deepPrecisionWarningShown = previousWarningShown;
-        mandelbrotQualityHold = true;
-        if (!mandelbrotQualityHoldWarningShown) {
-            console.warn(`Paused Mandelbrot zoom ${JSON.stringify(getMandelbrotDebugSnapshot())}`);
-            mandelbrotQualityHoldWarningShown = true;
+    if (!renderSharpDeepFrame(type)) {
+        setDeepCamera(type, previousCamera);
+        setDeepReference(type, previousReference);
+        setDeepPrecisionWarningShown(type, previousWarningShown);
+        setDeepQualityHold(type, true);
+        if (!getDeepQualityHoldWarningShown(type)) {
+            console.warn(`Paused ${getDeepLabel(type)} zoom ${JSON.stringify(getDeepDebugSnapshot(type))}`);
+            setDeepQualityHoldWarningShown(type, true);
         }
         return false;
     }
 
-    mandelbrotZoomStepCount += 1;
-    logMandelbrotProgress();
-    mandelbrotQualityHold = false;
-    mandelbrotQualityHoldWarningShown = false;
+    incrementDeepZoomStepCount(type);
+    logDeepProgress(type);
+    setDeepQualityHold(type, false);
+    setDeepQualityHoldWarningShown(type, false);
     return true;
+}
+
+function stepMandelbrotCameraWithQualityPriority() {
+    return stepDeepCameraWithQualityPriority('mandelbrot');
+}
+
+function stepJuliaCameraWithQualityPriority() {
+    return stepDeepCameraWithQualityPriority('julia');
 }
 
 function drawSimpleFractal(activeType, camera) {
@@ -1608,23 +1924,33 @@ function drawSimpleFractal(activeType, camera) {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-function drawDeepMandelbrot() {
-    if (mandelbrotCamera.pixelScaleApprox < MIN_GPU_SCALE && !deepPrecisionWarningShown) {
-        console.warn('Mandelbrot zoom reached the GPU delta precision floor. The CPU camera stays precise, but visual detail will eventually plateau.');
-        deepPrecisionWarningShown = true;
+function drawDeepFractal(type) {
+    const camera = getDeepCamera(type);
+
+    if (camera.pixelScaleApprox < MIN_GPU_SCALE && !getDeepPrecisionWarningShown(type)) {
+        console.warn(`${getDeepLabel(type)} zoom reached the GPU delta precision floor. The CPU camera stays precise, but visual detail will eventually plateau.`);
+        setDeepPrecisionWarningShown(type, true);
     }
 
-    if (!mandelbrotFrameReady && !renderSharpMandelbrotFrame()) {
-        drawSimpleFractal('mandelbrot', {
-            centerX: decimalToNumber(mandelbrotCamera.centerX),
-            centerY: decimalToNumber(mandelbrotCamera.centerY),
-            pixelScale: mandelbrotCamera.pixelScaleApprox,
-            maxIterations: mandelbrotCamera.maxIterations,
+    if (!getDeepFrameReady(type) && !renderSharpDeepFrame(type)) {
+        drawSimpleFractal(type, {
+            centerX: decimalToNumber(camera.centerX),
+            centerY: decimalToNumber(camera.centerY),
+            pixelScale: camera.pixelScaleApprox,
+            maxIterations: camera.maxIterations,
         });
         return;
     }
 
-    drawCommittedMandelbrotFrame();
+    drawCommittedDeepFrame();
+}
+
+function drawDeepMandelbrot() {
+    drawDeepFractal('mandelbrot');
+}
+
+function drawDeepJulia() {
+    drawDeepFractal('julia');
 }
 
 function draw() {
@@ -1634,6 +1960,11 @@ function draw() {
 
     if (fractalType === 'mandelbrot') {
         drawDeepMandelbrot();
+        return;
+    }
+
+    if (fractalType === 'julia') {
+        drawDeepJulia();
         return;
     }
 
@@ -1647,6 +1978,8 @@ function animate() {
 
     if (fractalType === 'mandelbrot') {
         stepMandelbrotCameraWithQualityPriority();
+    } else if (fractalType === 'julia') {
+        stepJuliaCameraWithQualityPriority();
     } else {
         updateSimpleCamera(simpleCamera);
     }
@@ -1689,11 +2022,13 @@ function resizeCanvas() {
 
     ensureMandelbrotRenderTargets();
     mandelbrotFrameReady = false;
+    juliaFrameReady = false;
 
-    if (fractalType === 'mandelbrot' && mandelbrotCamera) {
-        mandelbrotCamera.viewWidth = mandelbrotCamera.pixelScaleApprox * Math.min(gl.canvas.width, gl.canvas.height);
-        mandelbrotQualityHold = false;
-        mandelbrotQualityHoldWarningShown = false;
+    if (isDeepFractalType(fractalType) && getDeepCamera(fractalType)) {
+        const deepCamera = getDeepCamera(fractalType);
+        deepCamera.viewWidth = deepCamera.pixelScaleApprox * Math.min(gl.canvas.width, gl.canvas.height);
+        setDeepQualityHold(fractalType, false);
+        setDeepQualityHoldWarningShown(fractalType, false);
     } else {
         updateSimpleCameraScale(simpleCamera);
     }
@@ -1722,6 +2057,18 @@ function resetMandelbrotState() {
     mandelbrotLastFrameStats = createEmptyMandelbrotFrameStats();
 }
 
+function resetJuliaState() {
+    juliaCamera = createJuliaCamera();
+    juliaReference = createEmptyReference();
+    juliaReferenceCache = new Map();
+    juliaFrameReady = false;
+    juliaDeepPrecisionWarningShown = false;
+    juliaQualityHold = false;
+    juliaQualityHoldWarningShown = false;
+    juliaZoomStepCount = 0;
+    juliaLastFrameStats = createEmptyMandelbrotFrameStats();
+}
+
 function handleMouseMove(event) {
     const rect = gl.canvas.getBoundingClientRect();
     const scaleX = gl.canvas.width / rect.width;
@@ -1732,14 +2079,18 @@ function handleMouseMove(event) {
         y: (event.clientY - rect.top) * scaleY,
     };
     clampMousePosition();
-    mandelbrotQualityHold = false;
-    mandelbrotQualityHoldWarningShown = false;
+    if (isDeepFractalType(fractalType)) {
+        setDeepQualityHold(fractalType, false);
+        setDeepQualityHoldWarningShown(fractalType, false);
+    }
 }
 
 function handleFractalTypeChange(event) {
     fractalType = event.target.value;
     if (fractalType === 'mandelbrot') {
         resetMandelbrotState();
+    } else if (fractalType === 'julia') {
+        resetJuliaState();
     } else {
         resetSimpleCamera(fractalType);
     }
@@ -1763,6 +2114,7 @@ window.addEventListener('load', () => {
 
     resizeCanvas();
     resetMandelbrotState();
+    resetJuliaState();
     setMouseToCenter();
     draw();
     requestAnimationFrame(animate);

@@ -21,12 +21,22 @@ function loadHarness() {
         mandelbrotFrameReady = false;
         deepPrecisionWarningShown = false;
     },
-    setRenderSharpImpl(fn) { renderSharpMandelbrotFrame = fn; },
+    initJulia() {
+        fractalType = 'julia';
+        juliaCamera = createJuliaCamera();
+        juliaReference = createEmptyReference();
+        juliaReferenceCache = new Map();
+        juliaQualityHold = false;
+        juliaQualityHoldWarningShown = false;
+        juliaFrameReady = false;
+        juliaDeepPrecisionWarningShown = false;
+    },
+    setRenderSharpImpl(fn) { renderSharpDeepFrame = fn; },
     setEscapeIterationImpl(fn) { computeEscapeIteration = fn; },
     findReferenceAtMouse() {
         return findBestReferencePoint(
-            screenToPlaneDeep(mandelbrotCamera, mousePosition),
-            mandelbrotCamera.maxIterations
+            screenToPlaneDeep(getDeepCamera(fractalType), mousePosition),
+            getDeepCamera(fractalType).maxIterations
         );
     },
     queueChildren(tile) {
@@ -38,11 +48,13 @@ function loadHarness() {
         return createRepairTile(x, y, width, height, depth, maskData);
     },
     stepQuality() { return stepMandelbrotCameraWithQualityPriority(); },
+    stepJuliaQuality() { return stepJuliaCameraWithQualityPriority(); },
     getState() {
+        const camera = getDeepCamera(fractalType);
         return {
-            pixelScaleApprox: mandelbrotCamera.pixelScaleApprox,
-            maxIterations: mandelbrotCamera.maxIterations,
-            hold: mandelbrotQualityHold,
+            pixelScaleApprox: camera.pixelScaleApprox,
+            maxIterations: camera.maxIterations,
+            hold: getDeepQualityHold(fractalType),
         };
     },
 };
@@ -152,6 +164,39 @@ test('stepMandelbrotCameraWithQualityPriority advances when sharp-frame render s
     harness.setRenderSharpImpl(() => true);
 
     const advanced = harness.stepQuality();
+    const after = harness.getState();
+
+    assert.equal(advanced, true);
+    assert.equal(after.hold, false);
+    assert.ok(after.pixelScaleApprox < before.pixelScaleApprox);
+});
+
+test('stepJuliaCameraWithQualityPriority restores the previous camera when repair fails', () => {
+    const harness = loadHarness();
+    harness.initJulia();
+    harness.setMouse({ x: 1320, y: 180 });
+
+    const before = harness.getState();
+    harness.setRenderSharpImpl(() => false);
+
+    const advanced = harness.stepJuliaQuality();
+    const after = harness.getState();
+
+    assert.equal(advanced, false);
+    assert.equal(after.hold, true);
+    assert.equal(after.pixelScaleApprox, before.pixelScaleApprox);
+    assert.equal(after.maxIterations, before.maxIterations);
+});
+
+test('stepJuliaCameraWithQualityPriority advances when sharp-frame render succeeds', () => {
+    const harness = loadHarness();
+    harness.initJulia();
+    harness.setMouse({ x: 1320, y: 180 });
+
+    const before = harness.getState();
+    harness.setRenderSharpImpl(() => true);
+
+    const advanced = harness.stepJuliaQuality();
     const after = harness.getState();
 
     assert.equal(advanced, true);
