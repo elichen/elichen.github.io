@@ -14,6 +14,11 @@ const ZOOM_SPEED = 0.994;
 const MIN_DECIMAL_DIGITS = 80;
 const EXTRA_DECIMAL_DIGITS = 28;
 const MAX_GPU_ITERATIONS = 1536;
+const MAX_ORBIT_TEXTURE_LENGTH = MAX_GPU_ITERATIONS + 1;
+const MASK_REDUCTION_FACTOR = 2;
+const STABLE_MASK_VERIFY_SKIP_FRAMES = 1;
+const STABLE_MASK_VERIFY_GROWTH_INTERVAL = 6;
+const MAX_STABLE_MASK_VERIFY_SKIP_FRAMES = 3;
 const MIN_GPU_SCALE = 1e-45;
 const GLITCH_THRESHOLD = 1e-5;
 const MANDELBROT_LOG_INTERVAL = 500;
@@ -154,7 +159,7 @@ uniform int u_deepFractalType;
 uniform vec2 u_juliaConstant;
 
 layout(location = 0) out vec4 outColor;
-layout(location = 1) out vec4 outMask;
+layout(location = 1) out float outMask;
 
 vec3 getPalette(float t) {
     vec3 c1 = vec3(0.08, 0.10, 0.30);
@@ -187,7 +192,7 @@ float mandelbrotPerturbation(vec2 deltaPixels) {
     for (int i = 0; i < ${MAX_GPU_ITERATIONS}; ++i) {
         if (i >= u_maxIterations) break;
         if (i + 1 >= u_referenceOrbitLength) {
-            outMask = vec4(1.0, 0.0, 0.0, 1.0);
+            outMask = 1.0;
             return -1.0;
         }
 
@@ -202,17 +207,17 @@ float mandelbrotPerturbation(vec2 deltaPixels) {
         float mag2 = dot(z, z);
         if (mag2 > 4.0) {
             float smoothValue = float(i + 1) - log2(log2(max(length(z), 1.0001)));
-            outMask = vec4(0.0, 0.0, 0.0, 1.0);
+            outMask = 0.0;
             return smoothValue / float(u_maxIterations);
         }
         float referenceMag2 = dot(nextReference, nextReference);
         if (referenceMag2 > 4.0 && mag2 < (u_glitchThreshold * referenceMag2)) {
-            outMask = vec4(1.0, 0.0, 0.0, 1.0);
+            outMask = 1.0;
             return -1.0;
         }
         scaledDelta = nextScaledDelta;
     }
-    outMask = vec4(0.0, 0.0, 0.0, 1.0);
+    outMask = 0.0;
     return 0.0;
 }
 
@@ -222,7 +227,7 @@ float juliaPerturbation(vec2 deltaPixels) {
     for (int i = 0; i < ${MAX_GPU_ITERATIONS}; ++i) {
         if (i >= u_maxIterations) break;
         if (i + 1 >= u_referenceOrbitLength) {
-            outMask = vec4(1.0, 0.0, 0.0, 1.0);
+            outMask = 1.0;
             return -1.0;
         }
 
@@ -237,18 +242,18 @@ float juliaPerturbation(vec2 deltaPixels) {
         float mag2 = dot(z, z);
         if (mag2 > 4.0) {
             float smoothValue = float(i + 1) - log2(log2(max(length(z), 1.0001)));
-            outMask = vec4(0.0, 0.0, 0.0, 1.0);
+            outMask = 0.0;
             return smoothValue / float(u_maxIterations);
         }
         float referenceMag2 = dot(nextReference, nextReference);
         if (referenceMag2 > 4.0 && mag2 < (u_glitchThreshold * referenceMag2)) {
-            outMask = vec4(1.0, 0.0, 0.0, 1.0);
+            outMask = 1.0;
             return -1.0;
         }
         scaledDelta = nextScaledDelta;
     }
 
-    outMask = vec4(0.0, 0.0, 0.0, 1.0);
+    outMask = 0.0;
     return 0.0;
 }
 
@@ -280,25 +285,61 @@ void main() {
 }
 `;
 
+const maskReduceFragmentShaderSource = `#version 300 es
+precision highp float;
+
+uniform sampler2D u_texture;
+uniform ivec2 u_sourceOffset;
+uniform ivec2 u_sourceSize;
+
+layout(location = 0) out float outMask;
+
+void main() {
+    ivec2 outputPixel = ivec2(gl_FragCoord.xy);
+    ivec2 maxSource = u_sourceOffset + u_sourceSize - ivec2(1);
+    ivec2 base = u_sourceOffset + (outputPixel * ${MASK_REDUCTION_FACTOR});
+    float reduced = 0.0;
+
+    for (int offsetY = 0; offsetY < ${MASK_REDUCTION_FACTOR}; ++offsetY) {
+        for (int offsetX = 0; offsetX < ${MASK_REDUCTION_FACTOR}; ++offsetX) {
+            ivec2 sourcePixel = min(base + ivec2(offsetX, offsetY), maxSource);
+            reduced = max(reduced, texelFetch(u_texture, sourcePixel, 0).r);
+        }
+    }
+
+    outMask = reduced;
+}
+`;
+
 let simpleProgramInfo;
 let deepProgramInfo;
 let blitProgramInfo;
+let maskReduceProgramInfo;
 let orbitTexture;
+let orbitTextureCapacity = 0;
 let mandelbrotWorkingFramebuffer;
 let mandelbrotCommittedFramebuffer;
 let mandelbrotWorkingColorTexture;
 let mandelbrotWorkingMaskTexture;
 let mandelbrotCommittedColorTexture;
+let maskReduceFramebufferA;
+let maskReduceFramebufferB;
+let maskReduceTextureA;
+let maskReduceTextureB;
 let mandelbrotFrameReady = false;
 let mandelbrotReferenceCache = new Map();
 let mandelbrotRenderTargetWidth = 0;
 let mandelbrotRenderTargetHeight = 0;
 let mandelbrotZoomStepCount = 0;
 let mandelbrotLastFrameStats = null;
+let mandelbrotMaskVerificationFramesRemaining = 0;
+let mandelbrotStableReuseFrames = 0;
 let juliaFrameReady = false;
 let juliaReferenceCache = new Map();
 let juliaZoomStepCount = 0;
 let juliaLastFrameStats = null;
+let juliaMaskVerificationFramesRemaining = 0;
+let juliaStableReuseFrames = 0;
 let juliaConstantCache = null;
 let juliaConstantCacheDigits = 0;
 
@@ -495,6 +536,44 @@ function setDeepLastFrameStats(type, frameStats) {
     mandelbrotLastFrameStats = frameStats;
 }
 
+function getDeepMaskVerificationFramesRemaining(type = fractalType) {
+    return type === 'julia' ? juliaMaskVerificationFramesRemaining : mandelbrotMaskVerificationFramesRemaining;
+}
+
+function setDeepMaskVerificationFramesRemaining(type, value) {
+    if (type === 'julia') {
+        juliaMaskVerificationFramesRemaining = value;
+        return;
+    }
+    mandelbrotMaskVerificationFramesRemaining = value;
+}
+
+function getDeepStableReuseFrames(type = fractalType) {
+    return type === 'julia' ? juliaStableReuseFrames : mandelbrotStableReuseFrames;
+}
+
+function setDeepStableReuseFrames(type, value) {
+    if (type === 'julia') {
+        juliaStableReuseFrames = value;
+        return;
+    }
+    mandelbrotStableReuseFrames = value;
+}
+
+function incrementDeepStableReuseFrames(type) {
+    const nextValue = getDeepStableReuseFrames(type) + 1;
+    setDeepStableReuseFrames(type, nextValue);
+    return nextValue;
+}
+
+function getAdaptiveMaskVerifySkipFrames(type = fractalType) {
+    return Math.min(
+        MAX_STABLE_MASK_VERIFY_SKIP_FRAMES,
+        STABLE_MASK_VERIFY_SKIP_FRAMES
+        + Math.floor(getDeepStableReuseFrames(type) / STABLE_MASK_VERIFY_GROWTH_INTERVAL)
+    );
+}
+
 function createEmptyMandelbrotFrameStats() {
     return {
         status: 'idle',
@@ -601,6 +680,8 @@ function getDeepDebugSnapshot(type) {
         maxIterations: camera ? camera.maxIterations : null,
         hold: getDeepQualityHold(type),
         frameReady: getDeepFrameReady(type),
+        maskVerificationFramesRemaining: getDeepMaskVerificationFramesRemaining(type),
+        stableReuseFrames: getDeepStableReuseFrames(type),
         mouseX: roundDebugNumber(mousePosition.x),
         mouseY: roundDebugNumber(mousePosition.y),
         lastFrame: getDeepLastFrameStats(type) || createEmptyMandelbrotFrameStats(),
@@ -1008,14 +1089,20 @@ function ensureMandelbrotRenderTargets() {
     if (mandelbrotWorkingFramebuffer) {
         gl.deleteFramebuffer(mandelbrotWorkingFramebuffer);
         gl.deleteFramebuffer(mandelbrotCommittedFramebuffer);
+        gl.deleteFramebuffer(maskReduceFramebufferA);
+        gl.deleteFramebuffer(maskReduceFramebufferB);
         gl.deleteTexture(mandelbrotWorkingColorTexture);
         gl.deleteTexture(mandelbrotWorkingMaskTexture);
         gl.deleteTexture(mandelbrotCommittedColorTexture);
+        gl.deleteTexture(maskReduceTextureA);
+        gl.deleteTexture(maskReduceTextureB);
     }
 
     mandelbrotWorkingColorTexture = createTexture(width, height, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE);
-    mandelbrotWorkingMaskTexture = createTexture(width, height, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE);
+    mandelbrotWorkingMaskTexture = createTexture(width, height, gl.R8, gl.RED, gl.UNSIGNED_BYTE);
     mandelbrotCommittedColorTexture = createTexture(width, height, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE);
+    maskReduceTextureA = createTexture(width, height, gl.R8, gl.RED, gl.UNSIGNED_BYTE);
+    maskReduceTextureB = createTexture(width, height, gl.R8, gl.RED, gl.UNSIGNED_BYTE);
 
     mandelbrotWorkingFramebuffer = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotWorkingFramebuffer);
@@ -1031,6 +1118,20 @@ function ensureMandelbrotRenderTargets() {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, mandelbrotCommittedColorTexture, 0);
     if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
         throw new Error('Mandelbrot committed framebuffer is incomplete.');
+    }
+
+    maskReduceFramebufferA = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, maskReduceFramebufferA);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, maskReduceTextureA, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+        throw new Error('Mask reduction framebuffer A is incomplete.');
+    }
+
+    maskReduceFramebufferB = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, maskReduceFramebufferB);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, maskReduceTextureB, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+        throw new Error('Mask reduction framebuffer B is incomplete.');
     }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -1078,12 +1179,29 @@ function initWebGL() {
         ['u_texture', 'u_resolution']
     );
 
+    maskReduceProgramInfo = createProgramInfo(
+        createProgram(vertexShaderSource, maskReduceFragmentShaderSource),
+        ['u_texture', 'u_sourceOffset', 'u_sourceSize']
+    );
+
     orbitTexture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, orbitTexture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    orbitTextureCapacity = MAX_ORBIT_TEXTURE_LENGTH;
+    gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA32F,
+        orbitTextureCapacity,
+        1,
+        0,
+        gl.RGBA,
+        gl.FLOAT,
+        null
+    );
 
     ensureMandelbrotRenderTargets();
 
@@ -1097,13 +1215,27 @@ function initWebGL() {
 function uploadReferenceOrbit(orbitData, orbitLength) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, orbitTexture);
-    gl.texImage2D(
+    if (orbitTextureCapacity < orbitLength) {
+        orbitTextureCapacity = orbitLength;
+        gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA32F,
+            orbitTextureCapacity,
+            1,
+            0,
+            gl.RGBA,
+            gl.FLOAT,
+            null
+        );
+    }
+    gl.texSubImage2D(
         gl.TEXTURE_2D,
         0,
-        gl.RGBA32F,
+        0,
+        0,
         orbitLength,
         1,
-        0,
         gl.RGBA,
         gl.FLOAT,
         orbitData
@@ -1282,6 +1414,20 @@ function getReferenceReuseRadiusPixels(type) {
     return REFERENCE_REUSE_RADIUS_PIXELS;
 }
 
+function canUseDeferredMaskVerification(type, initialReferenceMode) {
+    const previousFrameStats = getDeepLastFrameStats(type);
+    return (
+        initialReferenceMode === 'reuse'
+        && getDeepMaskVerificationFramesRemaining(type) > 0
+        && previousFrameStats
+        && previousFrameStats.status === 'success'
+        && previousFrameStats.initialReferenceMode === 'reuse'
+        && previousFrameStats.referencesUsed === 1
+        && previousFrameStats.repairPasses === 0
+        && previousFrameStats.cpuResolvedTiles === 0
+    );
+}
+
 function getReusableReferenceSelection(anchorPoint, iterations, type = fractalType) {
     const reference = getDeepReference(type);
     const camera = getDeepCamera(type);
@@ -1360,7 +1506,7 @@ function computeEscapeIteration(centerX, centerY, iterations, type = fractalType
 }
 
 function computeReferenceOrbit(centerX, centerY, iterations, type = fractalType) {
-    const orbitData = new Float32Array((iterations + 1) * 4);
+    const orbitData = new Float32Array(MAX_ORBIT_TEXTURE_LENGTH * 4);
     const juliaConstant = type === 'julia' ? getDeepConstant(type) : null;
     let zr = type === 'julia' ? centerX : 0n;
     let zi = type === 'julia' ? centerY : 0n;
@@ -1394,6 +1540,9 @@ function computeReferenceOrbit(centerX, centerY, iterations, type = fractalType)
             return {
                 escapedEarly: true,
                 escapeIteration: i + 1,
+                computedIterations: i + 1,
+                exactZr: zr,
+                exactZi: zi,
                 orbitData,
                 orbitLength: i + 2,
             };
@@ -1403,20 +1552,75 @@ function computeReferenceOrbit(centerX, centerY, iterations, type = fractalType)
     return {
         escapedEarly: false,
         escapeIteration: iterations,
+        computedIterations: iterations,
+        exactZr: zr,
+        exactZi: zi,
         orbitData,
         orbitLength: iterations + 1,
     };
 }
 
-function getReferenceCacheKey(point, iterations) {
-    return `${point.x.toString()}:${point.y.toString()}:${iterations}`;
+function getReferenceCacheKey(point) {
+    return `${point.x.toString()}:${point.y.toString()}`;
+}
+
+function extendReferenceOrbit(reference, iterations, type = fractalType) {
+    if (reference.escapedEarly || reference.computedIterations >= iterations) {
+        return reference;
+    }
+
+    const juliaConstant = type === 'julia' ? getDeepConstant(type) : null;
+    let zr = reference.exactZr;
+    let zi = reference.exactZi;
+
+    for (let i = reference.computedIterations; i < iterations; i += 1) {
+        const zr2 = mulDecimal(zr, zr);
+        const zi2 = mulDecimal(zi, zi);
+        const zrzi = mulDecimal(zr, zi);
+
+        zr = addDecimal(
+            subDecimal(zr2, zi2),
+            type === 'julia' ? juliaConstant.x : reference.point.x
+        );
+        zi = addDecimal(
+            mulDecimalInt(zrzi, 2),
+            type === 'julia' ? juliaConstant.y : reference.point.y
+        );
+
+        const baseIndex = (i + 1) * 4;
+        reference.orbitData[baseIndex] = decimalToNumber(zr);
+        reference.orbitData[baseIndex + 1] = decimalToNumber(zi);
+
+        const magnitude = addDecimal(mulDecimal(zr, zr), mulDecimal(zi, zi));
+        if (magnitude > mulDecimalInt(decimalScale, 4)) {
+            reference.escapedEarly = true;
+            reference.escapeIteration = i + 1;
+            reference.computedIterations = i + 1;
+            reference.exactZr = zr;
+            reference.exactZi = zi;
+            reference.orbitLength = i + 2;
+            return reference;
+        }
+    }
+
+    reference.escapedEarly = false;
+    reference.escapeIteration = iterations;
+    reference.computedIterations = iterations;
+    reference.exactZr = zr;
+    reference.exactZi = zi;
+    reference.orbitLength = iterations + 1;
+    return reference;
 }
 
 function getReferenceOrbit(point, iterations, type = fractalType) {
     const referenceCache = getDeepReferenceCache(type);
-    const key = getReferenceCacheKey(point, iterations);
+    const key = getReferenceCacheKey(point);
     if (referenceCache.has(key)) {
-        return referenceCache.get(key);
+        const cachedReference = referenceCache.get(key);
+        extendReferenceOrbit(cachedReference, iterations, type);
+        referenceCache.delete(key);
+        referenceCache.set(key, cachedReference);
+        return cachedReference;
     }
 
     const referenceOrbit = computeReferenceOrbit(point.x, point.y, iterations, type);
@@ -1426,6 +1630,9 @@ function getReferenceOrbit(point, iterations, type = fractalType) {
         orbitLength: referenceOrbit.orbitLength,
         escapeIteration: referenceOrbit.escapeIteration,
         escapedEarly: referenceOrbit.escapedEarly,
+        computedIterations: referenceOrbit.computedIterations,
+        exactZr: referenceOrbit.exactZr,
+        exactZi: referenceOrbit.exactZi,
     };
     referenceCache.set(key, reference);
     while (referenceCache.size > MAX_REFERENCE_CACHE_ENTRIES) {
@@ -1450,28 +1657,73 @@ function commitMandelbrotReference(reference) {
     commitDeepReference('mandelbrot', reference);
 }
 
-function clearWorkingFramebuffer() {
-    gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotWorkingFramebuffer);
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    gl.clearBufferfv(gl.COLOR, 0, new Float32Array([0, 0, 0, 1]));
-    gl.clearBufferfv(gl.COLOR, 1, new Float32Array([0, 0, 0, 1]));
-}
-
 function createRepairTile(x, y, width, height, depth, maskData) {
     return { x, y, width, height, depth, maskData };
 }
 
 function readGlitchMask(tile) {
-    const maskData = new Uint8Array(tile.width * tile.height * 4);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotWorkingFramebuffer);
+    const maskData = new Uint8Array(tile.width * tile.height);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, mandelbrotWorkingFramebuffer);
     gl.readBuffer(gl.COLOR_ATTACHMENT1);
-    gl.readPixels(tile.x, tile.y, tile.width, tile.height, gl.RGBA, gl.UNSIGNED_BYTE, maskData);
+    gl.readPixels(tile.x, tile.y, tile.width, tile.height, gl.RED, gl.UNSIGNED_BYTE, maskData);
     return maskData;
 }
 
+const reducedMaskSample = new Uint8Array(1);
+
+function tileHasGlitches(tile) {
+    let inputTexture = mandelbrotWorkingMaskTexture;
+    let sourceOffsetX = tile.x;
+    let sourceOffsetY = tile.y;
+    let sourceWidth = tile.width;
+    let sourceHeight = tile.height;
+    let outputTexture = maskReduceTextureA;
+    let outputFramebuffer = maskReduceFramebufferA;
+
+    while (true) {
+        const outputWidth = Math.max(1, Math.ceil(sourceWidth / MASK_REDUCTION_FACTOR));
+        const outputHeight = Math.max(1, Math.ceil(sourceHeight / MASK_REDUCTION_FACTOR));
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, outputFramebuffer);
+        gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
+        gl.viewport(0, 0, outputWidth, outputHeight);
+
+        gl.useProgram(maskReduceProgramInfo.program);
+        bindQuad(maskReduceProgramInfo);
+        gl.uniform1i(maskReduceProgramInfo.uniforms.u_texture, 0);
+        gl.uniform2i(maskReduceProgramInfo.uniforms.u_sourceOffset, sourceOffsetX, sourceOffsetY);
+        gl.uniform2i(maskReduceProgramInfo.uniforms.u_sourceSize, sourceWidth, sourceHeight);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, inputTexture);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        if (outputWidth === 1 && outputHeight === 1) {
+            gl.bindFramebuffer(gl.READ_FRAMEBUFFER, outputFramebuffer);
+            gl.readBuffer(gl.COLOR_ATTACHMENT0);
+            gl.readPixels(0, 0, 1, 1, gl.RED, gl.UNSIGNED_BYTE, reducedMaskSample);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            return reducedMaskSample[0] !== 0;
+        }
+
+        inputTexture = outputTexture;
+        sourceOffsetX = 0;
+        sourceOffsetY = 0;
+        sourceWidth = outputWidth;
+        sourceHeight = outputHeight;
+
+        if (outputTexture === maskReduceTextureA) {
+            outputTexture = maskReduceTextureB;
+            outputFramebuffer = maskReduceFramebufferB;
+        } else {
+            outputTexture = maskReduceTextureA;
+            outputFramebuffer = maskReduceFramebufferA;
+        }
+    }
+}
+
 function maskHasGlitches(maskData) {
-    for (let index = 0; index < maskData.length; index += 4) {
+    for (let index = 0; index < maskData.length; index += 1) {
         if (maskData[index] !== 0) {
             return true;
         }
@@ -1480,15 +1732,15 @@ function maskHasGlitches(maskData) {
 }
 
 function extractTileMask(parentTile, childTile) {
-    const maskData = new Uint8Array(childTile.width * childTile.height * 4);
+    const maskData = new Uint8Array(childTile.width * childTile.height);
     const offsetX = childTile.x - parentTile.x;
     const offsetY = childTile.y - parentTile.y;
 
     for (let row = 0; row < childTile.height; row += 1) {
-        const parentStart = ((offsetY + row) * parentTile.width + offsetX) * 4;
-        const childStart = row * childTile.width * 4;
+        const parentStart = ((offsetY + row) * parentTile.width) + offsetX;
+        const childStart = row * childTile.width;
         maskData.set(
-            parentTile.maskData.subarray(parentStart, parentStart + (childTile.width * 4)),
+            parentTile.maskData.subarray(parentStart, parentStart + childTile.width),
             childStart
         );
     }
@@ -1537,7 +1789,7 @@ function findGlitchedPixelNearTileCenter(tile) {
 
     for (let row = 0; row < tile.height; row += 1) {
         for (let column = 0; column < tile.width; column += 1) {
-            const baseIndex = ((row * tile.width) + column) * 4;
+            const baseIndex = (row * tile.width) + column;
             if (tile.maskData[baseIndex] === 0) {
                 continue;
             }
@@ -1612,7 +1864,7 @@ function computeCpuMandelbrotColor(centerX, centerY, iterations) {
 function resolveDeepTileOnCPU(type, tile) {
     const camera = getDeepCamera(type);
     const colorData = new Uint8Array(tile.width * tile.height * 4);
-    const maskData = new Uint8Array(tile.width * tile.height * 4);
+    const maskData = new Uint8Array(tile.width * tile.height);
 
     for (let row = 0; row < tile.height; row += 1) {
         for (let column = 0; column < tile.width; column += 1) {
@@ -1628,11 +1880,6 @@ function resolveDeepTileOnCPU(type, tile) {
             colorData[baseIndex + 1] = color[1];
             colorData[baseIndex + 2] = color[2];
             colorData[baseIndex + 3] = color[3];
-
-            maskData[baseIndex] = 0;
-            maskData[baseIndex + 1] = 0;
-            maskData[baseIndex + 2] = 0;
-            maskData[baseIndex + 3] = 255;
         }
     }
 
@@ -1659,7 +1906,7 @@ function resolveDeepTileOnCPU(type, tile) {
         tile.y,
         tile.width,
         tile.height,
-        gl.RGBA,
+        gl.RED,
         gl.UNSIGNED_BYTE,
         maskData
     );
@@ -1708,9 +1955,42 @@ function renderMandelbrotPass(reference, tile) {
 }
 
 function copyWorkingFrameToCommitted() {
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, mandelbrotWorkingFramebuffer);
+    const nextCommittedTexture = mandelbrotWorkingColorTexture;
+    mandelbrotWorkingColorTexture = mandelbrotCommittedColorTexture;
+    mandelbrotCommittedColorTexture = nextCommittedTexture;
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotWorkingFramebuffer);
+    gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT0,
+        gl.TEXTURE_2D,
+        mandelbrotWorkingColorTexture,
+        0
+    );
+    gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT1,
+        gl.TEXTURE_2D,
+        mandelbrotWorkingMaskTexture,
+        0
+    );
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotCommittedFramebuffer);
+    gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT0,
+        gl.TEXTURE_2D,
+        mandelbrotCommittedColorTexture,
+        0
+    );
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
+function drawCommittedDeepFrame() {
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, mandelbrotCommittedFramebuffer);
     gl.readBuffer(gl.COLOR_ATTACHMENT0);
-    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, mandelbrotCommittedFramebuffer);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
     gl.blitFramebuffer(
         0,
         0,
@@ -1724,20 +2004,6 @@ function copyWorkingFrameToCommitted() {
         gl.NEAREST
     );
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-}
-
-function drawCommittedDeepFrame() {
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-
-    gl.useProgram(blitProgramInfo.program);
-    bindQuad(blitProgramInfo);
-    gl.uniform2f(blitProgramInfo.uniforms.u_resolution, gl.canvas.width, gl.canvas.height);
-    gl.uniform1i(blitProgramInfo.uniforms.u_texture, 0);
-
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, mandelbrotCommittedColorTexture);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
 function drawCommittedMandelbrotFrame() {
@@ -1756,7 +2022,6 @@ function renderSharpDeepFrame(type) {
     }
 
     ensureMandelbrotRenderTargets();
-    clearWorkingFramebuffer();
 
     const fullFrameTile = createRepairTile(0, 0, gl.canvas.width, gl.canvas.height, 0, null);
     const anchorPoint = screenToPlaneDeep(camera, mousePosition);
@@ -1773,10 +2038,26 @@ function renderSharpDeepFrame(type) {
     frameStats.initialReferenceMode = initialReferenceMode;
     frameStats.referencesUsed = 1;
     renderDeepPass(type, initialReference, fullFrameTile);
-    fullFrameTile.maskData = readGlitchMask(fullFrameTile);
-
     const repairQueue = [];
-    if (maskHasGlitches(fullFrameTile.maskData)) {
+    let fullFrameHasGlitches = false;
+    if (canUseDeferredMaskVerification(type, initialReferenceMode)) {
+        setDeepMaskVerificationFramesRemaining(
+            type,
+            Math.max(0, getDeepMaskVerificationFramesRemaining(type) - 1)
+        );
+    } else {
+        fullFrameHasGlitches = tileHasGlitches(fullFrameTile);
+        if (!fullFrameHasGlitches && initialReferenceMode === 'reuse') {
+            incrementDeepStableReuseFrames(type);
+            setDeepMaskVerificationFramesRemaining(type, getAdaptiveMaskVerifySkipFrames(type));
+        } else {
+            setDeepStableReuseFrames(type, 0);
+            setDeepMaskVerificationFramesRemaining(type, 0);
+        }
+    }
+
+    if (fullFrameHasGlitches) {
+        fullFrameTile.maskData = readGlitchMask(fullFrameTile);
         if (
             fullFrameTile.depth >= MAX_REPAIR_DEPTH
             || fullFrameTile.width <= MIN_REPAIR_TILE_SIZE
@@ -1829,13 +2110,14 @@ function renderSharpDeepFrame(type) {
         frameStats.lastRepairEscapeIteration = repairCandidate.escapeIteration;
         const repairReference = getReferenceOrbit(repairCandidate.point, camera.maxIterations, type);
         renderDeepPass(type, repairReference, tile);
-        tile.maskData = readGlitchMask(tile);
         referencesUsed += 1;
         frameStats.referencesUsed = referencesUsed;
 
-        if (!maskHasGlitches(tile.maskData)) {
+        if (!tileHasGlitches(tile)) {
             continue;
         }
+
+        tile.maskData = readGlitchMask(tile);
 
         if (
             tile.depth >= MAX_REPAIR_DEPTH
@@ -1887,6 +2169,8 @@ function stepDeepCameraWithQualityPriority(type) {
         setDeepCamera(type, previousCamera);
         setDeepReference(type, previousReference);
         setDeepPrecisionWarningShown(type, previousWarningShown);
+        setDeepMaskVerificationFramesRemaining(type, 0);
+        setDeepStableReuseFrames(type, 0);
         setDeepQualityHold(type, true);
         if (!getDeepQualityHoldWarningShown(type)) {
             console.warn(`Paused ${getDeepLabel(type)} zoom ${JSON.stringify(getDeepDebugSnapshot(type))}`);
@@ -2029,6 +2313,8 @@ function resizeCanvas() {
         deepCamera.viewWidth = deepCamera.pixelScaleApprox * Math.min(gl.canvas.width, gl.canvas.height);
         setDeepQualityHold(fractalType, false);
         setDeepQualityHoldWarningShown(fractalType, false);
+        setDeepMaskVerificationFramesRemaining(fractalType, 0);
+        setDeepStableReuseFrames(fractalType, 0);
     } else {
         updateSimpleCameraScale(simpleCamera);
     }
@@ -2055,6 +2341,8 @@ function resetMandelbrotState() {
     mandelbrotQualityHoldWarningShown = false;
     mandelbrotZoomStepCount = 0;
     mandelbrotLastFrameStats = createEmptyMandelbrotFrameStats();
+    mandelbrotMaskVerificationFramesRemaining = 0;
+    mandelbrotStableReuseFrames = 0;
 }
 
 function resetJuliaState() {
@@ -2067,6 +2355,8 @@ function resetJuliaState() {
     juliaQualityHoldWarningShown = false;
     juliaZoomStepCount = 0;
     juliaLastFrameStats = createEmptyMandelbrotFrameStats();
+    juliaMaskVerificationFramesRemaining = 0;
+    juliaStableReuseFrames = 0;
 }
 
 function handleMouseMove(event) {
@@ -2082,6 +2372,8 @@ function handleMouseMove(event) {
     if (isDeepFractalType(fractalType)) {
         setDeepQualityHold(fractalType, false);
         setDeepQualityHoldWarningShown(fractalType, false);
+        setDeepMaskVerificationFramesRemaining(fractalType, 0);
+        setDeepStableReuseFrames(fractalType, 0);
     }
 }
 
