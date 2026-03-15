@@ -77,11 +77,13 @@ function loadHarness() {
     createTile(x, y, width, height, depth, maskData) {
         return createRepairTile(x, y, width, height, depth, maskData);
     },
+    setWorkingFramebufferDrawBuffers(writeMask) { setWorkingFramebufferDrawBuffers(writeMask); },
     stepQuality() { return stepMandelbrotCameraWithQualityPriority(); },
     stepJuliaQuality() { return stepJuliaCameraWithQualityPriority(); },
     setStableReuseFrames(type, value) { setDeepStableReuseFrames(type, value); },
     getStableReuseFrames(type) { return getDeepStableReuseFrames(type); },
     getAdaptiveMaskVerifySkipFrames(type) { return getAdaptiveMaskVerifySkipFrames(type); },
+    computeIterationBudget(pixelScale) { return computeIterationBudget(pixelScale); },
     getState() {
         const camera = getDeepCamera(fractalType);
         return {
@@ -286,6 +288,24 @@ test('copyWorkingFrameToCommitted swaps color textures instead of blitting', () 
     assert.ok(calls.some(([name]) => name === 'framebufferTexture2D'));
 });
 
+test('setWorkingFramebufferDrawBuffers can disable mask writes on deferred frames', () => {
+    const harness = loadHarness();
+    const calls = [];
+    harness.setGL({
+        COLOR_ATTACHMENT0: 'COLOR_ATTACHMENT0',
+        COLOR_ATTACHMENT1: 'COLOR_ATTACHMENT1',
+        drawBuffers(buffers) {
+            calls.push(buffers.slice());
+        },
+    });
+
+    harness.setWorkingFramebufferDrawBuffers(false);
+    harness.setWorkingFramebufferDrawBuffers(true);
+
+    assert.equal(calls[0].join(','), 'COLOR_ATTACHMENT0');
+    assert.equal(calls[1].join(','), 'COLOR_ATTACHMENT0,COLOR_ATTACHMENT1');
+});
+
 test('adaptive mask verification skip grows only after repeated clean reuse frames', () => {
     const harness = loadHarness();
     harness.initMandelbrot();
@@ -304,6 +324,14 @@ test('adaptive mask verification skip grows only after repeated clean reuse fram
 
     harness.setStableReuseFrames('mandelbrot', 48);
     assert.equal(harness.getAdaptiveMaskVerifySkipFrames('mandelbrot'), 3);
+});
+
+test('deep iteration budget keeps its floor while growing with depth', () => {
+    const harness = loadHarness();
+
+    assert.equal(harness.computeIterationBudget(1), 220);
+    assert.equal(harness.computeIterationBudget(1e-6), 374);
+    assert.ok(harness.computeIterationBudget(1e-12) > harness.computeIterationBudget(1e-6));
 });
 
 test('initJulia resets stable reuse cadence state', () => {

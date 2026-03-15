@@ -1916,12 +1916,20 @@ function resolveMandelbrotTileOnCPU(tile) {
     resolveDeepTileOnCPU('mandelbrot', tile);
 }
 
-function renderDeepPass(type, reference, tile) {
+function setWorkingFramebufferDrawBuffers(writeMask = true) {
+    if (writeMask) {
+        gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+        return;
+    }
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
+}
+
+function renderDeepPass(type, reference, tile, writeMask = true) {
     const camera = getDeepCamera(type);
     uploadReferenceOrbit(reference.orbitData, reference.orbitLength);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotWorkingFramebuffer);
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+    setWorkingFramebufferDrawBuffers(writeMask);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     gl.enable(gl.SCISSOR_TEST);
     gl.scissor(tile.x, tile.y, tile.width, tile.height);
@@ -1974,7 +1982,7 @@ function copyWorkingFrameToCommitted() {
         mandelbrotWorkingMaskTexture,
         0
     );
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+    setWorkingFramebufferDrawBuffers(true);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotCommittedFramebuffer);
     gl.framebufferTexture2D(
@@ -2037,10 +2045,11 @@ function renderSharpDeepFrame(type) {
     frameStats.initialEscapedEarly = initialReference.escapedEarly;
     frameStats.initialReferenceMode = initialReferenceMode;
     frameStats.referencesUsed = 1;
-    renderDeepPass(type, initialReference, fullFrameTile);
+    const deferredMaskVerification = canUseDeferredMaskVerification(type, initialReferenceMode);
+    renderDeepPass(type, initialReference, fullFrameTile, !deferredMaskVerification);
     const repairQueue = [];
     let fullFrameHasGlitches = false;
-    if (canUseDeferredMaskVerification(type, initialReferenceMode)) {
+    if (deferredMaskVerification) {
         setDeepMaskVerificationFramesRemaining(
             type,
             Math.max(0, getDeepMaskVerificationFramesRemaining(type) - 1)
