@@ -5,10 +5,13 @@ let fractalType = 'mandelbrot';
 let mousePosition = { x: 0, y: 0 };
 let deepPrecisionWarningShown = false;
 let juliaDeepPrecisionWarningShown = false;
+let newtonDeepPrecisionWarningShown = false;
 let mandelbrotQualityHold = false;
 let mandelbrotQualityHoldWarningShown = false;
 let juliaQualityHold = false;
 let juliaQualityHoldWarningShown = false;
+let newtonQualityHold = false;
+let newtonQualityHoldWarningShown = false;
 
 const ZOOM_SPEED = 0.994;
 const MIN_DECIMAL_DIGITS = 80;
@@ -20,6 +23,7 @@ const STABLE_MASK_VERIFY_SKIP_FRAMES = 1;
 const STABLE_MASK_VERIFY_GROWTH_INTERVAL = 6;
 const MAX_STABLE_MASK_VERIFY_SKIP_FRAMES = 3;
 const MIN_GPU_SCALE = 1e-45;
+const NEWTON_DEEP_RENDER_SCALE = 1e-6;
 const GLITCH_THRESHOLD = 1e-5;
 const MANDELBROT_LOG_INTERVAL = 500;
 const MAX_REPAIR_REFERENCES = 192;
@@ -35,8 +39,14 @@ const REFERENCE_REFINEMENT_ESCAPE_MARGIN = 8;
 const REFERENCE_REUSE_RADIUS_PIXELS = 192;
 const STABLE_REFERENCE_REUSE_RADIUS_PIXELS = 512;
 const REFERENCE_REUSE_ESCAPE_RATIO = 0.9;
+const NEWTON_REFERENCE_SEARCH_RINGS = [0, 2, 6, 12, 24, 48];
+const NEWTON_REFERENCE_RING_SAMPLE_SPACING = 18;
+const NEWTON_DIRECT_REFERENCE_MIN_ITERATIONS = 24;
+const NEWTON_DIRECT_REFERENCE_MIN_RATIO = 0.12;
 const JULIA_CONSTANT_REAL = '-0.8';
 const JULIA_CONSTANT_IMAGINARY = '0.156';
+const NEWTON_ROOT_IMAGINARY = '0.866025403784438646763723170753';
+const NEWTON_CONVERGENCE_DISTANCE_SQUARED = '1e-12';
 
 let decimalDigits = MIN_DECIMAL_DIGITS;
 let decimalScale = 10n ** BigInt(decimalDigits);
@@ -82,6 +92,76 @@ vec2 complexMul(vec2 a, vec2 b) {
     );
 }
 
+vec2 complexDiv(vec2 a, vec2 b) {
+    float denominator = dot(b, b);
+    return vec2(
+        (a.x * b.x + a.y * b.y) / denominator,
+        (a.y * b.x - a.x * b.y) / denominator
+    );
+}
+
+vec2 getNewtonRoot(int index) {
+    if (index == 0) {
+        return vec2(1.0, 0.0);
+    }
+    if (index == 1) {
+        return vec2(-0.5, 0.8660254);
+    }
+    return vec2(-0.5, -0.8660254);
+}
+
+vec3 getNewtonRootColor(int rootIndex) {
+    if (rootIndex == 0) {
+        return vec3(0.15, 0.78, 0.93);
+    }
+    if (rootIndex == 1) {
+        return vec3(0.99, 0.72, 0.16);
+    }
+    return vec3(0.93, 0.21, 0.58);
+}
+
+int getNearestNewtonRootIndex(vec2 z) {
+    int bestIndex = 0;
+    float bestDistanceSquared = dot(z - getNewtonRoot(0), z - getNewtonRoot(0));
+    for (int index = 1; index < 3; ++index) {
+        float distanceSquared = dot(z - getNewtonRoot(index), z - getNewtonRoot(index));
+        if (distanceSquared < bestDistanceSquared) {
+            bestDistanceSquared = distanceSquared;
+            bestIndex = index;
+        }
+    }
+    return bestIndex;
+}
+
+vec2 newtonStep(vec2 z) {
+    vec2 z2 = complexMul(z, z);
+    float denominator = dot(z2, z2);
+    if (denominator < 1e-12) {
+        return vec2(1e20, 1e20);
+    }
+    vec2 z3 = complexMul(z2, z);
+    return z - complexDiv(z3 - vec2(1.0, 0.0), 3.0 * z2);
+}
+
+vec4 newtonColor(vec2 z) {
+    for (int i = 0; i < ${MAX_GPU_ITERATIONS}; ++i) {
+        if (i >= u_maxIterations) break;
+        z = newtonStep(z);
+        if (dot(z, z) > 1e30) {
+            return vec4(0.0, 0.0, 0.0, 1.0);
+        }
+        int rootIndex = getNearestNewtonRootIndex(z);
+        float distanceSquared = dot(z - getNewtonRoot(rootIndex), z - getNewtonRoot(rootIndex));
+        if (distanceSquared < 1e-12) {
+            float normalized = float(i + 1) / float(u_maxIterations);
+            float fade = 0.25 + (0.75 * pow(1.0 - normalized, 0.35));
+            float band = 0.9 + (0.1 * cos((18.0 * normalized) + (float(rootIndex) * 2.0943951)));
+            return vec4(getNewtonRootColor(rootIndex) * fade * band, 1.0);
+        }
+    }
+    return vec4(0.0, 0.0, 0.0, 1.0);
+}
+
 float mandelbrot(vec2 c) {
     vec2 z = vec2(0.0);
     for (int i = 0; i < ${MAX_GPU_ITERATIONS}; ++i) {
@@ -110,21 +190,6 @@ float julia(vec2 z) {
     return 0.0;
 }
 
-float sierpinski(vec2 p) {
-    p = (p + vec2(1.0, 0.7)) / 2.2;
-    for (int i = 0; i < 64; ++i) {
-        if (p.x < 0.0 || p.y < 0.0 || p.x + p.y > 1.0) {
-            return float(i) / 64.0;
-        }
-        p *= 2.0;
-        if (p.x + p.y > 1.0) {
-            p = vec2(1.0 - p.y, 1.0 - p.x);
-        }
-        p = fract(p);
-    }
-    return 1.0;
-}
-
 void main() {
     vec2 plane = vec2(
         (gl_FragCoord.x - 0.5 * u_resolution.x) * u_pixelScale + u_center.x,
@@ -137,7 +202,8 @@ void main() {
     } else if (u_fractalType == 1) {
         value = julia(plane);
     } else {
-        value = sierpinski(plane);
+        outColor = newtonColor(plane);
+        return;
     }
 
     vec3 color = value == 0.0 ? vec3(0.0) : getPalette(value);
@@ -181,6 +247,47 @@ vec2 complexMul(vec2 a, vec2 b) {
         a.x * b.x - a.y * b.y,
         a.x * b.y + a.y * b.x
     );
+}
+
+vec2 complexDiv(vec2 a, vec2 b) {
+    float denominator = dot(b, b);
+    return vec2(
+        (a.x * b.x + a.y * b.y) / denominator,
+        (a.y * b.x - a.x * b.y) / denominator
+    );
+}
+
+vec2 getNewtonRoot(int index) {
+    if (index == 0) {
+        return vec2(1.0, 0.0);
+    }
+    if (index == 1) {
+        return vec2(-0.5, 0.8660254);
+    }
+    return vec2(-0.5, -0.8660254);
+}
+
+vec3 getNewtonRootColor(int rootIndex) {
+    if (rootIndex == 0) {
+        return vec3(0.15, 0.78, 0.93);
+    }
+    if (rootIndex == 1) {
+        return vec3(0.99, 0.72, 0.16);
+    }
+    return vec3(0.93, 0.21, 0.58);
+}
+
+int getNearestNewtonRootIndex(vec2 z) {
+    int bestIndex = 0;
+    float bestDistanceSquared = dot(z - getNewtonRoot(0), z - getNewtonRoot(0));
+    for (int index = 1; index < 3; ++index) {
+        float distanceSquared = dot(z - getNewtonRoot(index), z - getNewtonRoot(index));
+        if (distanceSquared < bestDistanceSquared) {
+            bestDistanceSquared = distanceSquared;
+            bestIndex = index;
+        }
+    }
+    return bestIndex;
 }
 
 vec2 getOrbit(int index) {
@@ -257,12 +364,73 @@ float juliaPerturbation(vec2 deltaPixels) {
     return 0.0;
 }
 
+vec4 newtonPerturbationColor(vec2 deltaPixels) {
+    vec2 scaledDelta = deltaPixels;
+
+    for (int i = 0; i < ${MAX_GPU_ITERATIONS}; ++i) {
+        if (i >= u_maxIterations) break;
+        if (i + 1 >= u_referenceOrbitLength) {
+            outMask = 1.0;
+            return vec4(0.0, 0.0, 0.0, 1.0);
+        }
+
+        vec2 reference = getOrbit(i);
+        vec2 nextReference = getOrbit(i + 1);
+        vec2 referenceSquared = complexMul(reference, reference);
+        vec2 referenceCubed = complexMul(referenceSquared, reference);
+        vec2 referenceFourth = complexMul(referenceSquared, referenceSquared);
+        vec2 scaledDeltaSquared = complexMul(scaledDelta, scaledDelta);
+        vec2 scaledDeltaCubed = complexMul(scaledDeltaSquared, scaledDelta);
+        vec2 shifted = reference + (u_pixelScale * scaledDelta);
+        vec2 denominator = 3.0 * complexMul(referenceSquared, complexMul(shifted, shifted));
+        if (dot(denominator, denominator) < 1e-18) {
+            outMask = 1.0;
+            return vec4(0.0, 0.0, 0.0, 1.0);
+        }
+
+        vec2 numerator = complexMul((2.0 * referenceFourth) - (2.0 * reference), scaledDelta)
+            + complexMul((u_pixelScale * ((4.0 * referenceCubed) - vec2(1.0, 0.0))), scaledDeltaSquared)
+            + complexMul(((2.0 * u_pixelScale) * u_pixelScale) * referenceSquared, scaledDeltaCubed);
+        vec2 nextScaledDelta = complexDiv(numerator, denominator);
+        if (any(greaterThan(abs(nextScaledDelta), vec2(1e12)))) {
+            outMask = 1.0;
+            return vec4(0.0, 0.0, 0.0, 1.0);
+        }
+
+        vec2 z = nextReference + (u_pixelScale * nextScaledDelta);
+        if (dot(z, z) > 1e30) {
+            outMask = 1.0;
+            return vec4(0.0, 0.0, 0.0, 1.0);
+        }
+
+        int rootIndex = getNearestNewtonRootIndex(z);
+        float distanceSquared = dot(z - getNewtonRoot(rootIndex), z - getNewtonRoot(rootIndex));
+        if (distanceSquared < 1e-12) {
+            float normalized = float(i + 1) / float(u_maxIterations);
+            float fade = 0.25 + (0.75 * pow(1.0 - normalized, 0.35));
+            float band = 0.9 + (0.1 * cos((18.0 * normalized) + (float(rootIndex) * 2.0943951)));
+            outMask = 0.0;
+            return vec4(getNewtonRootColor(rootIndex) * fade * band, 1.0);
+        }
+
+        scaledDelta = nextScaledDelta;
+    }
+
+    outMask = 0.0;
+    return vec4(0.0, 0.0, 0.0, 1.0);
+}
+
 void main() {
     vec2 pixelOffset = vec2(
         gl_FragCoord.x - 0.5 * u_resolution.x,
         gl_FragCoord.y - 0.5 * u_resolution.y
     );
     vec2 deltaPixels = u_referenceDeltaPixels + pixelOffset;
+    if (u_deepFractalType == 2) {
+        outColor = newtonPerturbationColor(deltaPixels);
+        return;
+    }
+
     float value = u_deepFractalType == 1
         ? juliaPerturbation(deltaPixels)
         : mandelbrotPerturbation(deltaPixels);
@@ -340,14 +508,26 @@ let juliaZoomStepCount = 0;
 let juliaLastFrameStats = null;
 let juliaMaskVerificationFramesRemaining = 0;
 let juliaStableReuseFrames = 0;
+let newtonFrameReady = false;
+let newtonReferenceCache = new Map();
+let newtonZoomStepCount = 0;
+let newtonLastFrameStats = null;
+let newtonMaskVerificationFramesRemaining = 0;
+let newtonStableReuseFrames = 0;
 let juliaConstantCache = null;
 let juliaConstantCacheDigits = 0;
+let newtonRootsCache = null;
+let newtonRootsCacheDigits = 0;
+let newtonConvergenceDistanceSquared = 0n;
+let newtonConvergenceDigits = 0;
 
 let simpleCamera = createSimpleCamera(-0.745, 0.1, 1.6);
 let mandelbrotCamera = null;
 let mandelbrotReference = createEmptyReference();
 let juliaCamera = null;
 let juliaReference = createEmptyReference();
+let newtonCamera = null;
+let newtonReference = createEmptyReference();
 
 function createSimpleCamera(centerX, centerY, viewWidth) {
     return {
@@ -403,11 +583,17 @@ function cloneDeepReference(reference) {
 }
 
 function isDeepFractalType(type = fractalType) {
-    return type === 'mandelbrot' || type === 'julia';
+    return type === 'mandelbrot' || type === 'julia' || type === 'newton';
 }
 
 function getDeepLabel(type) {
-    return type === 'julia' ? 'Julia' : 'Mandelbrot';
+    if (type === 'julia') {
+        return 'Julia';
+    }
+    if (type === 'newton') {
+        return 'Newton';
+    }
+    return 'Mandelbrot';
 }
 
 function getDeepConstant(type) {
@@ -424,8 +610,34 @@ function getDeepConstant(type) {
     return null;
 }
 
+function getNewtonRoots() {
+    if (!newtonRootsCache || newtonRootsCacheDigits !== decimalDigits) {
+        newtonRootsCache = [
+            { x: decimalFromString('1'), y: 0n },
+            { x: decimalFromString('-0.5'), y: decimalFromString(NEWTON_ROOT_IMAGINARY) },
+            { x: decimalFromString('-0.5'), y: decimalFromString(`-${NEWTON_ROOT_IMAGINARY}`) },
+        ];
+        newtonRootsCacheDigits = decimalDigits;
+    }
+    return newtonRootsCache;
+}
+
+function getNewtonConvergenceDistanceSquared() {
+    if (newtonConvergenceDigits !== decimalDigits) {
+        newtonConvergenceDistanceSquared = decimalFromString(NEWTON_CONVERGENCE_DISTANCE_SQUARED);
+        newtonConvergenceDigits = decimalDigits;
+    }
+    return newtonConvergenceDistanceSquared;
+}
+
 function getDeepCamera(type = fractalType) {
-    return type === 'julia' ? juliaCamera : mandelbrotCamera;
+    if (type === 'julia') {
+        return juliaCamera;
+    }
+    if (type === 'newton') {
+        return newtonCamera;
+    }
+    return mandelbrotCamera;
 }
 
 function setDeepCamera(type, camera) {
@@ -433,11 +645,21 @@ function setDeepCamera(type, camera) {
         juliaCamera = camera;
         return;
     }
+    if (type === 'newton') {
+        newtonCamera = camera;
+        return;
+    }
     mandelbrotCamera = camera;
 }
 
 function getDeepReference(type = fractalType) {
-    return type === 'julia' ? juliaReference : mandelbrotReference;
+    if (type === 'julia') {
+        return juliaReference;
+    }
+    if (type === 'newton') {
+        return newtonReference;
+    }
+    return mandelbrotReference;
 }
 
 function setDeepReference(type, reference) {
@@ -445,11 +667,21 @@ function setDeepReference(type, reference) {
         juliaReference = reference;
         return;
     }
+    if (type === 'newton') {
+        newtonReference = reference;
+        return;
+    }
     mandelbrotReference = reference;
 }
 
 function getDeepReferenceCache(type = fractalType) {
-    return type === 'julia' ? juliaReferenceCache : mandelbrotReferenceCache;
+    if (type === 'julia') {
+        return juliaReferenceCache;
+    }
+    if (type === 'newton') {
+        return newtonReferenceCache;
+    }
+    return mandelbrotReferenceCache;
 }
 
 function setDeepReferenceCache(type, cache) {
@@ -457,11 +689,21 @@ function setDeepReferenceCache(type, cache) {
         juliaReferenceCache = cache;
         return;
     }
+    if (type === 'newton') {
+        newtonReferenceCache = cache;
+        return;
+    }
     mandelbrotReferenceCache = cache;
 }
 
 function getDeepFrameReady(type = fractalType) {
-    return type === 'julia' ? juliaFrameReady : mandelbrotFrameReady;
+    if (type === 'julia') {
+        return juliaFrameReady;
+    }
+    if (type === 'newton') {
+        return newtonFrameReady;
+    }
+    return mandelbrotFrameReady;
 }
 
 function setDeepFrameReady(type, value) {
@@ -469,11 +711,21 @@ function setDeepFrameReady(type, value) {
         juliaFrameReady = value;
         return;
     }
+    if (type === 'newton') {
+        newtonFrameReady = value;
+        return;
+    }
     mandelbrotFrameReady = value;
 }
 
 function getDeepQualityHold(type = fractalType) {
-    return type === 'julia' ? juliaQualityHold : mandelbrotQualityHold;
+    if (type === 'julia') {
+        return juliaQualityHold;
+    }
+    if (type === 'newton') {
+        return newtonQualityHold;
+    }
+    return mandelbrotQualityHold;
 }
 
 function setDeepQualityHold(type, value) {
@@ -481,11 +733,21 @@ function setDeepQualityHold(type, value) {
         juliaQualityHold = value;
         return;
     }
+    if (type === 'newton') {
+        newtonQualityHold = value;
+        return;
+    }
     mandelbrotQualityHold = value;
 }
 
 function getDeepQualityHoldWarningShown(type = fractalType) {
-    return type === 'julia' ? juliaQualityHoldWarningShown : mandelbrotQualityHoldWarningShown;
+    if (type === 'julia') {
+        return juliaQualityHoldWarningShown;
+    }
+    if (type === 'newton') {
+        return newtonQualityHoldWarningShown;
+    }
+    return mandelbrotQualityHoldWarningShown;
 }
 
 function setDeepQualityHoldWarningShown(type, value) {
@@ -493,11 +755,21 @@ function setDeepQualityHoldWarningShown(type, value) {
         juliaQualityHoldWarningShown = value;
         return;
     }
+    if (type === 'newton') {
+        newtonQualityHoldWarningShown = value;
+        return;
+    }
     mandelbrotQualityHoldWarningShown = value;
 }
 
 function getDeepPrecisionWarningShown(type = fractalType) {
-    return type === 'julia' ? juliaDeepPrecisionWarningShown : deepPrecisionWarningShown;
+    if (type === 'julia') {
+        return juliaDeepPrecisionWarningShown;
+    }
+    if (type === 'newton') {
+        return newtonDeepPrecisionWarningShown;
+    }
+    return deepPrecisionWarningShown;
 }
 
 function setDeepPrecisionWarningShown(type, value) {
@@ -505,16 +777,30 @@ function setDeepPrecisionWarningShown(type, value) {
         juliaDeepPrecisionWarningShown = value;
         return;
     }
+    if (type === 'newton') {
+        newtonDeepPrecisionWarningShown = value;
+        return;
+    }
     deepPrecisionWarningShown = value;
 }
 
 function getDeepZoomStepCount(type = fractalType) {
-    return type === 'julia' ? juliaZoomStepCount : mandelbrotZoomStepCount;
+    if (type === 'julia') {
+        return juliaZoomStepCount;
+    }
+    if (type === 'newton') {
+        return newtonZoomStepCount;
+    }
+    return mandelbrotZoomStepCount;
 }
 
 function setDeepZoomStepCount(type, value) {
     if (type === 'julia') {
         juliaZoomStepCount = value;
+        return;
+    }
+    if (type === 'newton') {
+        newtonZoomStepCount = value;
         return;
     }
     mandelbrotZoomStepCount = value;
@@ -525,7 +811,13 @@ function incrementDeepZoomStepCount(type) {
 }
 
 function getDeepLastFrameStats(type = fractalType) {
-    return type === 'julia' ? juliaLastFrameStats : mandelbrotLastFrameStats;
+    if (type === 'julia') {
+        return juliaLastFrameStats;
+    }
+    if (type === 'newton') {
+        return newtonLastFrameStats;
+    }
+    return mandelbrotLastFrameStats;
 }
 
 function setDeepLastFrameStats(type, frameStats) {
@@ -533,11 +825,21 @@ function setDeepLastFrameStats(type, frameStats) {
         juliaLastFrameStats = frameStats;
         return;
     }
+    if (type === 'newton') {
+        newtonLastFrameStats = frameStats;
+        return;
+    }
     mandelbrotLastFrameStats = frameStats;
 }
 
 function getDeepMaskVerificationFramesRemaining(type = fractalType) {
-    return type === 'julia' ? juliaMaskVerificationFramesRemaining : mandelbrotMaskVerificationFramesRemaining;
+    if (type === 'julia') {
+        return juliaMaskVerificationFramesRemaining;
+    }
+    if (type === 'newton') {
+        return newtonMaskVerificationFramesRemaining;
+    }
+    return mandelbrotMaskVerificationFramesRemaining;
 }
 
 function setDeepMaskVerificationFramesRemaining(type, value) {
@@ -545,16 +847,30 @@ function setDeepMaskVerificationFramesRemaining(type, value) {
         juliaMaskVerificationFramesRemaining = value;
         return;
     }
+    if (type === 'newton') {
+        newtonMaskVerificationFramesRemaining = value;
+        return;
+    }
     mandelbrotMaskVerificationFramesRemaining = value;
 }
 
 function getDeepStableReuseFrames(type = fractalType) {
-    return type === 'julia' ? juliaStableReuseFrames : mandelbrotStableReuseFrames;
+    if (type === 'julia') {
+        return juliaStableReuseFrames;
+    }
+    if (type === 'newton') {
+        return newtonStableReuseFrames;
+    }
+    return mandelbrotStableReuseFrames;
 }
 
 function setDeepStableReuseFrames(type, value) {
     if (type === 'julia') {
         juliaStableReuseFrames = value;
+        return;
+    }
+    if (type === 'newton') {
+        newtonStableReuseFrames = value;
         return;
     }
     mandelbrotStableReuseFrames = value;
@@ -791,6 +1107,13 @@ function mulDecimal(a, b) {
     return (a * b) / decimalScale;
 }
 
+function divDecimal(a, b) {
+    if (b === 0n) {
+        return 0n;
+    }
+    return (a * decimalScale) / b;
+}
+
 function mulDecimalInt(value, multiplier) {
     return value * BigInt(multiplier);
 }
@@ -815,6 +1138,12 @@ function ensureDecimalDigits(requiredDigits) {
         juliaCamera.pixelScale *= factor;
     }
 
+    if (newtonCamera) {
+        newtonCamera.centerX *= factor;
+        newtonCamera.centerY *= factor;
+        newtonCamera.pixelScale *= factor;
+    }
+
     if (mandelbrotReference.centerX !== null) {
         mandelbrotReference.centerX *= factor;
         mandelbrotReference.centerY *= factor;
@@ -823,6 +1152,11 @@ function ensureDecimalDigits(requiredDigits) {
     if (juliaReference.centerX !== null) {
         juliaReference.centerX *= factor;
         juliaReference.centerY *= factor;
+    }
+
+    if (newtonReference.centerX !== null) {
+        newtonReference.centerX *= factor;
+        newtonReference.centerY *= factor;
     }
 
     decimalDigits = requiredDigits;
@@ -847,6 +1181,18 @@ function computeIterationBudget(pixelScale) {
     );
 }
 
+function computeNewtonIterationBudget(pixelScale) {
+    const depth = Math.max(0, -Math.log10(Math.max(pixelScale, Number.MIN_VALUE)));
+    return Math.min(384, Math.max(64, Math.floor(64 + depth * 8)));
+}
+
+function computeDeepIterationBudget(type, pixelScale) {
+    if (type === 'newton') {
+        return computeNewtonIterationBudget(pixelScale);
+    }
+    return computeIterationBudget(pixelScale);
+}
+
 function computeSimpleIterationBudget(pixelScale) {
     const depth = Math.max(0, -Math.log10(Math.max(pixelScale, Number.MIN_VALUE)));
     return Math.min(640, Math.max(140, Math.floor(120 + depth * 16)));
@@ -861,7 +1207,7 @@ function updateSimpleCameraScale(camera) {
     camera.maxIterations = computeSimpleIterationBudget(camera.pixelScale);
 }
 
-function createDeepCamera(centerX, centerY, viewWidth) {
+function createDeepCamera(centerX, centerY, viewWidth, type = 'mandelbrot') {
     const minDimension = Math.max(1, Math.min(gl.canvas.width, gl.canvas.height));
     const pixelScaleApprox = viewWidth / minDimension;
     ensureDecimalDigits(requiredDecimalDigits(pixelScaleApprox));
@@ -871,17 +1217,21 @@ function createDeepCamera(centerX, centerY, viewWidth) {
         centerY: decimalFromString(centerY),
         pixelScale: decimalFromNumber(pixelScaleApprox),
         pixelScaleApprox,
-        maxIterations: computeIterationBudget(pixelScaleApprox),
+        maxIterations: computeDeepIterationBudget(type, pixelScaleApprox),
         viewWidth,
     };
 }
 
 function createMandelbrotCamera() {
-    return createDeepCamera('-0.745', '0.1', 1.6);
+    return createDeepCamera('-0.745', '0.1', 1.6, 'mandelbrot');
 }
 
 function createJuliaCamera() {
-    return createDeepCamera('0', '0', 3.0);
+    return createDeepCamera('0', '0', 3.0, 'julia');
+}
+
+function createNewtonCamera() {
+    return createDeepCamera('-1.2', '0.1', 2.4, 'newton');
 }
 
 function getCanvasPixelOffset(pointer = mousePosition) {
@@ -940,14 +1290,25 @@ function getActivePointerPlane(pointer = mousePosition) {
     return screenToPlaneSimple(simpleCamera, pointer);
 }
 
+function shouldUseDeepRender(type = fractalType) {
+    if (!isDeepFractalType(type)) {
+        return false;
+    }
+    if (type === 'newton') {
+        const camera = getDeepCamera(type);
+        return camera && camera.pixelScaleApprox <= NEWTON_DEEP_RENDER_SCALE;
+    }
+    return true;
+}
+
 function stepActiveZoomOnce() {
-    if (fractalType === 'mandelbrot') {
-        stepMandelbrotCameraWithQualityPriority();
+    if (isDeepFractalType(fractalType) && shouldUseDeepRender(fractalType)) {
+        stepDeepCameraWithQualityPriority(fractalType);
         return;
     }
 
-    if (fractalType === 'julia') {
-        stepJuliaCameraWithQualityPriority();
+    if (fractalType === 'newton') {
+        updateNewtonCamera();
         return;
     }
 
@@ -966,7 +1327,7 @@ function updateSimpleCamera(camera) {
     camera.maxIterations = computeSimpleIterationBudget(camera.pixelScale);
 }
 
-function updateDeepCamera(camera) {
+function updateDeepCamera(camera, type = 'mandelbrot') {
     const nextPixelScaleApprox = camera.pixelScaleApprox * ZOOM_SPEED;
     ensureDecimalDigits(requiredDecimalDigits(nextPixelScaleApprox));
 
@@ -979,15 +1340,19 @@ function updateDeepCamera(camera) {
     camera.pixelScale = nextPixelScale;
     camera.pixelScaleApprox = nextPixelScaleApprox;
     camera.viewWidth = nextPixelScaleApprox * Math.min(gl.canvas.width, gl.canvas.height);
-    camera.maxIterations = computeIterationBudget(nextPixelScaleApprox);
+    camera.maxIterations = computeDeepIterationBudget(type, nextPixelScaleApprox);
 }
 
 function updateMandelbrotCamera() {
-    updateDeepCamera(mandelbrotCamera);
+    updateDeepCamera(mandelbrotCamera, 'mandelbrot');
 }
 
 function updateJuliaCamera() {
-    updateDeepCamera(juliaCamera);
+    updateDeepCamera(juliaCamera, 'julia');
+}
+
+function updateNewtonCamera() {
+    updateDeepCamera(newtonCamera, 'newton');
 }
 
 function createShader(shaderType, source) {
@@ -1142,7 +1507,7 @@ function initWebGL() {
     gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
 
     if (!gl) {
-        alert('WebGL2 is required for deep Mandelbrot zoom.');
+        alert('WebGL2 is required for deep fractal zoom.');
         return false;
     }
 
@@ -1208,6 +1573,7 @@ function initWebGL() {
     gl.clearColor(0, 0, 0, 1);
     mandelbrotCamera = createMandelbrotCamera();
     juliaCamera = createJuliaCamera();
+    newtonCamera = createNewtonCamera();
     resetSimpleCamera('mandelbrot');
     return true;
 }
@@ -1465,6 +1831,48 @@ function selectInitialReference(anchorPoint, iterations, type = fractalType) {
         return reusableSelection;
     }
 
+    if (type === 'newton') {
+        const directEscapeIteration = computeEscapeIteration(
+            anchorPoint.x,
+            anchorPoint.y,
+            iterations,
+            type
+        );
+        const directReferenceThreshold = Math.max(
+            NEWTON_DIRECT_REFERENCE_MIN_ITERATIONS,
+            Math.floor(iterations * NEWTON_DIRECT_REFERENCE_MIN_RATIO)
+        );
+
+        if (directEscapeIteration >= directReferenceThreshold) {
+            return {
+                candidate: {
+                    point: anchorPoint,
+                    distanceSquared: 0,
+                    escapeIteration: directEscapeIteration,
+                },
+                reference: getReferenceOrbit(anchorPoint, iterations, type),
+                mode: 'search',
+            };
+        }
+
+        const candidate = searchReferenceCandidates(
+            type,
+            anchorPoint,
+            iterations,
+            NEWTON_REFERENCE_SEARCH_RINGS,
+            NEWTON_REFERENCE_RING_SAMPLE_SPACING
+        );
+        if (!candidate) {
+            return null;
+        }
+
+        return {
+            candidate,
+            reference: getReferenceOrbit(candidate.point, iterations, type),
+            mode: 'search',
+        };
+    }
+
     const candidate = findBestReferencePoint(anchorPoint, iterations, type);
     if (!candidate) {
         return null;
@@ -1477,7 +1885,100 @@ function selectInitialReference(anchorPoint, iterations, type = fractalType) {
     };
 }
 
+function mulDecimalComplex(ax, ay, bx, by) {
+    return {
+        x: subDecimal(mulDecimal(ax, bx), mulDecimal(ay, by)),
+        y: addDecimal(mulDecimal(ax, by), mulDecimal(ay, bx)),
+    };
+}
+
+function divDecimalComplex(ax, ay, bx, by) {
+    const denominator = addDecimal(mulDecimal(bx, bx), mulDecimal(by, by));
+    if (denominator === 0n) {
+        return null;
+    }
+    return {
+        x: divDecimal(addDecimal(mulDecimal(ax, bx), mulDecimal(ay, by)), denominator),
+        y: divDecimal(subDecimal(mulDecimal(ay, bx), mulDecimal(ax, by)), denominator),
+    };
+}
+
+function computeNewtonStepDecimal(zr, zi) {
+    const z2 = mulDecimalComplex(zr, zi, zr, zi);
+    const z3 = mulDecimalComplex(z2.x, z2.y, zr, zi);
+    const fraction = divDecimalComplex(
+        subDecimal(z3.x, decimalScale),
+        z3.y,
+        mulDecimalInt(z2.x, 3),
+        mulDecimalInt(z2.y, 3)
+    );
+    if (!fraction) {
+        return null;
+    }
+    return {
+        x: subDecimal(zr, fraction.x),
+        y: subDecimal(zi, fraction.y),
+    };
+}
+
+function getNewtonRootDistanceSquared(zr, zi, root) {
+    const dx = subDecimal(zr, root.x);
+    const dy = subDecimal(zi, root.y);
+    return addDecimal(mulDecimal(dx, dx), mulDecimal(dy, dy));
+}
+
+function getNearestNewtonRootIndex(zr, zi) {
+    const roots = getNewtonRoots();
+    let bestIndex = 0;
+    let bestDistanceSquared = getNewtonRootDistanceSquared(zr, zi, roots[0]);
+
+    for (let index = 1; index < roots.length; index += 1) {
+        const distanceSquared = getNewtonRootDistanceSquared(zr, zi, roots[index]);
+        if (distanceSquared < bestDistanceSquared) {
+            bestDistanceSquared = distanceSquared;
+            bestIndex = index;
+        }
+    }
+
+    return bestIndex;
+}
+
+function getNewtonColorComponents(rootIndex, normalized) {
+    const baseColors = [
+        [0.15, 0.78, 0.93],
+        [0.99, 0.72, 0.16],
+        [0.93, 0.21, 0.58],
+    ];
+    const safeNormalized = Math.max(0, Math.min(1, normalized));
+    const fade = 0.25 + (0.75 * Math.pow(1 - safeNormalized, 0.35));
+    const band = 0.9 + (0.1 * Math.cos((18 * safeNormalized) + (rootIndex * 2.09439510239)));
+    return baseColors[rootIndex].map((channel) => channel * fade * band);
+}
+
 function computeEscapeIteration(centerX, centerY, iterations, type = fractalType) {
+    if (type === 'newton') {
+        let zr = centerX;
+        let zi = centerY;
+        const roots = getNewtonRoots();
+        const convergenceDistanceSquared = getNewtonConvergenceDistanceSquared();
+
+        for (let i = 0; i < iterations; i += 1) {
+            const next = computeNewtonStepDecimal(zr, zi);
+            if (!next) {
+                return 0;
+            }
+            zr = next.x;
+            zi = next.y;
+
+            const rootIndex = getNearestNewtonRootIndex(zr, zi);
+            if (getNewtonRootDistanceSquared(zr, zi, roots[rootIndex]) <= convergenceDistanceSquared) {
+                return i + 1;
+            }
+        }
+
+        return iterations;
+    }
+
     const juliaConstant = type === 'julia' ? getDeepConstant(type) : null;
     let zr = type === 'julia' ? centerX : 0n;
     let zi = type === 'julia' ? centerY : 0n;
@@ -1506,6 +2007,62 @@ function computeEscapeIteration(centerX, centerY, iterations, type = fractalType
 }
 
 function computeReferenceOrbit(centerX, centerY, iterations, type = fractalType) {
+    if (type === 'newton') {
+        const orbitData = new Float32Array(MAX_ORBIT_TEXTURE_LENGTH * 4);
+        const roots = getNewtonRoots();
+        const convergenceDistanceSquared = getNewtonConvergenceDistanceSquared();
+        let zr = centerX;
+        let zi = centerY;
+
+        orbitData[0] = decimalToNumber(zr);
+        orbitData[1] = decimalToNumber(zi);
+
+        for (let i = 0; i < iterations; i += 1) {
+            const next = computeNewtonStepDecimal(zr, zi);
+            if (!next) {
+                return {
+                    escapedEarly: true,
+                    escapeIteration: 0,
+                    computedIterations: i,
+                    exactZr: zr,
+                    exactZi: zi,
+                    orbitData,
+                    orbitLength: i + 1,
+                };
+            }
+
+            zr = next.x;
+            zi = next.y;
+
+            const baseIndex = (i + 1) * 4;
+            orbitData[baseIndex] = decimalToNumber(zr);
+            orbitData[baseIndex + 1] = decimalToNumber(zi);
+
+            const rootIndex = getNearestNewtonRootIndex(zr, zi);
+            if (getNewtonRootDistanceSquared(zr, zi, roots[rootIndex]) <= convergenceDistanceSquared) {
+                return {
+                    escapedEarly: true,
+                    escapeIteration: i + 1,
+                    computedIterations: i + 1,
+                    exactZr: zr,
+                    exactZi: zi,
+                    orbitData,
+                    orbitLength: i + 2,
+                };
+            }
+        }
+
+        return {
+            escapedEarly: false,
+            escapeIteration: iterations,
+            computedIterations: iterations,
+            exactZr: zr,
+            exactZi: zi,
+            orbitData,
+            orbitLength: iterations + 1,
+        };
+    }
+
     const orbitData = new Float32Array(MAX_ORBIT_TEXTURE_LENGTH * 4);
     const juliaConstant = type === 'julia' ? getDeepConstant(type) : null;
     let zr = type === 'julia' ? centerX : 0n;
@@ -1566,6 +2123,52 @@ function getReferenceCacheKey(point) {
 
 function extendReferenceOrbit(reference, iterations, type = fractalType) {
     if (reference.escapedEarly || reference.computedIterations >= iterations) {
+        return reference;
+    }
+
+    if (type === 'newton') {
+        const roots = getNewtonRoots();
+        const convergenceDistanceSquared = getNewtonConvergenceDistanceSquared();
+        let zr = reference.exactZr;
+        let zi = reference.exactZi;
+
+        for (let i = reference.computedIterations; i < iterations; i += 1) {
+            const next = computeNewtonStepDecimal(zr, zi);
+            if (!next) {
+                reference.escapedEarly = true;
+                reference.escapeIteration = 0;
+                reference.computedIterations = i;
+                reference.exactZr = zr;
+                reference.exactZi = zi;
+                reference.orbitLength = i + 1;
+                return reference;
+            }
+
+            zr = next.x;
+            zi = next.y;
+
+            const baseIndex = (i + 1) * 4;
+            reference.orbitData[baseIndex] = decimalToNumber(zr);
+            reference.orbitData[baseIndex + 1] = decimalToNumber(zi);
+
+            const rootIndex = getNearestNewtonRootIndex(zr, zi);
+            if (getNewtonRootDistanceSquared(zr, zi, roots[rootIndex]) <= convergenceDistanceSquared) {
+                reference.escapedEarly = true;
+                reference.escapeIteration = i + 1;
+                reference.computedIterations = i + 1;
+                reference.exactZr = zr;
+                reference.exactZi = zi;
+                reference.orbitLength = i + 2;
+                return reference;
+            }
+        }
+
+        reference.escapedEarly = false;
+        reference.escapeIteration = iterations;
+        reference.computedIterations = iterations;
+        reference.exactZr = zr;
+        reference.exactZi = zi;
+        reference.orbitLength = iterations + 1;
         return reference;
     }
 
@@ -1826,6 +2429,36 @@ function framebufferPixelToPointer(pixel) {
 }
 
 function computeCpuDeepColor(type, centerX, centerY, iterations) {
+    if (type === 'newton') {
+        let zr = centerX;
+        let zi = centerY;
+        const roots = getNewtonRoots();
+        const convergenceDistanceSquared = getNewtonConvergenceDistanceSquared();
+
+        for (let i = 0; i < iterations; i += 1) {
+            const next = computeNewtonStepDecimal(zr, zi);
+            if (!next) {
+                return [0, 0, 0, 255];
+            }
+            zr = next.x;
+            zi = next.y;
+
+            const rootIndex = getNearestNewtonRootIndex(zr, zi);
+            if (getNewtonRootDistanceSquared(zr, zi, roots[rootIndex]) <= convergenceDistanceSquared) {
+                const normalized = (i + 1) / Math.max(1, iterations);
+                const [r, g, b] = getNewtonColorComponents(rootIndex, normalized);
+                return [
+                    Math.round(r * 255),
+                    Math.round(g * 255),
+                    Math.round(b * 255),
+                    255,
+                ];
+            }
+        }
+
+        return [0, 0, 0, 255];
+    }
+
     const juliaConstant = type === 'julia' ? getDeepConstant(type) : null;
     let zr = type === 'julia' ? centerX : 0n;
     let zi = type === 'julia' ? centerY : 0n;
@@ -1947,7 +2580,10 @@ function renderDeepPass(type, reference, tile, writeMask = true) {
     gl.uniform2f(deepProgramInfo.uniforms.u_resolution, gl.canvas.width, gl.canvas.height);
     gl.uniform1f(deepProgramInfo.uniforms.u_pixelScale, camera.pixelScaleApprox);
     gl.uniform1f(deepProgramInfo.uniforms.u_glitchThreshold, GLITCH_THRESHOLD);
-    gl.uniform1i(deepProgramInfo.uniforms.u_deepFractalType, type === 'julia' ? 1 : 0);
+    gl.uniform1i(
+        deepProgramInfo.uniforms.u_deepFractalType,
+        type === 'julia' ? 1 : type === 'newton' ? 2 : 0
+    );
     gl.uniform1i(deepProgramInfo.uniforms.u_referenceOrbitLength, reference.orbitLength);
     gl.uniform1i(deepProgramInfo.uniforms.u_referenceOrbit, 0);
     gl.uniform1i(deepProgramInfo.uniforms.u_maxIterations, camera.maxIterations);
@@ -2173,6 +2809,22 @@ function renderSharpJuliaFrame() {
     return renderSharpDeepFrame('julia');
 }
 
+function renderSharpNewtonFrame() {
+    return renderSharpDeepFrame('newton');
+}
+
+function updateDeepCameraForType(type) {
+    if (type === 'julia') {
+        updateJuliaCamera();
+        return;
+    }
+    if (type === 'newton') {
+        updateNewtonCamera();
+        return;
+    }
+    updateMandelbrotCamera();
+}
+
 function stepDeepCameraWithQualityPriority(type) {
     if (getDeepQualityHold(type)) {
         return false;
@@ -2182,11 +2834,7 @@ function stepDeepCameraWithQualityPriority(type) {
     const previousReference = cloneDeepReference(getDeepReference(type));
     const previousWarningShown = getDeepPrecisionWarningShown(type);
 
-    if (type === 'julia') {
-        updateJuliaCamera();
-    } else {
-        updateMandelbrotCamera();
-    }
+    updateDeepCameraForType(type);
 
     if (!renderSharpDeepFrame(type)) {
         setDeepCamera(type, previousCamera);
@@ -2217,8 +2865,12 @@ function stepJuliaCameraWithQualityPriority() {
     return stepDeepCameraWithQualityPriority('julia');
 }
 
+function stepNewtonCameraWithQualityPriority() {
+    return stepDeepCameraWithQualityPriority('newton');
+}
+
 function drawSimpleFractal(activeType, camera) {
-    const fractalIndex = ['mandelbrot', 'julia', 'sierpinski'].indexOf(activeType);
+    const fractalIndex = ['mandelbrot', 'julia', 'newton'].indexOf(activeType);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.useProgram(simpleProgramInfo.program);
@@ -2252,6 +2904,16 @@ function drawDeepFractal(type) {
     drawCommittedDeepFrame();
 }
 
+function drawSimpleProxyFromDeepCamera(type) {
+    const camera = getDeepCamera(type);
+    drawSimpleFractal(type, {
+        centerX: decimalToNumber(camera.centerX),
+        centerY: decimalToNumber(camera.centerY),
+        pixelScale: camera.pixelScaleApprox,
+        maxIterations: camera.maxIterations,
+    });
+}
+
 function drawDeepMandelbrot() {
     drawDeepFractal('mandelbrot');
 }
@@ -2260,18 +2922,22 @@ function drawDeepJulia() {
     drawDeepFractal('julia');
 }
 
+function drawDeepNewton() {
+    drawDeepFractal('newton');
+}
+
 function draw() {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    if (fractalType === 'mandelbrot') {
-        drawDeepMandelbrot();
+    if (isDeepFractalType(fractalType) && shouldUseDeepRender(fractalType)) {
+        drawDeepFractal(fractalType);
         return;
     }
 
-    if (fractalType === 'julia') {
-        drawDeepJulia();
+    if (fractalType === 'newton') {
+        drawSimpleProxyFromDeepCamera('newton');
         return;
     }
 
@@ -2283,10 +2949,10 @@ function animate() {
         return;
     }
 
-    if (fractalType === 'mandelbrot') {
-        stepMandelbrotCameraWithQualityPriority();
-    } else if (fractalType === 'julia') {
-        stepJuliaCameraWithQualityPriority();
+    if (isDeepFractalType(fractalType) && shouldUseDeepRender(fractalType)) {
+        stepDeepCameraWithQualityPriority(fractalType);
+    } else if (fractalType === 'newton') {
+        updateNewtonCamera();
     } else {
         updateSimpleCamera(simpleCamera);
     }
@@ -2330,6 +2996,7 @@ function resizeCanvas() {
     ensureMandelbrotRenderTargets();
     mandelbrotFrameReady = false;
     juliaFrameReady = false;
+    newtonFrameReady = false;
 
     if (isDeepFractalType(fractalType) && getDeepCamera(fractalType)) {
         const deepCamera = getDeepCamera(fractalType);
@@ -2349,7 +3016,7 @@ function resetSimpleCamera(type) {
     } else if (type === 'julia') {
         simpleCamera = createSimpleCamera(0, 0, 3.0);
     } else {
-        simpleCamera = createSimpleCamera(0, 0.2, 2.4);
+        simpleCamera = createSimpleCamera(-1.2, 0.1, 2.4);
     }
     updateSimpleCameraScale(simpleCamera);
 }
@@ -2382,6 +3049,20 @@ function resetJuliaState() {
     juliaStableReuseFrames = 0;
 }
 
+function resetNewtonState() {
+    newtonCamera = createNewtonCamera();
+    newtonReference = createEmptyReference();
+    newtonReferenceCache = new Map();
+    newtonFrameReady = false;
+    newtonDeepPrecisionWarningShown = false;
+    newtonQualityHold = false;
+    newtonQualityHoldWarningShown = false;
+    newtonZoomStepCount = 0;
+    newtonLastFrameStats = createEmptyMandelbrotFrameStats();
+    newtonMaskVerificationFramesRemaining = 0;
+    newtonStableReuseFrames = 0;
+}
+
 function handleMouseMove(event) {
     const rect = gl.canvas.getBoundingClientRect();
     const scaleX = gl.canvas.width / rect.width;
@@ -2406,6 +3087,8 @@ function handleFractalTypeChange(event) {
         resetMandelbrotState();
     } else if (fractalType === 'julia') {
         resetJuliaState();
+    } else if (fractalType === 'newton') {
+        resetNewtonState();
     } else {
         resetSimpleCamera(fractalType);
     }
@@ -2430,6 +3113,7 @@ window.addEventListener('load', () => {
     resizeCanvas();
     resetMandelbrotState();
     resetJuliaState();
+    resetNewtonState();
     setMouseToCenter();
     draw();
     requestAnimationFrame(animate);

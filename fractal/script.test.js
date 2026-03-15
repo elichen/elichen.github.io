@@ -35,6 +35,18 @@ function loadHarness() {
         juliaMaskVerificationFramesRemaining = 0;
         juliaStableReuseFrames = 0;
     },
+    initNewton() {
+        fractalType = 'newton';
+        newtonCamera = createNewtonCamera();
+        newtonReference = createEmptyReference();
+        newtonReferenceCache = new Map();
+        newtonQualityHold = false;
+        newtonQualityHoldWarningShown = false;
+        newtonFrameReady = false;
+        newtonDeepPrecisionWarningShown = false;
+        newtonMaskVerificationFramesRemaining = 0;
+        newtonStableReuseFrames = 0;
+    },
     setRenderSharpImpl(fn) { renderSharpDeepFrame = fn; },
     setEscapeIterationImpl(fn) { computeEscapeIteration = fn; },
     setOrbitTexture(value) { orbitTexture = value; },
@@ -81,10 +93,23 @@ function loadHarness() {
     setWorkingFramebufferDrawBuffers(writeMask) { setWorkingFramebufferDrawBuffers(writeMask); },
     stepQuality() { return stepMandelbrotCameraWithQualityPriority(); },
     stepJuliaQuality() { return stepJuliaCameraWithQualityPriority(); },
+    stepNewtonQuality() { return stepNewtonCameraWithQualityPriority(); },
     setStableReuseFrames(type, value) { setDeepStableReuseFrames(type, value); },
     getStableReuseFrames(type) { return getDeepStableReuseFrames(type); },
     getAdaptiveMaskVerifySkipFrames(type) { return getAdaptiveMaskVerifySkipFrames(type); },
     computeIterationBudget(pixelScale) { return computeIterationBudget(pixelScale); },
+    computeNewtonIterationBudget(pixelScale) { return computeNewtonIterationBudget(pixelScale); },
+    shouldUseDeepRender(type) { return shouldUseDeepRender(type); },
+    setNewtonPixelScaleApprox(value) { newtonCamera.pixelScaleApprox = value; },
+    computeEscape(point, iterations, type) {
+        return computeEscapeIteration(point.x, point.y, iterations, type);
+    },
+    computeCpuColor(point, iterations, type) {
+        return computeCpuDeepColor(type, point.x, point.y, iterations);
+    },
+    selectInitialReference(point, iterations, type) {
+        return selectInitialReference(point, iterations, type);
+    },
     getState() {
         const camera = getDeepCamera(fractalType);
         return {
@@ -384,6 +409,14 @@ test('deep iteration budget keeps its floor while growing with depth', () => {
     assert.ok(harness.computeIterationBudget(1e-12) > harness.computeIterationBudget(1e-6));
 });
 
+test('Newton iteration budget starts lower while still growing with depth', () => {
+    const harness = loadHarness();
+
+    assert.equal(harness.computeNewtonIterationBudget(1), 64);
+    assert.equal(harness.computeNewtonIterationBudget(1e-6), 112);
+    assert.ok(harness.computeNewtonIterationBudget(1e-12) > harness.computeNewtonIterationBudget(1e-6));
+});
+
 test('initJulia resets stable reuse cadence state', () => {
     const harness = loadHarness();
     harness.setStableReuseFrames('julia', 9);
@@ -392,6 +425,16 @@ test('initJulia resets stable reuse cadence state', () => {
 
     assert.equal(harness.getStableReuseFrames('julia'), 0);
     assert.equal(harness.getAdaptiveMaskVerifySkipFrames('julia'), 1);
+});
+
+test('initNewton resets stable reuse cadence state', () => {
+    const harness = loadHarness();
+    harness.setStableReuseFrames('newton', 9);
+
+    harness.initNewton();
+
+    assert.equal(harness.getStableReuseFrames('newton'), 0);
+    assert.equal(harness.getAdaptiveMaskVerifySkipFrames('newton'), 1);
 });
 
 test('stepJuliaCameraWithQualityPriority restores the previous camera when repair fails', () => {
@@ -425,4 +468,83 @@ test('stepJuliaCameraWithQualityPriority advances when sharp-frame render succee
     assert.equal(advanced, true);
     assert.equal(after.hold, false);
     assert.ok(after.pixelScaleApprox < before.pixelScaleApprox);
+});
+
+test('stepNewtonCameraWithQualityPriority restores the previous camera when repair fails', () => {
+    const harness = loadHarness();
+    harness.initNewton();
+    harness.setMouse({ x: 1320, y: 180 });
+
+    const before = harness.getState();
+    harness.setRenderSharpImpl(() => false);
+
+    const advanced = harness.stepNewtonQuality();
+    const after = harness.getState();
+
+    assert.equal(advanced, false);
+    assert.equal(after.hold, true);
+    assert.equal(after.pixelScaleApprox, before.pixelScaleApprox);
+    assert.equal(after.maxIterations, before.maxIterations);
+});
+
+test('stepNewtonCameraWithQualityPriority advances when sharp-frame render succeeds', () => {
+    const harness = loadHarness();
+    harness.initNewton();
+    harness.setMouse({ x: 1320, y: 180 });
+
+    const before = harness.getState();
+    harness.setRenderSharpImpl(() => true);
+
+    const advanced = harness.stepNewtonQuality();
+    const after = harness.getState();
+
+    assert.equal(advanced, true);
+    assert.equal(after.hold, false);
+    assert.ok(after.pixelScaleApprox < before.pixelScaleApprox);
+});
+
+test('computeEscapeIteration converges immediately for an exact Newton root', () => {
+    const harness = loadHarness();
+    const point = harness.createPoint('1', '0');
+
+    assert.equal(harness.computeEscape(point, 12, 'newton'), 1);
+});
+
+test('Newton selects the anchor directly when it is already a strong reference', () => {
+    const harness = loadHarness();
+    harness.initNewton();
+    const point = harness.createPoint('-1.2', '0.1');
+    let callCount = 0;
+
+    harness.setEscapeIterationImpl(() => {
+        callCount += 1;
+        return 48;
+    });
+
+    const selection = harness.selectInitialReference(point, 220, 'newton');
+
+    assert.ok(selection);
+    assert.equal(callCount, 1);
+    assert.equal(selection.candidate.distanceSquared, 0);
+    assert.equal(selection.candidate.escapeIteration, 48);
+    assert.equal(selection.candidate.point, point);
+});
+
+test('Newton stays on the simple render path until the zoom is genuinely deep', () => {
+    const harness = loadHarness();
+    harness.initNewton();
+
+    assert.equal(harness.shouldUseDeepRender('newton'), false);
+    harness.setNewtonPixelScaleApprox(1e-7);
+
+    assert.equal(harness.shouldUseDeepRender('newton'), true);
+});
+
+test('computeCpuDeepColor returns a colored Newton basin for an exact root', () => {
+    const harness = loadHarness();
+    const point = harness.createPoint('1', '0');
+    const color = harness.computeCpuColor(point, 12, 'newton');
+
+    assert.equal(color[3], 255);
+    assert.ok(color[0] > 0 || color[1] > 0 || color[2] > 0);
 });
