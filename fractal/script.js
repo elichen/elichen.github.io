@@ -1669,6 +1669,14 @@ function readGlitchMask(tile) {
     return maskData;
 }
 
+function readGlitchMaskAndCheck(tile) {
+    const maskData = readGlitchMask(tile);
+    return {
+        hasGlitches: maskHasGlitches(maskData),
+        maskData,
+    };
+}
+
 const reducedMaskSample = new Uint8Array(1);
 
 function tileHasGlitches(tile) {
@@ -2055,7 +2063,11 @@ function renderSharpDeepFrame(type) {
             Math.max(0, getDeepMaskVerificationFramesRemaining(type) - 1)
         );
     } else {
-        fullFrameHasGlitches = tileHasGlitches(fullFrameTile);
+        const fullFrameVerification = readGlitchMaskAndCheck(fullFrameTile);
+        fullFrameHasGlitches = fullFrameVerification.hasGlitches;
+        if (fullFrameHasGlitches) {
+            fullFrameTile.maskData = fullFrameVerification.maskData;
+        }
         if (!fullFrameHasGlitches && initialReferenceMode === 'reuse') {
             incrementDeepStableReuseFrames(type);
             setDeepMaskVerificationFramesRemaining(type, getAdaptiveMaskVerifySkipFrames(type));
@@ -2066,7 +2078,9 @@ function renderSharpDeepFrame(type) {
     }
 
     if (fullFrameHasGlitches) {
-        fullFrameTile.maskData = readGlitchMask(fullFrameTile);
+        if (!fullFrameTile.maskData) {
+            fullFrameTile.maskData = readGlitchMask(fullFrameTile);
+        }
         if (
             fullFrameTile.depth >= MAX_REPAIR_DEPTH
             || fullFrameTile.width <= MIN_REPAIR_TILE_SIZE

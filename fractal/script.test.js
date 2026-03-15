@@ -77,6 +77,7 @@ function loadHarness() {
     createTile(x, y, width, height, depth, maskData) {
         return createRepairTile(x, y, width, height, depth, maskData);
     },
+    readMaskAndCheck(tile) { return readGlitchMaskAndCheck(tile); },
     setWorkingFramebufferDrawBuffers(writeMask) { setWorkingFramebufferDrawBuffers(writeMask); },
     stepQuality() { return stepMandelbrotCameraWithQualityPriority(); },
     stepJuliaQuality() { return stepJuliaCameraWithQualityPriority(); },
@@ -171,6 +172,55 @@ test('queueChildTilesWithGlitches only enqueues children that contain glitches',
         { x: children[0].x, y: children[0].y, width: children[0].width, height: children[0].height },
         { x: 0, y: 0, width: 2, height: 2 }
     );
+});
+
+test('readGlitchMaskAndCheck returns false for a clean mask', () => {
+    const harness = loadHarness();
+    const tile = harness.createTile(0, 0, 4, 2, 0, null);
+    let readPixelsCount = 0;
+
+    harness.setGL({
+        canvas: { width: 1600, height: 900 },
+        READ_FRAMEBUFFER: 'READ_FRAMEBUFFER',
+        COLOR_ATTACHMENT1: 'COLOR_ATTACHMENT1',
+        RED: 'RED',
+        UNSIGNED_BYTE: 'UNSIGNED_BYTE',
+        bindFramebuffer() {},
+        readBuffer() {},
+        readPixels(x, y, width, height, format, type, destination) {
+            readPixelsCount += 1;
+            destination.fill(0);
+        },
+    });
+
+    const result = harness.readMaskAndCheck(tile);
+
+    assert.equal(readPixelsCount, 1);
+    assert.equal(result.hasGlitches, false);
+    assert.deepEqual(Array.from(result.maskData), [0, 0, 0, 0, 0, 0, 0, 0]);
+});
+
+test('readGlitchMaskAndCheck returns true and preserves the mask bytes', () => {
+    const harness = loadHarness();
+    const tile = harness.createTile(2, 3, 4, 2, 0, null);
+
+    harness.setGL({
+        canvas: { width: 1600, height: 900 },
+        READ_FRAMEBUFFER: 'READ_FRAMEBUFFER',
+        COLOR_ATTACHMENT1: 'COLOR_ATTACHMENT1',
+        RED: 'RED',
+        UNSIGNED_BYTE: 'UNSIGNED_BYTE',
+        bindFramebuffer() {},
+        readBuffer() {},
+        readPixels(x, y, width, height, format, type, destination) {
+            destination.set([0, 0, 255, 0, 0, 0, 0, 0]);
+        },
+    });
+
+    const result = harness.readMaskAndCheck(tile);
+
+    assert.equal(result.hasGlitches, true);
+    assert.deepEqual(Array.from(result.maskData), [0, 0, 255, 0, 0, 0, 0, 0]);
 });
 
 test('stepMandelbrotCameraWithQualityPriority restores the previous camera when repair fails', () => {
