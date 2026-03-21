@@ -24,25 +24,34 @@ const STABLE_MASK_VERIFY_GROWTH_INTERVAL = 6;
 const MAX_STABLE_MASK_VERIFY_SKIP_FRAMES = 3;
 const MIN_GPU_SCALE = 1e-45;
 const NEWTON_DEEP_RENDER_SCALE = 1e-6;
+const NEWTON_DEEP_RETRY_SCALE_FACTOR = 0.25;
+const NEWTON_PATHOLOGICAL_INITIAL_REPAIR_QUEUE_LENGTH = 4;
+const NEWTON_PATHOLOGICAL_INITIAL_GLITCH_RATIO = 0.005;
+const NEWTON_PATHOLOGICAL_REPAIR_QUEUE_LENGTH = 12;
+const NEWTON_PATHOLOGICAL_REPAIR_QUEUE_MIN = 6;
+const NEWTON_PATHOLOGICAL_REPAIR_ELAPSED_MS = 300;
+const NEWTON_PATHOLOGICAL_REPAIR_REFERENCE_LIMIT = 12;
 const GLITCH_THRESHOLD = 1e-5;
 const MANDELBROT_LOG_INTERVAL = 500;
+const DEBUG_HEARTBEAT_INTERVAL_MS = 1000;
+const MIN_DEBUG_HEARTBEAT_INTERVAL_MS = 250;
 const MAX_REPAIR_REFERENCES = 192;
 const MAX_REPAIR_DEPTH = 10;
 const MIN_REPAIR_TILE_SIZE = 4;
 const MAX_REFERENCE_CACHE_ENTRIES = 384;
 const BASE_REFERENCE_SEARCH_RINGS = [0, 4, 12, 32, 96];
 const DENSE_REFERENCE_SEARCH_RINGS = [0, 2, 4, 8, 16, 32, 64, 128];
+const NEWTON_INITIAL_REFERENCE_SEARCH_RINGS = [0, 2, 6, 12, 24, 48];
 const MIN_REFERENCE_RING_SAMPLES = 24;
 const COARSE_REFERENCE_RING_SAMPLE_SPACING = 28;
 const DENSE_REFERENCE_RING_SAMPLE_SPACING = 12;
+const NEWTON_INITIAL_REFERENCE_RING_SAMPLE_SPACING = 18;
 const REFERENCE_REFINEMENT_ESCAPE_MARGIN = 8;
 const REFERENCE_REUSE_RADIUS_PIXELS = 192;
 const STABLE_REFERENCE_REUSE_RADIUS_PIXELS = 512;
 const REFERENCE_REUSE_ESCAPE_RATIO = 0.9;
-const NEWTON_REFERENCE_SEARCH_RINGS = [0, 2, 6, 12, 24, 48];
-const NEWTON_REFERENCE_RING_SAMPLE_SPACING = 18;
+const FLOAT32_EPSILON = 2 ** -23;
 const NEWTON_DIRECT_REFERENCE_MIN_ITERATIONS = 24;
-const NEWTON_DIRECT_REFERENCE_MIN_RATIO = 0.12;
 const JULIA_CONSTANT_REAL = '-0.8';
 const JULIA_CONSTANT_IMAGINARY = '0.156';
 const NEWTON_ROOT_IMAGINARY = '0.866025403784438646763723170753';
@@ -514,6 +523,7 @@ let newtonZoomStepCount = 0;
 let newtonLastFrameStats = null;
 let newtonMaskVerificationFramesRemaining = 0;
 let newtonStableReuseFrames = 0;
+let newtonDeepRenderActivationScale = NEWTON_DEEP_RENDER_SCALE;
 let juliaConstantCache = null;
 let juliaConstantCacheDigits = 0;
 let newtonRootsCache = null;
@@ -528,6 +538,18 @@ let juliaCamera = null;
 let juliaReference = createEmptyReference();
 let newtonCamera = null;
 let newtonReference = createEmptyReference();
+let mandelbrotDeepWorkState = null;
+let juliaDeepWorkState = null;
+let newtonDeepWorkState = null;
+let debugHeartbeatEnabled = false;
+let debugHeartbeatIntervalMs = DEBUG_HEARTBEAT_INTERVAL_MS;
+let debugHeartbeatTimer = null;
+let debugAnimationFrameCount = 0;
+let debugLastAnimationFrameAt = 0;
+let debugLastAnimationStage = 'not-started';
+let debugLastObservedRenderPath = null;
+let debugLastRenderedPath = null;
+let newtonDeferredCommittedFramePending = false;
 
 function createSimpleCamera(centerX, centerY, viewWidth) {
     return {
@@ -924,6 +946,14 @@ function roundDebugNumber(value) {
     return Number(value.toPrecision(6));
 }
 
+function logInfo(message) {
+    if (typeof console.info === 'function') {
+        console.info(message);
+    } else if (typeof console.log === 'function') {
+        console.log(message);
+    }
+}
+
 function mixColorChannel(a, b, t) {
     return a + ((b - a) * t);
 }
@@ -988,6 +1018,153 @@ function finalizeMandelbrotFrameStats(frameStats, status, reason = null, extra =
     return finalizeDeepFrameStats('mandelbrot', frameStats, status, reason, extra);
 }
 
+function getDeepWorkState(type) {
+    if (type === 'julia') {
+        return juliaDeepWorkState;
+    }
+    if (type === 'newton') {
+        return newtonDeepWorkState;
+    }
+    return mandelbrotDeepWorkState;
+}
+
+function setDeepWorkState(type, workState) {
+    if (type === 'julia') {
+        juliaDeepWorkState = workState;
+        return;
+    }
+    if (type === 'newton') {
+        newtonDeepWorkState = workState;
+        return;
+    }
+    mandelbrotDeepWorkState = workState;
+}
+
+function sanitizeDeepWorkState(workState) {
+    if (!workState) {
+        return null;
+    }
+
+    return {
+        stage: workState.stage || null,
+        initialReferenceMode: workState.initialReferenceMode || null,
+        referencesUsed: workState.referencesUsed ?? 0,
+        repairQueueLength: workState.repairQueueLength ?? 0,
+        repairTilesProcessed: workState.repairTilesProcessed ?? 0,
+        cpuTilesResolved: workState.cpuTilesResolved ?? 0,
+        elapsedMs: workState.startedAtMs
+            ? Math.max(0, Date.now() - workState.startedAtMs)
+            : null,
+        currentTile: workState.currentTile
+            ? {
+                width: workState.currentTile.width,
+                height: workState.currentTile.height,
+                depth: workState.currentTile.depth,
+            }
+            : null,
+        note: workState.note || null,
+    };
+}
+
+function updateDeepWorkState(type, patch, reason = null) {
+    const current = getDeepWorkState(type) || {};
+    const next = {
+        ...current,
+        ...patch,
+        startedAtMs: current.startedAtMs || Date.now(),
+        currentTile: patch.currentTile === undefined ? current.currentTile : patch.currentTile,
+    };
+    setDeepWorkState(type, next);
+
+    if (debugHeartbeatEnabled && reason) {
+        logInfo(`Fractal deep work ${JSON.stringify({ reason, mode: type, ...sanitizeDeepWorkState(next) })}`);
+    }
+
+    return next;
+}
+
+function clearDeepWorkState(type, reason = null) {
+    const previous = getDeepWorkState(type);
+    if (debugHeartbeatEnabled && reason && previous) {
+        logInfo(`Fractal deep work ${JSON.stringify({ reason, mode: type, ...sanitizeDeepWorkState(previous) })}`);
+    }
+    setDeepWorkState(type, null);
+}
+
+function deferNewtonDeepRender(scaleApprox) {
+    if (!Number.isFinite(scaleApprox) || scaleApprox <= 0) {
+        return newtonDeepRenderActivationScale;
+    }
+
+    const precisionFloor = getNewtonSimpleProxyPrecisionFloor(getDeepCamera('newton'));
+    const deferredScale = Math.max(
+        precisionFloor,
+        Math.min(
+            NEWTON_DEEP_RENDER_SCALE,
+            scaleApprox * NEWTON_DEEP_RETRY_SCALE_FACTOR
+        )
+    );
+    newtonDeepRenderActivationScale = Math.max(
+        precisionFloor,
+        Math.min(newtonDeepRenderActivationScale, deferredScale)
+    );
+    return newtonDeepRenderActivationScale;
+}
+
+function resetNewtonDeepRenderActivationScale() {
+    newtonDeepRenderActivationScale = NEWTON_DEEP_RENDER_SCALE;
+}
+
+function getNewtonSimpleProxyPrecisionFloor(camera) {
+    if (!camera) {
+        return NEWTON_DEEP_RENDER_SCALE;
+    }
+    const centerMagnitude = Math.max(
+        1,
+        Math.abs(decimalToNumber(camera.centerX)),
+        Math.abs(decimalToNumber(camera.centerY))
+    );
+    return centerMagnitude * FLOAT32_EPSILON * 4;
+}
+
+function canUseAccurateNewtonSimpleProxy(camera) {
+    return Boolean(camera) && camera.pixelScaleApprox >= getNewtonSimpleProxyPrecisionFloor(camera);
+}
+
+function shouldDeferNewtonRepairWork(referencesUsed, repairQueueLength, elapsedMs) {
+    if (repairQueueLength >= NEWTON_PATHOLOGICAL_REPAIR_QUEUE_LENGTH) {
+        return true;
+    }
+    if (
+        repairQueueLength >= NEWTON_PATHOLOGICAL_REPAIR_QUEUE_MIN
+        && elapsedMs >= NEWTON_PATHOLOGICAL_REPAIR_ELAPSED_MS
+    ) {
+        return true;
+    }
+    if (
+        referencesUsed >= NEWTON_PATHOLOGICAL_REPAIR_REFERENCE_LIMIT
+        && repairQueueLength >= NEWTON_PATHOLOGICAL_REPAIR_QUEUE_MIN
+    ) {
+        return true;
+    }
+    return false;
+}
+
+function shouldDeferNewtonDeepFailure(reason) {
+    return reason === 'pathological_initial_repair_flood'
+        || reason === 'pathological_repair_growth';
+}
+
+function getNewtonSimpleProxyMaxIterations(camera) {
+    if (newtonDeepRenderActivationScale >= NEWTON_DEEP_RENDER_SCALE) {
+        return camera.maxIterations;
+    }
+    return Math.min(
+        camera.maxIterations,
+        computeNewtonSimplePreviewIterationBudget(camera.pixelScaleApprox)
+    );
+}
+
 function getDeepDebugSnapshot(type) {
     const camera = getDeepCamera(type);
     return {
@@ -1001,11 +1178,186 @@ function getDeepDebugSnapshot(type) {
         mouseX: roundDebugNumber(mousePosition.x),
         mouseY: roundDebugNumber(mousePosition.y),
         lastFrame: getDeepLastFrameStats(type) || createEmptyMandelbrotFrameStats(),
+        activeWork: sanitizeDeepWorkState(getDeepWorkState(type)),
     };
 }
 
 function getMandelbrotDebugSnapshot() {
     return getDeepDebugSnapshot('mandelbrot');
+}
+
+function predictActiveRenderPath(type = fractalType) {
+    if (type === 'newton' && newtonDeferredCommittedFramePending) {
+        return 'deep';
+    }
+    if (isDeepFractalType(type) && shouldUseDeepRender(type)) {
+        return 'deep';
+    }
+    if (type === 'newton') {
+        return 'simple-proxy';
+    }
+    return 'simple';
+}
+
+function getActiveRenderPath(type = fractalType) {
+    if (type === fractalType && debugLastRenderedPath !== null) {
+        return debugLastRenderedPath;
+    }
+    return predictActiveRenderPath(type);
+}
+
+function noteRenderedPath(path) {
+    debugLastRenderedPath = path;
+}
+
+function getActiveDebugSnapshot(type = fractalType) {
+    const renderPath = getActiveRenderPath(type);
+    const deepCamera = isDeepFractalType(type) ? getDeepCamera(type) : null;
+    const activeCamera = deepCamera || simpleCamera;
+    const snapshot = {
+        timestamp: new Date().toISOString(),
+        mode: type,
+        renderPath,
+        rafTick: debugAnimationFrameCount,
+        lastAnimationStage: debugLastAnimationStage,
+        msSinceLastFrame: debugLastAnimationFrameAt
+            ? Math.max(0, Date.now() - debugLastAnimationFrameAt)
+            : null,
+        mouseX: roundDebugNumber(mousePosition.x),
+        mouseY: roundDebugNumber(mousePosition.y),
+        pixelScaleApprox: activeCamera
+            ? roundDebugNumber(
+                typeof activeCamera.pixelScaleApprox === 'number'
+                    ? activeCamera.pixelScaleApprox
+                    : activeCamera.pixelScale
+            )
+            : null,
+        maxIterations: activeCamera ? activeCamera.maxIterations : null,
+    };
+
+    if (isDeepFractalType(type)) {
+        const lastFrame = getDeepLastFrameStats(type) || createEmptyMandelbrotFrameStats();
+        snapshot.step = getDeepZoomStepCount(type);
+        snapshot.hold = getDeepQualityHold(type);
+        snapshot.frameReady = getDeepFrameReady(type);
+        snapshot.maskVerificationFramesRemaining = getDeepMaskVerificationFramesRemaining(type);
+        snapshot.stableReuseFrames = getDeepStableReuseFrames(type);
+        snapshot.lastFrame = {
+            status: lastFrame.status,
+            reason: lastFrame.reason,
+            referencesUsed: lastFrame.referencesUsed,
+            repairPasses: lastFrame.repairPasses,
+            cpuResolvedTiles: lastFrame.cpuResolvedTiles,
+            cpuResolvedPixels: lastFrame.cpuResolvedPixels,
+        };
+        snapshot.activeWork = sanitizeDeepWorkState(getDeepWorkState(type));
+    }
+
+    if (type === 'newton' && deepCamera) {
+        snapshot.deepEligible = shouldUseDeepRender(type);
+        snapshot.deepRenderScale = NEWTON_DEEP_RENDER_SCALE;
+        snapshot.deepActivationScale = roundDebugNumber(newtonDeepRenderActivationScale);
+        snapshot.previewMaxIterations = renderPath === 'simple-proxy'
+            ? getNewtonSimpleProxyMaxIterations(deepCamera)
+            : null;
+    }
+
+    return snapshot;
+}
+
+function clampDebugHeartbeatInterval(intervalMs) {
+    if (!Number.isFinite(intervalMs)) {
+        return DEBUG_HEARTBEAT_INTERVAL_MS;
+    }
+    return Math.max(MIN_DEBUG_HEARTBEAT_INTERVAL_MS, Math.floor(intervalMs));
+}
+
+function stopDebugHeartbeatLogging() {
+    if (debugHeartbeatTimer !== null && typeof clearInterval === 'function') {
+        clearInterval(debugHeartbeatTimer);
+    }
+    debugHeartbeatTimer = null;
+}
+
+function emitDebugHeartbeat(reason = 'tick') {
+    if (!debugHeartbeatEnabled) {
+        return;
+    }
+    logInfo(`Fractal heartbeat ${JSON.stringify({ reason, ...getActiveDebugSnapshot() })}`);
+}
+
+function noteRenderPathChange(reason = 'render-path-change') {
+    const renderPath = getActiveRenderPath();
+    if (renderPath === debugLastObservedRenderPath) {
+        return;
+    }
+    debugLastObservedRenderPath = renderPath;
+    emitDebugHeartbeat(reason);
+}
+
+function setDebugHeartbeatEnabled(enabled, intervalMs = debugHeartbeatIntervalMs) {
+    debugHeartbeatIntervalMs = clampDebugHeartbeatInterval(intervalMs);
+    stopDebugHeartbeatLogging();
+    debugHeartbeatEnabled = Boolean(enabled);
+    debugLastObservedRenderPath = null;
+
+    if (!debugHeartbeatEnabled) {
+        return false;
+    }
+
+    if (typeof setInterval === 'function') {
+        debugHeartbeatTimer = setInterval(() => {
+            emitDebugHeartbeat();
+        }, debugHeartbeatIntervalMs);
+    }
+
+    emitDebugHeartbeat('enabled');
+    noteRenderPathChange('initial-render-path');
+    return true;
+}
+
+function parseDebugHeartbeatBoolean(value) {
+    if (value == null) {
+        return null;
+    }
+    const normalized = String(value).trim().toLowerCase();
+    return !['0', 'false', 'off', 'no'].includes(normalized);
+}
+
+function configureDebugHeartbeatFromQuery() {
+    if (typeof window === 'undefined' || !window.location || typeof URLSearchParams !== 'function') {
+        return;
+    }
+
+    const params = new URLSearchParams(window.location.search || '');
+    const enabled = parseDebugHeartbeatBoolean(params.get('debugHeartbeat'));
+    const intervalParam = params.get('debugHeartbeatMs');
+    const intervalMs = intervalParam === null ? Number.NaN : Number(intervalParam);
+
+    if (enabled === null && !Number.isFinite(intervalMs)) {
+        return;
+    }
+
+    setDebugHeartbeatEnabled(enabled !== null ? enabled : true, intervalMs);
+}
+
+function installDebugControls() {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.__fractalDebug = {
+        enableHeartbeatLogs(intervalMs = debugHeartbeatIntervalMs) {
+            setDebugHeartbeatEnabled(true, intervalMs);
+            return getActiveDebugSnapshot();
+        },
+        disableHeartbeatLogs() {
+            setDebugHeartbeatEnabled(false);
+        },
+        getSnapshot() {
+            return getActiveDebugSnapshot();
+        },
+    };
 }
 
 function logDeepProgress(type) {
@@ -1018,7 +1370,7 @@ function logDeepProgress(type) {
         return;
     }
 
-    console.info(`${getDeepLabel(type)} zoom progress ${JSON.stringify(getDeepDebugSnapshot(type))}`);
+    logInfo(`${getDeepLabel(type)} zoom progress ${JSON.stringify(getDeepDebugSnapshot(type))}`);
 }
 
 function logMandelbrotProgress() {
@@ -1186,6 +1538,11 @@ function computeNewtonIterationBudget(pixelScale) {
     return Math.min(384, Math.max(64, Math.floor(64 + depth * 8)));
 }
 
+function computeNewtonSimplePreviewIterationBudget(pixelScale) {
+    const depth = Math.max(0, -Math.log10(Math.max(pixelScale, Number.MIN_VALUE)));
+    return Math.min(48, Math.max(24, Math.floor(24 + depth * 2)));
+}
+
 function computeDeepIterationBudget(type, pixelScale) {
     if (type === 'newton') {
         return computeNewtonIterationBudget(pixelScale);
@@ -1296,7 +1653,7 @@ function shouldUseDeepRender(type = fractalType) {
     }
     if (type === 'newton') {
         const camera = getDeepCamera(type);
-        return camera && camera.pixelScaleApprox <= NEWTON_DEEP_RENDER_SCALE;
+        return camera && camera.pixelScaleApprox <= newtonDeepRenderActivationScale;
     }
     return true;
 }
@@ -1654,13 +2011,13 @@ function getReferenceRingOffsets(radius, sampleSpacing) {
     return offsets;
 }
 
-function getReferenceSearchRings(baseRings) {
+function getReferenceSearchRings(baseRings, includeViewportRadius = true) {
     const maxViewportRadius = Math.max(
         128,
         Math.floor(Math.min(gl.canvas.width, gl.canvas.height) * 0.6)
     );
     const rings = baseRings.filter((radius) => radius <= maxViewportRadius);
-    if (!rings.includes(maxViewportRadius)) {
+    if (includeViewportRadius && !rings.includes(maxViewportRadius)) {
         rings.push(maxViewportRadius);
     }
     return rings;
@@ -1679,8 +2036,11 @@ function isReferenceCandidateBetter(candidate, bestCandidate) {
     return candidate.distanceSquared < bestCandidate.distanceSquared;
 }
 
-function getReferenceSearchAnchors(type, anchorPoint) {
+function getReferenceSearchAnchors(type, anchorPoint, includeCommittedReferenceAnchor = true) {
     const anchors = [anchorPoint];
+    if (!includeCommittedReferenceAnchor) {
+        return anchors;
+    }
     const reference = getDeepReference(type);
 
     if (reference.centerX !== null && reference.centerY !== null) {
@@ -1697,13 +2057,25 @@ function getReferenceSearchAnchors(type, anchorPoint) {
     return anchors;
 }
 
-function searchReferenceCandidates(type, anchorPoint, iterations, rings, sampleSpacing) {
+function searchReferenceCandidates(
+    type,
+    anchorPoint,
+    iterations,
+    rings,
+    sampleSpacing,
+    includeViewportRadius = true,
+    includeCommittedReferenceAnchor = true
+) {
     let bestCandidate = null;
     const camera = getDeepCamera(type);
 
-    for (const searchAnchor of getReferenceSearchAnchors(type, anchorPoint)) {
+    for (const searchAnchor of getReferenceSearchAnchors(
+        type,
+        anchorPoint,
+        includeCommittedReferenceAnchor
+    )) {
         const isPrimaryAnchor = searchAnchor === anchorPoint;
-        for (const radius of getReferenceSearchRings(rings)) {
+        for (const radius of getReferenceSearchRings(rings, includeViewportRadius)) {
             for (const offset of getReferenceRingOffsets(radius, sampleSpacing)) {
                 const candidatePoint = offsetDeepPoint(camera, searchAnchor, offset.x, offset.y);
                 const escapeIteration = computeEscapeIteration(candidatePoint.x, candidatePoint.y, iterations, type);
@@ -1840,7 +2212,7 @@ function selectInitialReference(anchorPoint, iterations, type = fractalType) {
         );
         const directReferenceThreshold = Math.max(
             NEWTON_DIRECT_REFERENCE_MIN_ITERATIONS,
-            Math.floor(iterations * NEWTON_DIRECT_REFERENCE_MIN_RATIO)
+            iterations - REFERENCE_REFINEMENT_ESCAPE_MARGIN
         );
 
         if (directEscapeIteration >= directReferenceThreshold) {
@@ -1859,8 +2231,10 @@ function selectInitialReference(anchorPoint, iterations, type = fractalType) {
             type,
             anchorPoint,
             iterations,
-            NEWTON_REFERENCE_SEARCH_RINGS,
-            NEWTON_REFERENCE_RING_SAMPLE_SPACING
+            NEWTON_INITIAL_REFERENCE_SEARCH_RINGS,
+            NEWTON_INITIAL_REFERENCE_RING_SAMPLE_SPACING,
+            false,
+            false
         );
         if (!candidate) {
             return null;
@@ -2260,12 +2634,77 @@ function commitMandelbrotReference(reference) {
     commitDeepReference('mandelbrot', reference);
 }
 
+function getCommittedReferenceAnchorDistanceSquared(type, selection) {
+    if (!selection || !selection.candidate || !selection.candidate.point) {
+        return Number.POSITIVE_INFINITY;
+    }
+    return getDeepPointScreenDistanceSquared(getDeepCamera(type), selection.candidate.point);
+}
+
+function chooseCommittedReferenceSelection(type, initialSelection, bestReferenceSelection, referencesUsed) {
+    if (referencesUsed <= 1) {
+        return bestReferenceSelection;
+    }
+
+    const reuseRadiusSquared = REFERENCE_REUSE_RADIUS_PIXELS ** 2;
+    const initialDistanceSquared = getCommittedReferenceAnchorDistanceSquared(type, initialSelection);
+    const bestDistanceSquared = getCommittedReferenceAnchorDistanceSquared(type, bestReferenceSelection);
+    const initialIsReusable = initialDistanceSquared <= reuseRadiusSquared;
+    const bestIsReusable = bestDistanceSquared <= reuseRadiusSquared;
+    const initialEscapeIteration = initialSelection?.candidate?.escapeIteration ?? Number.NEGATIVE_INFINITY;
+    const bestEscapeIteration = bestReferenceSelection?.candidate?.escapeIteration ?? Number.NEGATIVE_INFINITY;
+
+    if (initialIsReusable && bestIsReusable) {
+        if (initialEscapeIteration !== bestEscapeIteration) {
+            return initialEscapeIteration > bestEscapeIteration
+                ? initialSelection
+                : bestReferenceSelection;
+        }
+        if (initialDistanceSquared !== bestDistanceSquared) {
+            return initialDistanceSquared < bestDistanceSquared
+                ? initialSelection
+                : bestReferenceSelection;
+        }
+        if (initialSelection && !bestReferenceSelection) {
+            return initialSelection;
+        }
+        if (bestReferenceSelection) {
+            return bestReferenceSelection;
+        }
+    }
+
+    if (initialIsReusable !== bestIsReusable) {
+        return initialIsReusable ? initialSelection : bestReferenceSelection;
+    }
+
+    if (initialDistanceSquared !== bestDistanceSquared) {
+        return initialDistanceSquared < bestDistanceSquared
+            ? initialSelection
+            : bestReferenceSelection;
+    }
+
+    return bestReferenceSelection;
+}
+
 function createRepairTile(x, y, width, height, depth, maskData) {
     return { x, y, width, height, depth, maskData };
 }
 
+function prepareTightMaskReadback() {
+    if (typeof gl.pixelStorei === 'function' && gl.PACK_ALIGNMENT !== undefined) {
+        gl.pixelStorei(gl.PACK_ALIGNMENT, 1);
+    }
+}
+
+function prepareTightMaskUpload() {
+    if (typeof gl.pixelStorei === 'function' && gl.UNPACK_ALIGNMENT !== undefined) {
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    }
+}
+
 function readGlitchMask(tile) {
     const maskData = new Uint8Array(tile.width * tile.height);
+    prepareTightMaskReadback();
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, mandelbrotWorkingFramebuffer);
     gl.readBuffer(gl.COLOR_ATTACHMENT1);
     gl.readPixels(tile.x, tile.y, tile.width, tile.height, gl.RED, gl.UNSIGNED_BYTE, maskData);
@@ -2310,6 +2749,7 @@ function tileHasGlitches(tile) {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
         if (outputWidth === 1 && outputHeight === 1) {
+            prepareTightMaskReadback();
             gl.bindFramebuffer(gl.READ_FRAMEBUFFER, outputFramebuffer);
             gl.readBuffer(gl.COLOR_ATTACHMENT0);
             gl.readPixels(0, 0, 1, 1, gl.RED, gl.UNSIGNED_BYTE, reducedMaskSample);
@@ -2340,6 +2780,29 @@ function maskHasGlitches(maskData) {
         }
     }
     return false;
+}
+
+function countMaskGlitches(maskData) {
+    let glitchCount = 0;
+    for (let index = 0; index < maskData.length; index += 1) {
+        if (maskData[index] !== 0) {
+            glitchCount += 1;
+        }
+    }
+    return glitchCount;
+}
+
+function assessNewtonInitialRepairPressure(repairQueueLength, maskData) {
+    const glitchCount = countMaskGlitches(maskData);
+    const glitchRatio = maskData.length > 0 ? glitchCount / maskData.length : 0;
+    return {
+        glitchCount,
+        glitchRatio,
+        shouldDefer: (
+            repairQueueLength >= NEWTON_PATHOLOGICAL_INITIAL_REPAIR_QUEUE_LENGTH
+            && glitchRatio >= NEWTON_PATHOLOGICAL_INITIAL_GLITCH_RATIO
+        ),
+    };
 }
 
 function extractTileMask(parentTile, childTile) {
@@ -2540,6 +3003,7 @@ function resolveDeepTileOnCPU(type, tile) {
     );
 
     gl.bindTexture(gl.TEXTURE_2D, mandelbrotWorkingMaskTexture);
+    prepareTightMaskUpload();
     gl.texSubImage2D(
         gl.TEXTURE_2D,
         0,
@@ -2555,6 +3019,33 @@ function resolveDeepTileOnCPU(type, tile) {
 
 function resolveMandelbrotTileOnCPU(tile) {
     resolveDeepTileOnCPU('mandelbrot', tile);
+}
+
+function resolveRepairQueueOnCPU(type, repairQueue, frameStats) {
+    let processedTiles = 0;
+    while (repairQueue.length > 0) {
+        const tile = repairQueue.shift();
+        processedTiles += 1;
+        frameStats.lastTileWidth = tile.width;
+        frameStats.lastTileHeight = tile.height;
+        frameStats.lastTileDepth = tile.depth;
+        frameStats.deepestTileDepth = Math.max(frameStats.deepestTileDepth, tile.depth);
+        updateDeepWorkState(type, {
+            stage: 'cpu-repair-drain',
+            repairQueueLength: repairQueue.length,
+            repairTilesProcessed: processedTiles,
+            cpuTilesResolved: frameStats.cpuResolvedTiles,
+            currentTile: {
+                width: tile.width,
+                height: tile.height,
+                depth: tile.depth,
+            },
+            note: 'resolving-repair-queue-on-cpu',
+        }, processedTiles <= 4 || processedTiles % 16 === 0 ? 'cpu-repair-progress' : null);
+        resolveDeepTileOnCPU(type, tile);
+        frameStats.cpuResolvedTiles += 1;
+        frameStats.cpuResolvedPixels += tile.width * tile.height;
+    }
 }
 
 function setWorkingFramebufferDrawBuffers(writeMask = true) {
@@ -2665,11 +3156,22 @@ function drawCommittedMandelbrotFrame() {
 function renderSharpDeepFrame(type) {
     const camera = getDeepCamera(type);
     const frameStats = createEmptyMandelbrotFrameStats();
+    const frameStartMs = Date.now();
     frameStats.attemptedPixelScaleApprox = roundDebugNumber(camera.pixelScaleApprox);
     frameStats.attemptedMaxIterations = camera.maxIterations;
+    updateDeepWorkState(type, {
+        stage: 'frame-start',
+        referencesUsed: 0,
+        repairQueueLength: 0,
+        repairTilesProcessed: 0,
+        cpuTilesResolved: 0,
+        currentTile: null,
+        note: null,
+    }, 'frame-start');
 
     if (camera.pixelScaleApprox < MIN_GPU_SCALE) {
         finalizeDeepFrameStats(type, frameStats, 'failed', 'gpu_delta_precision_floor');
+        clearDeepWorkState(type, 'frame-failed');
         return false;
     }
 
@@ -2677,9 +3179,19 @@ function renderSharpDeepFrame(type) {
 
     const fullFrameTile = createRepairTile(0, 0, gl.canvas.width, gl.canvas.height, 0, null);
     const anchorPoint = screenToPlaneDeep(camera, mousePosition);
+    updateDeepWorkState(type, {
+        stage: 'initial-reference-search',
+        note: 'selecting-initial-reference',
+        currentTile: {
+            width: fullFrameTile.width,
+            height: fullFrameTile.height,
+            depth: fullFrameTile.depth,
+        },
+    }, 'initial-reference-search');
     const initialSelection = selectInitialReference(anchorPoint, camera.maxIterations, type);
     if (!initialSelection) {
         finalizeDeepFrameStats(type, frameStats, 'failed', 'no_initial_reference');
+        clearDeepWorkState(type, 'frame-failed');
         return false;
     }
 
@@ -2689,7 +3201,17 @@ function renderSharpDeepFrame(type) {
     frameStats.initialEscapedEarly = initialReference.escapedEarly;
     frameStats.initialReferenceMode = initialReferenceMode;
     frameStats.referencesUsed = 1;
+    let bestReferenceSelection = {
+        candidate: initialCandidate,
+        reference: initialReference,
+    };
     const deferredMaskVerification = canUseDeferredMaskVerification(type, initialReferenceMode);
+    updateDeepWorkState(type, {
+        stage: 'full-frame-render',
+        initialReferenceMode,
+        referencesUsed: 1,
+        note: deferredMaskVerification ? 'deferred-mask-verification' : 'exact-mask-verification',
+    }, 'full-frame-render');
     renderDeepPass(type, initialReference, fullFrameTile, !deferredMaskVerification);
     const repairQueue = [];
     let fullFrameHasGlitches = false;
@@ -2699,6 +3221,10 @@ function renderSharpDeepFrame(type) {
             Math.max(0, getDeepMaskVerificationFramesRemaining(type) - 1)
         );
     } else {
+        updateDeepWorkState(type, {
+            stage: 'full-frame-verify',
+            note: 'reading-full-frame-mask',
+        }, 'full-frame-verify');
         const fullFrameVerification = readGlitchMaskAndCheck(fullFrameTile);
         fullFrameHasGlitches = fullFrameVerification.hasGlitches;
         if (fullFrameHasGlitches) {
@@ -2725,29 +3251,97 @@ function renderSharpDeepFrame(type) {
             finalizeDeepFrameStats(type, frameStats, 'failed', 'full_frame_tile_limit', {
                 queuedTilesRemaining: repairQueue.length,
             });
+            clearDeepWorkState(type, 'frame-failed');
             return false;
         }
         queueChildTilesWithGlitches(repairQueue, fullFrameTile);
         sortRepairQueue(repairQueue);
         frameStats.repairQueuePeak = Math.max(frameStats.repairQueuePeak, repairQueue.length);
+        updateDeepWorkState(type, {
+            stage: 'repair-queue-seeded',
+            repairQueueLength: repairQueue.length,
+            note: 'queued-initial-repair-tiles',
+        }, 'repair-queue-seeded');
+        if (type === 'newton') {
+            const initialRepairPressure = assessNewtonInitialRepairPressure(
+                repairQueue.length,
+                fullFrameTile.maskData
+            );
+            if (initialRepairPressure.shouldDefer) {
+                finalizeDeepFrameStats(type, frameStats, 'failed', 'pathological_initial_repair_flood', {
+                    queuedTilesRemaining: repairQueue.length,
+                    fullFrameGlitchRatio: roundDebugNumber(initialRepairPressure.glitchRatio),
+                    fullFrameGlitchedPixels: initialRepairPressure.glitchCount,
+                });
+                updateDeepWorkState(type, {
+                    stage: 'repair-queue-seeded',
+                    referencesUsed: 1,
+                    repairQueueLength: repairQueue.length,
+                    repairTilesProcessed: 0,
+                    cpuTilesResolved: frameStats.cpuResolvedTiles,
+                    note: 'deferring-deep-render-due-to-initial-glitch-flood',
+                }, 'pathological-initial-repair-flood');
+                clearDeepWorkState(type, 'frame-failed');
+                return false;
+            }
+        }
     }
 
     let referencesUsed = 1;
+    let processedRepairTiles = 0;
+    const repairWorkStartMs = Date.now();
 
     while (repairQueue.length > 0) {
+        const elapsedMs = Date.now() - repairWorkStartMs;
+        if (
+            type === 'newton'
+            && shouldDeferNewtonRepairWork(referencesUsed, repairQueue.length, elapsedMs)
+        ) {
+            finalizeDeepFrameStats(type, frameStats, 'failed', 'pathological_repair_growth', {
+                queuedTilesRemaining: repairQueue.length,
+                elapsedMs,
+                referencesUsed,
+            });
+            updateDeepWorkState(type, {
+                stage: 'repair-reference-search',
+                referencesUsed,
+                repairQueueLength: repairQueue.length,
+                repairTilesProcessed: processedRepairTiles,
+                cpuTilesResolved: frameStats.cpuResolvedTiles,
+                note: 'deferring-deep-render-due-to-repair-growth',
+            }, 'pathological-repair-growth');
+            clearDeepWorkState(type, 'frame-failed');
+            return false;
+        }
+
         if (referencesUsed >= MAX_REPAIR_REFERENCES) {
             finalizeDeepFrameStats(type, frameStats, 'failed', 'repair_reference_budget_exhausted', {
                 queuedTilesRemaining: repairQueue.length,
             });
+            clearDeepWorkState(type, 'frame-failed');
             return false;
         }
 
         const tile = repairQueue.shift();
+        processedRepairTiles += 1;
         frameStats.lastTileWidth = tile.width;
         frameStats.lastTileHeight = tile.height;
         frameStats.lastTileDepth = tile.depth;
         frameStats.deepestTileDepth = Math.max(frameStats.deepestTileDepth, tile.depth);
         frameStats.repairQueuePeak = Math.max(frameStats.repairQueuePeak, repairQueue.length);
+        updateDeepWorkState(type, {
+            stage: 'repair-reference-search',
+            referencesUsed,
+            repairQueueLength: repairQueue.length,
+            repairTilesProcessed: processedRepairTiles,
+            cpuTilesResolved: frameStats.cpuResolvedTiles,
+            currentTile: {
+                width: tile.width,
+                height: tile.height,
+                depth: tile.depth,
+            },
+            note: 'searching-repair-reference',
+        }, processedRepairTiles <= 4 || processedRepairTiles % 16 === 0 ? 'repair-progress' : null);
         const glitchedPixel = findGlitchedPixelNearTileCenter(tile);
         if (!glitchedPixel) {
             continue;
@@ -2763,15 +3357,42 @@ function renderSharpDeepFrame(type) {
                 lastTileHeight: tile.height,
                 lastTileDepth: tile.depth,
             });
+            clearDeepWorkState(type, 'frame-failed');
             return false;
         }
 
         frameStats.lastRepairEscapeIteration = repairCandidate.escapeIteration;
         const repairReference = getReferenceOrbit(repairCandidate.point, camera.maxIterations, type);
+        const repairCandidateForCommit = {
+            ...repairCandidate,
+            distanceSquared: getDeepPointScreenDistanceSquared(camera, repairCandidate.point),
+        };
+        if (isReferenceCandidateBetter(repairCandidateForCommit, bestReferenceSelection.candidate)) {
+            bestReferenceSelection = {
+                candidate: repairCandidateForCommit,
+                reference: repairReference,
+            };
+        }
+        updateDeepWorkState(type, {
+            stage: 'repair-render',
+            referencesUsed,
+            repairQueueLength: repairQueue.length,
+            repairTilesProcessed: processedRepairTiles,
+            cpuTilesResolved: frameStats.cpuResolvedTiles,
+            note: 'rendering-repair-tile',
+        }, null);
         renderDeepPass(type, repairReference, tile);
         referencesUsed += 1;
         frameStats.referencesUsed = referencesUsed;
 
+        updateDeepWorkState(type, {
+            stage: 'repair-verify',
+            referencesUsed,
+            repairQueueLength: repairQueue.length,
+            repairTilesProcessed: processedRepairTiles,
+            cpuTilesResolved: frameStats.cpuResolvedTiles,
+            note: 'checking-repair-mask',
+        }, null);
         if (!tileHasGlitches(tile)) {
             continue;
         }
@@ -2783,6 +3404,14 @@ function renderSharpDeepFrame(type) {
             || tile.width <= MIN_REPAIR_TILE_SIZE
             || tile.height <= MIN_REPAIR_TILE_SIZE
         ) {
+            updateDeepWorkState(type, {
+                stage: 'cpu-tile-resolve',
+                referencesUsed,
+                repairQueueLength: repairQueue.length,
+                repairTilesProcessed: processedRepairTiles,
+                cpuTilesResolved: frameStats.cpuResolvedTiles,
+                note: 'resolving-minimum-tile-on-cpu',
+            }, 'cpu-tile-resolve');
             resolveDeepTileOnCPU(type, tile);
             frameStats.cpuResolvedTiles += 1;
             frameStats.cpuResolvedPixels += tile.width * tile.height;
@@ -2794,10 +3423,29 @@ function renderSharpDeepFrame(type) {
         frameStats.repairQueuePeak = Math.max(frameStats.repairQueuePeak, repairQueue.length);
     }
 
+    updateDeepWorkState(type, {
+        stage: 'commit-frame',
+        referencesUsed,
+        repairQueueLength: repairQueue.length,
+        repairTilesProcessed: processedRepairTiles,
+        cpuTilesResolved: frameStats.cpuResolvedTiles,
+        currentTile: null,
+        note: 'committing-rendered-frame',
+    }, 'commit-frame');
+    const committedReferenceSelection = chooseCommittedReferenceSelection(
+        type,
+        initialSelection,
+        bestReferenceSelection,
+        referencesUsed
+    );
     copyWorkingFrameToCommitted();
-    commitDeepReference(type, initialReference);
+    commitDeepReference(type, committedReferenceSelection.reference);
     setDeepFrameReady(type, true);
+    if (type === 'newton') {
+        newtonDeferredCommittedFramePending = false;
+    }
     finalizeDeepFrameStats(type, frameStats, 'success');
+    clearDeepWorkState(type, 'frame-complete');
     return true;
 }
 
@@ -2833,15 +3481,30 @@ function stepDeepCameraWithQualityPriority(type) {
     const previousCamera = cloneDeepCamera(getDeepCamera(type));
     const previousReference = cloneDeepReference(getDeepReference(type));
     const previousWarningShown = getDeepPrecisionWarningShown(type);
+    const previousFrameReady = getDeepFrameReady(type);
 
     updateDeepCameraForType(type);
 
     if (!renderSharpDeepFrame(type)) {
+        const failedFrameStats = getDeepLastFrameStats(type) || createEmptyMandelbrotFrameStats();
         setDeepCamera(type, previousCamera);
         setDeepReference(type, previousReference);
         setDeepPrecisionWarningShown(type, previousWarningShown);
         setDeepMaskVerificationFramesRemaining(type, 0);
         setDeepStableReuseFrames(type, 0);
+        if (
+            type === 'newton'
+            && shouldDeferNewtonDeepFailure(failedFrameStats.reason)
+            && canUseAccurateNewtonSimpleProxy(previousCamera)
+        ) {
+            newtonDeferredCommittedFramePending = previousFrameReady;
+            setDeepFrameReady(type, false);
+            setDeepReference(type, createEmptyReference());
+            deferNewtonDeepRender(previousCamera.pixelScaleApprox);
+            setDeepQualityHold(type, false);
+            setDeepQualityHoldWarningShown(type, false);
+            return false;
+        }
         setDeepQualityHold(type, true);
         if (!getDeepQualityHoldWarningShown(type)) {
             console.warn(`Paused ${getDeepLabel(type)} zoom ${JSON.stringify(getDeepDebugSnapshot(type))}`);
@@ -2854,6 +3517,9 @@ function stepDeepCameraWithQualityPriority(type) {
     logDeepProgress(type);
     setDeepQualityHold(type, false);
     setDeepQualityHoldWarningShown(type, false);
+    if (type === 'newton') {
+        resetNewtonDeepRenderActivationScale();
+    }
     return true;
 }
 
@@ -2892,26 +3558,45 @@ function drawDeepFractal(type) {
     }
 
     if (!getDeepFrameReady(type) && !renderSharpDeepFrame(type)) {
+        if (type === 'newton') {
+            if (drawSimpleProxyFromDeepCamera(type)) {
+                noteRenderedPath('simple-proxy');
+            } else {
+                drawCommittedDeepFrame();
+                noteRenderedPath('deep');
+            }
+            return;
+        }
         drawSimpleFractal(type, {
             centerX: decimalToNumber(camera.centerX),
             centerY: decimalToNumber(camera.centerY),
             pixelScale: camera.pixelScaleApprox,
             maxIterations: camera.maxIterations,
         });
+        noteRenderedPath('simple');
         return;
     }
 
     drawCommittedDeepFrame();
+    noteRenderedPath('deep');
 }
 
 function drawSimpleProxyFromDeepCamera(type) {
     const camera = getDeepCamera(type);
+    if (type === 'newton' && !canUseAccurateNewtonSimpleProxy(camera)) {
+        return false;
+    }
+    let maxIterations = camera.maxIterations;
+    if (type === 'newton') {
+        maxIterations = getNewtonSimpleProxyMaxIterations(camera);
+    }
     drawSimpleFractal(type, {
         centerX: decimalToNumber(camera.centerX),
         centerY: decimalToNumber(camera.centerY),
         pixelScale: camera.pixelScaleApprox,
-        maxIterations: camera.maxIterations,
+        maxIterations,
     });
+    return true;
 }
 
 function drawDeepMandelbrot() {
@@ -2931,6 +3616,13 @@ function draw() {
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
+    if (fractalType === 'newton' && newtonDeferredCommittedFramePending) {
+        drawCommittedDeepFrame();
+        newtonDeferredCommittedFramePending = false;
+        noteRenderedPath('deep');
+        return;
+    }
+
     if (isDeepFractalType(fractalType) && shouldUseDeepRender(fractalType)) {
         drawDeepFractal(fractalType);
         return;
@@ -2938,10 +3630,12 @@ function draw() {
 
     if (fractalType === 'newton') {
         drawSimpleProxyFromDeepCamera('newton');
+        noteRenderedPath('simple-proxy');
         return;
     }
 
     drawSimpleFractal(fractalType, simpleCamera);
+    noteRenderedPath('simple');
 }
 
 function animate() {
@@ -2949,6 +3643,9 @@ function animate() {
         return;
     }
 
+    debugAnimationFrameCount += 1;
+    debugLastAnimationFrameAt = Date.now();
+    debugLastAnimationStage = 'step';
     if (isDeepFractalType(fractalType) && shouldUseDeepRender(fractalType)) {
         stepDeepCameraWithQualityPriority(fractalType);
     } else if (fractalType === 'newton') {
@@ -2957,7 +3654,10 @@ function animate() {
         updateSimpleCamera(simpleCamera);
     }
 
+    debugLastAnimationStage = 'draw';
     draw();
+    noteRenderPathChange();
+    debugLastAnimationStage = 'frame-complete';
     requestAnimationFrame(animate);
 }
 
@@ -3005,6 +3705,10 @@ function resizeCanvas() {
         setDeepQualityHoldWarningShown(fractalType, false);
         setDeepMaskVerificationFramesRemaining(fractalType, 0);
         setDeepStableReuseFrames(fractalType, 0);
+        clearDeepWorkState(fractalType);
+        if (fractalType === 'newton') {
+            resetNewtonDeepRenderActivationScale();
+        }
     } else {
         updateSimpleCameraScale(simpleCamera);
     }
@@ -3033,6 +3737,8 @@ function resetMandelbrotState() {
     mandelbrotLastFrameStats = createEmptyMandelbrotFrameStats();
     mandelbrotMaskVerificationFramesRemaining = 0;
     mandelbrotStableReuseFrames = 0;
+    mandelbrotDeepWorkState = null;
+    debugLastRenderedPath = null;
 }
 
 function resetJuliaState() {
@@ -3047,6 +3753,8 @@ function resetJuliaState() {
     juliaLastFrameStats = createEmptyMandelbrotFrameStats();
     juliaMaskVerificationFramesRemaining = 0;
     juliaStableReuseFrames = 0;
+    juliaDeepWorkState = null;
+    debugLastRenderedPath = null;
 }
 
 function resetNewtonState() {
@@ -3061,6 +3769,10 @@ function resetNewtonState() {
     newtonLastFrameStats = createEmptyMandelbrotFrameStats();
     newtonMaskVerificationFramesRemaining = 0;
     newtonStableReuseFrames = 0;
+    newtonDeepWorkState = null;
+    newtonDeferredCommittedFramePending = false;
+    debugLastRenderedPath = null;
+    resetNewtonDeepRenderActivationScale();
 }
 
 function handleMouseMove(event) {
@@ -3078,6 +3790,7 @@ function handleMouseMove(event) {
         setDeepQualityHoldWarningShown(fractalType, false);
         setDeepMaskVerificationFramesRemaining(fractalType, 0);
         setDeepStableReuseFrames(fractalType, 0);
+        clearDeepWorkState(fractalType);
     }
 }
 
@@ -3093,6 +3806,8 @@ function handleFractalTypeChange(event) {
         resetSimpleCamera(fractalType);
     }
     setMouseToCenter();
+    draw();
+    noteRenderPathChange('mode-change');
 }
 
 function preventZoom(event) {
@@ -3105,6 +3820,7 @@ window.addEventListener('load', () => {
         return;
     }
 
+    installDebugControls();
     document.getElementById('fractalType').addEventListener('change', handleFractalTypeChange);
     gl.canvas.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('wheel', preventZoom, { passive: false });
@@ -3115,7 +3831,9 @@ window.addEventListener('load', () => {
     resetJuliaState();
     resetNewtonState();
     setMouseToCenter();
+    configureDebugHeartbeatFromQuery();
     draw();
+    noteRenderPathChange('load');
     requestAnimationFrame(animate);
 });
 
