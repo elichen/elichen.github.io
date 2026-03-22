@@ -495,15 +495,20 @@ let maskReduceProgramInfo;
 let orbitTexture;
 let orbitTextureCapacity = 0;
 let mandelbrotWorkingFramebuffer;
-let mandelbrotCommittedFramebuffer;
 let mandelbrotWorkingColorTexture;
 let mandelbrotWorkingMaskTexture;
+let mandelbrotCommittedFramebuffer;
 let mandelbrotCommittedColorTexture;
+let juliaCommittedFramebuffer;
+let juliaCommittedColorTexture;
+let newtonCommittedFramebuffer;
+let newtonCommittedColorTexture;
 let maskReduceFramebufferA;
 let maskReduceFramebufferB;
 let maskReduceTextureA;
 let maskReduceTextureB;
 let mandelbrotFrameReady = false;
+let mandelbrotCommittedFrameAvailable = false;
 let mandelbrotReferenceCache = new Map();
 let mandelbrotRenderTargetWidth = 0;
 let mandelbrotRenderTargetHeight = 0;
@@ -512,12 +517,14 @@ let mandelbrotLastFrameStats = null;
 let mandelbrotMaskVerificationFramesRemaining = 0;
 let mandelbrotStableReuseFrames = 0;
 let juliaFrameReady = false;
+let juliaCommittedFrameAvailable = false;
 let juliaReferenceCache = new Map();
 let juliaZoomStepCount = 0;
 let juliaLastFrameStats = null;
 let juliaMaskVerificationFramesRemaining = 0;
 let juliaStableReuseFrames = 0;
 let newtonFrameReady = false;
+let newtonCommittedFrameAvailable = false;
 let newtonReferenceCache = new Map();
 let newtonZoomStepCount = 0;
 let newtonLastFrameStats = null;
@@ -716,6 +723,72 @@ function setDeepReferenceCache(type, cache) {
         return;
     }
     mandelbrotReferenceCache = cache;
+}
+
+function getDeepCommittedFramebuffer(type = fractalType) {
+    if (type === 'julia') {
+        return juliaCommittedFramebuffer;
+    }
+    if (type === 'newton') {
+        return newtonCommittedFramebuffer;
+    }
+    return mandelbrotCommittedFramebuffer;
+}
+
+function setDeepCommittedFramebuffer(type, framebuffer) {
+    if (type === 'julia') {
+        juliaCommittedFramebuffer = framebuffer;
+        return;
+    }
+    if (type === 'newton') {
+        newtonCommittedFramebuffer = framebuffer;
+        return;
+    }
+    mandelbrotCommittedFramebuffer = framebuffer;
+}
+
+function getDeepCommittedColorTexture(type = fractalType) {
+    if (type === 'julia') {
+        return juliaCommittedColorTexture;
+    }
+    if (type === 'newton') {
+        return newtonCommittedColorTexture;
+    }
+    return mandelbrotCommittedColorTexture;
+}
+
+function setDeepCommittedColorTexture(type, texture) {
+    if (type === 'julia') {
+        juliaCommittedColorTexture = texture;
+        return;
+    }
+    if (type === 'newton') {
+        newtonCommittedColorTexture = texture;
+        return;
+    }
+    mandelbrotCommittedColorTexture = texture;
+}
+
+function getDeepCommittedFrameAvailable(type = fractalType) {
+    if (type === 'julia') {
+        return juliaCommittedFrameAvailable;
+    }
+    if (type === 'newton') {
+        return newtonCommittedFrameAvailable;
+    }
+    return mandelbrotCommittedFrameAvailable;
+}
+
+function setDeepCommittedFrameAvailable(type, value) {
+    if (type === 'julia') {
+        juliaCommittedFrameAvailable = value;
+        return;
+    }
+    if (type === 'newton') {
+        newtonCommittedFrameAvailable = value;
+        return;
+    }
+    mandelbrotCommittedFrameAvailable = value;
 }
 
 function getDeepFrameReady(type = fractalType) {
@@ -1188,7 +1261,7 @@ function getMandelbrotDebugSnapshot() {
 
 function predictActiveRenderPath(type = fractalType) {
     if (type === 'newton' && newtonDeferredCommittedFramePending) {
-        return 'deep';
+        return getDeepCommittedFrameAvailable('newton') ? 'deep' : 'blank';
     }
     if (isDeepFractalType(type) && shouldUseDeepRender(type)) {
         return 'deep';
@@ -1786,7 +1859,70 @@ function createTexture(width, height, internalFormat, format, type) {
     return texture;
 }
 
-function ensureMandelbrotRenderTargets() {
+function destroyDeepCommittedRenderTarget(type) {
+    const framebuffer = getDeepCommittedFramebuffer(type);
+    const colorTexture = getDeepCommittedColorTexture(type);
+    if (framebuffer) {
+        gl.deleteFramebuffer(framebuffer);
+    }
+    if (colorTexture) {
+        gl.deleteTexture(colorTexture);
+    }
+    setDeepCommittedFramebuffer(type, null);
+    setDeepCommittedColorTexture(type, null);
+    setDeepCommittedFrameAvailable(type, false);
+}
+
+function blitColorFramebuffer(
+    readFramebuffer,
+    drawFramebuffer,
+    sourceWidth,
+    sourceHeight,
+    targetWidth = gl.canvas.width,
+    targetHeight = gl.canvas.height
+) {
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, readFramebuffer);
+    gl.readBuffer(gl.COLOR_ATTACHMENT0);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, drawFramebuffer);
+    gl.blitFramebuffer(
+        0,
+        0,
+        sourceWidth,
+        sourceHeight,
+        0,
+        0,
+        targetWidth,
+        targetHeight,
+        gl.COLOR_BUFFER_BIT,
+        gl.NEAREST
+    );
+}
+
+function ensureDeepCommittedRenderTarget(type, width, height) {
+    if (getDeepCommittedFramebuffer(type) && getDeepCommittedColorTexture(type)) {
+        return;
+    }
+
+    const committedColorTexture = createTexture(width, height, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE);
+    const committedFramebuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, committedFramebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, committedColorTexture, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+        throw new Error(`${getDeepLabel(type)} committed framebuffer is incomplete.`);
+    }
+
+    setDeepCommittedColorTexture(type, committedColorTexture);
+    setDeepCommittedFramebuffer(type, committedFramebuffer);
+    setDeepCommittedFrameAvailable(type, false);
+}
+
+function destroyAllDeepCommittedRenderTargets() {
+    destroyDeepCommittedRenderTarget('mandelbrot');
+    destroyDeepCommittedRenderTarget('julia');
+    destroyDeepCommittedRenderTarget('newton');
+}
+
+function ensureMandelbrotRenderTargets(type = fractalType) {
     if (!gl) {
         return;
     }
@@ -1796,33 +1932,63 @@ function ensureMandelbrotRenderTargets() {
     if (
         mandelbrotWorkingColorTexture
         && mandelbrotWorkingMaskTexture
-        && mandelbrotCommittedColorTexture
         && mandelbrotRenderTargetWidth === width
         && mandelbrotRenderTargetHeight === height
     ) {
+        ensureDeepCommittedRenderTarget('mandelbrot', width, height);
+        ensureDeepCommittedRenderTarget('julia', width, height);
+        ensureDeepCommittedRenderTarget('newton', width, height);
         return;
     }
+
+    const previousWidth = mandelbrotRenderTargetWidth;
+    const previousHeight = mandelbrotRenderTargetHeight;
+    const previousCommittedTargets = {
+        mandelbrot: {
+            framebuffer: getDeepCommittedFramebuffer('mandelbrot'),
+            colorTexture: getDeepCommittedColorTexture('mandelbrot'),
+            available: getDeepCommittedFrameAvailable('mandelbrot'),
+        },
+        julia: {
+            framebuffer: getDeepCommittedFramebuffer('julia'),
+            colorTexture: getDeepCommittedColorTexture('julia'),
+            available: getDeepCommittedFrameAvailable('julia'),
+        },
+        newton: {
+            framebuffer: getDeepCommittedFramebuffer('newton'),
+            colorTexture: getDeepCommittedColorTexture('newton'),
+            available: getDeepCommittedFrameAvailable('newton'),
+        },
+    };
 
     mandelbrotRenderTargetWidth = width;
     mandelbrotRenderTargetHeight = height;
     mandelbrotFrameReady = false;
     juliaFrameReady = false;
+    newtonFrameReady = false;
+    newtonDeferredCommittedFramePending = false;
 
     if (mandelbrotWorkingFramebuffer) {
         gl.deleteFramebuffer(mandelbrotWorkingFramebuffer);
-        gl.deleteFramebuffer(mandelbrotCommittedFramebuffer);
         gl.deleteFramebuffer(maskReduceFramebufferA);
         gl.deleteFramebuffer(maskReduceFramebufferB);
         gl.deleteTexture(mandelbrotWorkingColorTexture);
         gl.deleteTexture(mandelbrotWorkingMaskTexture);
-        gl.deleteTexture(mandelbrotCommittedColorTexture);
         gl.deleteTexture(maskReduceTextureA);
         gl.deleteTexture(maskReduceTextureB);
     }
+    setDeepCommittedFramebuffer('mandelbrot', null);
+    setDeepCommittedColorTexture('mandelbrot', null);
+    setDeepCommittedFramebuffer('julia', null);
+    setDeepCommittedColorTexture('julia', null);
+    setDeepCommittedFramebuffer('newton', null);
+    setDeepCommittedColorTexture('newton', null);
+    setDeepCommittedFrameAvailable('mandelbrot', false);
+    setDeepCommittedFrameAvailable('julia', false);
+    setDeepCommittedFrameAvailable('newton', false);
 
     mandelbrotWorkingColorTexture = createTexture(width, height, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE);
     mandelbrotWorkingMaskTexture = createTexture(width, height, gl.R8, gl.RED, gl.UNSIGNED_BYTE);
-    mandelbrotCommittedColorTexture = createTexture(width, height, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE);
     maskReduceTextureA = createTexture(width, height, gl.R8, gl.RED, gl.UNSIGNED_BYTE);
     maskReduceTextureB = createTexture(width, height, gl.R8, gl.RED, gl.UNSIGNED_BYTE);
 
@@ -1833,13 +1999,6 @@ function ensureMandelbrotRenderTargets() {
     gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
     if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
         throw new Error('Mandelbrot working framebuffer is incomplete.');
-    }
-
-    mandelbrotCommittedFramebuffer = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotCommittedFramebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, mandelbrotCommittedColorTexture, 0);
-    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
-        throw new Error('Mandelbrot committed framebuffer is incomplete.');
     }
 
     maskReduceFramebufferA = gl.createFramebuffer();
@@ -1854,6 +2013,32 @@ function ensureMandelbrotRenderTargets() {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, maskReduceTextureB, 0);
     if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
         throw new Error('Mask reduction framebuffer B is incomplete.');
+    }
+
+    for (const deepType of ['mandelbrot', 'julia', 'newton']) {
+        ensureDeepCommittedRenderTarget(deepType, width, height);
+        const previousTarget = previousCommittedTargets[deepType];
+        if (previousTarget.available && previousTarget.framebuffer) {
+            blitColorFramebuffer(
+                previousTarget.framebuffer,
+                getDeepCommittedFramebuffer(deepType),
+                previousWidth,
+                previousHeight,
+                width,
+                height
+            );
+            setDeepCommittedFrameAvailable(deepType, true);
+        }
+    }
+
+    for (const deepType of ['mandelbrot', 'julia', 'newton']) {
+        const previousTarget = previousCommittedTargets[deepType];
+        if (previousTarget.framebuffer) {
+            gl.deleteFramebuffer(previousTarget.framebuffer);
+        }
+        if (previousTarget.colorTexture) {
+            gl.deleteTexture(previousTarget.colorTexture);
+        }
     }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -3097,41 +3282,35 @@ function renderMandelbrotPass(reference, tile) {
     renderDeepPass('mandelbrot', reference, tile);
 }
 
-function copyWorkingFrameToCommitted() {
-    const nextCommittedTexture = mandelbrotWorkingColorTexture;
-    mandelbrotWorkingColorTexture = mandelbrotCommittedColorTexture;
-    mandelbrotCommittedColorTexture = nextCommittedTexture;
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotWorkingFramebuffer);
-    gl.framebufferTexture2D(
-        gl.FRAMEBUFFER,
-        gl.COLOR_ATTACHMENT0,
-        gl.TEXTURE_2D,
-        mandelbrotWorkingColorTexture,
-        0
-    );
-    gl.framebufferTexture2D(
-        gl.FRAMEBUFFER,
-        gl.COLOR_ATTACHMENT1,
-        gl.TEXTURE_2D,
-        mandelbrotWorkingMaskTexture,
-        0
-    );
-    setWorkingFramebufferDrawBuffers(true);
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotCommittedFramebuffer);
-    gl.framebufferTexture2D(
-        gl.FRAMEBUFFER,
-        gl.COLOR_ATTACHMENT0,
-        gl.TEXTURE_2D,
-        mandelbrotCommittedColorTexture,
-        0
+function copyWorkingFrameToCommitted(type = fractalType) {
+    if (!mandelbrotWorkingFramebuffer || !getDeepCommittedFramebuffer(type)) {
+        ensureMandelbrotRenderTargets(type);
+    }
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, mandelbrotWorkingFramebuffer);
+    gl.readBuffer(gl.COLOR_ATTACHMENT0);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, getDeepCommittedFramebuffer(type));
+    gl.blitFramebuffer(
+        0,
+        0,
+        gl.canvas.width,
+        gl.canvas.height,
+        0,
+        0,
+        gl.canvas.width,
+        gl.canvas.height,
+        gl.COLOR_BUFFER_BIT,
+        gl.NEAREST
     );
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    setDeepCommittedFrameAvailable(type, true);
 }
 
-function drawCommittedDeepFrame() {
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, mandelbrotCommittedFramebuffer);
+function drawCommittedDeepFrame(type = fractalType) {
+    const committedFramebuffer = getDeepCommittedFramebuffer(type);
+    if (!committedFramebuffer || !getDeepCommittedFrameAvailable(type)) {
+        return false;
+    }
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, committedFramebuffer);
     gl.readBuffer(gl.COLOR_ATTACHMENT0);
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
     gl.blitFramebuffer(
@@ -3147,10 +3326,11 @@ function drawCommittedDeepFrame() {
         gl.NEAREST
     );
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return true;
 }
 
 function drawCommittedMandelbrotFrame() {
-    drawCommittedDeepFrame();
+    drawCommittedDeepFrame('mandelbrot');
 }
 
 function renderSharpDeepFrame(type) {
@@ -3438,7 +3618,7 @@ function renderSharpDeepFrame(type) {
         bestReferenceSelection,
         referencesUsed
     );
-    copyWorkingFrameToCommitted();
+    copyWorkingFrameToCommitted(type);
     commitDeepReference(type, committedReferenceSelection.reference);
     setDeepFrameReady(type, true);
     if (type === 'newton') {
@@ -3535,10 +3715,11 @@ function stepNewtonCameraWithQualityPriority() {
     return stepDeepCameraWithQualityPriority('newton');
 }
 
-function drawSimpleFractal(activeType, camera) {
+function drawSimpleFractalToFramebuffer(activeType, camera, framebuffer = null) {
     const fractalIndex = ['mandelbrot', 'julia', 'newton'].indexOf(activeType);
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     gl.useProgram(simpleProgramInfo.program);
     bindQuad(simpleProgramInfo);
     gl.uniform2f(simpleProgramInfo.uniforms.u_resolution, gl.canvas.width, gl.canvas.height);
@@ -3547,6 +3728,20 @@ function drawSimpleFractal(activeType, camera) {
     gl.uniform1i(simpleProgramInfo.uniforms.u_fractalType, fractalIndex);
     gl.uniform1i(simpleProgramInfo.uniforms.u_maxIterations, camera.maxIterations);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+function drawSimpleFractal(activeType, camera) {
+    drawSimpleFractalToFramebuffer(activeType, camera, null);
+}
+
+function cacheNewtonSimpleProxyFrame(camera) {
+    const committedFramebuffer = getDeepCommittedFramebuffer('newton');
+    if (!committedFramebuffer) {
+        return false;
+    }
+    drawSimpleFractalToFramebuffer('newton', camera, committedFramebuffer);
+    setDeepCommittedFrameAvailable('newton', true);
+    return true;
 }
 
 function drawDeepFractal(type) {
@@ -3561,9 +3756,10 @@ function drawDeepFractal(type) {
         if (type === 'newton') {
             if (drawSimpleProxyFromDeepCamera(type)) {
                 noteRenderedPath('simple-proxy');
-            } else {
-                drawCommittedDeepFrame();
+            } else if (drawCommittedDeepFrame(type)) {
                 noteRenderedPath('deep');
+            } else {
+                noteRenderedPath('blank');
             }
             return;
         }
@@ -3577,7 +3773,7 @@ function drawDeepFractal(type) {
         return;
     }
 
-    drawCommittedDeepFrame();
+    drawCommittedDeepFrame(type);
     noteRenderedPath('deep');
 }
 
@@ -3590,12 +3786,16 @@ function drawSimpleProxyFromDeepCamera(type) {
     if (type === 'newton') {
         maxIterations = getNewtonSimpleProxyMaxIterations(camera);
     }
-    drawSimpleFractal(type, {
+    const simpleProxyCamera = {
         centerX: decimalToNumber(camera.centerX),
         centerY: decimalToNumber(camera.centerY),
         pixelScale: camera.pixelScaleApprox,
         maxIterations,
-    });
+    };
+    drawSimpleFractal(type, simpleProxyCamera);
+    if (type === 'newton') {
+        cacheNewtonSimpleProxyFrame(simpleProxyCamera);
+    }
     return true;
 }
 
@@ -3617,9 +3817,12 @@ function draw() {
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     if (fractalType === 'newton' && newtonDeferredCommittedFramePending) {
-        drawCommittedDeepFrame();
+        if (drawCommittedDeepFrame('newton')) {
+            noteRenderedPath('deep');
+        } else {
+            noteRenderedPath('blank');
+        }
         newtonDeferredCommittedFramePending = false;
-        noteRenderedPath('deep');
         return;
     }
 
@@ -3629,8 +3832,13 @@ function draw() {
     }
 
     if (fractalType === 'newton') {
-        drawSimpleProxyFromDeepCamera('newton');
-        noteRenderedPath('simple-proxy');
+        if (drawSimpleProxyFromDeepCamera('newton')) {
+            noteRenderedPath('simple-proxy');
+        } else if (drawCommittedDeepFrame('newton')) {
+            noteRenderedPath('deep');
+        } else {
+            noteRenderedPath('blank');
+        }
         return;
     }
 
@@ -3697,6 +3905,7 @@ function resizeCanvas() {
     mandelbrotFrameReady = false;
     juliaFrameReady = false;
     newtonFrameReady = false;
+    newtonDeferredCommittedFramePending = false;
 
     if (isDeepFractalType(fractalType) && getDeepCamera(fractalType)) {
         const deepCamera = getDeepCamera(fractalType);
@@ -3730,6 +3939,7 @@ function resetMandelbrotState() {
     mandelbrotReference = createEmptyReference();
     mandelbrotReferenceCache = new Map();
     mandelbrotFrameReady = false;
+    mandelbrotCommittedFrameAvailable = false;
     deepPrecisionWarningShown = false;
     mandelbrotQualityHold = false;
     mandelbrotQualityHoldWarningShown = false;
@@ -3746,6 +3956,7 @@ function resetJuliaState() {
     juliaReference = createEmptyReference();
     juliaReferenceCache = new Map();
     juliaFrameReady = false;
+    juliaCommittedFrameAvailable = false;
     juliaDeepPrecisionWarningShown = false;
     juliaQualityHold = false;
     juliaQualityHoldWarningShown = false;
@@ -3762,6 +3973,7 @@ function resetNewtonState() {
     newtonReference = createEmptyReference();
     newtonReferenceCache = new Map();
     newtonFrameReady = false;
+    newtonCommittedFrameAvailable = false;
     newtonDeepPrecisionWarningShown = false;
     newtonQualityHold = false;
     newtonQualityHoldWarningShown = false;

@@ -19,6 +19,7 @@ function loadHarness() {
         mandelbrotQualityHold = false;
         mandelbrotQualityHoldWarningShown = false;
         mandelbrotFrameReady = false;
+        mandelbrotCommittedFrameAvailable = false;
         deepPrecisionWarningShown = false;
         mandelbrotMaskVerificationFramesRemaining = 0;
         mandelbrotStableReuseFrames = 0;
@@ -32,6 +33,7 @@ function loadHarness() {
         juliaQualityHold = false;
         juliaQualityHoldWarningShown = false;
         juliaFrameReady = false;
+        juliaCommittedFrameAvailable = false;
         juliaDeepPrecisionWarningShown = false;
         juliaMaskVerificationFramesRemaining = 0;
         juliaStableReuseFrames = 0;
@@ -45,11 +47,13 @@ function loadHarness() {
         newtonQualityHold = false;
         newtonQualityHoldWarningShown = false;
         newtonFrameReady = false;
+        newtonCommittedFrameAvailable = false;
         newtonDeepPrecisionWarningShown = false;
         newtonMaskVerificationFramesRemaining = 0;
         newtonStableReuseFrames = 0;
         newtonDeepWorkState = null;
         newtonDeepRenderActivationScale = NEWTON_DEEP_RENDER_SCALE;
+        newtonDeferredCommittedFramePending = false;
     },
     setRenderSharpImpl(fn) { renderSharpDeepFrame = fn; },
     setEscapeIterationImpl(fn) { computeEscapeIteration = fn; },
@@ -58,21 +62,27 @@ function loadHarness() {
     setOrbitTextureCapacity(value) { orbitTextureCapacity = value; },
     getOrbitTextureCapacity() { return orbitTextureCapacity; },
     uploadOrbit(orbitData, orbitLength) { uploadReferenceOrbit(orbitData, orbitLength); },
-    setRenderTargets(targets) {
+    setRenderTargets(targets, type = fractalType) {
         mandelbrotWorkingFramebuffer = targets.workingFramebuffer;
-        mandelbrotCommittedFramebuffer = targets.committedFramebuffer;
         mandelbrotWorkingColorTexture = targets.workingColorTexture;
         mandelbrotWorkingMaskTexture = targets.workingMaskTexture;
-        mandelbrotCommittedColorTexture = targets.committedColorTexture;
+        setDeepCommittedFramebuffer(type, targets.committedFramebuffer);
+        setDeepCommittedColorTexture(type, targets.committedColorTexture);
+        setDeepCommittedFrameAvailable(type, targets.committedFrameAvailable ?? true);
+        mandelbrotRenderTargetWidth = gl?.canvas?.width ?? mandelbrotRenderTargetWidth;
+        mandelbrotRenderTargetHeight = gl?.canvas?.height ?? mandelbrotRenderTargetHeight;
     },
-    getRenderTargets() {
+    getRenderTargets(type = fractalType) {
         return {
             workingColorTexture: mandelbrotWorkingColorTexture,
             workingMaskTexture: mandelbrotWorkingMaskTexture,
-            committedColorTexture: mandelbrotCommittedColorTexture,
+            committedFramebuffer: getDeepCommittedFramebuffer(type),
+            committedColorTexture: getDeepCommittedColorTexture(type),
+            committedFrameAvailable: getDeepCommittedFrameAvailable(type),
         };
     },
     commitWorkingFrame() { copyWorkingFrameToCommitted(); },
+    drawCommittedFrame(type) { return drawCommittedDeepFrame(type); },
     createPoint(x, y) {
         return {
             x: decimalFromString(x),
@@ -85,6 +95,9 @@ function loadHarness() {
             screenToPlaneDeep(getDeepCamera(fractalType), mousePosition),
             getDeepCamera(fractalType).maxIterations
         );
+    },
+    initWebGL() {
+        return initWebGL();
     },
     queueChildren(tile) {
         const queue = [];
@@ -153,6 +166,14 @@ function loadHarness() {
     configureDebugHeartbeatFromQuery() {
         return configureDebugHeartbeatFromQuery();
     },
+    setDocumentCanvas(value) {
+        document.getElementById = function (id) {
+            if (id === 'fractalCanvas') {
+                return value;
+            }
+            return { addEventListener() {} };
+        };
+    },
     setWindowSearch(value) {
         window.location = { search: value };
     },
@@ -172,11 +193,16 @@ function loadHarness() {
         setDeepWorkState(type, value);
     },
     setEnsureRenderTargetsImpl(fn) { ensureMandelbrotRenderTargets = fn; },
+    setCreateProgramImpl(fn) { createProgram = fn; },
+    setCreateProgramInfoImpl(fn) { createProgramInfo = fn; },
+    setSimpleProgramInfo(value) { simpleProgramInfo = value; },
+    setQuadBuffer(value) { quadBuffer = value; },
     setCommitWorkingFrameImpl(fn) { copyWorkingFrameToCommitted = fn; },
     setSelectInitialReferenceImpl(fn) { selectInitialReference = fn; },
     setRenderDeepPassImpl(fn) { renderDeepPass = fn; },
     setDrawSimpleFractalImpl(fn) { drawSimpleFractal = fn; },
     setDrawCommittedDeepFrameImpl(fn) { drawCommittedDeepFrame = fn; },
+    setDrawSimpleProxyFromDeepCameraImpl(fn) { drawSimpleProxyFromDeepCamera = fn; },
     setReadMaskAndCheckImpl(fn) { readGlitchMaskAndCheck = fn; },
     setQueueChildrenImpl(fn) { queueChildTilesWithGlitches = fn; },
     setSortRepairQueueImpl(fn) { sortRepairQueue = fn; },
@@ -195,6 +221,18 @@ function loadHarness() {
     },
     handleMouseMove(event) {
         handleMouseMove(event);
+    },
+    resizeCanvas() {
+        resizeCanvas();
+    },
+    resetMandelbrotState() {
+        resetMandelbrotState();
+    },
+    resetJuliaState() {
+        resetJuliaState();
+    },
+    resetNewtonState() {
+        resetNewtonState();
     },
     setLastFrameStats(type, value) {
         setDeepLastFrameStats(type, value);
@@ -220,6 +258,29 @@ function loadHarness() {
     },
     setFrameReady(type, value) {
         setDeepFrameReady(type, value);
+    },
+    setCommittedFrameAvailable(type, value) {
+        setDeepCommittedFrameAvailable(type, value);
+    },
+    getCommittedFrameAvailable(type) {
+        return getDeepCommittedFrameAvailable(type);
+    },
+    setNewtonDeferredCommittedFramePending(value) {
+        newtonDeferredCommittedFramePending = value;
+    },
+    getNewtonDeferredCommittedFramePending() {
+        return newtonDeferredCommittedFramePending;
+    },
+    setWindowMetrics({ innerWidth, innerHeight, devicePixelRatio }) {
+        if (typeof innerWidth === 'number') {
+            window.innerWidth = innerWidth;
+        }
+        if (typeof innerHeight === 'number') {
+            window.innerHeight = innerHeight;
+        }
+        if (typeof devicePixelRatio === 'number') {
+            window.devicePixelRatio = devicePixelRatio;
+        }
     },
     assessNewtonInitialRepairPressure(repairQueueLength, maskData) {
         return assessNewtonInitialRepairPressure(repairQueueLength, maskData);
@@ -566,22 +627,25 @@ test('getReferenceOrbit extends a cached reference instead of recomputing from s
     assert.ok(extendedReference.orbitLength > initialOrbitLength);
 });
 
-test('copyWorkingFrameToCommitted swaps color textures instead of blitting', () => {
+test('copyWorkingFrameToCommitted blits the shared working color into the active mode committed target', () => {
     const harness = loadHarness();
     const calls = [];
     harness.setGL({
+        canvas: { width: 1600, height: 900 },
         FRAMEBUFFER: 'FRAMEBUFFER',
+        READ_FRAMEBUFFER: 'READ_FRAMEBUFFER',
+        DRAW_FRAMEBUFFER: 'DRAW_FRAMEBUFFER',
         COLOR_ATTACHMENT0: 'COLOR_ATTACHMENT0',
-        COLOR_ATTACHMENT1: 'COLOR_ATTACHMENT1',
-        TEXTURE_2D: 'TEXTURE_2D',
+        COLOR_BUFFER_BIT: 'COLOR_BUFFER_BIT',
+        NEAREST: 'NEAREST',
         bindFramebuffer(target, framebuffer) {
             calls.push(['bindFramebuffer', target, framebuffer]);
         },
-        framebufferTexture2D(...args) {
-            calls.push(['framebufferTexture2D', ...args]);
+        readBuffer(attachment) {
+            calls.push(['readBuffer', attachment]);
         },
-        drawBuffers(buffers) {
-            calls.push(['drawBuffers', ...buffers]);
+        blitFramebuffer(...args) {
+            calls.push(['blitFramebuffer', ...args]);
         },
     });
     harness.setRenderTargets({
@@ -595,9 +659,104 @@ test('copyWorkingFrameToCommitted swaps color textures instead of blitting', () 
     harness.commitWorkingFrame();
 
     const targets = harness.getRenderTargets();
-    assert.equal(targets.workingColorTexture.id, 'committed-color');
-    assert.equal(targets.committedColorTexture.id, 'working-color');
-    assert.ok(calls.some(([name]) => name === 'framebufferTexture2D'));
+    assert.equal(targets.workingColorTexture.id, 'working-color');
+    assert.equal(targets.committedColorTexture.id, 'committed-color');
+    assert.equal(targets.committedFrameAvailable, true);
+    assert.ok(calls.some(([name, target, framebuffer]) => (
+        name === 'bindFramebuffer'
+        && target === 'READ_FRAMEBUFFER'
+        && framebuffer.id === 'working-fbo'
+    )));
+    assert.ok(calls.some(([name, target, framebuffer]) => (
+        name === 'bindFramebuffer'
+        && target === 'DRAW_FRAMEBUFFER'
+        && framebuffer.id === 'committed-fbo'
+    )));
+    assert.ok(calls.some(([name]) => name === 'blitFramebuffer'));
+});
+
+test('drawCommittedDeepFrame helper rejects a stale Mandelbrot committed frame after a mode switch', () => {
+    const harness = loadHarness();
+    const calls = [];
+    harness.setGL({
+        READ_FRAMEBUFFER: 'READ_FRAMEBUFFER',
+        DRAW_FRAMEBUFFER: 'DRAW_FRAMEBUFFER',
+        COLOR_ATTACHMENT0: 'COLOR_ATTACHMENT0',
+        COLOR_BUFFER_BIT: 'COLOR_BUFFER_BIT',
+        NEAREST: 'NEAREST',
+        canvas: { width: 1600, height: 900 },
+        bindFramebuffer(target, framebuffer) {
+            calls.push(['bindFramebuffer', target, framebuffer]);
+        },
+        readBuffer(attachment) {
+            calls.push(['readBuffer', attachment]);
+        },
+        blitFramebuffer(...args) {
+            calls.push(['blitFramebuffer', ...args]);
+        },
+    });
+    harness.setRenderTargets({
+        workingFramebuffer: { id: 'shared-working-fbo' },
+        committedFramebuffer: { id: 'mandelbrot-committed-fbo' },
+        workingColorTexture: { id: 'shared-working-color' },
+        workingMaskTexture: { id: 'shared-working-mask' },
+        committedColorTexture: { id: 'mandelbrot-committed-color' },
+        committedFrameAvailable: true,
+    }, 'mandelbrot');
+
+    harness.initNewton();
+    const drew = harness.drawCommittedFrame('newton');
+
+    assert.equal(drew, false);
+    assert.ok(!calls.some(([name]) => name === 'blitFramebuffer'));
+});
+
+test('drawCurrentFrame does not reuse a stale Mandelbrot committed frame after switching to Newton', () => {
+    const harness = loadHarness();
+    const drawCalls = [];
+    harness.setGL({
+        canvas: { width: 1600, height: 900 },
+        FRAMEBUFFER: 'FRAMEBUFFER',
+        READ_FRAMEBUFFER: 'READ_FRAMEBUFFER',
+        DRAW_FRAMEBUFFER: 'DRAW_FRAMEBUFFER',
+        COLOR_BUFFER_BIT: 1,
+        COLOR_ATTACHMENT0: 'COLOR_ATTACHMENT0',
+        NEAREST: 'NEAREST',
+        bindFramebuffer() {},
+        readBuffer() {},
+        blitFramebuffer() {
+            drawCalls.push('deep');
+        },
+        viewport() {},
+        clear() {},
+    });
+    harness.setRenderTargets({
+        workingFramebuffer: { id: 'shared-working-fbo' },
+        committedFramebuffer: { id: 'mandelbrot-committed-fbo' },
+        workingColorTexture: { id: 'shared-working-color' },
+        workingMaskTexture: { id: 'shared-working-mask' },
+        committedColorTexture: { id: 'mandelbrot-committed-color' },
+        committedFrameAvailable: true,
+    }, 'mandelbrot');
+    harness.initNewton();
+    harness.setDeepCameraState('newton', { pixelScaleApprox: 1e-7 });
+    harness.setDrawSimpleFractalImpl(() => {
+        drawCalls.push('simple-proxy');
+    });
+    harness.setRenderSharpImpl(() => {
+        harness.setLastFrameStats('newton', {
+            ...harness.createFrameStats(),
+            status: 'failed',
+            reason: 'repair_reference_budget_exhausted',
+        });
+        return false;
+    });
+
+    harness.drawCurrentFrame();
+    const snapshot = harness.getActiveDebugSnapshot();
+
+    assert.deepEqual(drawCalls, []);
+    assert.equal(snapshot.renderPath, 'blank');
 });
 
 test('setWorkingFramebufferDrawBuffers can disable mask writes on deferred frames', () => {
@@ -795,6 +954,61 @@ test('configureDebugHeartbeatFromQuery ignores a missing interval parameter', ()
     heartbeatState = harness.getDebugHeartbeatState();
     assert.equal(heartbeatState.enabled, true);
     assert.equal(heartbeatState.intervalMs, 1000);
+});
+
+test('initWebGL initializes render targets without referencing an undefined mode variable', () => {
+    const harness = loadHarness();
+    const fakeGL = {
+        canvas: { width: 1600, height: 900, style: {} },
+        ARRAY_BUFFER: 'ARRAY_BUFFER',
+        STATIC_DRAW: 'STATIC_DRAW',
+        TEXTURE_2D: 'TEXTURE_2D',
+        TEXTURE_MIN_FILTER: 'TEXTURE_MIN_FILTER',
+        TEXTURE_MAG_FILTER: 'TEXTURE_MAG_FILTER',
+        NEAREST: 'NEAREST',
+        TEXTURE_WRAP_S: 'TEXTURE_WRAP_S',
+        TEXTURE_WRAP_T: 'TEXTURE_WRAP_T',
+        CLAMP_TO_EDGE: 'CLAMP_TO_EDGE',
+        RGBA32F: 'RGBA32F',
+        RGBA8: 'RGBA8',
+        RGBA: 'RGBA',
+        FLOAT: 'FLOAT',
+        UNSIGNED_BYTE: 'UNSIGNED_BYTE',
+        R8: 'R8',
+        RED: 'RED',
+        FRAMEBUFFER: 'FRAMEBUFFER',
+        COLOR_ATTACHMENT0: 'COLOR_ATTACHMENT0',
+        COLOR_ATTACHMENT1: 'COLOR_ATTACHMENT1',
+        FRAMEBUFFER_COMPLETE: 'FRAMEBUFFER_COMPLETE',
+        createBuffer() { return {}; },
+        bindBuffer() {},
+        bufferData() {},
+        createTexture() { return {}; },
+        bindTexture() {},
+        texParameteri() {},
+        texImage2D() {},
+        createFramebuffer() { return {}; },
+        bindFramebuffer() {},
+        framebufferTexture2D() {},
+        drawBuffers() {},
+        checkFramebufferStatus() { return 'FRAMEBUFFER_COMPLETE'; },
+        clearColor() {},
+    };
+    const fakeCanvas = {
+        addEventListener() {},
+        style: {},
+        getContext() {
+            return fakeGL;
+        },
+    };
+
+    harness.setDocumentCanvas(fakeCanvas);
+    harness.setCreateProgramImpl(() => ({}));
+    harness.setCreateProgramInfoImpl(() => ({}));
+
+    const initialized = harness.initWebGL();
+
+    assert.equal(initialized, true);
 });
 
 test('deep debug snapshot includes active work state', () => {
@@ -1087,6 +1301,53 @@ test('initNewton resets stable reuse cadence state', () => {
     assert.equal(harness.getAdaptiveMaskVerifySkipFrames('newton'), 1);
 });
 
+test('production reset paths clear committed frame availability and deferred Newton pending state', () => {
+    const harness = loadHarness();
+
+    harness.setCommittedFrameAvailable('mandelbrot', true);
+    harness.setCommittedFrameAvailable('julia', true);
+    harness.setCommittedFrameAvailable('newton', true);
+    harness.setNewtonDeferredCommittedFramePending(true);
+
+    harness.resetMandelbrotState();
+    harness.resetJuliaState();
+    harness.resetNewtonState();
+
+    assert.equal(harness.getCommittedFrameAvailable('mandelbrot'), false);
+    assert.equal(harness.getCommittedFrameAvailable('julia'), false);
+    assert.equal(harness.getCommittedFrameAvailable('newton'), false);
+    assert.equal(harness.getNewtonDeferredCommittedFramePending(), false);
+});
+
+test('resizeCanvas preserves committed deep frames while clearing pending Newton deferred frame reuse', () => {
+    const harness = loadHarness();
+    harness.initNewton();
+    harness.setGL({
+        canvas: {
+            width: 1600,
+            height: 900,
+            style: {},
+        },
+    });
+    harness.setWindowMetrics({
+        innerWidth: 800,
+        innerHeight: 450,
+        devicePixelRatio: 2,
+    });
+    harness.setEnsureRenderTargetsImpl(() => {});
+    harness.setCommittedFrameAvailable('mandelbrot', true);
+    harness.setCommittedFrameAvailable('julia', true);
+    harness.setCommittedFrameAvailable('newton', true);
+    harness.setNewtonDeferredCommittedFramePending(true);
+
+    harness.resizeCanvas();
+
+    assert.equal(harness.getCommittedFrameAvailable('mandelbrot'), true);
+    assert.equal(harness.getCommittedFrameAvailable('julia'), true);
+    assert.equal(harness.getCommittedFrameAvailable('newton'), true);
+    assert.equal(harness.getNewtonDeferredCommittedFramePending(), false);
+});
+
 test('stepJuliaCameraWithQualityPriority restores the previous camera when repair fails', () => {
     const harness = loadHarness();
     harness.initJulia();
@@ -1202,20 +1463,33 @@ test('Newton pathological deferral reuses the committed frame for the immediate 
     harness.setGL({
         canvas: { width: 1600, height: 900 },
         FRAMEBUFFER: 'FRAMEBUFFER',
+        READ_FRAMEBUFFER: 'READ_FRAMEBUFFER',
+        DRAW_FRAMEBUFFER: 'DRAW_FRAMEBUFFER',
         COLOR_BUFFER_BIT: 1,
+        COLOR_ATTACHMENT0: 'COLOR_ATTACHMENT0',
+        NEAREST: 'NEAREST',
         bindFramebuffer() {},
+        readBuffer() {},
+        blitFramebuffer() {
+            drawCalls.push('deep');
+        },
         viewport() {},
         clear() {},
     });
+    harness.setRenderTargets({
+        workingFramebuffer: { id: 'shared-working-fbo' },
+        committedFramebuffer: { id: 'newton-committed-fbo' },
+        workingColorTexture: { id: 'shared-working-color' },
+        workingMaskTexture: { id: 'shared-working-mask' },
+        committedColorTexture: { id: 'newton-committed-color' },
+        committedFrameAvailable: true,
+    }, 'newton');
     harness.setDeepCameraState('newton', { pixelScaleApprox: 8e-7 });
     harness.setMouse({ x: 1320, y: 180 });
     harness.setFrameReady('newton', true);
     harness.setReferenceCenter('newton', '-1.2', '0.1');
     harness.setDrawSimpleFractalImpl(() => {
         drawCalls.push('simple-proxy');
-    });
-    harness.setDrawCommittedDeepFrameImpl(() => {
-        drawCalls.push('deep');
     });
     harness.setRenderSharpImpl(() => {
         harness.setLastFrameStats('newton', {
@@ -1286,6 +1560,7 @@ test('debug snapshot reports the simple Newton fallback when deep render fails d
     });
     harness.setDrawCommittedDeepFrameImpl(() => {
         drawCalls.push('deep');
+        return true;
     });
     harness.setRenderSharpImpl(() => {
         harness.setLastFrameStats('newton', {
@@ -1311,18 +1586,31 @@ test('draw-time Newton deep failures below the proxy precision floor reuse the c
     harness.setGL({
         canvas: { width: 1600, height: 900 },
         FRAMEBUFFER: 'FRAMEBUFFER',
+        READ_FRAMEBUFFER: 'READ_FRAMEBUFFER',
+        DRAW_FRAMEBUFFER: 'DRAW_FRAMEBUFFER',
         COLOR_BUFFER_BIT: 1,
+        COLOR_ATTACHMENT0: 'COLOR_ATTACHMENT0',
+        NEAREST: 'NEAREST',
         bindFramebuffer() {},
+        readBuffer() {},
+        blitFramebuffer() {
+            drawCalls.push('deep');
+        },
         viewport() {},
         clear() {},
     });
+    harness.setRenderTargets({
+        workingFramebuffer: { id: 'shared-working-fbo' },
+        committedFramebuffer: { id: 'newton-committed-fbo' },
+        workingColorTexture: { id: 'shared-working-color' },
+        workingMaskTexture: { id: 'shared-working-mask' },
+        committedColorTexture: { id: 'newton-committed-color' },
+        committedFrameAvailable: true,
+    }, 'newton');
     harness.setDeepCameraState('newton', { pixelScaleApprox: 1e-7 });
     harness.setFrameReady('newton', false);
     harness.setDrawSimpleFractalImpl(() => {
         drawCalls.push('simple-proxy');
-    });
-    harness.setDrawCommittedDeepFrameImpl(() => {
-        drawCalls.push('deep');
     });
     harness.setRenderSharpImpl(() => {
         harness.setLastFrameStats('newton', {
@@ -1339,6 +1627,138 @@ test('draw-time Newton deep failures below the proxy precision floor reuse the c
     assert.deepEqual(drawCalls, ['deep']);
     assert.equal(snapshot.renderPath, 'deep');
     assert.equal(snapshot.deepEligible, true);
+});
+
+test('an accurate Newton simple-proxy frame seeds the committed fallback before the first deep failure', () => {
+    const harness = loadHarness();
+    const drawCalls = [];
+    harness.initNewton();
+    harness.setGL({
+        canvas: { width: 1600, height: 900 },
+        FRAMEBUFFER: 'FRAMEBUFFER',
+        READ_FRAMEBUFFER: 'READ_FRAMEBUFFER',
+        DRAW_FRAMEBUFFER: 'DRAW_FRAMEBUFFER',
+        COLOR_BUFFER_BIT: 1,
+        COLOR_ATTACHMENT0: 'COLOR_ATTACHMENT0',
+        NEAREST: 'NEAREST',
+        TRIANGLE_STRIP: 'TRIANGLE_STRIP',
+        ARRAY_BUFFER: 'ARRAY_BUFFER',
+        FLOAT: 'FLOAT',
+        bindFramebuffer() {},
+        viewport() {},
+        useProgram() {},
+        bindBuffer() {},
+        enableVertexAttribArray() {},
+        vertexAttribPointer() {},
+        uniform2f() {},
+        uniform1f() {},
+        uniform1i() {},
+        drawArrays() {},
+        readBuffer() {},
+        blitFramebuffer() {
+            drawCalls.push('deep');
+        },
+        clear() {},
+    });
+    harness.setSimpleProgramInfo({
+        program: {},
+        position: 0,
+        uniforms: {
+            u_resolution: {},
+            u_center: {},
+            u_pixelScale: {},
+            u_fractalType: {},
+            u_maxIterations: {},
+        },
+    });
+    harness.setQuadBuffer({});
+    harness.setRenderTargets({
+        workingFramebuffer: { id: 'shared-working-fbo' },
+        committedFramebuffer: { id: 'newton-committed-fbo' },
+        workingColorTexture: { id: 'shared-working-color' },
+        workingMaskTexture: { id: 'shared-working-mask' },
+        committedColorTexture: { id: 'newton-committed-color' },
+        committedFrameAvailable: false,
+    }, 'newton');
+    harness.setEnsureRenderTargetsImpl(() => {});
+    harness.setDeepCameraState('newton', { pixelScaleApprox: 8e-7 });
+
+    harness.captureSimpleProxy('newton');
+    assert.equal(harness.getCommittedFrameAvailable('newton'), true);
+
+    harness.setDeepCameraState('newton', { pixelScaleApprox: 1e-7 });
+    harness.setFrameReady('newton', false);
+    harness.setRenderSharpImpl(() => {
+        harness.setLastFrameStats('newton', {
+            ...harness.createFrameStats(),
+            status: 'failed',
+            reason: 'repair_reference_budget_exhausted',
+        });
+        return false;
+    });
+
+    harness.drawCurrentFrame();
+    const snapshot = harness.getActiveDebugSnapshot();
+
+    assert.deepEqual(drawCalls, ['deep']);
+    assert.equal(snapshot.renderPath, 'deep');
+    assert.equal(snapshot.deepEligible, true);
+});
+
+test('draw-time Newton deep failures below the proxy precision floor do not draw an inaccurate simple proxy when no committed frame exists', () => {
+    const harness = loadHarness();
+    const drawCalls = [];
+    harness.initNewton();
+    harness.setGL({
+        canvas: { width: 1600, height: 900 },
+        FRAMEBUFFER: 'FRAMEBUFFER',
+        COLOR_BUFFER_BIT: 1,
+        bindFramebuffer() {},
+        viewport() {},
+        clear() {},
+    });
+    harness.setDeepCameraState('newton', { pixelScaleApprox: 1e-7 });
+    harness.setFrameReady('newton', false);
+    harness.setDrawSimpleFractalImpl(() => {
+        drawCalls.push('simple-proxy');
+    });
+    harness.setRenderSharpImpl(() => {
+        harness.setLastFrameStats('newton', {
+            ...harness.createFrameStats(),
+            status: 'failed',
+            reason: 'repair_reference_budget_exhausted',
+        });
+        return false;
+    });
+
+    harness.drawCurrentFrame();
+    const snapshot = harness.getActiveDebugSnapshot();
+
+    assert.deepEqual(drawCalls, []);
+    assert.equal(snapshot.renderPath, 'blank');
+    assert.equal(snapshot.deepEligible, true);
+});
+
+test('drawCurrentFrame reports blank when Newton simple proxy rendering is unavailable', () => {
+    const harness = loadHarness();
+
+    harness.initNewton();
+    harness.setGL({
+        canvas: { width: 1600, height: 900 },
+        FRAMEBUFFER: 'FRAMEBUFFER',
+        COLOR_BUFFER_BIT: 1,
+        bindFramebuffer() {},
+        viewport() {},
+        clear() {},
+    });
+    harness.setDeepCameraState('newton', { pixelScaleApprox: 2e-6 });
+    harness.setDrawSimpleProxyFromDeepCameraImpl(() => false);
+
+    harness.drawCurrentFrame();
+    const snapshot = harness.getActiveDebugSnapshot();
+
+    assert.equal(snapshot.renderPath, 'blank');
+    assert.equal(snapshot.deepEligible, false);
 });
 
 test('renderSharpDeepFrame fails fast instead of CPU-draining Newton repairs when repair references are exhausted', () => {
