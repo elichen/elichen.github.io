@@ -1,102 +1,63 @@
+const MESSAGE_STEP_ORDER = ['features', 'messages', 'aggregate', 'update', 'depth'];
+const DEPTH_LEVELS = [0, 1, 2, 4, 6];
+const DEPTH_SCENE_IDS = ['twohop', 'oversmooth'];
+
 const state = {
   data: null,
-  sampleIndex: 0,
-  view: 'truth',
-  selectedNodeId: null,
-  activeStepId: 'truth',
+  messageSceneId: null,
+  messageStepId: 'features',
+  messageNodeId: null,
   stepLockScrollY: null,
+  depthSceneId: 'twohop',
+  depthLevel: 2,
 };
 
 const svgNS = 'http://www.w3.org/2000/svg';
 
 const refs = {
-  gnnF1: document.getElementById('gnn-f1'),
-  mlpF1: document.getElementById('mlp-f1'),
-  subsetGap: document.getElementById('subset-gap'),
-  overallGap: document.getElementById('overall-gap'),
-  hardGap: document.getElementById('hard-gap'),
-  sampleCount: document.getElementById('sample-count'),
-  legendNodePrimary: document.getElementById('legend-node-primary'),
-  legendNodeSecondary: document.getElementById('legend-node-secondary'),
-  legendNodeSize: document.getElementById('legend-node-size'),
-  figureBlock: document.getElementById('primary-figure'),
-  figureNotes: document.getElementById('figure-notes'),
-  scenarioTitle: document.getElementById('scenario-title'),
-  scenarioCaption: document.getElementById('scenario-caption'),
-  graphSvg: document.getElementById('graph-svg'),
-  scenarioList: document.getElementById('scenario-list'),
-  nodeName: document.getElementById('node-name'),
-  nodeSummary: document.getElementById('node-summary'),
-  truthPill: document.getElementById('truth-pill'),
-  gnnPill: document.getElementById('gnn-pill'),
-  mlpPill: document.getElementById('mlp-pill'),
-  incomingPressure: document.getElementById('incoming-pressure'),
-  incomingRelief: document.getElementById('incoming-relief'),
-  strongestSource: document.getElementById('strongest-source'),
-  socialPressure: document.getElementById('social-pressure'),
-  traitBars: document.getElementById('trait-bars'),
-  contributors: document.getElementById('contributors'),
-  historyChart: document.getElementById('history-chart'),
-  historyCaption: document.getElementById('history-caption'),
-  viewToggle: document.getElementById('view-toggle'),
-  prevSample: document.getElementById('prev-sample'),
-  nextSample: document.getElementById('next-sample'),
-  shuffleSample: document.getElementById('shuffle-sample'),
-  figureSteps: Array.from(document.querySelectorAll('.figure-step')),
+  heroEquation: document.getElementById('hero-equation'),
+  heroNote: document.getElementById('hero-note'),
+  messageTitle: document.getElementById('message-title'),
+  messageDek: document.getElementById('message-dek'),
+  messageScenePicker: document.getElementById('message-scene-picker'),
+  messageGraph: document.getElementById('message-graph'),
+  messageNodeName: document.getElementById('message-node-name'),
+  messageNodeH0: document.getElementById('message-node-h0'),
+  messageNodeAgg: document.getElementById('message-node-agg'),
+  messageNodeH1: document.getElementById('message-node-h1'),
+  messageBestDepth: document.getElementById('message-best-depth'),
+  messageEquation: document.getElementById('message-equation'),
+  messageStageNote: document.getElementById('message-stage-note'),
+  messageNodeTitle: document.getElementById('message-node-title'),
+  messageNodeSummary: document.getElementById('message-node-summary'),
+  messageNodeValues: document.getElementById('message-node-values'),
+  messageIncoming: document.getElementById('message-incoming'),
+  messageSteps: Array.from(document.querySelectorAll('.figure-step')),
+  depthTitle: document.getElementById('depth-title'),
+  depthDek: document.getElementById('depth-dek'),
+  depthScenePicker: document.getElementById('depth-scene-picker'),
+  depthPicker: document.getElementById('depth-picker'),
+  depthGraph: document.getElementById('depth-graph'),
+  depthTrack: document.getElementById('depth-track'),
+  depthLevel: document.getElementById('depth-level'),
+  depthNote: document.getElementById('depth-note'),
+  depthFocusState: document.getElementById('depth-focus-state'),
+  depthFocusProb: document.getElementById('depth-focus-prob'),
+  depthSpread: document.getElementById('depth-spread'),
+  depthGap: document.getElementById('depth-gap'),
+  depthSummary: document.getElementById('depth-summary'),
 };
-
-const calmColor = '#78d9b2';
-const dangerColor = '#ff7a59';
-const supportColor = '#ffc46b';
-const viewToStep = {
-  truth: 'truth',
-  pressure: 'pressure',
-  mlp: 'traits',
-  gnn: 'graph',
-};
-
-const figureNoteConfigs = [
-  { id: 'dominant', label: 'Most floor control', view: 'pressure', focusMode: 'dominant', stepId: 'pressure' },
-  { id: 'target', label: 'Most incoming pressure', view: 'truth', focusMode: 'target', stepId: 'truth' },
-  { id: 'contrast', label: 'Comparison point', view: 'gnn', focusMode: 'contrast', stepId: 'graph' },
-  { id: 'anchor', label: 'Most repair support', view: 'pressure', focusMode: 'anchor', stepId: null },
-];
 
 async function loadData() {
   const response = await fetch('./data/experiment-data.json');
   if (!response.ok) {
-    throw new Error(`Failed to load data: ${response.status}`);
+    throw new Error(`Failed to load publication data: ${response.status}`);
   }
-  const data = await response.json();
-  data.samples = data.samples
-    .slice()
-    .sort((left, right) => {
-      const leftStats = getSampleStats(left);
-      const rightStats = getSampleStats(right);
-      const ratioGap = leftStats.overloaded / leftStats.total - rightStats.overloaded / rightStats.total;
-      if (ratioGap !== 0) {
-        return ratioGap;
-      }
-      const baselineGap = rightStats.baselineGap - leftStats.baselineGap;
-      if (baselineGap !== 0) {
-        return baselineGap;
-      }
-      return left.id.localeCompare(right.id);
-    });
-  return data;
+  return response.json();
 }
 
-function formatMetric(value) {
-  return value.toFixed(3);
-}
-
-function formatDelta(value) {
-  const sign = value >= 0 ? '+' : '';
-  return `${sign}${value.toFixed(3)}`;
-}
-
-function formatCompact(value) {
-  return value.toFixed(2);
+function formatNumber(value, digits = 3) {
+  return Number(value).toFixed(digits);
 }
 
 function clamp(value, min, max) {
@@ -127,117 +88,242 @@ function lerpColor(a, b, amount) {
   });
 }
 
+function luminance(hex) {
+  const { r, g, b } = hexToRgb(hex);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+function stateColor(value) {
+  if (value <= 0.5) {
+    return lerpColor('#5c8fe1', '#f5efe2', value / 0.5);
+  }
+  return lerpColor('#f5efe2', '#eb8b41', (value - 0.5) / 0.5);
+}
+
+function textColorForFill(fill) {
+  return luminance(fill) < 0.63 ? '#fffaf3' : '#1c1b17';
+}
+
 function svgElement(name, attrs = {}) {
   const node = document.createElementNS(svgNS, name);
   Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
   return node;
 }
 
-function getCurrentSample() {
-  return state.data.samples[state.sampleIndex];
+function getScene(sceneId) {
+  return state.data.scenes.find((scene) => scene.id === sceneId) ?? null;
 }
 
-function sampleLabel(sample) {
-  return `Conversation ${sample.id.replace(/^graph-/, '')}`;
+function getMessageScene() {
+  return getScene(state.messageSceneId);
 }
 
-function getSampleStats(sample) {
-  const overloaded = sample.nodes.filter((node) => node.label === 1).length;
-  const total = sample.nodes.length;
-  const gnnMisses = sample.nodes.filter((node) => node.gnn_prediction !== node.label).length;
-  const mlpMisses = sample.nodes.filter((node) => node.mlp_prediction !== node.label).length;
-  return {
-    overloaded,
-    total,
-    gnnMisses,
-    mlpMisses,
-    baselineGap: mlpMisses - gnnMisses,
-  };
+function getDepthScene() {
+  return getScene(state.depthSceneId);
 }
 
-function getStepElement(stepId) {
-  return refs.figureSteps.find((step) => step.dataset.step === stepId) ?? null;
+function findNode(scene, nodeId) {
+  return scene.nodes.find((node) => node.id === nodeId) ?? null;
 }
 
-function findNodeByName(sample, name) {
-  return sample.nodes.find((node) => node.name === name) ?? null;
+function getLayer(scene, depth) {
+  return scene.layers.find((layer) => layer.depth === depth) ?? scene.layers[scene.layers.length - 1];
 }
 
-function getSampleInsights(sample) {
-  const dominant = findNodeByName(sample, sample.dominant_name)
-    ?? sample.nodes.reduce((best, node) => node.floor_control > best.floor_control ? node : best, sample.nodes[0]);
-  const anchor = findNodeByName(sample, sample.anchor_name)
-    ?? sample.nodes.reduce((best, node) => node.incoming_relief > best.incoming_relief ? node : best, sample.nodes[0]);
-  const target = sample.nodes.reduce((best, node) => node.incoming_pressure > best.incoming_pressure ? node : best, sample.nodes[0]);
-  const contrastPool = sample.nodes
-    .filter((node) => node.gnn_prediction === node.label && node.mlp_prediction !== node.label)
-    .sort((left, right) => {
-      const leftGap = Math.abs(left.gnn_probability - left.mlp_probability) + left.incoming_pressure * 0.25;
-      const rightGap = Math.abs(right.gnn_probability - right.mlp_probability) + right.incoming_pressure * 0.25;
-      return rightGap - leftGap;
+function getDepthMetric(scene, depth) {
+  return scene.depth_metrics.find((metric) => metric.depth === depth) ?? scene.depth_metrics[scene.depth_metrics.length - 1];
+}
+
+function getLayerNode(scene, depth, nodeId) {
+  return getLayer(scene, depth).nodes.find((node) => node.id === nodeId) ?? null;
+}
+
+function getTransition(scene, fromDepth = 0) {
+  return scene.transitions.find((transition) => transition.from_depth === fromDepth) ?? scene.transitions[0];
+}
+
+function getAggregate(scene, nodeId, fromDepth = 0) {
+  return getTransition(scene, fromDepth).aggregates.find((entry) => entry.id === nodeId) ?? null;
+}
+
+function getUpdate(scene, nodeId, fromDepth = 0) {
+  return getTransition(scene, fromDepth).updates.find((entry) => entry.id === nodeId) ?? null;
+}
+
+function getMessagesInto(scene, nodeId, fromDepth = 0) {
+  return getTransition(scene, fromDepth).messages
+    .filter((message) => message.target === nodeId)
+    .slice()
+    .sort((left, right) => right.value - left.value);
+}
+
+function edgeKey(source, target) {
+  return `${source}->${target}`;
+}
+
+function getStrongestMessage(scene, nodeId, fromDepth = 0) {
+  return getMessagesInto(scene, nodeId, fromDepth)[0] ?? null;
+}
+
+function sceneRoleLabel(node) {
+  return node.kind.replace(/-/g, ' ');
+}
+
+function messageDisplayDepth(scene) {
+  if (state.messageStepId === 'update') {
+    return 1;
+  }
+  if (state.messageStepId === 'depth') {
+    return scene.recommended_depth;
+  }
+  return 0;
+}
+
+function incomingHopDistances(scene, targetId, maxDepth) {
+  const reverse = new Map();
+  scene.edges.forEach((edge) => {
+    if (!reverse.has(edge.target)) {
+      reverse.set(edge.target, []);
+    }
+    reverse.get(edge.target).push(edge.source);
+  });
+
+  const distances = new Map([[targetId, 0]]);
+  const queue = [targetId];
+
+  while (queue.length) {
+    const current = queue.shift();
+    const currentDistance = distances.get(current);
+    if (currentDistance >= maxDepth) {
+      continue;
+    }
+    const incoming = reverse.get(current) ?? [];
+    incoming.forEach((source) => {
+      if (!distances.has(source)) {
+        distances.set(source, currentDistance + 1);
+        queue.push(source);
+      }
     });
-  const contrast = contrastPool[0]
-    ?? sample.nodes
-      .slice()
-      .sort((left, right) => {
-        const leftGap = Math.abs(left.gnn_probability - left.mlp_probability);
-        const rightGap = Math.abs(right.gnn_probability - right.mlp_probability);
-        return rightGap - leftGap;
-      })[0]
-    ?? target;
+  }
 
-  return { dominant, anchor, target, contrast };
+  return distances;
 }
 
-function getFocusNodeForMode(sample, focusMode) {
-  const insights = getSampleInsights(sample);
-  return insights[focusMode] ?? insights.contrast ?? sample.nodes[0];
+function receptiveFieldEdges(scene, distances) {
+  const edges = new Set();
+  scene.edges.forEach((edge) => {
+    const sourceDistance = distances.get(edge.source);
+    const targetDistance = distances.get(edge.target);
+    if (
+      sourceDistance != null
+      && targetDistance != null
+      && sourceDistance === targetDistance + 1
+    ) {
+      edges.add(edgeKey(edge.source, edge.target));
+    }
+  });
+  return edges;
 }
 
-function getTopContributorNode(node, sample) {
-  const sourceId = node.contributors[0]?.source;
-  return sourceId == null ? null : sample.nodes.find((item) => item.id === sourceId) ?? null;
+function formatProbability(probability) {
+  return formatNumber(probability, 3);
 }
 
-function getFocusEdge(sample, focusMode, focusNode) {
-  if (!focusNode) {
-    return null;
-  }
-
-  if (focusMode === 'dominant') {
-    return sample.edges
-      .filter((edge) => edge.source === focusNode.id)
-      .slice()
-      .sort((left, right) => right.pressure - left.pressure)[0] ?? null;
-  }
-
-  if (focusMode === 'anchor') {
-    return sample.edges
-      .filter((edge) => edge.target === focusNode.id)
-      .slice()
-      .sort((left, right) => right.support - left.support)[0] ?? null;
-  }
-
-  const sourceId = focusNode.contributors[0]?.source;
-  if (sourceId == null) {
-    return null;
-  }
-  return sample.edges.find((edge) => edge.source === sourceId && edge.target === focusNode.id) ?? null;
+function getSceneTitleLine(scene) {
+  return scene.title;
 }
 
-function getCurrentFigureFocus(sample) {
-  if (!state.activeStepId) {
-    return { node: null, edge: null, focusMode: null };
+function sceneSubtitle(scene) {
+  return `${scene.dek} ${scene.task}`;
+}
+
+function messageEquationHtml(scene, nodeId) {
+  const node = findNode(scene, nodeId);
+  const h0 = getLayerNode(scene, 0, nodeId);
+  const aggregate = getAggregate(scene, nodeId, 0);
+  const update = getUpdate(scene, nodeId, 0);
+  const strongest = getStrongestMessage(scene, nodeId, 0);
+
+  if (state.messageStepId === 'features') {
+    return `h<sup>(0)</sup><sub>${node.label}</sub> = ${formatNumber(h0.state)}`;
   }
 
-  const activeStep = getStepElement(state.activeStepId);
-  const focusMode = activeStep?.dataset.focusMode ?? 'contrast';
-  const node = getFocusNodeForMode(sample, focusMode);
-  return {
-    node,
-    edge: getFocusEdge(sample, focusMode, node),
-    focusMode,
-  };
+  if (state.messageStepId === 'messages') {
+    if (!strongest) {
+      return `m<sup>(0)</sup><sub>u→${node.label}</sub> = w<sub>u${node.label}</sub> · h<sup>(0)</sup><sub>u</sub>`;
+    }
+    const source = findNode(scene, strongest.source);
+    const sourceState = getLayerNode(scene, 0, strongest.source);
+    return `m<sup>(0)</sup><sub>${source.label}→${node.label}</sub> = ${formatNumber(strongest.weight)} × ${formatNumber(sourceState.state)} = ${formatNumber(strongest.value)}`;
+  }
+
+  if (state.messageStepId === 'aggregate') {
+    const messages = getMessagesInto(scene, nodeId, 0);
+    if (!messages.length) {
+      return `a<sup>(0)</sup><sub>${node.label}</sub> = h<sup>(0)</sup><sub>${node.label}</sub>`;
+    }
+    const numerator = messages.map((message) => formatNumber(message.value)).join(' + ');
+    return `a<sup>(0)</sup><sub>${node.label}</sub> = (${numerator}) / ${formatNumber(aggregate.normalizer)} = ${formatNumber(aggregate.value)}`;
+  }
+
+  if (state.messageStepId === 'update') {
+    return `h<sup>(1)</sup><sub>${node.label}</sub> = 0.35 × ${formatNumber(h0.state)} + 0.65 × ${formatNumber(aggregate.value)} = ${formatNumber(update.next_state)}`;
+  }
+
+  const targetDepth = scene.recommended_depth;
+  const recommended = getLayerNode(scene, targetDepth, nodeId);
+  return `h<sup>(${targetDepth})</sup><sub>${node.label}</sub> = ${formatNumber(recommended.state)} · receptive field = ${targetDepth} hop${targetDepth === 1 ? '' : 's'}`;
+}
+
+function messageNodeSummary(scene, nodeId) {
+  const node = findNode(scene, nodeId);
+  const h0 = getLayerNode(scene, 0, nodeId);
+  const h1 = getLayerNode(scene, 1, nodeId);
+  const hk = getLayerNode(scene, scene.recommended_depth, nodeId);
+  const isFocus = nodeId === scene.focus_node;
+
+  if (isFocus) {
+    return `${node.name} is the node this motif asks you to classify. It starts at ${formatNumber(h0.state)}, moves to ${formatNumber(h1.state)} after one update, and reaches ${formatNumber(hk.state)} by depth ${scene.recommended_depth}.`;
+  }
+
+  return `${node.name} is a ${sceneRoleLabel(node)}. Comparing it with the focus node shows how the same local rule behaves on different neighborhoods.`;
+}
+
+function buildMessageValueRows(scene, nodeId) {
+  const h0 = getLayerNode(scene, 0, nodeId);
+  const aggregate = getAggregate(scene, nodeId, 0);
+  const update = getUpdate(scene, nodeId, 0);
+  const recommended = getLayerNode(scene, scene.recommended_depth, nodeId);
+
+  return [
+    ['Local state h^0', formatNumber(h0.state)],
+    ['Neighborhood aggregate a^0', formatNumber(aggregate.value)],
+    ['Updated state h^1', formatNumber(update.next_state)],
+    [`State at depth ${scene.recommended_depth}`, formatNumber(recommended.state)],
+  ];
+}
+
+function buildMessageRows(scene, nodeId) {
+  const messages = getMessagesInto(scene, nodeId, 0);
+  if (!messages.length) {
+    refs.messageIncoming.innerHTML = '<p class="contributors-empty">This node has no incoming edges in the first update, so it keeps its own state.</p>';
+    return;
+  }
+
+  refs.messageIncoming.innerHTML = '';
+  messages.forEach((message) => {
+    const source = findNode(scene, message.source);
+    const row = document.createElement('div');
+    row.className = 'message-row';
+    row.innerHTML = `
+      <div>
+        <div><strong>${source.label}</strong> -> <strong>${findNode(scene, nodeId).label}</strong></div>
+        <small>w = ${formatNumber(message.weight)} · h = ${formatNumber(getLayerNode(scene, 0, message.source).state)}</small>
+      </div>
+      <strong>${formatNumber(message.value)}</strong>
+    `;
+    refs.messageIncoming.appendChild(row);
+  });
 }
 
 function lockStepSync() {
@@ -255,273 +341,21 @@ function releaseStepSyncIfScrolled() {
   return false;
 }
 
-function contrastNarrative(node) {
-  if (node.gnn_prediction === node.label && node.mlp_prediction !== node.label) {
-    return `${node.name} is useful because the graph-aware model matches the label here while the trait-only baseline does not.`;
-  }
-  if (node.gnn_prediction !== node.label && node.mlp_prediction === node.label) {
-    return `${node.name} is useful because the two models separate here, even though only the trait-only baseline matches the label.`;
-  }
-  return `${node.name} is useful because the two models separate most clearly here.`;
+function svgSize(svg) {
+  const base = svg.viewBox.baseVal;
+  return { width: base.width, height: base.height };
 }
 
-function composeScenarioSummary(sample, short = false) {
-  const stats = getSampleStats(sample);
-  if (short) {
-    return `Dominant speaker ${sample.dominant_name}; repair centered on ${sample.anchor_name}; ${stats.overloaded} of ${stats.total} above threshold.`;
-  }
-  return `${sample.dominant_name} holds the floor hardest. Repair is most concentrated around ${sample.anchor_name}. ${stats.overloaded} of ${stats.total} participants cross the overload threshold.`;
-}
-
-function getDisplayColor(node) {
-  if (state.view === 'truth') {
-    return node.label ? dangerColor : calmColor;
-  }
-  if (state.view === 'gnn') {
-    return lerpColor(calmColor, dangerColor, node.gnn_probability);
-  }
-  if (state.view === 'mlp') {
-    return lerpColor(calmColor, dangerColor, node.mlp_probability);
-  }
-  return lerpColor('#274655', dangerColor, node.social_pressure);
-}
-
-function computeLayout(nodes, width, height) {
-  const positions = new Map();
-  const dominant = nodes.reduce((best, node) => node.social_pressure > best.social_pressure ? node : best, nodes[0]);
-  const others = nodes.filter((node) => node.id !== dominant.id)
-    .sort((left, right) => right.social_pressure - left.social_pressure);
-
-  const centerX = width * 0.52;
-  const centerY = height * 0.46;
-  positions.set(dominant.id, { x: centerX, y: centerY });
-
-  const radiusX = width * 0.34;
-  const radiusY = height * 0.28;
-  others.forEach((node, index) => {
-    const angle = -Math.PI / 2 + (index / Math.max(1, others.length)) * Math.PI * 2;
-    const rScale = 0.88 + (1 - node.social_pressure) * 0.18 + (index % 2) * 0.04;
-    positions.set(node.id, {
-      x: centerX + Math.cos(angle) * radiusX * rScale,
-      y: centerY + Math.sin(angle) * radiusY * rScale,
-    });
-  });
-
-  return positions;
-}
-
-function chooseDefaultNode(sample) {
-  return getFocusNodeForMode(sample, 'contrast').id;
-}
-
-function predictionLabel(value) {
-  return value ? 'Overloaded' : 'Stable';
-}
-
-function scenarioTitle(sample) {
-  if (state.activeStepId === 'truth') {
-    return `${sampleLabel(sample)}: where overload lands`;
-  }
-  if (state.activeStepId === 'pressure') {
-    return `${sampleLabel(sample)}: how pressure spreads`;
-  }
-  if (state.activeStepId === 'traits') {
-    return `${sampleLabel(sample)}: what traits can see`;
-  }
-  if (state.activeStepId === 'graph') {
-    return `${sampleLabel(sample)}: what the graph adds`;
-  }
-  return sampleLabel(sample);
-}
-
-function manualScenarioCaption(sample) {
-  if (state.view === 'truth') {
-    return `${composeScenarioSummary(sample)} Node size still marks total pressure.`;
-  }
-  if (state.view === 'gnn') {
-    return 'Node color runs from lower to higher overload probability. Node size still marks total pressure.';
-  }
-  if (state.view === 'mlp') {
-    return 'Node color runs from lower to higher overload probability for the trait-only baseline. Node size still marks total pressure.';
-  }
-  return 'Node color and node size both reflect total pressure. Thicker arrows mark the strongest pressure links.';
-}
-
-function scenarioCaption(sample) {
-  const insights = getSampleInsights(sample);
-  const stats = getSampleStats(sample);
-  const contrastSource = getTopContributorNode(insights.contrast, sample);
-
-  if (state.activeStepId === 'truth') {
-    return `${stats.overloaded} of ${stats.total} participants cross the threshold in this room. ${insights.target.name} receives the most incoming pressure.`;
-  }
-  if (state.activeStepId === 'pressure') {
-    return `${insights.dominant.name} has the highest floor-control score, while ${insights.target.name} receives the most incoming pressure. The highlighted arrow is the strongest outgoing pressure link from ${insights.dominant.name}.`;
-  }
-  if (state.activeStepId === 'traits') {
-    return `This is the trait-only baseline. ${insights.contrast.name} is the cleanest comparison point here: the baseline predicts ${predictionLabel(insights.contrast.mlp_prediction).toLowerCase()} from node features alone.`;
-  }
-  if (state.activeStepId === 'graph') {
-    if (contrastSource) {
-      return `${contrastNarrative(insights.contrast)} In this room, the largest incoming contributor to ${insights.contrast.name} is ${contrastSource.name}.`;
-    }
-    return contrastNarrative(insights.contrast);
-  }
-  return manualScenarioCaption(sample);
-}
-
-function syncFigureSteps() {
-  refs.figureSteps.forEach((step) => {
-    step.classList.toggle('is-active', step.dataset.step === state.activeStepId);
-  });
-}
-
-function activateStep(stepId) {
-  const step = getStepElement(stepId);
-  if (!step) {
-    return;
-  }
-
-  const sample = getCurrentSample();
-  state.stepLockScrollY = null;
-  state.activeStepId = stepId;
-  state.view = step.dataset.view;
-  state.selectedNodeId = getFocusNodeForMode(sample, step.dataset.focusMode).id;
-  renderScenario();
-}
-
-function nodeSummary(node, sample) {
-  const truthText = node.label ? 'is above the overload threshold' : 'remains below the overload threshold';
-  const dominantSource = node.contributors[0] ? sample.nodes.find((item) => item.id === node.contributors[0].source) : null;
-  const dominantText = dominantSource
-    ? `Largest incoming contributor: ${dominantSource.name}.`
-    : 'No single source dominates the pressure pattern.';
-  return `${node.name} ${truthText}. ${dominantText} Incoming pressure ${formatCompact(node.incoming_pressure)}; repair support ${formatCompact(node.incoming_relief)}.`;
-}
-
-function contributorRows(node, sample) {
-  if (!node.contributors.length) {
-    refs.contributors.innerHTML = '<p class="contributors-empty">This participant is relatively insulated in this scenario. No single speaker contributes enough pressure to stand out.</p>';
-    return;
-  }
-
-  refs.contributors.innerHTML = '';
-  node.contributors.forEach((contributor) => {
-    const sourceNode = sample.nodes.find((item) => item.id === contributor.source);
-    const row = document.createElement('div');
-    row.className = 'contributor-row';
-    row.innerHTML = `
-      <div>
-        <div class="contributor-name">${sourceNode.name}</div>
-        <div class="contributor-value">floor ${formatCompact(sourceNode.floor_control)} · room backing ${formatCompact(sourceNode.endorsement)}</div>
-      </div>
-      <div class="contributor-value">pressure ${formatCompact(contributor.weight)}</div>
-    `;
-    refs.contributors.appendChild(row);
-  });
-}
-
-function renderLegend() {
-  if (state.view === 'truth') {
-    refs.legendNodePrimary.innerHTML = '<i class="legend-dot danger"></i> overload';
-    refs.legendNodeSecondary.innerHTML = '<i class="legend-dot calm"></i> stable';
-    refs.legendNodeSize.textContent = 'size = total pressure';
-    return;
-  }
-
-  if (state.view === 'pressure') {
-    refs.legendNodePrimary.innerHTML = '<i class="legend-dot danger"></i> more total pressure';
-    refs.legendNodeSecondary.innerHTML = '<i class="legend-dot pressure-low"></i> less total pressure';
-    refs.legendNodeSize.textContent = 'size = total pressure';
-    return;
-  }
-
-  refs.legendNodePrimary.innerHTML = '<i class="legend-dot danger"></i> higher overload probability';
-  refs.legendNodeSecondary.innerHTML = '<i class="legend-dot calm"></i> lower overload probability';
-  refs.legendNodeSize.textContent = 'size = total pressure';
-}
-
-function renderTraitBars(node) {
-  refs.traitBars.innerHTML = '';
-  state.data.meta.node_features.forEach((feature) => {
-    const value = node.features[feature.key];
-    const row = document.createElement('div');
-    row.className = 'trait-row';
-    row.innerHTML = `
-      <label>${feature.label}</label>
-      <div class="bar-track"><div class="bar-fill" style="width:${(value * 100).toFixed(1)}%"></div></div>
-      <div class="trait-value">${formatCompact(value)}</div>
-    `;
-    refs.traitBars.appendChild(row);
-  });
-}
-
-function renderFigureNotes(sample) {
-  const insights = getSampleInsights(sample);
-  const notes = {
-    dominant: {
-      node: insights.dominant,
-      copy: `${insights.dominant.name} is picked here because this node has the highest floor-control score in the room.`,
-    },
-    target: {
-      node: insights.target,
-      copy: `${insights.target.name} is picked here because this node receives the most incoming pressure in the room.`,
-    },
-    contrast: {
-      node: insights.contrast,
-      copy: contrastNarrative(insights.contrast),
-    },
-    anchor: {
-      node: insights.anchor,
-      copy: `${insights.anchor.name} is picked here because this node receives the most repair support in the room.`,
-    },
+function nodePosition(node, width, height) {
+  const paddingX = width * 0.12;
+  const paddingY = height * 0.14;
+  return {
+    x: paddingX + node.x * (width - paddingX * 2),
+    y: paddingY + node.y * (height - paddingY * 2),
   };
-
-  refs.figureNotes.innerHTML = '';
-  figureNoteConfigs.forEach((config) => {
-    const note = notes[config.id];
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `figure-note${state.selectedNodeId === note.node.id ? ' is-active' : ''}`;
-    button.innerHTML = `
-      <span class="figure-note-label">${config.label}</span>
-      <strong>${note.node.name}</strong>
-      <p>${note.copy}</p>
-    `;
-    button.addEventListener('click', () => {
-      lockStepSync();
-      state.view = config.view;
-      state.selectedNodeId = note.node.id;
-      state.activeStepId = config.stepId;
-      renderScenario();
-    });
-    refs.figureNotes.appendChild(button);
-  });
 }
 
-function updateNodePanel(sample, nodeId) {
-  const node = sample.nodes.find((item) => item.id === nodeId);
-  if (!node) {
-    return;
-  }
-
-  refs.nodeName.textContent = node.name;
-  refs.nodeSummary.textContent = nodeSummary(node, sample);
-  refs.truthPill.textContent = `Truth: ${node.label ? 'Overloaded' : 'Stable'}`;
-  refs.gnnPill.textContent = `GNN: ${node.gnn_prediction ? 'Overloaded' : 'Stable'} (${formatCompact(node.gnn_probability)})`;
-  refs.mlpPill.textContent = `Trait-only: ${node.mlp_prediction ? 'Overloaded' : 'Stable'} (${formatCompact(node.mlp_probability)})`;
-  refs.incomingPressure.textContent = formatCompact(node.incoming_pressure);
-  refs.incomingRelief.textContent = formatCompact(node.incoming_relief);
-  const topSource = getTopContributorNode(node, sample);
-  refs.strongestSource.textContent = topSource
-    ? `${topSource.name} · ${formatCompact(node.strongest_source)}`
-    : 'None';
-  refs.socialPressure.textContent = formatCompact(node.social_pressure);
-  renderTraitBars(node);
-  contributorRows(node, sample);
-}
-
-function edgeCurve(source, target, magnitude) {
+function edgeGeometry(source, target) {
   const dx = target.x - source.x;
   const dy = target.y - source.y;
   const mx = (source.x + target.x) / 2;
@@ -529,461 +363,453 @@ function edgeCurve(source, target, magnitude) {
   const normalX = -dy;
   const normalY = dx;
   const normalLength = Math.hypot(normalX, normalY) || 1;
-  const bend = 18 + magnitude * 22;
+  const sign = source.x <= target.x ? 1 : -1;
+  const bend = 18 * sign;
   const cx = mx + (normalX / normalLength) * bend;
   const cy = my + (normalY / normalLength) * bend;
-  return `M ${source.x} ${source.y} Q ${cx} ${cy} ${target.x} ${target.y}`;
+  const labelX = 0.25 * source.x + 0.5 * cx + 0.25 * target.x;
+  const labelY = 0.25 * source.y + 0.5 * cy + 0.25 * target.y;
+  return {
+    path: `M ${source.x} ${source.y} Q ${cx} ${cy} ${target.x} ${target.y}`,
+    labelX,
+    labelY,
+  };
 }
 
-function markerDefinitions() {
+function addMarker(svg) {
   const defs = svgElement('defs');
-  const pressureMarker = svgElement('marker', {
-    id: 'arrow-pressure',
+  const marker = svgElement('marker', {
+    id: `arrow-${svg.id}`,
     viewBox: '0 0 10 10',
     refX: '9',
     refY: '5',
     markerWidth: '7',
     markerHeight: '7',
-    orient: 'auto-start-reverse',
+    orient: 'auto',
   });
-  pressureMarker.appendChild(svgElement('path', {
+  marker.appendChild(svgElement('path', {
     d: 'M 0 0 L 10 5 L 0 10 z',
-    class: 'edge-arrow',
+    fill: 'rgba(23, 23, 19, 0.28)',
   }));
-  defs.appendChild(pressureMarker);
-  return defs;
+  defs.appendChild(marker);
+  svg.appendChild(defs);
 }
 
-function renderGraph(sample) {
-  const svg = refs.graphSvg;
-  svg.innerHTML = '';
-  svg.appendChild(markerDefinitions());
-
-  const width = 920;
-  const height = 620;
-  const layout = computeLayout(sample.nodes, width, height);
-  const figureFocus = getCurrentFigureFocus(sample);
-  const focusEdge = figureFocus.edge;
-  const focusNodeId = figureFocus.node?.id ?? null;
-
-  svg.appendChild(svgElement('ellipse', {
-    cx: width * 0.52,
-    cy: height * 0.46,
-    rx: width * 0.32,
-    ry: height * 0.26,
-    class: 'graph-ring',
-  }));
-
-  const pressureEdges = sample.edges.slice().sort((left, right) => right.pressure - left.pressure).slice(0, 10);
-  const supportEdges = sample.edges
-    .filter((edge) => edge.support > 0.45)
-    .sort((left, right) => right.support - left.support)
-    .slice(0, 6);
-
-  if (focusEdge) {
-    const targetList = focusEdge.support > focusEdge.pressure ? supportEdges : pressureEdges;
-    if (!targetList.find((edge) => edge.source === focusEdge.source && edge.target === focusEdge.target)) {
-      targetList.push(focusEdge);
-    }
+function renderBackdrop(svg, scene, width, height) {
+  if (scene.id === 'oversmooth') {
+    svg.appendChild(svgElement('ellipse', {
+      cx: width * 0.24,
+      cy: height * 0.5,
+      rx: width * 0.18,
+      ry: height * 0.34,
+      fill: 'rgba(235, 139, 65, 0.08)',
+    }));
+    svg.appendChild(svgElement('ellipse', {
+      cx: width * 0.76,
+      cy: height * 0.5,
+      rx: width * 0.18,
+      ry: height * 0.34,
+      fill: 'rgba(106, 154, 231, 0.08)',
+    }));
   }
+}
+
+function addGraphNote(svg, text, width, height) {
+  const note = svgElement('text', {
+    x: width * 0.06,
+    y: height - 28,
+    class: 'graph-note',
+  });
+  note.textContent = text;
+  svg.appendChild(note);
+}
+
+function renderGraph(scene, svg, options) {
+  const { width, height } = svgSize(svg);
+  svg.innerHTML = '';
+  addMarker(svg);
+  renderBackdrop(svg, scene, width, height);
+
+  const positions = new Map(
+    scene.nodes.map((node) => [node.id, nodePosition(node, width, height)]),
+  );
+  const transition = getTransition(scene, 0);
+  const messageMap = new Map(transition.messages.map((message) => [edgeKey(message.source, message.target), message]));
+  const distances = options.stage === 'depth' && options.mode === 'message'
+    ? incomingHopDistances(scene, options.selectedNodeId, scene.recommended_depth)
+    : null;
+  const receptiveEdges = distances ? receptiveFieldEdges(scene, distances) : new Set();
 
   const edgeLayer = svgElement('g');
+  scene.edges.forEach((edge) => {
+    const sourcePosition = positions.get(edge.source);
+    const targetPosition = positions.get(edge.target);
+    const geometry = edgeGeometry(sourcePosition, targetPosition);
+    const key = edgeKey(edge.source, edge.target);
+    const sourceState = getLayerNode(scene, 0, edge.source).state;
+    const sourceColor = stateColor(sourceState);
+    const isIncomingSelected = edge.target === options.selectedNodeId;
+    const isDepthPath = receptiveEdges.has(key);
 
-  supportEdges.forEach((edge) => {
-    const source = layout.get(edge.source);
-    const target = layout.get(edge.target);
+    let stroke = 'rgba(23, 23, 19, 0.18)';
+    let opacity = 0.14;
+    let strokeWidth = 1.4 + edge.weight * 1.8;
+
+    if (options.mode === 'message') {
+      if (options.stage === 'messages' || options.stage === 'aggregate') {
+        stroke = isIncomingSelected ? sourceColor : 'rgba(23, 23, 19, 0.14)';
+        opacity = isIncomingSelected ? 0.9 : 0.08;
+        strokeWidth = isIncomingSelected ? 2.2 + edge.weight * 2.2 : 1.2;
+      } else if (options.stage === 'update') {
+        stroke = isIncomingSelected ? sourceColor : 'rgba(23, 23, 19, 0.14)';
+        opacity = isIncomingSelected ? 0.54 : 0.1;
+      } else if (options.stage === 'depth') {
+        stroke = isDepthPath ? sourceColor : 'rgba(23, 23, 19, 0.12)';
+        opacity = isDepthPath ? 0.76 : 0.08;
+        strokeWidth = isDepthPath ? 2 + edge.weight * 2 : 1.2;
+      }
+    } else {
+      stroke = stateColor(getLayerNode(scene, options.depth, edge.source).state);
+      opacity = 0.28 + options.depth * 0.06;
+      strokeWidth = 1.2 + edge.weight * 1.7;
+    }
+
     edgeLayer.appendChild(svgElement('path', {
-      d: edgeCurve(source, target, edge.support),
-      class: `edge-line support${focusEdge && focusEdge.source === edge.source && focusEdge.target === edge.target ? ' is-focus' : ''}`,
-      'stroke-width': (1.2 + edge.support * 2.6).toFixed(2),
+      d: geometry.path,
+      class: 'graph-edge',
+      stroke,
+      opacity: opacity.toFixed(2),
+      'stroke-width': strokeWidth.toFixed(2),
+      'marker-end': `url(#arrow-${svg.id})`,
     }));
-  });
 
-  pressureEdges.forEach((edge) => {
-    const source = layout.get(edge.source);
-    const target = layout.get(edge.target);
-    edgeLayer.appendChild(svgElement('path', {
-      d: edgeCurve(source, target, edge.pressure),
-      class: `edge-line pressure${focusEdge && focusEdge.source === edge.source && focusEdge.target === edge.target ? ' is-focus' : ''}`,
-      'stroke-width': (1.4 + edge.pressure * 1.9).toFixed(2),
-      'marker-end': 'url(#arrow-pressure)',
-    }));
+    if (options.mode === 'message' && options.stage === 'messages' && isIncomingSelected) {
+      const message = messageMap.get(key);
+      const label = svgElement('text', {
+        x: geometry.labelX.toFixed(1),
+        y: geometry.labelY.toFixed(1),
+        class: 'edge-label',
+      });
+      label.textContent = formatNumber(message.value);
+      edgeLayer.appendChild(label);
+    }
   });
-
   svg.appendChild(edgeLayer);
 
   const nodeLayer = svgElement('g');
-  sample.nodes.forEach((node) => {
-    const position = layout.get(node.id);
-    const radius = 20 + node.social_pressure * 20;
+  const shownDepth = options.mode === 'message'
+    ? messageDisplayDepth(scene)
+    : options.depth;
+
+  scene.nodes.forEach((node) => {
+    const position = positions.get(node.id);
+    const nodeState = getLayerNode(scene, shownDepth, node.id).state;
+    const fill = stateColor(nodeState);
+    const textFill = textColorForFill(fill);
+    const isSelected = node.id === options.selectedNodeId;
+    const isFocus = node.id === scene.focus_node;
+    const radius = isSelected ? 33 : (node.kind === 'target' || node.kind === 'bridge' ? 30 : 28);
     const group = svgElement('g', {
-      class: `graph-node${state.selectedNodeId === node.id ? ' is-selected' : ''}${focusNodeId === node.id ? ' is-focus' : ''}`,
+      class: `graph-node${isSelected ? ' is-selected' : ''}${isFocus ? ' is-focus' : ''}`,
       transform: `translate(${position.x}, ${position.y})`,
-      tabindex: '0',
-      role: 'button',
-      'aria-label': `${node.name} node`,
+      tabindex: options.mode === 'message' ? '0' : '-1',
+      role: options.mode === 'message' ? 'button' : 'img',
+      'aria-label': `${node.name}`,
     });
 
-    const glow = svgElement('circle', {
-      r: (radius + 11).toFixed(2),
-      fill: 'rgba(255,255,255,0.05)',
-      stroke: 'rgba(255,255,255,0.04)',
-    });
-    const circle = svgElement('circle', {
-      r: radius.toFixed(2),
-      fill: getDisplayColor(node),
-      stroke: state.selectedNodeId === node.id ? '#fff4e5' : 'rgba(255,255,255,0.42)',
-      'stroke-width': state.selectedNodeId === node.id ? '4' : '2.2',
-    });
+    if (options.mode === 'message' && options.stage === 'depth') {
+      const hopDistance = distances.get(node.id);
+      if (hopDistance === 1 || hopDistance === 2) {
+        group.appendChild(svgElement('circle', {
+          r: (radius + 10 + hopDistance * 4).toFixed(1),
+          class: `hop-halo-${hopDistance}`,
+        }));
+      }
+    }
+
+    if (options.mode === 'depth' && isFocus) {
+      group.appendChild(svgElement('circle', {
+        r: (radius + 10).toFixed(1),
+        class: 'hop-halo-1',
+      }));
+    }
+
+    group.appendChild(svgElement('circle', {
+      r: radius.toFixed(1),
+      class: 'node-shell',
+      fill,
+      stroke: 'rgba(23, 23, 19, 0.2)',
+      'stroke-width': '2.4',
+    }));
+
     const label = svgElement('text', {
       x: '0',
-      y: (radius + 22).toFixed(2),
-      'text-anchor': 'middle',
-      class: 'graph-label',
+      y: '1',
+      class: 'node-label',
+      fill: textFill,
     });
-    label.textContent = node.name;
-
-    group.addEventListener('click', () => {
-      state.activeStepId = null;
-      state.selectedNodeId = node.id;
-      renderScenario();
-    });
-    group.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        state.activeStepId = null;
-        state.selectedNodeId = node.id;
-        renderScenario();
-      }
-    });
-
-    group.appendChild(glow);
-    group.appendChild(circle);
+    label.textContent = node.label;
     group.appendChild(label);
+
+    const caption = svgElement('text', {
+      x: '0',
+      y: (radius + 20).toFixed(1),
+      class: 'node-caption',
+    });
+    caption.textContent = node.kind;
+    group.appendChild(caption);
+
+    if (options.mode === 'message') {
+      group.addEventListener('click', () => {
+        state.messageNodeId = node.id;
+        renderMessageFigure();
+      });
+      group.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          state.messageNodeId = node.id;
+          renderMessageFigure();
+        }
+      });
+    }
+
     nodeLayer.appendChild(group);
   });
 
   svg.appendChild(nodeLayer);
+
+  if (options.mode === 'message') {
+    const note = state.messageStepId === 'depth'
+      ? `Receptive field: ${scene.recommended_depth} incoming hop${scene.recommended_depth === 1 ? '' : 's'}`
+      : `Color encodes orange confidence at depth ${shownDepth}.`;
+    addGraphNote(svg, note, width, height);
+  } else {
+    addGraphNote(svg, `Depth ${options.depth} · focus node = ${findNode(scene, scene.focus_node).label}`, width, height);
+  }
 }
 
-function renderScenarioList() {
-  refs.scenarioList.innerHTML = '';
-  state.data.samples.forEach((sample, index) => {
-    const gnnMisses = sample.nodes.filter((node) => node.gnn_prediction !== node.label).length;
-    const mlpMisses = sample.nodes.filter((node) => node.mlp_prediction !== node.label).length;
-    const overloadedCount = sample.nodes.filter((node) => node.label === 1).length;
+function syncMessageSteps() {
+  refs.messageSteps.forEach((step) => {
+    step.classList.toggle('is-active', step.dataset.step === state.messageStepId);
+  });
+}
+
+function renderMessageScenePicker() {
+  const scenes = state.data.scenes.filter((scene) => scene.figure === 'message');
+  refs.messageScenePicker.innerHTML = '';
+  scenes.forEach((scene) => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `scenario-card${state.sampleIndex === index ? ' is-selected' : ''}`;
-    button.innerHTML = `
-      <h3>${sampleLabel(sample)}</h3>
-      <p>${composeScenarioSummary(sample, true)}</p>
-      <div class="scenario-meta">
-        <span class="scenario-chip">${overloadedCount} overloaded</span>
-        <span class="scenario-chip">GNN misses ${gnnMisses}</span>
-        <span class="scenario-chip">Trait-only misses ${mlpMisses}</span>
-      </div>
-    `;
+    button.textContent = scene.name;
+    button.classList.toggle('is-active', scene.id === state.messageSceneId);
     button.addEventListener('click', () => {
-      state.sampleIndex = index;
-      state.selectedNodeId = state.activeStepId
-        ? getFocusNodeForMode(sample, getStepElement(state.activeStepId)?.dataset.focusMode ?? 'contrast').id
-        : chooseDefaultNode(sample);
-      renderScenario();
-      renderScenarioList();
+      state.messageSceneId = scene.id;
+      state.messageNodeId = scene.focus_node;
+      renderMessageFigure();
     });
-    refs.scenarioList.appendChild(button);
+    refs.messageScenePicker.appendChild(button);
   });
 }
 
-function renderScenario() {
-  const sample = getCurrentSample();
-  if (!sample.nodes.some((node) => node.id === state.selectedNodeId)) {
-    state.selectedNodeId = chooseDefaultNode(sample);
+function renderMessageFigure() {
+  const scene = getMessageScene();
+  if (!scene) {
+    return;
+  }
+  if (!findNode(scene, state.messageNodeId)) {
+    state.messageNodeId = scene.focus_node;
   }
 
-  refs.scenarioTitle.textContent = scenarioTitle(sample);
-  refs.scenarioCaption.textContent = scenarioCaption(sample);
-  renderLegend();
-  renderFigureNotes(sample);
-  renderGraph(sample);
-  updateNodePanel(sample, state.selectedNodeId ?? chooseDefaultNode(sample));
+  const node = findNode(scene, state.messageNodeId);
+  const h0 = getLayerNode(scene, 0, node.id);
+  const aggregate = getAggregate(scene, node.id, 0);
+  const h1 = getLayerNode(scene, 1, node.id);
+  const recommended = getLayerNode(scene, scene.recommended_depth, node.id);
 
-  Array.from(refs.viewToggle.querySelectorAll('button')).forEach((button) => {
-    button.classList.toggle('is-active', button.dataset.view === state.view);
+  refs.messageTitle.textContent = getSceneTitleLine(scene);
+  refs.messageDek.textContent = sceneSubtitle(scene);
+  refs.messageNodeName.textContent = `${node.label} · ${sceneRoleLabel(node)}`;
+  refs.messageNodeH0.textContent = formatNumber(h0.state);
+  refs.messageNodeAgg.textContent = formatNumber(aggregate.value);
+  refs.messageNodeH1.textContent = formatNumber(h1.state);
+  refs.messageBestDepth.textContent = `${scene.recommended_depth} layer${scene.recommended_depth === 1 ? '' : 's'}`;
+  refs.messageEquation.innerHTML = messageEquationHtml(scene, node.id);
+  refs.messageStageNote.textContent = scene.stage_notes[state.messageStepId];
+  refs.messageNodeTitle.textContent = node.name;
+  refs.messageNodeSummary.textContent = messageNodeSummary(scene, node.id);
+
+  refs.messageNodeValues.innerHTML = '';
+  buildMessageValueRows(scene, node.id).forEach(([label, value]) => {
+    const row = document.createElement('div');
+    row.className = 'value-row';
+    row.innerHTML = `<span>${label}</span><strong>${value}</strong>`;
+    refs.messageNodeValues.appendChild(row);
   });
 
-  syncFigureSteps();
-  renderScenarioList();
+  buildMessageRows(scene, node.id);
+  renderMessageScenePicker();
+  syncMessageSteps();
+  renderGraph(scene, refs.messageGraph, {
+    mode: 'message',
+    stage: state.messageStepId,
+    selectedNodeId: node.id,
+  });
 }
 
-function renderHistoryChart() {
-  const svg = refs.historyChart;
-  svg.innerHTML = '';
-
-  const width = 760;
-  const height = 300;
-  const margin = { top: 24, right: 40, bottom: 40, left: 44 };
-  const chartWidth = width - margin.left - margin.right;
-  const chartHeight = height - margin.top - margin.bottom;
-
-  const gnnHistory = state.data.histories.gnn;
-  const mlpHistory = state.data.histories.mlp;
-  const maxEpoch = Math.max(
-    ...gnnHistory.map((item) => item.epoch),
-    ...mlpHistory.map((item) => item.epoch),
-  );
-  const allValues = [...gnnHistory, ...mlpHistory].map((item) => item.val_f1);
-  const minValue = Math.min(...allValues) - 0.02;
-  const maxValue = Math.max(...allValues) + 0.02;
-
-  const xForEpoch = (epoch) => margin.left + ((epoch - 1) / Math.max(1, maxEpoch - 1)) * chartWidth;
-  const yForValue = (value) => margin.top + chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight;
-  refs.historyCaption.textContent = `X-axis: training epoch. Y-axis: validation F1. The graph model stops after epoch ${gnnHistory.at(-1).epoch}; the trait-only baseline continues to epoch ${mlpHistory.at(-1).epoch}.`;
-  svg.setAttribute('aria-label', `Validation F1 by epoch. Graph model ends at epoch ${gnnHistory.at(-1).epoch}; trait-only baseline ends at epoch ${mlpHistory.at(-1).epoch}.`);
-
-  const axis = svgElement('g');
-  axis.appendChild(svgElement('line', {
-    x1: margin.left,
-    y1: margin.top + chartHeight,
-    x2: margin.left + chartWidth,
-    y2: margin.top + chartHeight,
-    class: 'chart-axis',
-  }));
-  axis.appendChild(svgElement('line', {
-    x1: margin.left,
-    y1: margin.top,
-    x2: margin.left,
-    y2: margin.top + chartHeight,
-    class: 'chart-axis',
-  }));
-
-  [minValue, (minValue + maxValue) / 2, maxValue].forEach((value) => {
-    const y = yForValue(value);
-    axis.appendChild(svgElement('line', {
-      x1: margin.left,
-      y1: y,
-      x2: margin.left + chartWidth,
-      y2: y,
-      class: 'chart-axis',
-      opacity: '0.55',
-    }));
-    const label = svgElement('text', {
-      x: 8,
-      y: y + 4,
-      class: 'chart-label',
+function renderDepthScenePicker() {
+  refs.depthScenePicker.innerHTML = '';
+  DEPTH_SCENE_IDS.forEach((sceneId) => {
+    const scene = getScene(sceneId);
+    if (!scene) {
+      return;
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = scene.name;
+    button.classList.toggle('is-active', scene.id === state.depthSceneId);
+    button.addEventListener('click', () => {
+      state.depthSceneId = scene.id;
+      if (scene.id === 'twohop' && state.depthLevel === 6) {
+        state.depthLevel = 2;
+      }
+      renderDepthFigure();
     });
-    label.textContent = value.toFixed(2);
-    axis.appendChild(label);
+    refs.depthScenePicker.appendChild(button);
   });
+}
 
-  Array.from(new Set([1, Math.ceil(maxEpoch / 2), maxEpoch])).forEach((epoch) => {
-    const x = xForEpoch(epoch);
-    axis.appendChild(svgElement('line', {
-      x1: x,
-      y1: margin.top + chartHeight,
-      x2: x,
-      y2: margin.top + chartHeight + 6,
-      class: 'chart-axis',
-    }));
-    const label = svgElement('text', {
-      x,
-      y: height - 12,
-      'text-anchor': 'middle',
-      class: 'chart-label',
+function renderDepthPicker() {
+  refs.depthPicker.innerHTML = '';
+  DEPTH_LEVELS.forEach((depth) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = depth.toString();
+    button.classList.toggle('is-active', depth === state.depthLevel);
+    button.addEventListener('click', () => {
+      state.depthLevel = depth;
+      renderDepthFigure();
     });
-    label.textContent = epoch.toString();
-    axis.appendChild(label);
+    refs.depthPicker.appendChild(button);
   });
-
-  const xAxisTitle = svgElement('text', {
-    x: margin.left + chartWidth / 2,
-    y: height - 2,
-    'text-anchor': 'middle',
-    class: 'chart-axis-title',
-  });
-  xAxisTitle.textContent = 'Epoch';
-  axis.appendChild(xAxisTitle);
-
-  const yAxisTitle = svgElement('text', {
-    x: 18,
-    y: margin.top + chartHeight / 2,
-    transform: `rotate(-90 18 ${margin.top + chartHeight / 2})`,
-    'text-anchor': 'middle',
-    class: 'chart-axis-title',
-  });
-  yAxisTitle.textContent = 'Validation F1';
-  axis.appendChild(yAxisTitle);
-
-  svg.appendChild(axis);
-
-  const makePath = (history) => history.map((item, index) => {
-    const x = xForEpoch(item.epoch);
-    const y = yForValue(item.val_f1);
-    return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
-  }).join(' ');
-
-  svg.appendChild(svgElement('path', {
-    d: makePath(gnnHistory),
-    class: 'chart-line',
-    stroke: dangerColor,
-  }));
-  svg.appendChild(svgElement('path', {
-    d: makePath(mlpHistory),
-    class: 'chart-line',
-    stroke: supportColor,
-  }));
-
-  const gnnTag = svgElement('text', {
-    x: width - 126,
-    y: 38,
-    class: 'chart-tag',
-  });
-  gnnTag.textContent = 'GNN';
-  svg.appendChild(gnnTag);
-  svg.appendChild(svgElement('line', {
-    x1: width - 186,
-    y1: 32,
-    x2: width - 136,
-    y2: 32,
-    stroke: dangerColor,
-    'stroke-width': '4',
-    'stroke-linecap': 'round',
-  }));
-
-  const mlpTag = svgElement('text', {
-    x: width - 126,
-    y: 64,
-    class: 'chart-tag',
-  });
-  mlpTag.textContent = 'Trait-only';
-  svg.appendChild(mlpTag);
-  svg.appendChild(svgElement('line', {
-    x1: width - 186,
-    y1: 58,
-    x2: width - 136,
-    y2: 58,
-    stroke: supportColor,
-    'stroke-width': '4',
-    'stroke-linecap': 'round',
-  }));
 }
 
-function populateMetrics() {
-  const overallGnn = state.data.metrics.gnn.overall;
-  const overallMlp = state.data.metrics.mlp.overall;
-  const hardGnn = state.data.metrics.gnn.high_pressure_subset;
-  const hardMlp = state.data.metrics.mlp.high_pressure_subset;
-
-  refs.gnnF1.textContent = formatMetric(overallGnn.f1);
-  refs.mlpF1.textContent = formatMetric(overallMlp.f1);
-  refs.subsetGap.textContent = formatDelta(hardGnn.f1 - hardMlp.f1);
-  refs.overallGap.textContent = formatDelta(overallGnn.f1 - overallMlp.f1);
-  refs.hardGap.textContent = formatDelta(hardGnn.f1 - hardMlp.f1);
-  refs.sampleCount.textContent = state.data.samples.length.toString();
+function renderDepthTrack(scene) {
+  refs.depthTrack.innerHTML = '';
+  DEPTH_LEVELS.forEach((depth) => {
+    const metric = getDepthMetric(scene, depth);
+    const chip = document.createElement('div');
+    chip.className = `depth-chip${depth === state.depthLevel ? ' is-active' : ''}`;
+    chip.innerHTML = `
+      <span>Depth ${depth}</span>
+      <strong>${formatNumber(metric.focus_state)}</strong>
+      <small>p = ${formatProbability(metric.focus_probability)} · gap = ${formatNumber(metric.community_gap)}</small>
+    `;
+    refs.depthTrack.appendChild(chip);
+  });
 }
 
-function attachFigureObservers() {
-  const stepVisibility = new Map();
+function reachableNodeCount(scene, depth) {
+  return incomingHopDistances(scene, scene.focus_node, depth).size;
+}
 
-  const figureObserver = new IntersectionObserver((entries) => {
-    const entry = entries[0];
-    refs.figureBlock.classList.toggle('is-active', entry.isIntersecting && entry.intersectionRatio > 0.14);
-  }, {
-    threshold: [0, 0.14, 0.3, 0.5],
+function depthSummary(scene, depth) {
+  const metric = getDepthMetric(scene, depth);
+  const note = scene.depth_notes[String(depth)] ?? scene.depth_notes['6'];
+  const reach = reachableNodeCount(scene, depth);
+  return `${note} At this depth the focus node can receive signal from ${reach} node${reach === 1 ? '' : 's'} through incoming paths. The graph-wide state spread is ${formatNumber(metric.spread)}.`;
+}
+
+function renderDepthFigure() {
+  const scene = getDepthScene();
+  if (!scene) {
+    return;
+  }
+  const metric = getDepthMetric(scene, state.depthLevel);
+
+  refs.depthTitle.textContent = scene.title;
+  refs.depthDek.textContent = scene.depth_prompt;
+  refs.depthLevel.textContent = `${state.depthLevel} layer${state.depthLevel === 1 ? '' : 's'}`;
+  refs.depthNote.textContent = scene.depth_notes[String(state.depthLevel)] ?? '';
+  refs.depthFocusState.textContent = formatNumber(metric.focus_state);
+  refs.depthFocusProb.textContent = formatProbability(metric.focus_probability);
+  refs.depthSpread.textContent = formatNumber(metric.spread);
+  refs.depthGap.textContent = formatNumber(metric.community_gap);
+  refs.depthSummary.textContent = depthSummary(scene, state.depthLevel);
+
+  renderDepthScenePicker();
+  renderDepthPicker();
+  renderDepthTrack(scene);
+  renderGraph(scene, refs.depthGraph, {
+    mode: 'depth',
+    depth: state.depthLevel,
+    selectedNodeId: scene.focus_node,
   });
-  figureObserver.observe(refs.figureBlock);
+}
 
-  const stepObserver = new IntersectionObserver((entries) => {
+function populateHero() {
+  refs.heroEquation.innerHTML = `h<sup>(k+1)</sup><sub>v</sub> = ${formatNumber(state.data.meta.self_weight, 2)} · h<sup>(k)</sup><sub>v</sub> + ${formatNumber(state.data.meta.neighbor_weight, 2)} · a<sup>(k)</sup><sub>v</sub>`;
+  refs.heroNote.textContent = state.data.meta.note;
+}
+
+function attachMessageStepEvents() {
+  refs.messageSteps.forEach((step) => {
+    step.addEventListener('click', () => {
+      lockStepSync();
+      state.messageStepId = step.dataset.step;
+      renderMessageFigure();
+    });
+    step.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        lockStepSync();
+        state.messageStepId = step.dataset.step;
+        renderMessageFigure();
+      }
+    });
+  });
+}
+
+function attachMessageStepObserver() {
+  const visibility = new Map();
+  const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
-      stepVisibility.set(entry.target.dataset.step, entry.isIntersecting ? entry.intersectionRatio : 0);
+      visibility.set(entry.target.dataset.step, entry.isIntersecting ? entry.intersectionRatio : 0);
     });
 
     if (!releaseStepSyncIfScrolled()) {
       return;
     }
 
-    const bestStep = refs.figureSteps
-      .map((step) => ({ step, ratio: stepVisibility.get(step.dataset.step) ?? 0 }))
+    const best = refs.messageSteps
+      .map((step) => ({ step, ratio: visibility.get(step.dataset.step) ?? 0 }))
       .sort((left, right) => right.ratio - left.ratio)[0];
 
-    if (bestStep && bestStep.ratio > 0.18 && bestStep.step.dataset.step !== state.activeStepId) {
-      activateStep(bestStep.step.dataset.step);
+    if (best && best.ratio > 0.2 && best.step.dataset.step !== state.messageStepId) {
+      state.messageStepId = best.step.dataset.step;
+      renderMessageFigure();
     }
   }, {
     threshold: [0, 0.2, 0.4, 0.6, 0.8],
-    rootMargin: '-18% 0px -26% 0px',
+    rootMargin: '-18% 0px -24% 0px',
   });
 
-  refs.figureSteps.forEach((step) => stepObserver.observe(step));
-}
-
-function attachEvents() {
-  refs.viewToggle.addEventListener('click', (event) => {
-    const button = event.target.closest('button[data-view]');
-    if (!button) {
-      return;
-    }
-    lockStepSync();
-    state.activeStepId = viewToStep[button.dataset.view] ?? null;
-    state.view = button.dataset.view;
-    if (state.activeStepId) {
-      state.selectedNodeId = getFocusNodeForMode(
-        getCurrentSample(),
-        getStepElement(state.activeStepId)?.dataset.focusMode ?? 'contrast',
-      ).id;
-    }
-    renderScenario();
-  });
-
-  refs.prevSample.addEventListener('click', () => {
-    state.sampleIndex = (state.sampleIndex - 1 + state.data.samples.length) % state.data.samples.length;
-    state.selectedNodeId = state.activeStepId
-      ? getFocusNodeForMode(getCurrentSample(), getStepElement(state.activeStepId)?.dataset.focusMode ?? 'contrast').id
-      : chooseDefaultNode(getCurrentSample());
-    renderScenario();
-  });
-
-  refs.nextSample.addEventListener('click', () => {
-    state.sampleIndex = (state.sampleIndex + 1) % state.data.samples.length;
-    state.selectedNodeId = state.activeStepId
-      ? getFocusNodeForMode(getCurrentSample(), getStepElement(state.activeStepId)?.dataset.focusMode ?? 'contrast').id
-      : chooseDefaultNode(getCurrentSample());
-    renderScenario();
-  });
-
-  refs.shuffleSample.addEventListener('click', () => {
-    const nextIndex = Math.floor(Math.random() * state.data.samples.length);
-    state.sampleIndex = nextIndex;
-    state.selectedNodeId = state.activeStepId
-      ? getFocusNodeForMode(getCurrentSample(), getStepElement(state.activeStepId)?.dataset.focusMode ?? 'contrast').id
-      : chooseDefaultNode(getCurrentSample());
-    renderScenario();
-  });
-
-  refs.figureSteps.forEach((step) => {
-    step.addEventListener('click', () => activateStep(step.dataset.step));
-    step.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        activateStep(step.dataset.step);
-      }
-    });
-  });
+  refs.messageSteps.forEach((step) => observer.observe(step));
 }
 
 async function init() {
   state.data = await loadData();
-  populateMetrics();
-  state.selectedNodeId = getFocusNodeForMode(getCurrentSample(), 'target').id;
-  renderScenario();
-  renderHistoryChart();
-  attachEvents();
-  attachFigureObservers();
+  state.messageSceneId = state.data.scenes.find((scene) => scene.figure === 'message')?.id ?? state.data.scenes[0].id;
+  state.messageNodeId = getMessageScene().focus_node;
+
+  populateHero();
+  renderMessageFigure();
+  renderDepthFigure();
+  attachMessageStepEvents();
+  attachMessageStepObserver();
 }
 
 init().catch((error) => {
-  refs.scenarioTitle.textContent = 'Failed to load';
-  refs.scenarioCaption.textContent = error.message;
+  refs.messageTitle.textContent = 'Failed to load';
+  refs.messageDek.textContent = error.message;
   console.error(error);
 });
