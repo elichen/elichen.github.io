@@ -198,9 +198,9 @@
       </div>
 
       <aside class="margin-note">
-        <p class="note-label">Read The Depth Control</p>
+        <p class="note-label">Read the depth control</p>
         <p class="note-copy">
-          `0` behaves like an MLP on nodes. `1` and `2` expand the receptive field.
+          <code>0</code> behaves like an MLP on nodes. <code>1</code> and <code>2</code> expand the receptive field.
           Larger values show what repeated mixing does to the whole graph.
         </p>
       </aside>
@@ -289,7 +289,7 @@
         </article>
         <article class="annotation-card">
           <h3>2 Layers</h3>
-          <p>Reaches motifs and relays. This is often the sweet spot for many small graph tasks.</p>
+          <p>Reaches motifs and relays. Two layers is usually the right call for small-graph tasks.</p>
         </article>
         <article class="annotation-card">
           <h3>Too Much Depth</h3>
@@ -300,7 +300,7 @@
 
     <section class="section section-closing reveal">
       <div class="prose">
-        <h2>The Right Mental Model</h2>
+        <h2>The right mental model</h2>
         <p>
           A GNN is not magic global reasoning. It is a local update rule applied repeatedly to a graph.
           Every extra layer trades more context for more mixing. The practical question is not
