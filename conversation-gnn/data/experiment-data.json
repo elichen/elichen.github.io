@@ -7,9 +7,9 @@
     "max_depth": 6,
     "logit_scale": 10.0,
     "state_label": "orange confidence",
-    "message_equation": "m_{u\u2192v}^{(k)} = w_{uv} \u00b7 h_u^{(k)}",
-    "aggregate_equation": "a_v^{(k)} = \u03a3_u m_{u\u2192v}^{(k)} / \u03a3_u w_{uv}",
-    "update_equation": "h_v^{(k+1)} = 0.35 \u00b7 h_v^{(k)} + 0.65 \u00b7 a_v^{(k)}",
+    "message_equation": "m_{u→v}^{(k)} = w_{uv} · h_u^{(k)}",
+    "aggregate_equation": "a_v^{(k)} = Σ_u m_{u→v}^{(k)} / Σ_u w_{uv}",
+    "update_equation": "h_v^{(k+1)} = 0.35 · h_v^{(k)} + 0.65 · a_v^{(k)}",
     "note": "The essay uses one scalar feature channel to make message passing visible. Real GNNs usually propagate vectors."
   },
   "scenes": [
@@ -26,7 +26,7 @@
       "stage_notes": {
         "features": "At depth 0 the target only knows its own feature. A value near 0.50 is almost neutral, so an MLP-like baseline hesitates.",
         "messages": "Each incoming edge scales the sender state. Strong orange neighbors send large positive messages into the target.",
-        "aggregate": "The neighborhood summary is a weighted average, not a raw sum. That keeps degree from dominating the update by itself.",
+        "aggregate": "The neighborhood summary is a weighted average, not a raw sum. That keeps high-degree nodes from dominating the result on their own.",
         "update": "The target keeps part of its own feature but mostly follows the neighborhood summary, which pushes it into the orange class.",
         "depth": "A second layer barely changes the answer. Once the first hop is informative, deeper propagation mostly smooths the graph."
       },
@@ -1271,11 +1271,11 @@
       "task": "Predict whether the selected node should turn orange once two-hop context is included.",
       "depth_prompt": "This motif shows why stacking message-passing layers expands the receptive field.",
       "stage_notes": {
-        "features": "The target again starts almost neutral. Looking only at its own feature is not enough to classify it confidently.",
+        "features": "The target again starts close to neutral. Its own feature does not decide anything here.",
         "messages": "At the first step the target only hears from the relay nodes below the true signal. Their messages are still weak.",
         "aggregate": "The first-hop aggregate is close to neutral because the relays have not yet incorporated the upstream orange sources.",
-        "update": "After one layer the relays are prepared, but the target is still uncertain. The useful evidence is one step further out.",
-        "depth": "After two layers the target can finally receive the upstream signal through the relays. This is the core advantage of stacked GNN layers."
+        "update": "After one layer the relays have absorbed their neighbors' states, but none of that has reached the target yet.",
+        "depth": "After two layers the upstream signal has threaded through the relays to reach the target. That is the whole point of stacking layers."
       },
       "depth_notes": {
         "0": "Depth 0 sees only the target feature, so the prediction is nearly a coin flip.",
@@ -2657,7 +2657,7 @@
         "1": "One round of averaging mostly smooths within each community.",
         "2": "By two layers the bridge has started to pull both sides inward.",
         "4": "At four layers the two communities are still separable, but the gap has already narrowed substantially.",
-        "6": "At six layers the graph is much flatter. This is the start of oversmoothing: node states are becoming too similar."
+        "6": "At six layers the graph is much flatter. Oversmoothing: the states have compressed to where individual nodes are hard to tell apart."
       },
       "nodes": [
         {

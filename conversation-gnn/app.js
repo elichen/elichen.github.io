@@ -283,10 +283,10 @@ function messageNodeSummary(scene, nodeId) {
   const isFocus = nodeId === scene.focus_node;
 
   if (isFocus) {
-    return `${node.name} is the node this motif asks you to classify. It starts at ${formatNumber(h0.state)}, moves to ${formatNumber(h1.state)} after one update, and reaches ${formatNumber(hk.state)} by depth ${scene.recommended_depth}.`;
+    return `${node.name} is the node we are tracking. It starts at ${formatNumber(h0.state)}, moves to ${formatNumber(h1.state)} after one update, and reaches ${formatNumber(hk.state)} by depth ${scene.recommended_depth}.`;
   }
 
-  return `${node.name} is a ${sceneRoleLabel(node)}. Comparing it with the focus node shows how the same local rule behaves on different neighborhoods.`;
+  return `${node.name} is a ${sceneRoleLabel(node)}. Compare it against the focus node to see how the same update rule plays out in a different position.`;
 }
 
 function buildMessageValueRows(scene, nodeId) {
@@ -716,7 +716,7 @@ function depthSummary(scene, depth) {
   const metric = getDepthMetric(scene, depth);
   const note = scene.depth_notes[String(depth)] ?? scene.depth_notes['6'];
   const reach = reachableNodeCount(scene, depth);
-  return `${note} At this depth the focus node can receive signal from ${reach} node${reach === 1 ? '' : 's'} through incoming paths. The graph-wide state spread is ${formatNumber(metric.spread)}.`;
+  return `${note} At this depth the focus node has ${reach} node${reach === 1 ? '' : 's'} within range. Graph-wide state spread: ${formatNumber(metric.spread)}.`;
 }
 
 function renderDepthFigure() {

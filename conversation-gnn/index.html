@@ -186,7 +186,7 @@
 
     <section class="section section-with-aside reveal">
       <div class="prose">
-        <h2>Depth Changes What A Node Can Know</h2>
+        <h2>Depth changes what a node can know</h2>
         <p>
           A 0-layer model is just a node-wise classifier: it only sees <em>x<sub>v</sub></em>. One layer reaches immediate neighbors.
           Two layers reach neighbors-of-neighbors. Beyond that point, whether more depth helps depends on the graph.
@@ -270,7 +270,7 @@
 
     <section class="section reveal">
       <div class="prose">
-        <h2>Where GNNs Help, And Where They Fail</h2>
+        <h2>Where GNNs help and where they don't</h2>
         <p>
           GNNs help when the label of a node genuinely lives in the neighborhood: homophily, motifs, bridges,
           bottlenecks, or evidence that sits a few hops away. They struggle when the graph is noisy,
@@ -302,7 +302,7 @@
       <div class="prose">
         <h2>The Right Mental Model</h2>
         <p>
-          A GNN is not magic global reasoning. It is a local update rule applied repeatedly on a graph.
+          A GNN is not magic global reasoning. It is a local update rule applied repeatedly to a graph.
           Every extra layer trades more context for more mixing. The practical question is not
           “should I use a GNN?” but “does my node label actually live in the neighborhood, and if so, how many hops away?”
         </p>
