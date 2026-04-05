@@ -95,9 +95,9 @@ function luminance(hex) {
 
 function stateColor(value) {
   if (value <= 0.5) {
-    return lerpColor('#5c8fe1', '#f5efe2', value / 0.5);
+    return lerpColor('#5188d8', '#ede5d8', value / 0.5);
   }
-  return lerpColor('#f5efe2', '#eb8b41', (value - 0.5) / 0.5);
+  return lerpColor('#ede5d8', '#e87430', (value - 0.5) / 0.5);
 }
 
 function textColorForFill(fill) {
@@ -389,7 +389,7 @@ function addMarker(svg) {
   });
   marker.appendChild(svgElement('path', {
     d: 'M 0 0 L 10 5 L 0 10 z',
-    fill: 'rgba(23, 23, 19, 0.28)',
+    fill: 'rgba(23, 23, 19, 0.32)',
   }));
   defs.appendChild(marker);
   svg.appendChild(defs);
@@ -451,7 +451,7 @@ function renderGraph(scene, svg, options) {
     const isIncomingSelected = edge.target === options.selectedNodeId;
     const isDepthPath = receptiveEdges.has(key);
 
-    let stroke = 'rgba(23, 23, 19, 0.18)';
+    let stroke = 'rgba(23, 23, 19, 0.16)';
     let opacity = 0.14;
     let strokeWidth = 1.4 + edge.weight * 1.8;
 
@@ -538,7 +538,7 @@ function renderGraph(scene, svg, options) {
       r: radius.toFixed(1),
       class: 'node-shell',
       fill,
-      stroke: 'rgba(23, 23, 19, 0.2)',
+      stroke: 'rgba(23, 23, 19, 0.18)',
       'stroke-width': '2.4',
     }));
 
