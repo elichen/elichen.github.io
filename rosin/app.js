@@ -641,6 +641,7 @@ function updateGuideVisual(event, now = performance.now()) {
     }
 
     elements.guideStage.dataset.string = targetString;
+    elements.guideStage.dataset.visible = trackingLive ? "true" : "false";
     elements.guideStage.style.setProperty("--accent-color", STRING_COLORS[targetString] || STRING_COLORS.A);
     elements.guideStage.style.setProperty("--stop-position", `${stopPosition.toFixed(1)}%`);
     elements.guideStage.style.setProperty("--tracker-left", `${trackerLeft.toFixed(1)}%`);
