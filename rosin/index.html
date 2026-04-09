@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Violin Rail</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="shortcut icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;500;700;800&family=Bodoni+Moda:opsz,wght@6..96,400;6..96,600;6..96,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="grain"></div>
+    <div class="container">
+        <div class="ui-cache" aria-hidden="true">
+            <p id="cameraStatus">Press Start once to allow camera and sound. A short countdown will follow.</p>
+            <span id="noteLabel">-</span>
+            <span id="stringLabel">String -</span>
+            <span id="positionLabel">Position -</span>
+        </div>
+
+        <div class="game-container">
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="trackingOverlay" class="tracking-overlay" aria-hidden="true"></canvas>
+            <div id="guideStage" class="guide-stage" data-string="A" aria-hidden="true">
+                <div id="ghostBow" class="ghost-bow"></div>
+                <div id="ghostViolin" class="ghost-violin">
+                    <div class="ghost-body ghost-body--upper"></div>
+                    <div class="ghost-body ghost-body--lower"></div>
+                    <div class="ghost-waist"></div>
+                    <div class="ghost-tailpiece"></div>
+                    <div class="ghost-neck"></div>
+                    <div class="ghost-scroll"></div>
+                    <span class="ghost-string" data-string="G"></span>
+                    <span class="ghost-string" data-string="D"></span>
+                    <span class="ghost-string" data-string="A"></span>
+                    <span class="ghost-string" data-string="E"></span>
+                    <span id="ghostStop" class="ghost-stop"></span>
+                    <span id="ghostTracker" class="ghost-tracker"></span>
+                </div>
+            </div>
+            <button id="bootButton" class="boot-button">Start</button>
+            <div id="countdownOverlay" class="countdown-overlay hidden" aria-live="polite"></div>
+
+            <section class="rail-dock">
+                <div class="rail-controls">
+                    <select id="songSelect" aria-label="Choose piece"></select>
+                </div>
+                <div class="rail-viewport" id="railViewport">
+                    <div id="railTrack" class="rail-track"></div>
+                    <div class="playhead"></div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>

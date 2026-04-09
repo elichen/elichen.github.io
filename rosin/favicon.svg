@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#23100c"/>
+      <stop offset="100%" stop-color="#8f4e27"/>
+    </linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f3cf84"/>
+      <stop offset="100%" stop-color="#c8773d"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <g transform="translate(10 6)">
+    <path d="M16 10c-4.6 0-8 3.1-8 7.4 0 2.8 1.2 5.2 3.5 7 1.4 1.1 2 2.1 2 3.6v7.5c0 4.3 3 7.5 7.5 7.5s7.5-3.2 7.5-7.5V28c0-1.5.6-2.5 2-3.6 2.3-1.8 3.5-4.2 3.5-7 0-4.3-3.4-7.4-8-7.4-2.1 0-3.9.6-5 1.8-1.1-1.2-2.9-1.8-5-1.8Z" fill="url(#wood)"/>
+    <circle cx="17" cy="22" r="1.7" fill="#2b140d"/>
+    <circle cx="27" cy="22" r="1.7" fill="#2b140d"/>
+    <rect x="18" y="0" width="8" height="12" rx="3" fill="#f6e7c0"/>
+    <rect x="20.5" y="10" width="3" height="28" rx="1.5" fill="#2b140d"/>
+    <path d="M17 41c1.8 2.1 4 3.2 7 3.2s5.2-1.1 7-3.2" fill="none" stroke="#f6e7c0" stroke-width="2.4" stroke-linecap="round"/>
+    <g stroke="#f8edd0" stroke-width="0.8" opacity="0.9">
+      <line x1="19.4" y1="4" x2="19.4" y2="39"/>
+      <line x1="21.6" y1="4" x2="21.6" y2="39"/>
+      <line x1="23.8" y1="4" x2="23.8" y2="39"/>
+      <line x1="26" y1="4" x2="26" y2="39"/>
+    </g>
+  </g>
+</svg>
