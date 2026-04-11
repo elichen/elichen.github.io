@@ -699,79 +699,12 @@ function drawTrackingOverlay() {
         return;
     }
 
-    const points = state.pose.points;
-    const leftShoulder = points.left_shoulder;
-    const rightShoulder = points.right_shoulder;
-    const leftElbow = points.left_elbow;
-    const rightElbow = points.right_elbow;
-    const leftWrist = points.left_wrist;
-    const rightWrist = points.right_wrist;
+    const { left_wrist: leftWrist, right_wrist: rightWrist } = state.pose.points;
     const activeEvent = getActiveEvent();
     const accent = STRING_COLORS[activeEvent?.string || state.pose.stringLabel] || STRING_COLORS.A;
-    const confidence = clamp(state.pose.trackingConfidence, 0, 1);
 
-    if (leftShoulder && rightShoulder) {
-        const shoulderSpan = distance(leftShoulder, rightShoulder);
-        const laneY = lerp(leftShoulder.y, rightShoulder.y, 0.42);
-        const laneStartX = Math.min(leftShoulder.x, rightShoulder.x) - shoulderSpan * 0.22;
-        const laneEndX = Math.max(leftShoulder.x, rightShoulder.x) + shoulderSpan * 0.48;
-
-        trackingCtx.strokeStyle = `rgba(255, 241, 214, ${0.16 + state.pose.bowEnergy * 0.34})`;
-        trackingCtx.lineWidth = Math.max(3, shoulderSpan * 0.028);
-        trackingCtx.lineCap = "round";
-        trackingCtx.beginPath();
-        trackingCtx.moveTo(laneStartX, laneY);
-        trackingCtx.lineTo(laneEndX, laneY);
-        trackingCtx.stroke();
-
-        if (rightWrist) {
-            trackingCtx.strokeStyle = `rgba(255, 244, 223, ${0.32 + confidence * 0.28})`;
-            trackingCtx.lineWidth = Math.max(2, shoulderSpan * 0.016);
-            trackingCtx.beginPath();
-            trackingCtx.moveTo(rightWrist.x, rightWrist.y);
-            trackingCtx.lineTo(lerp(laneStartX, laneEndX, 0.62), laneY);
-            trackingCtx.stroke();
-        }
-    }
-
-    [
-        [leftShoulder, rightShoulder],
-        [leftShoulder, leftElbow],
-        [leftElbow, leftWrist],
-        [rightShoulder, rightElbow],
-        [rightElbow, rightWrist]
-    ].forEach(([from, to]) => {
-        if (!(from && to)) {
-            return;
-        }
-
-        trackingCtx.strokeStyle = `rgba(247, 239, 225, ${0.14 + confidence * 0.3})`;
-        trackingCtx.lineWidth = 3;
-        trackingCtx.beginPath();
-        trackingCtx.moveTo(from.x, from.y);
-        trackingCtx.lineTo(to.x, to.y);
-        trackingCtx.stroke();
-    });
-
-    if (leftShoulder) {
-        drawTrackingPoint(leftShoulder, 6, "rgba(245, 236, 218, 0.44)");
-    }
-    if (rightShoulder) {
-        drawTrackingPoint(rightShoulder, 6, "rgba(245, 236, 218, 0.44)");
-    }
-    if (leftElbow) {
-        drawTrackingPoint(leftElbow, 6, "rgba(216, 188, 114, 0.4)");
-    }
-    if (rightElbow) {
-        drawTrackingPoint(rightElbow, 6, "rgba(216, 188, 114, 0.4)");
-    }
     if (leftWrist) {
         drawTrackingPoint(leftWrist, 10, accent);
-        trackingCtx.beginPath();
-        trackingCtx.arc(leftWrist.x, leftWrist.y, 18, 0, Math.PI * 2);
-        trackingCtx.strokeStyle = `rgba(255, 246, 230, ${0.18 + confidence * 0.2})`;
-        trackingCtx.lineWidth = 2;
-        trackingCtx.stroke();
     }
     if (rightWrist) {
         drawTrackingPoint(rightWrist, 10, "rgba(255, 242, 215, 0.86)");
