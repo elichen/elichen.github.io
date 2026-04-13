@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Drums</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="shortcut icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;500;700;800&family=Bodoni+Moda:opsz,wght@6..96,400;6..96,600;6..96,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="grain"></div>
+    <div class="container">
+        <div class="game-container">
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="trackingOverlay" class="tracking-overlay" aria-hidden="true"></canvas>
+            <canvas id="hitCanvas" class="hit-canvas" aria-hidden="true"></canvas>
+            <div id="statusBar" class="status-bar">
+                <p id="cameraStatus">Press Start once to allow camera and sound.</p>
+            </div>
+            <button id="bootButton" class="boot-button">Start</button>
+            <div id="countdownOverlay" class="countdown-overlay hidden" aria-live="polite"></div>
+
+            <section class="rail-dock">
+                <div class="rail-controls">
+                    <select id="songSelect" aria-label="Choose beat"></select>
+                </div>
+                <div class="rail-viewport" id="railViewport">
+                    <div id="railTrack" class="rail-track"></div>
+                    <div class="playhead"></div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
