@@ -22,10 +22,11 @@ const RAIL_MAX_Y = 168;
 const POSE_SAMPLE_MS = 40;
 
 // Strike detection
-const STRIKE_VELOCITY_THRESHOLD = 0.7;
+const STRIKE_VELOCITY_THRESHOLD = 0.55;
 const STRIKE_MIN_INTERVAL_MS = 90;
-const STRIKE_REARM_LIFT_RATIO = 0.24;
-const STRIKE_REARM_VELOCITY_THRESHOLD = -0.25;
+const STRIKE_REARM_LIFT_RATIO = 0.08;
+const STRIKE_REARM_VELOCITY_THRESHOLD = -0.08;
+const STRIKE_REARM_SETTLE_VELOCITY = 0.1;
 const HIT_RADIUS_MULTIPLIER = 2.2; // how close the stick tip must be to pad center (× pad radius)
 
 // Stick drawing
@@ -547,7 +548,12 @@ function detectStrike(history) {
         dt += (recent[i].t - recent[i - 1].t) / 1000;
     }
     if (dt < 0.001) return { velocity: 0, struck: false };
-    const v = (dy / dt) / 200;
+    const avgVelocity = (dy / dt) / 200;
+    const last = recent[recent.length - 1];
+    const prev = recent[recent.length - 2];
+    const segmentDt = (last.t - prev.t) / 1000;
+    const segmentVelocity = segmentDt < 0.001 ? 0 : ((last.y - prev.y) / segmentDt) / 200;
+    const v = Math.max(avgVelocity, segmentVelocity);
     return { velocity: v, struck: v > STRIKE_VELOCITY_THRESHOLD };
 }
 
@@ -582,11 +588,12 @@ function resetHandPoseState(handState) {
     handState.rearmLiftPx = 0;
 }
 
-function maybeRearmHand(handState, tip, velocity) {
+function maybeRearmHand(handState, tip, velocity, now) {
     if (handState.armed || handState.lastStrikeTipY == null) return;
     const lifted = tip.y <= handState.lastStrikeTipY - handState.rearmLiftPx;
     const rebounded = velocity <= STRIKE_REARM_VELOCITY_THRESHOLD;
-    if (lifted || rebounded) {
+    const settled = now - handState.lastStrikeAt >= STRIKE_MIN_INTERVAL_MS && velocity <= STRIKE_REARM_SETTLE_VELOCITY;
+    if (lifted || rebounded || settled) {
         handState.armed = true;
         handState.lastStrikeTipY = null;
         handState.rearmLiftPx = 0;
@@ -606,7 +613,7 @@ function processHandStrike(handState, hand, wristVideo, elbowVideo, cw, ch, now)
     handState.strikeVelocity = strike.velocity;
 
     const tip = elbowVideo ? stickTipScreen(elbowVideo, wristVideo, cw, ch) : videoToScreen(wristVideo, cw, ch);
-    maybeRearmHand(handState, tip, strike.velocity);
+    maybeRearmHand(handState, tip, strike.velocity, now);
 
     if (!handState.armed) return;
     if (!strike.struck) return;
