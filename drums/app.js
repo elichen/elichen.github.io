@@ -23,8 +23,10 @@ const POSE_SAMPLE_MS = 40;
 
 // Strike detection
 const STRIKE_VELOCITY_THRESHOLD = 0.7;
-const STRIKE_COOLDOWN_MS = 150;
-const HIT_RADIUS_MULTIPLIER = 2.2; // how close wrist must be to pad center (× pad radius)
+const STRIKE_MIN_INTERVAL_MS = 90;
+const STRIKE_REARM_LIFT_RATIO = 0.24;
+const STRIKE_REARM_VELOCITY_THRESHOLD = -0.25;
+const HIT_RADIUS_MULTIPLIER = 2.2; // how close the stick tip must be to pad center (× pad radius)
 
 // Stick drawing
 const STICK_WIDTH = 5;
@@ -171,12 +173,22 @@ const state = {
         points: {},
         lastPoseAt: 0,
         trackingConfidence: 0,
-        leftWristHistory: [],
-        rightWristHistory: [],
-        leftStrikeVelocity: 0,
-        rightStrikeVelocity: 0,
-        leftLastStrikeAt: 0,
-        rightLastStrikeAt: 0
+        left: {
+            history: [],
+            strikeVelocity: 0,
+            lastStrikeAt: -Infinity,
+            armed: true,
+            lastStrikeTipY: null,
+            rearmLiftPx: 0
+        },
+        right: {
+            history: [],
+            strikeVelocity: 0,
+            lastStrikeAt: -Infinity,
+            armed: true,
+            lastStrikeTipY: null,
+            rearmLiftPx: 0
+        }
     },
     audio: null,
     hitEffects: [],       // expanding ring ripples on drum pads
@@ -562,6 +574,54 @@ function stickTipScreen(elbowVideo, wristVideo, cw, ch) {
     return { x: wrist.x + (dx / len) * len, y: wrist.y + (dy / len) * len };
 }
 
+function resetHandPoseState(handState) {
+    handState.history.length = 0;
+    handState.strikeVelocity = 0;
+    handState.armed = true;
+    handState.lastStrikeTipY = null;
+    handState.rearmLiftPx = 0;
+}
+
+function maybeRearmHand(handState, tip, velocity) {
+    if (handState.armed || handState.lastStrikeTipY == null) return;
+    const lifted = tip.y <= handState.lastStrikeTipY - handState.rearmLiftPx;
+    const rebounded = velocity <= STRIKE_REARM_VELOCITY_THRESHOLD;
+    if (lifted || rebounded) {
+        handState.armed = true;
+        handState.lastStrikeTipY = null;
+        handState.rearmLiftPx = 0;
+    }
+}
+
+function processHandStrike(handState, hand, wristVideo, elbowVideo, cw, ch, now) {
+    if (!wristVideo) {
+        resetHandPoseState(handState);
+        return;
+    }
+
+    handState.history.push({ x: wristVideo.x, y: wristVideo.y, t: now });
+    if (handState.history.length > 8) handState.history.shift();
+
+    const strike = detectStrike(handState.history);
+    handState.strikeVelocity = strike.velocity;
+
+    const tip = elbowVideo ? stickTipScreen(elbowVideo, wristVideo, cw, ch) : videoToScreen(wristVideo, cw, ch);
+    maybeRearmHand(handState, tip, strike.velocity);
+
+    if (!handState.armed) return;
+    if (!strike.struck) return;
+    if (now - handState.lastStrikeAt <= STRIKE_MIN_INTERVAL_MS) return;
+
+    const pad = findNearestPad(tip, cw, ch);
+    if (!pad) return;
+
+    handState.lastStrikeAt = now;
+    handState.armed = false;
+    handState.lastStrikeTipY = tip.y;
+    handState.rearmLiftPx = padRadiusPx(pad, cw, ch) * STRIKE_REARM_LIFT_RATIO;
+    handleStrike(hand, pad.name, clamp(strike.velocity / 4, 0.4, 1.0));
+}
+
 function handleStrike(hand, drum, velocity) {
     // Always play the sound and show the visual, even outside playback
     state.audio?.playDrum(drum, velocity);
@@ -611,7 +671,12 @@ function processPose(poses) {
     const now = performance.now();
     state.pose.lastPoseAt = now;
 
-    if (!(ls && rs)) { state.pose.trackingConfidence = 0; return; }
+    if (!(ls && rs)) {
+        state.pose.trackingConfidence = 0;
+        resetHandPoseState(state.pose.left);
+        resetHandPoseState(state.pose.right);
+        return;
+    }
 
     state.pose.trackingConfidence = [ls, rs, lw, rw].filter(Boolean).reduce((s, p) => s + p.score, 0) / 4;
 
@@ -619,40 +684,13 @@ function processPose(poses) {
     const ch = elements.hitCanvas.clientHeight || window.innerHeight;
     const le = state.pose.points.left_elbow;
     const re = state.pose.points.right_elbow;
+    const leftWristTracked = named.left_wrist ? lw : null;
+    const rightWristTracked = named.right_wrist ? rw : null;
+    const leftElbowTracked = named.left_elbow ? le : null;
+    const rightElbowTracked = named.right_elbow ? re : null;
 
-    // Left hand — use stick tip (not wrist) for pad collision
-    if (lw) {
-        state.pose.leftWristHistory.push({ x: lw.x, y: lw.y, t: now });
-        if (state.pose.leftWristHistory.length > 8) state.pose.leftWristHistory.shift();
-
-        const strike = detectStrike(state.pose.leftWristHistory);
-        state.pose.leftStrikeVelocity = strike.velocity;
-        if (strike.struck && now - state.pose.leftLastStrikeAt > STRIKE_COOLDOWN_MS) {
-            const tip = le ? stickTipScreen(le, lw, cw, ch) : videoToScreen(lw, cw, ch);
-            const pad = findNearestPad(tip, cw, ch);
-            if (pad) {
-                state.pose.leftLastStrikeAt = now;
-                handleStrike("left", pad.name, clamp(strike.velocity / 4, 0.4, 1.0));
-            }
-        }
-    }
-
-    // Right hand — use stick tip for pad collision
-    if (rw) {
-        state.pose.rightWristHistory.push({ x: rw.x, y: rw.y, t: now });
-        if (state.pose.rightWristHistory.length > 8) state.pose.rightWristHistory.shift();
-
-        const strike = detectStrike(state.pose.rightWristHistory);
-        state.pose.rightStrikeVelocity = strike.velocity;
-        if (strike.struck && now - state.pose.rightLastStrikeAt > STRIKE_COOLDOWN_MS) {
-            const tip = re ? stickTipScreen(re, rw, cw, ch) : videoToScreen(rw, cw, ch);
-            const pad = findNearestPad(tip, cw, ch);
-            if (pad) {
-                state.pose.rightLastStrikeAt = now;
-                handleStrike("right", pad.name, clamp(strike.velocity / 4, 0.4, 1.0));
-            }
-        }
-    }
+    processHandStrike(state.pose.left, "left", leftWristTracked, leftElbowTracked, cw, ch, now);
+    processHandStrike(state.pose.right, "right", rightWristTracked, rightElbowTracked, cw, ch, now);
 }
 
 async function poseLoop() {
