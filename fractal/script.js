@@ -537,6 +537,8 @@ let newtonRootsCache = null;
 let newtonRootsCacheDigits = 0;
 let newtonConvergenceDistanceSquared = 0n;
 let newtonConvergenceDigits = 0;
+let zoomSpeedDecimalCache = null;
+let zoomSpeedDecimalCacheDigits = 0;
 
 let simpleCamera = createSimpleCamera(-0.745, 0.1, 1.6);
 let mandelbrotCamera = null;
@@ -657,6 +659,14 @@ function getNewtonConvergenceDistanceSquared() {
         newtonConvergenceDigits = decimalDigits;
     }
     return newtonConvergenceDistanceSquared;
+}
+
+function getZoomSpeedDecimal() {
+    if (zoomSpeedDecimalCache === null || zoomSpeedDecimalCacheDigits !== decimalDigits) {
+        zoomSpeedDecimalCache = decimalFromString(String(ZOOM_SPEED));
+        zoomSpeedDecimalCacheDigits = decimalDigits;
+    }
+    return zoomSpeedDecimalCache;
 }
 
 function getDeepCamera(type = fractalType) {
@@ -1763,7 +1773,7 @@ function updateDeepCamera(camera, type = 'mandelbrot') {
 
     const anchor = screenToPlaneDeep(camera, mousePosition);
     const offset = getCanvasPixelOffset(mousePosition);
-    const nextPixelScale = mulDecimal(camera.pixelScale, decimalFromString(String(ZOOM_SPEED)));
+    const nextPixelScale = mulDecimal(camera.pixelScale, getZoomSpeedDecimal());
 
     camera.centerX = subDecimal(anchor.x, mulDecimalNumber(nextPixelScale, offset.x));
     camera.centerY = subDecimal(anchor.y, mulDecimalNumber(nextPixelScale, offset.y));
@@ -2308,12 +2318,23 @@ function findBestReferencePoint(anchorPoint, iterations, type = fractalType) {
         : coarseCandidate;
 }
 
-function isReusableReferenceStrong(reference, iterations) {
+function isReusableReferenceStrong(reference, iterations, type = fractalType) {
     if (!reference) {
         return false;
     }
 
     if (!reference.escapedEarly) {
+        return true;
+    }
+
+    const lastFrame = getDeepLastFrameStats(type);
+    if (
+        lastFrame
+        && lastFrame.status === 'success'
+        && lastFrame.referencesUsed === 1
+        && lastFrame.repairPasses === 0
+        && lastFrame.cpuResolvedTiles === 0
+    ) {
         return true;
     }
 
@@ -2367,7 +2388,7 @@ function getReusableReferenceSelection(anchorPoint, iterations, type = fractalTy
     }
 
     const cachedReference = getReferenceOrbit(point, iterations, type);
-    if (!isReusableReferenceStrong(cachedReference, iterations)) {
+    if (!isReusableReferenceStrong(cachedReference, iterations, type)) {
         return null;
     }
 
@@ -2897,11 +2918,10 @@ function readGlitchMask(tile) {
 }
 
 function readGlitchMaskAndCheck(tile) {
-    const maskData = readGlitchMask(tile);
-    return {
-        hasGlitches: maskHasGlitches(maskData),
-        maskData,
-    };
+    if (!tileHasGlitches(tile)) {
+        return { hasGlitches: false, maskData: null };
+    }
+    return { hasGlitches: true, maskData: readGlitchMask(tile) };
 }
 
 const reducedMaskSample = new Uint8Array(1);

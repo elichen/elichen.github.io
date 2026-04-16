@@ -392,33 +392,29 @@ test('queueChildTilesWithGlitches only enqueues children that contain glitches',
     );
 });
 
-test('readGlitchMaskAndCheck returns false for a clean mask', () => {
+test('readGlitchMaskAndCheck skips the full mask readback when the GPU reduction reports a clean tile', () => {
     const harness = loadHarness();
     const tile = harness.createTile(0, 0, 4, 2, 0, null);
     let readPixelsCount = 0;
 
     harness.setGL({
         canvas: { width: 1600, height: 900 },
-        READ_FRAMEBUFFER: 'READ_FRAMEBUFFER',
-        COLOR_ATTACHMENT1: 'COLOR_ATTACHMENT1',
-        RED: 'RED',
-        UNSIGNED_BYTE: 'UNSIGNED_BYTE',
         bindFramebuffer() {},
         readBuffer() {},
-        readPixels(x, y, width, height, format, type, destination) {
+        readPixels() {
             readPixelsCount += 1;
-            destination.fill(0);
         },
     });
+    harness.setTileHasGlitchesImpl(() => false);
 
     const result = harness.readMaskAndCheck(tile);
 
-    assert.equal(readPixelsCount, 1);
+    assert.equal(readPixelsCount, 0);
     assert.equal(result.hasGlitches, false);
-    assert.deepEqual(Array.from(result.maskData), [0, 0, 0, 0, 0, 0, 0, 0]);
+    assert.equal(result.maskData, null);
 });
 
-test('readGlitchMaskAndCheck returns true and preserves the mask bytes', () => {
+test('readGlitchMaskAndCheck returns true and preserves the mask bytes when the reduction signals a glitch', () => {
     const harness = loadHarness();
     const tile = harness.createTile(2, 3, 4, 2, 0, null);
 
@@ -434,6 +430,7 @@ test('readGlitchMaskAndCheck returns true and preserves the mask bytes', () => {
             destination.set([0, 0, 255, 0, 0, 0, 0, 0]);
         },
     });
+    harness.setTileHasGlitchesImpl(() => true);
 
     const result = harness.readMaskAndCheck(tile);
 
@@ -441,7 +438,7 @@ test('readGlitchMaskAndCheck returns true and preserves the mask bytes', () => {
     assert.deepEqual(Array.from(result.maskData), [0, 0, 255, 0, 0, 0, 0, 0]);
 });
 
-test('readGlitchMaskAndCheck forces tight packing for odd-width mask reads', () => {
+test('readGlitchMaskAndCheck forces tight packing for odd-width mask reads when a glitch is present', () => {
     const harness = loadHarness();
     const tile = harness.createTile(1, 2, 3, 2, 0, null);
     const pixelStoreCalls = [];
@@ -462,12 +459,13 @@ test('readGlitchMaskAndCheck forces tight packing for odd-width mask reads', () 
             destination.set([0, 0, 0, 0, 0, 0]);
         },
     });
+    harness.setTileHasGlitchesImpl(() => true);
 
     const result = harness.readMaskAndCheck(tile);
 
     assert.deepEqual(pixelStoreCalls, [['PACK_ALIGNMENT', 1]]);
     assert.equal(result.maskData.length, 6);
-    assert.equal(result.hasGlitches, false);
+    assert.equal(result.hasGlitches, true);
 });
 
 test('resolveRepairQueueOnCPU drains the remaining repair queue into CPU work', () => {
