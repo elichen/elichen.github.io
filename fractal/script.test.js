@@ -7,6 +7,8 @@ const vm = require('node:vm');
 function loadHarness() {
     const scriptPath = path.join(__dirname, 'script.js');
     const source = fs.readFileSync(scriptPath, 'utf8');
+    let nextTimerId = 1;
+    const scheduledTimeouts = new Map();
     const harnessSource = `${source}
 ;globalThis.__testHarness = {
     setGL(value) { gl = value; },
@@ -68,6 +70,9 @@ function loadHarness() {
         mandelbrotWorkingMaskTexture = targets.workingMaskTexture;
         setDeepCommittedFramebuffer(type, targets.committedFramebuffer);
         setDeepCommittedColorTexture(type, targets.committedColorTexture);
+        if (targets.committedCamera) {
+            setDeepCommittedCamera(type, cloneDeepCamera(targets.committedCamera));
+        }
         setDeepCommittedFrameAvailable(type, targets.committedFrameAvailable ?? true);
         mandelbrotRenderTargetWidth = gl?.canvas?.width ?? mandelbrotRenderTargetWidth;
         mandelbrotRenderTargetHeight = gl?.canvas?.height ?? mandelbrotRenderTargetHeight;
@@ -200,6 +205,7 @@ function loadHarness() {
     setCommitWorkingFrameImpl(fn) { copyWorkingFrameToCommitted = fn; },
     setSelectInitialReferenceImpl(fn) { selectInitialReference = fn; },
     setRenderDeepPassImpl(fn) { renderDeepPass = fn; },
+    setReadGlitchMaskImpl(fn) { readGlitchMask = fn; },
     setDrawSimpleFractalImpl(fn) { drawSimpleFractal = fn; },
     setDrawCommittedDeepFrameImpl(fn) { drawCommittedDeepFrame = fn; },
     setDrawSimpleProxyFromDeepCameraImpl(fn) { drawSimpleProxyFromDeepCamera = fn; },
@@ -264,6 +270,9 @@ function loadHarness() {
     },
     getCommittedFrameAvailable(type) {
         return getDeepCommittedFrameAvailable(type);
+    },
+    syncCommittedCamera(type = fractalType) {
+        setDeepCommittedCamera(type, cloneDeepCamera(getDeepCamera(type)));
     },
     setNewtonDeferredCommittedFramePending(value) {
         newtonDeferredCommittedFramePending = value;
@@ -334,6 +343,14 @@ function loadHarness() {
             addEventListener() {},
         },
         requestAnimationFrame() {},
+        setTimeout(fn) {
+            const id = nextTimerId++;
+            scheduledTimeouts.set(id, fn);
+            return id;
+        },
+        clearTimeout(id) {
+            scheduledTimeouts.delete(id);
+        },
         setInterval() { return 1; },
         clearInterval() {},
         alert() {},
@@ -345,6 +362,18 @@ function loadHarness() {
     context.__testHarness.setGL({
         canvas: { width: 1600, height: 900 },
     });
+    context.__testHarness.flushScheduledWork = function (limit = 32) {
+        let remaining = limit;
+        while (scheduledTimeouts.size > 0 && remaining > 0) {
+            const callbacks = Array.from(scheduledTimeouts.values());
+            scheduledTimeouts.clear();
+            for (const callback of callbacks) {
+                callback();
+            }
+            remaining -= 1;
+        }
+        return scheduledTimeouts.size;
+    };
 
     return context.__testHarness;
 }
@@ -548,14 +577,17 @@ test('stepMandelbrotCameraWithQualityPriority restores the previous camera when 
     const harness = loadHarness();
     harness.initMandelbrot();
     harness.setMouse({ x: 1320, y: 180 });
+    harness.setCommittedFrameAvailable('mandelbrot', true);
+    harness.syncCommittedCamera('mandelbrot');
+    harness.setEnsureRenderTargetsImpl(() => {});
+    harness.setSelectInitialReferenceImpl(() => null);
 
     const before = harness.getState();
-    harness.setRenderSharpImpl(() => false);
-
     const advanced = harness.stepQuality();
+    harness.flushScheduledWork();
     const after = harness.getState();
 
-    assert.equal(advanced, false);
+    assert.equal(advanced, true);
     assert.equal(after.hold, true);
     assert.equal(after.pixelScaleApprox, before.pixelScaleApprox);
     assert.equal(after.maxIterations, before.maxIterations);
@@ -738,23 +770,16 @@ test('drawCurrentFrame does not reuse a stale Mandelbrot committed frame after s
     }, 'mandelbrot');
     harness.initNewton();
     harness.setDeepCameraState('newton', { pixelScaleApprox: 1e-7 });
-    harness.setDrawSimpleFractalImpl(() => {
+    harness.setDrawSimpleProxyFromDeepCameraImpl(() => {
         drawCalls.push('simple-proxy');
-    });
-    harness.setRenderSharpImpl(() => {
-        harness.setLastFrameStats('newton', {
-            ...harness.createFrameStats(),
-            status: 'failed',
-            reason: 'repair_reference_budget_exhausted',
-        });
-        return false;
+        return true;
     });
 
     harness.drawCurrentFrame();
     const snapshot = harness.getActiveDebugSnapshot();
 
-    assert.deepEqual(drawCalls, []);
-    assert.equal(snapshot.renderPath, 'blank');
+    assert.deepEqual(drawCalls, ['simple-proxy']);
+    assert.equal(snapshot.renderPath, 'simple-proxy');
 });
 
 test('setWorkingFramebufferDrawBuffers can disable mask writes on deferred frames', () => {
@@ -1350,14 +1375,17 @@ test('stepJuliaCameraWithQualityPriority restores the previous camera when repai
     const harness = loadHarness();
     harness.initJulia();
     harness.setMouse({ x: 1320, y: 180 });
+    harness.setCommittedFrameAvailable('julia', true);
+    harness.syncCommittedCamera('julia');
+    harness.setEnsureRenderTargetsImpl(() => {});
+    harness.setSelectInitialReferenceImpl(() => null);
 
     const before = harness.getState();
-    harness.setRenderSharpImpl(() => false);
-
     const advanced = harness.stepJuliaQuality();
+    harness.flushScheduledWork();
     const after = harness.getState();
 
-    assert.equal(advanced, false);
+    assert.equal(advanced, true);
     assert.equal(after.hold, true);
     assert.equal(after.pixelScaleApprox, before.pixelScaleApprox);
     assert.equal(after.maxIterations, before.maxIterations);
@@ -1382,15 +1410,19 @@ test('stepJuliaCameraWithQualityPriority advances when sharp-frame render succee
 test('stepNewtonCameraWithQualityPriority restores the previous camera when repair fails', () => {
     const harness = loadHarness();
     harness.initNewton();
+    harness.setDeepCameraState('newton', { pixelScaleApprox: 8e-7 });
     harness.setMouse({ x: 1320, y: 180 });
+    harness.setCommittedFrameAvailable('newton', true);
+    harness.syncCommittedCamera('newton');
+    harness.setEnsureRenderTargetsImpl(() => {});
+    harness.setSelectInitialReferenceImpl(() => null);
 
     const before = harness.getState();
-    harness.setRenderSharpImpl(() => false);
-
     const advanced = harness.stepNewtonQuality();
+    harness.flushScheduledWork();
     const after = harness.getState();
 
-    assert.equal(advanced, false);
+    assert.equal(advanced, true);
     assert.equal(after.hold, true);
     assert.equal(after.pixelScaleApprox, before.pixelScaleApprox);
     assert.equal(after.maxIterations, before.maxIterations);
@@ -1400,25 +1432,53 @@ test('stepNewtonCameraWithQualityPriority defers deep render on pathological rep
     const harness = loadHarness();
     harness.initNewton();
     const precisionFloor = harness.getNewtonSimpleProxyPrecisionFloor();
+    harness.setGL({
+        canvas: { width: 16, height: 16 },
+    });
     harness.setDeepCameraState('newton', { pixelScaleApprox: 8e-7 });
-    harness.setMouse({ x: 1320, y: 180 });
+    harness.setMouse({ x: 8, y: 8 });
     harness.setFrameReady('newton', true);
     harness.setReferenceCenter('newton', '-1.2', '0.1');
-    harness.setRenderSharpImpl(() => {
-        harness.setLastFrameStats('newton', {
-            ...harness.createFrameStats(),
-            status: 'failed',
-            reason: 'pathological_repair_growth',
-        });
-        return false;
+    const point = harness.createPoint('-1.2', '0.1');
+    harness.setEnsureRenderTargetsImpl(() => {});
+    harness.setSelectInitialReferenceImpl(() => ({
+        candidate: {
+            point,
+            escapeIteration: 80,
+        },
+        reference: {
+            point,
+            orbitLength: 1,
+            orbitData: new Float32Array(2),
+            escapedEarly: false,
+        },
+        mode: 'search',
+    }));
+    harness.setRenderDeepPassImpl(() => {});
+    harness.setTileHasGlitchesImpl((tile) => tile.depth === 0);
+    harness.setReadGlitchMaskImpl((tile) => {
+        const maskData = new Uint8Array(tile.width * tile.height);
+        maskData[0] = 255;
+        return maskData;
     });
+    harness.setQueueChildrenImpl((queue, tile) => {
+        if (tile.depth !== 0) {
+            return;
+        }
+        const maskData = new Uint8Array(16);
+        maskData[0] = 255;
+        queue.push(harness.createTile(0, 0, 4, 4, 1, maskData));
+    });
+    harness.setSortRepairQueueImpl(() => {});
+    harness.setShouldDeferNewtonRepairWorkImpl(() => true);
 
     const advanced = harness.stepNewtonQuality();
+    harness.flushScheduledWork();
     const after = harness.getState();
 
-    assert.equal(advanced, false);
+    assert.equal(advanced, true);
     assert.equal(after.hold, false);
-    assert.equal(after.pixelScaleApprox, 8e-7);
+    assert.ok(after.pixelScaleApprox < 8e-7);
     assert.equal(harness.shouldUseDeepRender('newton'), false);
     assert.equal(harness.getFrameReady('newton'), false);
     assert.equal(harness.hasReference('newton'), false);
@@ -1428,23 +1488,53 @@ test('stepNewtonCameraWithQualityPriority defers deep render on pathological rep
 test('stepNewtonCameraWithQualityPriority holds instead of deferring to an inaccurate simple proxy at very deep scales', () => {
     const harness = loadHarness();
     harness.initNewton();
-    harness.setDeepCameraState('newton', { pixelScaleApprox: 1e-18 });
-    harness.setMouse({ x: 1320, y: 180 });
-    harness.setFrameReady('newton', true);
-    harness.setReferenceCenter('newton', '-1.2', '0.1');
-    harness.setRenderSharpImpl(() => {
-        harness.setLastFrameStats('newton', {
-            ...harness.createFrameStats(),
-            status: 'failed',
-            reason: 'pathological_repair_growth',
-        });
-        return false;
+    harness.setGL({
+        canvas: { width: 16, height: 16 },
     });
+    harness.setDeepCameraState('newton', { pixelScaleApprox: 1e-18 });
+    harness.setMouse({ x: 8, y: 8 });
+    harness.setFrameReady('newton', true);
+    harness.setCommittedFrameAvailable('newton', true);
+    harness.syncCommittedCamera('newton');
+    harness.setReferenceCenter('newton', '-1.2', '0.1');
+    const point = harness.createPoint('-1.2', '0.1');
+    harness.setEnsureRenderTargetsImpl(() => {});
+    harness.setSelectInitialReferenceImpl(() => ({
+        candidate: {
+            point,
+            escapeIteration: 80,
+        },
+        reference: {
+            point,
+            orbitLength: 1,
+            orbitData: new Float32Array(2),
+            escapedEarly: false,
+        },
+        mode: 'search',
+    }));
+    harness.setRenderDeepPassImpl(() => {});
+    harness.setTileHasGlitchesImpl((tile) => tile.depth === 0);
+    harness.setReadGlitchMaskImpl((tile) => {
+        const maskData = new Uint8Array(tile.width * tile.height);
+        maskData[0] = 255;
+        return maskData;
+    });
+    harness.setQueueChildrenImpl((queue, tile) => {
+        if (tile.depth !== 0) {
+            return;
+        }
+        const maskData = new Uint8Array(16);
+        maskData[0] = 255;
+        queue.push(harness.createTile(0, 0, 4, 4, 1, maskData));
+    });
+    harness.setSortRepairQueueImpl(() => {});
+    harness.setShouldDeferNewtonRepairWorkImpl(() => true);
 
     const advanced = harness.stepNewtonQuality();
+    harness.flushScheduledWork();
     const after = harness.getState();
 
-    assert.equal(advanced, false);
+    assert.equal(advanced, true);
     assert.equal(after.hold, true);
     assert.equal(after.pixelScaleApprox, 1e-18);
     assert.equal(harness.shouldUseDeepRender('newton'), true);
@@ -1486,53 +1576,108 @@ test('Newton pathological deferral reuses the committed frame for the immediate 
     harness.setMouse({ x: 1320, y: 180 });
     harness.setFrameReady('newton', true);
     harness.setReferenceCenter('newton', '-1.2', '0.1');
-    harness.setDrawSimpleFractalImpl(() => {
-        drawCalls.push('simple-proxy');
+    const point = harness.createPoint('-1.2', '0.1');
+    harness.setEnsureRenderTargetsImpl(() => {});
+    harness.setSelectInitialReferenceImpl(() => ({
+        candidate: {
+            point,
+            escapeIteration: 80,
+        },
+        reference: {
+            point,
+            orbitLength: 1,
+            orbitData: new Float32Array(2),
+            escapedEarly: false,
+        },
+        mode: 'search',
+    }));
+    harness.setRenderDeepPassImpl(() => {});
+    harness.setTileHasGlitchesImpl((tile) => tile.depth === 0);
+    harness.setReadGlitchMaskImpl((tile) => {
+        const maskData = new Uint8Array(tile.width * tile.height);
+        maskData[0] = 255;
+        return maskData;
     });
-    harness.setRenderSharpImpl(() => {
-        harness.setLastFrameStats('newton', {
-            ...harness.createFrameStats(),
-            status: 'failed',
-            reason: 'pathological_repair_growth',
-        });
-        return false;
+    harness.setQueueChildrenImpl((queue, tile) => {
+        if (tile.depth !== 0) {
+            return;
+        }
+        const maskData = new Uint8Array(16);
+        maskData[0] = 255;
+        queue.push(harness.createTile(0, 0, 4, 4, 1, maskData));
+    });
+    harness.setSortRepairQueueImpl(() => {});
+    harness.setShouldDeferNewtonRepairWorkImpl(() => true);
+    harness.setDrawSimpleProxyFromDeepCameraImpl(() => {
+        drawCalls.push('simple-proxy');
+        return true;
     });
 
     const advanced = harness.stepNewtonQuality();
+    harness.flushScheduledWork();
     harness.drawCurrentFrame();
     const snapshot = harness.getActiveDebugSnapshot();
 
-    assert.equal(advanced, false);
-    assert.deepEqual(drawCalls, ['deep']);
-    assert.equal(snapshot.renderPath, 'deep');
+    assert.equal(advanced, true);
+    assert.deepEqual(drawCalls, ['simple-proxy']);
+    assert.equal(snapshot.renderPath, 'simple-proxy');
     assert.equal(snapshot.deepEligible, false);
     assert.equal(snapshot.frameReady, false);
-    assert.equal(harness.getNewtonDeepRenderActivationScale(), precisionFloor);
+    assert.equal(harness.getNewtonDeepRenderActivationScale(), harness.getNewtonSimpleProxyPrecisionFloor());
 });
 
 test('stepNewtonCameraWithQualityPriority also defers on pathological initial repair flood', () => {
     const harness = loadHarness();
     harness.initNewton();
     const precisionFloor = harness.getNewtonSimpleProxyPrecisionFloor();
+    harness.setGL({
+        canvas: { width: 16, height: 16 },
+    });
     harness.setDeepCameraState('newton', { pixelScaleApprox: 8e-7 });
-    harness.setMouse({ x: 1320, y: 180 });
+    harness.setMouse({ x: 8, y: 8 });
     harness.setFrameReady('newton', true);
     harness.setReferenceCenter('newton', '-1.2', '0.1');
-    harness.setRenderSharpImpl(() => {
-        harness.setLastFrameStats('newton', {
-            ...harness.createFrameStats(),
-            status: 'failed',
-            reason: 'pathological_initial_repair_flood',
-        });
-        return false;
+    const point = harness.createPoint('-1.2', '0.1');
+    harness.setEnsureRenderTargetsImpl(() => {});
+    harness.setSelectInitialReferenceImpl(() => ({
+        candidate: {
+            point,
+            escapeIteration: 80,
+        },
+        reference: {
+            point,
+            orbitLength: 1,
+            orbitData: new Float32Array(2),
+            escapedEarly: false,
+        },
+        mode: 'search',
+    }));
+    harness.setRenderDeepPassImpl(() => {});
+    harness.setTileHasGlitchesImpl((tile) => tile.depth === 0);
+    harness.setReadGlitchMaskImpl((tile) => {
+        const maskData = new Uint8Array(tile.width * tile.height);
+        maskData.fill(255, 0, 8);
+        return maskData;
     });
+    harness.setQueueChildrenImpl((queue, tile) => {
+        if (tile.depth !== 0) {
+            return;
+        }
+        for (let i = 0; i < 4; i += 1) {
+            const maskData = new Uint8Array(16);
+            maskData[0] = 255;
+            queue.push(harness.createTile(0, 0, 4, 4, 1, maskData));
+        }
+    });
+    harness.setSortRepairQueueImpl(() => {});
 
     const advanced = harness.stepNewtonQuality();
+    harness.flushScheduledWork();
     const after = harness.getState();
 
-    assert.equal(advanced, false);
+    assert.equal(advanced, true);
     assert.equal(after.hold, false);
-    assert.equal(after.pixelScaleApprox, 8e-7);
+    assert.ok(after.pixelScaleApprox < 8e-7);
     assert.equal(harness.shouldUseDeepRender('newton'), false);
     assert.equal(harness.getFrameReady('newton'), false);
     assert.equal(harness.hasReference('newton'), false);
@@ -1555,18 +1700,6 @@ test('debug snapshot reports the simple Newton fallback when deep render fails d
     harness.setFrameReady('newton', false);
     harness.setDrawSimpleFractalImpl(() => {
         drawCalls.push('simple-proxy');
-    });
-    harness.setDrawCommittedDeepFrameImpl(() => {
-        drawCalls.push('deep');
-        return true;
-    });
-    harness.setRenderSharpImpl(() => {
-        harness.setLastFrameStats('newton', {
-            ...harness.createFrameStats(),
-            status: 'failed',
-            reason: 'repair_reference_budget_exhausted',
-        });
-        return false;
     });
 
     harness.drawCurrentFrame();
@@ -1686,13 +1819,9 @@ test('an accurate Newton simple-proxy frame seeds the committed fallback before 
 
     harness.setDeepCameraState('newton', { pixelScaleApprox: 1e-7 });
     harness.setFrameReady('newton', false);
-    harness.setRenderSharpImpl(() => {
-        harness.setLastFrameStats('newton', {
-            ...harness.createFrameStats(),
-            status: 'failed',
-            reason: 'repair_reference_budget_exhausted',
-        });
-        return false;
+    harness.setDrawCommittedDeepFrameImpl(() => {
+        drawCalls.push('deep');
+        return true;
     });
 
     harness.drawCurrentFrame();

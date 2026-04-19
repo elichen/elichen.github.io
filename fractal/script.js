@@ -22,6 +22,13 @@ const MASK_REDUCTION_FACTOR = 2;
 const STABLE_MASK_VERIFY_SKIP_FRAMES = 1;
 const STABLE_MASK_VERIFY_GROWTH_INTERVAL = 6;
 const MAX_STABLE_MASK_VERIFY_SKIP_FRAMES = 3;
+const DEEP_RENDER_IDLE_TIMEOUT_MS = 48;
+const DEEP_RENDER_FALLBACK_BUDGET_MS = 4;
+const DEEP_RENDER_MAX_BUDGET_MS = 6;
+const DEEP_RENDER_BOOTSTRAP_BUDGET_MS = 10;
+const DEEP_RENDER_MIN_BUDGET_MS = 1;
+const DEEP_RENDER_STALE_SCALE_RATIO = 1.12;
+const DEEP_RENDER_STALE_TRANSLATION_PIXELS = 96;
 const MIN_GPU_SCALE = 1e-45;
 const NEWTON_DEEP_RENDER_SCALE = 1e-6;
 const NEWTON_DEEP_RETRY_SCALE_FACTOR = 0.25;
@@ -453,12 +460,18 @@ precision highp float;
 
 uniform sampler2D u_texture;
 uniform vec2 u_resolution;
+uniform vec2 u_translationPixels;
+uniform float u_scale;
 
 out vec4 outColor;
 
 void main() {
-    ivec2 pixel = ivec2(gl_FragCoord.xy);
-    outColor = texelFetch(u_texture, pixel, 0);
+    vec2 halfResolution = 0.5 * u_resolution;
+    vec2 sourcePixel = halfResolution
+        + u_translationPixels
+        + (u_scale * (gl_FragCoord.xy - halfResolution));
+    vec2 uv = sourcePixel / u_resolution;
+    outColor = texture(u_texture, uv);
 }
 `;
 
@@ -499,10 +512,13 @@ let mandelbrotWorkingColorTexture;
 let mandelbrotWorkingMaskTexture;
 let mandelbrotCommittedFramebuffer;
 let mandelbrotCommittedColorTexture;
+let mandelbrotCommittedCamera = null;
 let juliaCommittedFramebuffer;
 let juliaCommittedColorTexture;
+let juliaCommittedCamera = null;
 let newtonCommittedFramebuffer;
 let newtonCommittedColorTexture;
+let newtonCommittedCamera = null;
 let maskReduceFramebufferA;
 let maskReduceFramebufferB;
 let maskReduceTextureA;
@@ -559,6 +575,10 @@ let debugLastAnimationStage = 'not-started';
 let debugLastObservedRenderPath = null;
 let debugLastRenderedPath = null;
 let newtonDeferredCommittedFramePending = false;
+let activeDeepRenderTask = null;
+let deepRenderWorkHandle = null;
+let deepRenderWorkHandleIsIdleCallback = false;
+const referenceRingOffsetsCache = new Map();
 
 function createSimpleCamera(centerX, centerY, viewWidth) {
     return {
@@ -777,6 +797,28 @@ function setDeepCommittedColorTexture(type, texture) {
         return;
     }
     mandelbrotCommittedColorTexture = texture;
+}
+
+function getDeepCommittedCamera(type = fractalType) {
+    if (type === 'julia') {
+        return juliaCommittedCamera;
+    }
+    if (type === 'newton') {
+        return newtonCommittedCamera;
+    }
+    return mandelbrotCommittedCamera;
+}
+
+function setDeepCommittedCamera(type, camera) {
+    if (type === 'julia') {
+        juliaCommittedCamera = camera;
+        return;
+    }
+    if (type === 'newton') {
+        newtonCommittedCamera = camera;
+        return;
+    }
+    mandelbrotCommittedCamera = camera;
 }
 
 function getDeepCommittedFrameAvailable(type = fractalType) {
@@ -1526,6 +1568,44 @@ function decimalToNumber(value) {
     return Number(`${sign}${mantissa}e${exponent}`);
 }
 
+function nowMs() {
+    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+        return performance.now();
+    }
+    return Date.now();
+}
+
+function areDeepCamerasEquivalent(a, b) {
+    return Boolean(a && b)
+        && a.centerX === b.centerX
+        && a.centerY === b.centerY
+        && a.pixelScale === b.pixelScale
+        && a.pixelScaleApprox === b.pixelScaleApprox
+        && a.maxIterations === b.maxIterations
+        && a.viewWidth === b.viewWidth;
+}
+
+function getDeepCameraScaleRatio(a, b) {
+    if (!a || !b || !Number.isFinite(a.pixelScaleApprox) || !Number.isFinite(b.pixelScaleApprox)) {
+        return Number.POSITIVE_INFINITY;
+    }
+    const ratio = a.pixelScaleApprox / b.pixelScaleApprox;
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+        return Number.POSITIVE_INFINITY;
+    }
+    return Math.max(ratio, 1 / ratio);
+}
+
+function getDeepCameraTranslationPixels(a, b) {
+    if (!a || !b || !Number.isFinite(a.pixelScaleApprox) || a.pixelScaleApprox <= 0) {
+        return Number.POSITIVE_INFINITY;
+    }
+
+    const dx = decimalToNumber(subDecimal(b.centerX, a.centerX)) / a.pixelScaleApprox;
+    const dy = decimalToNumber(subDecimal(b.centerY, a.centerY)) / a.pixelScaleApprox;
+    return Math.hypot(dx, dy);
+}
+
 function addDecimal(a, b) {
     return a + b;
 }
@@ -1848,11 +1928,19 @@ function bindQuad(programInfo) {
     gl.vertexAttribPointer(programInfo.position, 2, gl.FLOAT, false, 0, 0);
 }
 
-function createTexture(width, height, internalFormat, format, type) {
+function createTexture(
+    width,
+    height,
+    internalFormat,
+    format,
+    type,
+    minFilter = gl.NEAREST,
+    magFilter = minFilter
+) {
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texImage2D(
@@ -1880,6 +1968,7 @@ function destroyDeepCommittedRenderTarget(type) {
     }
     setDeepCommittedFramebuffer(type, null);
     setDeepCommittedColorTexture(type, null);
+    setDeepCommittedCamera(type, null);
     setDeepCommittedFrameAvailable(type, false);
 }
 
@@ -1913,7 +2002,15 @@ function ensureDeepCommittedRenderTarget(type, width, height) {
         return;
     }
 
-    const committedColorTexture = createTexture(width, height, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE);
+    const committedColorTexture = createTexture(
+        width,
+        height,
+        gl.RGBA8,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        gl.LINEAR,
+        gl.LINEAR
+    );
     const committedFramebuffer = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, committedFramebuffer);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, committedColorTexture, 0);
@@ -2093,7 +2190,7 @@ function initWebGL() {
 
     blitProgramInfo = createProgramInfo(
         createProgram(vertexShaderSource, blitFragmentShaderSource),
-        ['u_texture', 'u_resolution']
+        ['u_texture', 'u_resolution', 'u_translationPixels', 'u_scale']
     );
 
     maskReduceProgramInfo = createProgramInfo(
@@ -2179,8 +2276,15 @@ function getDeepPointScreenDistanceSquared(camera, point, pointer = mousePositio
 }
 
 function getReferenceRingOffsets(radius, sampleSpacing) {
+    const cacheKey = `${radius}:${sampleSpacing}`;
+    if (referenceRingOffsetsCache.has(cacheKey)) {
+        return referenceRingOffsetsCache.get(cacheKey);
+    }
+
     if (radius === 0) {
-        return [{ x: 0, y: 0 }];
+        const offsets = [{ x: 0, y: 0 }];
+        referenceRingOffsetsCache.set(cacheKey, offsets);
+        return offsets;
     }
 
     const offsets = [];
@@ -2203,6 +2307,7 @@ function getReferenceRingOffsets(radius, sampleSpacing) {
         offsets.push({ x, y });
     }
 
+    referenceRingOffsetsCache.set(cacheKey, offsets);
     return offsets;
 }
 
@@ -2825,13 +2930,14 @@ function getReferenceOrbit(point, iterations, type = fractalType) {
     return reference;
 }
 
-function commitDeepReference(type, reference) {
+function commitDeepReference(type, reference, cameraOverride = null) {
     const deepReference = getDeepReference(type);
+    const camera = cameraOverride || getDeepCamera(type);
     deepReference.centerX = reference.point.x;
     deepReference.centerY = reference.point.y;
     deepReference.orbitData = reference.orbitData;
     deepReference.orbitLength = reference.orbitLength;
-    deepReference.maxIterations = getDeepCamera(type).maxIterations;
+    deepReference.maxIterations = camera.maxIterations;
     deepReference.escapeIteration = reference.escapeIteration;
     deepReference.useSimpleFallback = false;
 }
@@ -3170,8 +3276,8 @@ function computeCpuMandelbrotColor(centerX, centerY, iterations) {
     return computeCpuDeepColor('mandelbrot', centerX, centerY, iterations);
 }
 
-function resolveDeepTileOnCPU(type, tile) {
-    const camera = getDeepCamera(type);
+function resolveDeepTileOnCPU(type, tile, cameraOverride = null) {
+    const camera = cameraOverride || getDeepCamera(type);
     const colorData = new Uint8Array(tile.width * tile.height * 4);
     const maskData = new Uint8Array(tile.width * tile.height);
 
@@ -3261,8 +3367,8 @@ function setWorkingFramebufferDrawBuffers(writeMask = true) {
     gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
 }
 
-function renderDeepPass(type, reference, tile, writeMask = true) {
-    const camera = getDeepCamera(type);
+function renderDeepPass(type, reference, tile, writeMask = true, cameraOverride = null) {
+    const camera = cameraOverride || getDeepCamera(type);
     uploadReferenceOrbit(reference.orbitData, reference.orbitLength);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotWorkingFramebuffer);
@@ -3325,27 +3431,54 @@ function copyWorkingFrameToCommitted(type = fractalType) {
     setDeepCommittedFrameAvailable(type, true);
 }
 
-function drawCommittedDeepFrame(type = fractalType) {
+function drawCommittedDeepFrame(type = fractalType, targetCamera = null) {
     const committedFramebuffer = getDeepCommittedFramebuffer(type);
-    if (!committedFramebuffer || !getDeepCommittedFrameAvailable(type)) {
+    const committedTexture = getDeepCommittedColorTexture(type);
+    const committedCamera = getDeepCommittedCamera(type);
+    if (!committedFramebuffer || !committedTexture || !getDeepCommittedFrameAvailable(type)) {
         return false;
     }
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, committedFramebuffer);
-    gl.readBuffer(gl.COLOR_ATTACHMENT0);
-    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
-    gl.blitFramebuffer(
-        0,
-        0,
-        gl.canvas.width,
-        gl.canvas.height,
-        0,
-        0,
-        gl.canvas.width,
-        gl.canvas.height,
-        gl.COLOR_BUFFER_BIT,
-        gl.NEAREST
-    );
+
+    if (!targetCamera || !committedCamera || areDeepCamerasEquivalent(targetCamera, committedCamera)) {
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, committedFramebuffer);
+        gl.readBuffer(gl.COLOR_ATTACHMENT0);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+        gl.blitFramebuffer(
+            0,
+            0,
+            gl.canvas.width,
+            gl.canvas.height,
+            0,
+            0,
+            gl.canvas.width,
+            gl.canvas.height,
+            gl.COLOR_BUFFER_BIT,
+            gl.NEAREST
+        );
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        return true;
+    }
+
+    const translationX = decimalToNumber(
+        subDecimal(targetCamera.centerX, committedCamera.centerX)
+    ) / committedCamera.pixelScaleApprox;
+    const translationY = decimalToNumber(
+        subDecimal(targetCamera.centerY, committedCamera.centerY)
+    ) / committedCamera.pixelScaleApprox;
+    const scale = targetCamera.pixelScaleApprox / committedCamera.pixelScaleApprox;
+
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    gl.useProgram(blitProgramInfo.program);
+    bindQuad(blitProgramInfo);
+    gl.uniform1i(blitProgramInfo.uniforms.u_texture, 0);
+    gl.uniform2f(blitProgramInfo.uniforms.u_resolution, gl.canvas.width, gl.canvas.height);
+    gl.uniform2f(blitProgramInfo.uniforms.u_translationPixels, translationX, translationY);
+    gl.uniform1f(blitProgramInfo.uniforms.u_scale, scale);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, committedTexture);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     return true;
 }
 
@@ -3640,6 +3773,7 @@ function renderSharpDeepFrame(type) {
     );
     copyWorkingFrameToCommitted(type);
     commitDeepReference(type, committedReferenceSelection.reference);
+    setDeepCommittedCamera(type, cloneDeepCamera(camera));
     setDeepFrameReady(type, true);
     if (type === 'newton') {
         newtonDeferredCommittedFramePending = false;
@@ -3661,6 +3795,588 @@ function renderSharpNewtonFrame() {
     return renderSharpDeepFrame('newton');
 }
 
+function createDeepRenderTask(type) {
+    const cameraSnapshot = cloneDeepCamera(getDeepCamera(type));
+    const frameStats = createEmptyMandelbrotFrameStats();
+    frameStats.attemptedPixelScaleApprox = roundDebugNumber(cameraSnapshot.pixelScaleApprox);
+    frameStats.attemptedMaxIterations = cameraSnapshot.maxIterations;
+
+    return {
+        type,
+        camera: cameraSnapshot,
+        pointer: { ...mousePosition },
+        frameStats,
+        stage: 'init',
+        fullFrameTile: createRepairTile(0, 0, gl.canvas.width, gl.canvas.height, 0, null),
+        initialSelection: null,
+        bestReferenceSelection: null,
+        deferredMaskVerification: false,
+        repairQueue: [],
+        referencesUsed: 0,
+        processedRepairTiles: 0,
+        startedAtMs: nowMs(),
+        repairWorkStartMs: 0,
+    };
+}
+
+function cancelScheduledDeepRenderWork() {
+    if (deepRenderWorkHandle === null) {
+        return;
+    }
+
+    if (
+        deepRenderWorkHandleIsIdleCallback
+        && typeof window !== 'undefined'
+        && typeof window.cancelIdleCallback === 'function'
+    ) {
+        window.cancelIdleCallback(deepRenderWorkHandle);
+    } else if (typeof clearTimeout === 'function') {
+        clearTimeout(deepRenderWorkHandle);
+    }
+
+    deepRenderWorkHandle = null;
+    deepRenderWorkHandleIsIdleCallback = false;
+}
+
+function invalidateActiveDeepRenderTask(reason = null) {
+    if (!activeDeepRenderTask) {
+        return;
+    }
+
+    clearDeepWorkState(activeDeepRenderTask.type, reason);
+    activeDeepRenderTask = null;
+}
+
+function isDeepRenderTaskStale(task) {
+    if (!task) {
+        return false;
+    }
+
+    const currentCamera = getDeepCamera(task.type);
+    if (!currentCamera) {
+        return true;
+    }
+
+    return (
+        getDeepCameraScaleRatio(task.camera, currentCamera) > DEEP_RENDER_STALE_SCALE_RATIO
+        || getDeepCameraTranslationPixels(task.camera, currentCamera) > DEEP_RENDER_STALE_TRANSLATION_PIXELS
+    );
+}
+
+function shouldTrackDeepRenderTask(type) {
+    return Boolean(gl)
+        && fractalType === type
+        && isDeepFractalType(type)
+        && shouldUseDeepRender(type)
+        && !getDeepQualityHold(type);
+}
+
+function ensureDeepRenderTask(type) {
+    if (!shouldTrackDeepRenderTask(type)) {
+        invalidateActiveDeepRenderTask('task-disabled');
+        return null;
+    }
+
+    if (activeDeepRenderTask && activeDeepRenderTask.type !== type) {
+        invalidateActiveDeepRenderTask('mode-switch');
+    }
+
+    if (activeDeepRenderTask && isDeepRenderTaskStale(activeDeepRenderTask)) {
+        invalidateActiveDeepRenderTask('task-stale');
+    }
+
+    if (!activeDeepRenderTask) {
+        const committedCamera = getDeepCommittedCamera(type);
+        const currentCamera = getDeepCamera(type);
+        if (areDeepCamerasEquivalent(committedCamera, currentCamera) && getDeepCommittedFrameAvailable(type)) {
+            setDeepFrameReady(type, true);
+            return null;
+        }
+        activeDeepRenderTask = createDeepRenderTask(type);
+    }
+
+    return activeDeepRenderTask;
+}
+
+function getDeepRenderWorkBudgetMs(type, idleDeadline = null) {
+    const maxBudget = getDeepCommittedFrameAvailable(type)
+        ? DEEP_RENDER_MAX_BUDGET_MS
+        : DEEP_RENDER_BOOTSTRAP_BUDGET_MS;
+
+    if (!idleDeadline || typeof idleDeadline.timeRemaining !== 'function') {
+        return Math.min(maxBudget, DEEP_RENDER_FALLBACK_BUDGET_MS);
+    }
+
+    return Math.max(
+        DEEP_RENDER_MIN_BUDGET_MS,
+        Math.min(maxBudget, idleDeadline.timeRemaining())
+    );
+}
+
+function restoreCommittedDeepCamera(type) {
+    const committedCamera = getDeepCommittedCamera(type);
+    if (!committedCamera) {
+        setDeepFrameReady(type, false);
+        return;
+    }
+
+    setDeepCamera(type, cloneDeepCamera(committedCamera));
+    setDeepFrameReady(type, true);
+}
+
+function handleDeepRenderTaskFailure(task) {
+    const type = task.type;
+    const failedFrameStats = getDeepLastFrameStats(type) || task.frameStats;
+    invalidateActiveDeepRenderTask('frame-failed');
+    setDeepMaskVerificationFramesRemaining(type, 0);
+    setDeepStableReuseFrames(type, 0);
+
+    if (
+        type === 'newton'
+        && shouldDeferNewtonDeepFailure(failedFrameStats.reason)
+        && canUseAccurateNewtonSimpleProxy(getDeepCamera(type))
+    ) {
+        setDeepFrameReady(type, false);
+        setDeepReference(type, createEmptyReference());
+        deferNewtonDeepRender(getDeepCamera(type).pixelScaleApprox);
+        setDeepQualityHold(type, false);
+        setDeepQualityHoldWarningShown(type, false);
+        newtonDeferredCommittedFramePending = false;
+        scheduleDeepRenderWork();
+        return;
+    }
+
+    restoreCommittedDeepCamera(type);
+    setDeepQualityHold(type, true);
+    if (!getDeepQualityHoldWarningShown(type)) {
+        console.warn(`Paused ${getDeepLabel(type)} zoom ${JSON.stringify(getDeepDebugSnapshot(type))}`);
+        setDeepQualityHoldWarningShown(type, true);
+    }
+}
+
+function finalizeDeepRenderTaskSuccess(task) {
+    const type = task.type;
+    const committedReferenceSelection = chooseCommittedReferenceSelection(
+        type,
+        task.initialSelection,
+        task.bestReferenceSelection,
+        task.referencesUsed
+    );
+
+    copyWorkingFrameToCommitted(type);
+    commitDeepReference(type, committedReferenceSelection.reference, task.camera);
+    setDeepCommittedCamera(type, cloneDeepCamera(task.camera));
+    setDeepFrameReady(type, areDeepCamerasEquivalent(task.camera, getDeepCamera(type)));
+    if (type === 'newton') {
+        newtonDeferredCommittedFramePending = false;
+        resetNewtonDeepRenderActivationScale();
+    }
+    finalizeDeepFrameStats(type, task.frameStats, 'success');
+    setDeepQualityHold(type, false);
+    setDeepQualityHoldWarningShown(type, false);
+    invalidateActiveDeepRenderTask('frame-complete');
+}
+
+function advanceSingleDeepRenderTask(task) {
+    const type = task.type;
+    const camera = task.camera;
+    const frameStats = task.frameStats;
+
+    if (task.stage === 'init') {
+        updateDeepWorkState(type, {
+            stage: 'frame-start',
+            referencesUsed: 0,
+            repairQueueLength: 0,
+            repairTilesProcessed: 0,
+            cpuTilesResolved: 0,
+            currentTile: null,
+            note: null,
+        }, 'frame-start');
+
+        if (camera.pixelScaleApprox < MIN_GPU_SCALE) {
+            finalizeDeepFrameStats(type, frameStats, 'failed', 'gpu_delta_precision_floor');
+            handleDeepRenderTaskFailure(task);
+            return false;
+        }
+
+        ensureMandelbrotRenderTargets();
+        task.stage = 'initial-reference-search';
+        return true;
+    }
+
+    if (task.stage === 'initial-reference-search') {
+        updateDeepWorkState(type, {
+            stage: 'initial-reference-search',
+            note: 'selecting-initial-reference',
+            currentTile: {
+                width: task.fullFrameTile.width,
+                height: task.fullFrameTile.height,
+                depth: task.fullFrameTile.depth,
+            },
+        }, 'initial-reference-search');
+
+        const anchorPoint = screenToPlaneDeep(camera, task.pointer);
+        const initialSelection = selectInitialReference(anchorPoint, camera.maxIterations, type);
+        if (!initialSelection) {
+            finalizeDeepFrameStats(type, frameStats, 'failed', 'no_initial_reference');
+            handleDeepRenderTaskFailure(task);
+            return false;
+        }
+
+        task.initialSelection = initialSelection;
+        task.bestReferenceSelection = {
+            candidate: initialSelection.candidate,
+            reference: initialSelection.reference,
+        };
+        task.deferredMaskVerification = canUseDeferredMaskVerification(type, initialSelection.mode);
+        task.referencesUsed = 1;
+        frameStats.initialEscapeIteration = initialSelection.candidate.escapeIteration;
+        frameStats.initialOrbitLength = initialSelection.reference.orbitLength;
+        frameStats.initialEscapedEarly = initialSelection.reference.escapedEarly;
+        frameStats.initialReferenceMode = initialSelection.mode;
+        frameStats.referencesUsed = 1;
+        task.stage = 'full-frame-render';
+        return true;
+    }
+
+    if (task.stage === 'full-frame-render') {
+        updateDeepWorkState(type, {
+            stage: 'full-frame-render',
+            initialReferenceMode: task.initialSelection.mode,
+            referencesUsed: 1,
+            note: task.deferredMaskVerification ? 'deferred-mask-verification' : 'exact-mask-verification',
+        }, 'full-frame-render');
+
+        renderDeepPass(
+            type,
+            task.initialSelection.reference,
+            task.fullFrameTile,
+            !task.deferredMaskVerification,
+            camera
+        );
+
+        if (task.deferredMaskVerification) {
+            setDeepMaskVerificationFramesRemaining(
+                type,
+                Math.max(0, getDeepMaskVerificationFramesRemaining(type) - 1)
+            );
+            task.stage = 'commit';
+            return true;
+        }
+
+        task.stage = 'full-frame-verify';
+        return true;
+    }
+
+    if (task.stage === 'full-frame-verify') {
+        updateDeepWorkState(type, {
+            stage: 'full-frame-verify',
+            note: 'checking-full-frame-mask',
+        }, 'full-frame-verify');
+
+        if (!tileHasGlitches(task.fullFrameTile)) {
+            if (task.initialSelection.mode === 'reuse') {
+                incrementDeepStableReuseFrames(type);
+                setDeepMaskVerificationFramesRemaining(type, getAdaptiveMaskVerifySkipFrames(type));
+            } else {
+                setDeepStableReuseFrames(type, 0);
+                setDeepMaskVerificationFramesRemaining(type, 0);
+            }
+            task.stage = 'commit';
+            return true;
+        }
+
+        setDeepStableReuseFrames(type, 0);
+        setDeepMaskVerificationFramesRemaining(type, 0);
+        task.stage = 'full-frame-read-mask';
+        return true;
+    }
+
+    if (task.stage === 'full-frame-read-mask') {
+        updateDeepWorkState(type, {
+            stage: 'full-frame-verify',
+            note: 'reading-full-frame-mask',
+        }, 'full-frame-read-mask');
+
+        task.fullFrameTile.maskData = readGlitchMask(task.fullFrameTile);
+        if (
+            task.fullFrameTile.depth >= MAX_REPAIR_DEPTH
+            || task.fullFrameTile.width <= MIN_REPAIR_TILE_SIZE
+            || task.fullFrameTile.height <= MIN_REPAIR_TILE_SIZE
+        ) {
+            finalizeDeepFrameStats(type, frameStats, 'failed', 'full_frame_tile_limit', {
+                queuedTilesRemaining: task.repairQueue.length,
+            });
+            handleDeepRenderTaskFailure(task);
+            return false;
+        }
+
+        task.stage = 'seed-repair-queue';
+        return true;
+    }
+
+    if (task.stage === 'seed-repair-queue') {
+        queueChildTilesWithGlitches(task.repairQueue, task.fullFrameTile);
+        sortRepairQueue(task.repairQueue);
+        frameStats.repairQueuePeak = Math.max(frameStats.repairQueuePeak, task.repairQueue.length);
+        updateDeepWorkState(type, {
+            stage: 'repair-queue-seeded',
+            repairQueueLength: task.repairQueue.length,
+            note: 'queued-initial-repair-tiles',
+        }, 'repair-queue-seeded');
+
+        if (type === 'newton') {
+            const initialRepairPressure = assessNewtonInitialRepairPressure(
+                task.repairQueue.length,
+                task.fullFrameTile.maskData
+            );
+            if (initialRepairPressure.shouldDefer) {
+                finalizeDeepFrameStats(type, frameStats, 'failed', 'pathological_initial_repair_flood', {
+                    queuedTilesRemaining: task.repairQueue.length,
+                    fullFrameGlitchRatio: roundDebugNumber(initialRepairPressure.glitchRatio),
+                    fullFrameGlitchedPixels: initialRepairPressure.glitchCount,
+                });
+                updateDeepWorkState(type, {
+                    stage: 'repair-queue-seeded',
+                    referencesUsed: task.referencesUsed,
+                    repairQueueLength: task.repairQueue.length,
+                    repairTilesProcessed: task.processedRepairTiles,
+                    cpuTilesResolved: frameStats.cpuResolvedTiles,
+                    note: 'deferring-deep-render-due-to-initial-glitch-flood',
+                }, 'pathological-initial-repair-flood');
+                handleDeepRenderTaskFailure(task);
+                return false;
+            }
+        }
+
+        task.repairWorkStartMs = nowMs();
+        task.stage = task.repairQueue.length > 0 ? 'repair-tile' : 'commit';
+        return true;
+    }
+
+    if (task.stage === 'repair-tile') {
+        if (task.repairQueue.length === 0) {
+            task.stage = 'commit';
+            return true;
+        }
+
+        const elapsedMs = nowMs() - task.repairWorkStartMs;
+        if (
+            type === 'newton'
+            && shouldDeferNewtonRepairWork(task.referencesUsed, task.repairQueue.length, elapsedMs)
+        ) {
+            finalizeDeepFrameStats(type, frameStats, 'failed', 'pathological_repair_growth', {
+                queuedTilesRemaining: task.repairQueue.length,
+                elapsedMs: roundDebugNumber(elapsedMs),
+                referencesUsed: task.referencesUsed,
+            });
+            updateDeepWorkState(type, {
+                stage: 'repair-reference-search',
+                referencesUsed: task.referencesUsed,
+                repairQueueLength: task.repairQueue.length,
+                repairTilesProcessed: task.processedRepairTiles,
+                cpuTilesResolved: frameStats.cpuResolvedTiles,
+                note: 'deferring-deep-render-due-to-repair-growth',
+            }, 'pathological-repair-growth');
+            handleDeepRenderTaskFailure(task);
+            return false;
+        }
+
+        if (task.referencesUsed >= MAX_REPAIR_REFERENCES) {
+            finalizeDeepFrameStats(type, frameStats, 'failed', 'repair_reference_budget_exhausted', {
+                queuedTilesRemaining: task.repairQueue.length,
+            });
+            handleDeepRenderTaskFailure(task);
+            return false;
+        }
+
+        const tile = task.repairQueue.shift();
+        task.processedRepairTiles += 1;
+        frameStats.lastTileWidth = tile.width;
+        frameStats.lastTileHeight = tile.height;
+        frameStats.lastTileDepth = tile.depth;
+        frameStats.deepestTileDepth = Math.max(frameStats.deepestTileDepth, tile.depth);
+        frameStats.repairQueuePeak = Math.max(frameStats.repairQueuePeak, task.repairQueue.length);
+
+        updateDeepWorkState(type, {
+            stage: 'repair-reference-search',
+            referencesUsed: task.referencesUsed,
+            repairQueueLength: task.repairQueue.length,
+            repairTilesProcessed: task.processedRepairTiles,
+            cpuTilesResolved: frameStats.cpuResolvedTiles,
+            currentTile: {
+                width: tile.width,
+                height: tile.height,
+                depth: tile.depth,
+            },
+            note: 'searching-repair-reference',
+        }, task.processedRepairTiles <= 4 || task.processedRepairTiles % 16 === 0 ? 'repair-progress' : null);
+
+        const glitchedPixel = findGlitchedPixelNearTileCenter(tile);
+        if (!glitchedPixel) {
+            return true;
+        }
+
+        const repairPointer = framebufferPixelToPointer(glitchedPixel);
+        const repairAnchor = screenToPlaneDeep(camera, repairPointer);
+        const repairCandidate = findBestReferencePoint(repairAnchor, camera.maxIterations, type);
+        if (!repairCandidate) {
+            finalizeDeepFrameStats(type, frameStats, 'failed', 'no_repair_reference', {
+                queuedTilesRemaining: task.repairQueue.length,
+                lastTileWidth: tile.width,
+                lastTileHeight: tile.height,
+                lastTileDepth: tile.depth,
+            });
+            handleDeepRenderTaskFailure(task);
+            return false;
+        }
+
+        frameStats.lastRepairEscapeIteration = repairCandidate.escapeIteration;
+        const repairReference = getReferenceOrbit(repairCandidate.point, camera.maxIterations, type);
+        const repairCandidateForCommit = {
+            ...repairCandidate,
+            distanceSquared: getDeepPointScreenDistanceSquared(camera, repairCandidate.point),
+        };
+        if (isReferenceCandidateBetter(repairCandidateForCommit, task.bestReferenceSelection.candidate)) {
+            task.bestReferenceSelection = {
+                candidate: repairCandidateForCommit,
+                reference: repairReference,
+            };
+        }
+
+        updateDeepWorkState(type, {
+            stage: 'repair-render',
+            referencesUsed: task.referencesUsed,
+            repairQueueLength: task.repairQueue.length,
+            repairTilesProcessed: task.processedRepairTiles,
+            cpuTilesResolved: frameStats.cpuResolvedTiles,
+            note: 'rendering-repair-tile',
+        }, null);
+        renderDeepPass(type, repairReference, tile, true, camera);
+        task.referencesUsed += 1;
+        frameStats.referencesUsed = task.referencesUsed;
+
+        updateDeepWorkState(type, {
+            stage: 'repair-verify',
+            referencesUsed: task.referencesUsed,
+            repairQueueLength: task.repairQueue.length,
+            repairTilesProcessed: task.processedRepairTiles,
+            cpuTilesResolved: frameStats.cpuResolvedTiles,
+            note: 'checking-repair-mask',
+        }, null);
+        if (!tileHasGlitches(tile)) {
+            return true;
+        }
+
+        tile.maskData = readGlitchMask(tile);
+        if (
+            tile.depth >= MAX_REPAIR_DEPTH
+            || tile.width <= MIN_REPAIR_TILE_SIZE
+            || tile.height <= MIN_REPAIR_TILE_SIZE
+        ) {
+            updateDeepWorkState(type, {
+                stage: 'cpu-tile-resolve',
+                referencesUsed: task.referencesUsed,
+                repairQueueLength: task.repairQueue.length,
+                repairTilesProcessed: task.processedRepairTiles,
+                cpuTilesResolved: frameStats.cpuResolvedTiles,
+                note: 'resolving-minimum-tile-on-cpu',
+            }, 'cpu-tile-resolve');
+            resolveDeepTileOnCPU(type, tile, camera);
+            frameStats.cpuResolvedTiles += 1;
+            frameStats.cpuResolvedPixels += tile.width * tile.height;
+            return true;
+        }
+
+        queueChildTilesWithGlitches(task.repairQueue, tile);
+        sortRepairQueue(task.repairQueue);
+        frameStats.repairQueuePeak = Math.max(frameStats.repairQueuePeak, task.repairQueue.length);
+        return true;
+    }
+
+    if (task.stage === 'commit') {
+        updateDeepWorkState(type, {
+            stage: 'commit-frame',
+            referencesUsed: task.referencesUsed,
+            repairQueueLength: task.repairQueue.length,
+            repairTilesProcessed: task.processedRepairTiles,
+            cpuTilesResolved: frameStats.cpuResolvedTiles,
+            currentTile: null,
+            note: 'committing-rendered-frame',
+        }, 'commit-frame');
+        finalizeDeepRenderTaskSuccess(task);
+        return false;
+    }
+
+    return false;
+}
+
+function advanceDeepRenderTask(type, budgetMs) {
+    const task = ensureDeepRenderTask(type);
+    if (!task) {
+        return false;
+    }
+
+    const clampedBudgetMs = Math.max(DEEP_RENDER_MIN_BUDGET_MS, budgetMs);
+    const deadline = nowMs() + clampedBudgetMs;
+    let madeProgress = false;
+
+    while (activeDeepRenderTask && activeDeepRenderTask === task && nowMs() < deadline) {
+        const advanced = advanceSingleDeepRenderTask(task);
+        madeProgress = madeProgress || advanced;
+        if (!advanced) {
+            break;
+        }
+    }
+
+    return madeProgress;
+}
+
+function runScheduledDeepRenderWork(idleDeadline = null) {
+    deepRenderWorkHandle = null;
+    deepRenderWorkHandleIsIdleCallback = false;
+
+    if (!gl || !shouldTrackDeepRenderTask(fractalType)) {
+        invalidateActiveDeepRenderTask('task-disabled');
+        return;
+    }
+
+    const type = fractalType;
+    const budgetMs = getDeepRenderWorkBudgetMs(type, idleDeadline);
+    advanceDeepRenderTask(type, budgetMs);
+
+    if (shouldTrackDeepRenderTask(type) && (activeDeepRenderTask || !getDeepFrameReady(type))) {
+        scheduleDeepRenderWork();
+    }
+}
+
+function scheduleDeepRenderWork() {
+    if (deepRenderWorkHandle !== null || !gl || !shouldTrackDeepRenderTask(fractalType)) {
+        return;
+    }
+
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+        deepRenderWorkHandleIsIdleCallback = true;
+        deepRenderWorkHandle = window.requestIdleCallback(
+            (idleDeadline) => {
+                runScheduledDeepRenderWork(idleDeadline);
+            },
+            { timeout: DEEP_RENDER_IDLE_TIMEOUT_MS }
+        );
+        return;
+    }
+
+    if (typeof setTimeout === 'function') {
+        deepRenderWorkHandleIsIdleCallback = false;
+        deepRenderWorkHandle = setTimeout(() => {
+            runScheduledDeepRenderWork();
+        }, 0);
+        return;
+    }
+
+    runScheduledDeepRenderWork();
+}
+
 function updateDeepCameraForType(type) {
     if (type === 'julia') {
         updateJuliaCamera();
@@ -3678,48 +4394,13 @@ function stepDeepCameraWithQualityPriority(type) {
         return false;
     }
 
-    const previousCamera = cloneDeepCamera(getDeepCamera(type));
-    const previousReference = cloneDeepReference(getDeepReference(type));
-    const previousWarningShown = getDeepPrecisionWarningShown(type);
-    const previousFrameReady = getDeepFrameReady(type);
-
     updateDeepCameraForType(type);
-
-    if (!renderSharpDeepFrame(type)) {
-        const failedFrameStats = getDeepLastFrameStats(type) || createEmptyMandelbrotFrameStats();
-        setDeepCamera(type, previousCamera);
-        setDeepReference(type, previousReference);
-        setDeepPrecisionWarningShown(type, previousWarningShown);
-        setDeepMaskVerificationFramesRemaining(type, 0);
-        setDeepStableReuseFrames(type, 0);
-        if (
-            type === 'newton'
-            && shouldDeferNewtonDeepFailure(failedFrameStats.reason)
-            && canUseAccurateNewtonSimpleProxy(previousCamera)
-        ) {
-            newtonDeferredCommittedFramePending = previousFrameReady;
-            setDeepFrameReady(type, false);
-            setDeepReference(type, createEmptyReference());
-            deferNewtonDeepRender(previousCamera.pixelScaleApprox);
-            setDeepQualityHold(type, false);
-            setDeepQualityHoldWarningShown(type, false);
-            return false;
-        }
-        setDeepQualityHold(type, true);
-        if (!getDeepQualityHoldWarningShown(type)) {
-            console.warn(`Paused ${getDeepLabel(type)} zoom ${JSON.stringify(getDeepDebugSnapshot(type))}`);
-            setDeepQualityHoldWarningShown(type, true);
-        }
-        return false;
-    }
-
+    setDeepFrameReady(type, false);
     incrementDeepZoomStepCount(type);
     logDeepProgress(type);
     setDeepQualityHold(type, false);
     setDeepQualityHoldWarningShown(type, false);
-    if (type === 'newton') {
-        resetNewtonDeepRenderActivationScale();
-    }
+    scheduleDeepRenderWork();
     return true;
 }
 
@@ -3760,6 +4441,7 @@ function cacheNewtonSimpleProxyFrame(camera) {
         return false;
     }
     drawSimpleFractalToFramebuffer('newton', camera, committedFramebuffer);
+    setDeepCommittedCamera('newton', cloneDeepCamera(getDeepCamera('newton')));
     setDeepCommittedFrameAvailable('newton', true);
     return true;
 }
@@ -3772,29 +4454,29 @@ function drawDeepFractal(type) {
         setDeepPrecisionWarningShown(type, true);
     }
 
-    if (!getDeepFrameReady(type) && !renderSharpDeepFrame(type)) {
-        if (type === 'newton') {
-            if (drawSimpleProxyFromDeepCamera(type)) {
-                noteRenderedPath('simple-proxy');
-            } else if (drawCommittedDeepFrame(type)) {
-                noteRenderedPath('deep');
-            } else {
-                noteRenderedPath('blank');
-            }
-            return;
-        }
-        drawSimpleFractal(type, {
-            centerX: decimalToNumber(camera.centerX),
-            centerY: decimalToNumber(camera.centerY),
-            pixelScale: camera.pixelScaleApprox,
-            maxIterations: camera.maxIterations,
-        });
-        noteRenderedPath('simple');
+    scheduleDeepRenderWork();
+
+    if (drawCommittedDeepFrame(type, camera)) {
+        noteRenderedPath('deep');
         return;
     }
 
-    drawCommittedDeepFrame(type);
-    noteRenderedPath('deep');
+    if (type === 'newton') {
+        if (drawSimpleProxyFromDeepCamera(type)) {
+            noteRenderedPath('simple-proxy');
+        } else {
+            noteRenderedPath('blank');
+        }
+        return;
+    }
+
+    drawSimpleFractal(type, {
+        centerX: decimalToNumber(camera.centerX),
+        centerY: decimalToNumber(camera.centerY),
+        pixelScale: camera.pixelScaleApprox,
+        maxIterations: camera.maxIterations,
+    });
+    noteRenderedPath('simple');
 }
 
 function drawSimpleProxyFromDeepCamera(type) {
@@ -3837,7 +4519,7 @@ function draw() {
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     if (fractalType === 'newton' && newtonDeferredCommittedFramePending) {
-        if (drawCommittedDeepFrame('newton')) {
+        if (drawCommittedDeepFrame('newton', getDeepCamera('newton'))) {
             noteRenderedPath('deep');
         } else {
             noteRenderedPath('blank');
@@ -3854,7 +4536,7 @@ function draw() {
     if (fractalType === 'newton') {
         if (drawSimpleProxyFromDeepCamera('newton')) {
             noteRenderedPath('simple-proxy');
-        } else if (drawCommittedDeepFrame('newton')) {
+        } else if (drawCommittedDeepFrame('newton', getDeepCamera('newton'))) {
             noteRenderedPath('deep');
         } else {
             noteRenderedPath('blank');
@@ -3884,6 +4566,9 @@ function animate() {
 
     debugLastAnimationStage = 'draw';
     draw();
+    if (isDeepFractalType(fractalType) && shouldUseDeepRender(fractalType)) {
+        scheduleDeepRenderWork();
+    }
     noteRenderPathChange();
     debugLastAnimationStage = 'frame-complete';
     requestAnimationFrame(animate);
@@ -3926,6 +4611,8 @@ function resizeCanvas() {
     juliaFrameReady = false;
     newtonFrameReady = false;
     newtonDeferredCommittedFramePending = false;
+    invalidateActiveDeepRenderTask('resize');
+    cancelScheduledDeepRenderWork();
 
     if (isDeepFractalType(fractalType) && getDeepCamera(fractalType)) {
         const deepCamera = getDeepCamera(fractalType);
@@ -3955,11 +4642,14 @@ function resetSimpleCamera(type) {
 }
 
 function resetMandelbrotState() {
+    invalidateActiveDeepRenderTask('reset-mandelbrot');
+    cancelScheduledDeepRenderWork();
     mandelbrotCamera = createMandelbrotCamera();
     mandelbrotReference = createEmptyReference();
     mandelbrotReferenceCache = new Map();
     mandelbrotFrameReady = false;
     mandelbrotCommittedFrameAvailable = false;
+    mandelbrotCommittedCamera = null;
     deepPrecisionWarningShown = false;
     mandelbrotQualityHold = false;
     mandelbrotQualityHoldWarningShown = false;
@@ -3972,11 +4662,14 @@ function resetMandelbrotState() {
 }
 
 function resetJuliaState() {
+    invalidateActiveDeepRenderTask('reset-julia');
+    cancelScheduledDeepRenderWork();
     juliaCamera = createJuliaCamera();
     juliaReference = createEmptyReference();
     juliaReferenceCache = new Map();
     juliaFrameReady = false;
     juliaCommittedFrameAvailable = false;
+    juliaCommittedCamera = null;
     juliaDeepPrecisionWarningShown = false;
     juliaQualityHold = false;
     juliaQualityHoldWarningShown = false;
@@ -3989,11 +4682,14 @@ function resetJuliaState() {
 }
 
 function resetNewtonState() {
+    invalidateActiveDeepRenderTask('reset-newton');
+    cancelScheduledDeepRenderWork();
     newtonCamera = createNewtonCamera();
     newtonReference = createEmptyReference();
     newtonReferenceCache = new Map();
     newtonFrameReady = false;
     newtonCommittedFrameAvailable = false;
+    newtonCommittedCamera = null;
     newtonDeepPrecisionWarningShown = false;
     newtonQualityHold = false;
     newtonQualityHoldWarningShown = false;
@@ -4023,6 +4719,7 @@ function handleMouseMove(event) {
         setDeepMaskVerificationFramesRemaining(fractalType, 0);
         setDeepStableReuseFrames(fractalType, 0);
         clearDeepWorkState(fractalType);
+        scheduleDeepRenderWork();
     }
 }
 
@@ -4039,6 +4736,9 @@ function handleFractalTypeChange(event) {
     }
     setMouseToCenter();
     draw();
+    if (isDeepFractalType(fractalType) && shouldUseDeepRender(fractalType)) {
+        scheduleDeepRenderWork();
+    }
     noteRenderPathChange('mode-change');
 }
 
@@ -4065,6 +4765,9 @@ window.addEventListener('load', () => {
     setMouseToCenter();
     configureDebugHeartbeatFromQuery();
     draw();
+    if (isDeepFractalType(fractalType) && shouldUseDeepRender(fractalType)) {
+        scheduleDeepRenderWork();
+    }
     noteRenderPathChange('load');
     requestAnimationFrame(animate);
 });
