@@ -272,6 +272,7 @@ function getPayloadCount(payload) {
 function collectSampleMetrics(samples) {
     const referencesUsed = samples.map((sample) => sample.snapshot?.lastFrame?.referencesUsed ?? 0);
     const repairPasses = samples.map((sample) => sample.snapshot?.lastFrame?.repairPasses ?? 0);
+    const schedulerYields = samples.map((sample) => sample.snapshot?.lastFrame?.schedulerYields ?? 0);
     const cpuResolvedTiles = samples.map((sample) => sample.snapshot?.lastFrame?.cpuResolvedTiles ?? 0);
     const cpuResolvedPixels = samples.map((sample) => sample.snapshot?.lastFrame?.cpuResolvedPixels ?? 0);
     const queuedTilesRemaining = samples.map((sample) => sample.snapshot?.lastFrame?.queuedTilesRemaining ?? 0);
@@ -281,6 +282,7 @@ function collectSampleMetrics(samples) {
     return {
         sampledMaxReferencesUsed: Math.max(0, ...referencesUsed),
         sampledMaxRepairPasses: Math.max(0, ...repairPasses),
+        sampledMaxSchedulerYields: Math.max(0, ...schedulerYields),
         sampledMaxCpuResolvedTiles: Math.max(0, ...cpuResolvedTiles),
         sampledMaxCpuResolvedPixels: Math.max(0, ...cpuResolvedPixels),
         sampledMaxQueuedTilesRemaining: Math.max(0, ...queuedTilesRemaining),
@@ -323,6 +325,7 @@ function compareAgainstBaseline(current, baseline) {
     const qualityMetrics = {
         sampledMaxReferencesUsedDelta: currentMetrics.sampledMaxReferencesUsed - (baselineMetrics.sampledMaxReferencesUsed ?? 0),
         sampledMaxRepairPassesDelta: currentMetrics.sampledMaxRepairPasses - (baselineMetrics.sampledMaxRepairPasses ?? 0),
+        sampledMaxSchedulerYieldsDelta: currentMetrics.sampledMaxSchedulerYields - (baselineMetrics.sampledMaxSchedulerYields ?? 0),
         sampledMaxCpuResolvedTilesDelta: currentMetrics.sampledMaxCpuResolvedTiles - (baselineMetrics.sampledMaxCpuResolvedTiles ?? 0),
         sampledHoldSnapshotsDelta: currentMetrics.sampledHoldSnapshots - (baselineMetrics.sampledHoldSnapshots ?? 0),
         browserErrorsDelta: currentMetrics.browserErrors - (baselineMetrics.browserErrors ?? 0),
@@ -333,6 +336,7 @@ function compareAgainstBaseline(current, baseline) {
         currentMetrics.targetStepsPerSecond >= (baselineMetrics.targetStepsPerSecond ?? 0)
         && currentMetrics.sampledMaxReferencesUsed <= (baselineMetrics.sampledMaxReferencesUsed ?? Number.POSITIVE_INFINITY)
         && currentMetrics.sampledMaxRepairPasses <= (baselineMetrics.sampledMaxRepairPasses ?? Number.POSITIVE_INFINITY)
+        && currentMetrics.sampledMaxSchedulerYields <= (baselineMetrics.sampledMaxSchedulerYields ?? Number.POSITIVE_INFINITY)
         && currentMetrics.sampledMaxCpuResolvedTiles <= (baselineMetrics.sampledMaxCpuResolvedTiles ?? Number.POSITIVE_INFINITY)
         && currentMetrics.sampledHoldSnapshots <= (baselineMetrics.sampledHoldSnapshots ?? Number.POSITIVE_INFINITY)
         && currentMetrics.browserErrors <= (baselineMetrics.browserErrors ?? Number.POSITIVE_INFINITY)
@@ -409,6 +413,7 @@ function aggregateReports(label, reportPath, options, baseUrl, reports) {
             sampledSnapshots: reports.reduce((sum, report) => sum + (report.metrics.sampledSnapshots ?? 0), 0),
             sampledMaxReferencesUsed: maxMetric(reports, 'sampledMaxReferencesUsed'),
             sampledMaxRepairPasses: maxMetric(reports, 'sampledMaxRepairPasses'),
+            sampledMaxSchedulerYields: maxMetric(reports, 'sampledMaxSchedulerYields'),
             sampledMaxCpuResolvedTiles: maxMetric(reports, 'sampledMaxCpuResolvedTiles'),
             sampledMaxCpuResolvedPixels: maxMetric(reports, 'sampledMaxCpuResolvedPixels'),
             sampledMaxQueuedTilesRemaining: maxMetric(reports, 'sampledMaxQueuedTilesRemaining'),

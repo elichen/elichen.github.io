@@ -27,6 +27,7 @@ const DEEP_RENDER_FALLBACK_BUDGET_MS = 4;
 const DEEP_RENDER_MAX_BUDGET_MS = 6;
 const DEEP_RENDER_BOOTSTRAP_BUDGET_MS = 10;
 const DEEP_RENDER_MIN_BUDGET_MS = 1;
+const DEEP_RENDER_EXPENSIVE_STAGE_MIN_BUDGET_MS = 3.5;
 const DEEP_RENDER_STALE_SCALE_RATIO = 1.12;
 const DEEP_RENDER_STALE_TRANSLATION_PIXELS = 96;
 const MIN_GPU_SCALE = 1e-45;
@@ -42,6 +43,7 @@ const GLITCH_THRESHOLD = 1e-5;
 const MANDELBROT_LOG_INTERVAL = 500;
 const DEBUG_HEARTBEAT_INTERVAL_MS = 1000;
 const MIN_DEBUG_HEARTBEAT_INTERVAL_MS = 250;
+const MAX_RENDER_DEVICE_PIXEL_RATIO = 1.25;
 const MAX_REPAIR_REFERENCES = 192;
 const MAX_REPAIR_DEPTH = 10;
 const MIN_REPAIR_TILE_SIZE = 4;
@@ -1050,6 +1052,7 @@ function createEmptyMandelbrotFrameStats() {
         referencesUsed: 0,
         repairPasses: 0,
         repairQueuePeak: 0,
+        schedulerYields: 0,
         deepestTileDepth: 0,
         lastTileWidth: null,
         lastTileHeight: null,
@@ -1350,6 +1353,10 @@ function getActiveDebugSnapshot(type = fractalType) {
             : null,
         mouseX: roundDebugNumber(mousePosition.x),
         mouseY: roundDebugNumber(mousePosition.y),
+        devicePixelRatio: typeof window !== 'undefined' ? roundDebugNumber(Number(window.devicePixelRatio) || 1) : 1,
+        renderDevicePixelRatio: roundDebugNumber(getRenderDevicePixelRatio()),
+        canvasWidth: gl?.canvas?.width ?? null,
+        canvasHeight: gl?.canvas?.height ?? null,
         pixelScaleApprox: activeCamera
             ? roundDebugNumber(
                 typeof activeCamera.pixelScaleApprox === 'number'
@@ -1372,6 +1379,7 @@ function getActiveDebugSnapshot(type = fractalType) {
             reason: lastFrame.reason,
             referencesUsed: lastFrame.referencesUsed,
             repairPasses: lastFrame.repairPasses,
+            schedulerYields: lastFrame.schedulerYields,
             cpuResolvedTiles: lastFrame.cpuResolvedTiles,
             cpuResolvedPixels: lastFrame.cpuResolvedPixels,
         };
@@ -1573,6 +1581,14 @@ function nowMs() {
         return performance.now();
     }
     return Date.now();
+}
+
+function getRenderDevicePixelRatio() {
+    const devicePixelRatio = typeof window !== 'undefined' ? Number(window.devicePixelRatio) : 1;
+    if (!Number.isFinite(devicePixelRatio) || devicePixelRatio <= 0) {
+        return 1;
+    }
+    return Math.min(MAX_RENDER_DEVICE_PIXEL_RATIO, Math.max(1, devicePixelRatio));
 }
 
 function areDeepCamerasEquivalent(a, b) {
@@ -3903,6 +3919,10 @@ function getDeepRenderWorkBudgetMs(type, idleDeadline = null) {
         ? DEEP_RENDER_MAX_BUDGET_MS
         : DEEP_RENDER_BOOTSTRAP_BUDGET_MS;
 
+    if (idleDeadline && idleDeadline.didTimeout) {
+        return maxBudget;
+    }
+
     if (!idleDeadline || typeof idleDeadline.timeRemaining !== 'function') {
         return Math.min(maxBudget, DEEP_RENDER_FALLBACK_BUDGET_MS);
     }
@@ -3911,6 +3931,52 @@ function getDeepRenderWorkBudgetMs(type, idleDeadline = null) {
         DEEP_RENDER_MIN_BUDGET_MS,
         Math.min(maxBudget, idleDeadline.timeRemaining())
     );
+}
+
+function isExpensiveDeepRenderStage(stage) {
+    return [
+        'initial-reference-search',
+        'full-frame-render',
+        'full-frame-verify',
+        'full-frame-read-mask',
+        'seed-repair-queue',
+        'repair-tile',
+        'commit',
+    ].includes(stage);
+}
+
+function getMinimumBudgetForDeepRenderStage(type, stage) {
+    if (!isExpensiveDeepRenderStage(stage)) {
+        return 0;
+    }
+
+    return DEEP_RENDER_EXPENSIVE_STAGE_MIN_BUDGET_MS;
+}
+
+function shouldYieldBeforeDeepRenderStage(task, remainingBudgetMs) {
+    if (!task || !Number.isFinite(remainingBudgetMs)) {
+        return false;
+    }
+
+    const requiredBudgetMs = getMinimumBudgetForDeepRenderStage(task.type, task.stage);
+    return requiredBudgetMs > 0 && remainingBudgetMs < requiredBudgetMs;
+}
+
+function noteDeepRenderSchedulerYield(task, remainingBudgetMs) {
+    if (!task) {
+        return;
+    }
+
+    task.frameStats.schedulerYields += 1;
+    updateDeepWorkState(task.type, {
+        stage: task.stage,
+        referencesUsed: task.referencesUsed,
+        repairQueueLength: task.repairQueue.length,
+        repairTilesProcessed: task.processedRepairTiles,
+        cpuTilesResolved: task.frameStats.cpuResolvedTiles,
+        note: `yielding-before-${task.stage}`,
+        remainingBudgetMs: roundDebugNumber(remainingBudgetMs),
+    }, task.frameStats.schedulerYields <= 3 ? 'scheduler-yield' : null);
 }
 
 function restoreCommittedDeepCamera(type) {
@@ -4322,6 +4388,12 @@ function advanceDeepRenderTask(type, budgetMs) {
     let madeProgress = false;
 
     while (activeDeepRenderTask && activeDeepRenderTask === task && nowMs() < deadline) {
+        const remainingBudgetMs = deadline - nowMs();
+        if (madeProgress && shouldYieldBeforeDeepRenderStage(task, remainingBudgetMs)) {
+            noteDeepRenderSchedulerYield(task, remainingBudgetMs);
+            break;
+        }
+
         const advanced = advanceSingleDeepRenderTask(task);
         madeProgress = madeProgress || advanced;
         if (!advanced) {
@@ -4593,7 +4665,7 @@ function resizeCanvas() {
 
     const previousWidth = gl.canvas.width || 1;
     const previousHeight = gl.canvas.height || 1;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = getRenderDevicePixelRatio();
     gl.canvas.width = Math.max(1, Math.round(window.innerWidth * dpr));
     gl.canvas.height = Math.max(1, Math.round(window.innerHeight * dpr));
     gl.canvas.style.width = `${window.innerWidth}px`;

@@ -197,6 +197,15 @@ function loadHarness() {
     setDeepWorkState(type, value) {
         setDeepWorkState(type, value);
     },
+    getDeepRenderWorkBudgetMs(type, idleDeadline) {
+        return getDeepRenderWorkBudgetMs(type, idleDeadline);
+    },
+    getMinimumBudgetForDeepRenderStage(type, stage) {
+        return getMinimumBudgetForDeepRenderStage(type, stage);
+    },
+    shouldYieldBeforeDeepRenderStage(task, remainingBudgetMs) {
+        return shouldYieldBeforeDeepRenderStage(task, remainingBudgetMs);
+    },
     setEnsureRenderTargetsImpl(fn) { ensureMandelbrotRenderTargets = fn; },
     setCreateProgramImpl(fn) { createProgram = fn; },
     setCreateProgramInfoImpl(fn) { createProgramInfo = fn; },
@@ -1066,6 +1075,39 @@ test('deep debug snapshot includes active work state', () => {
     assert.ok(snapshot.activeWork.elapsedMs >= 0);
 });
 
+test('deep render scheduler reserves enough budget before expensive stages', () => {
+    const harness = loadHarness();
+
+    harness.initMandelbrot();
+    harness.setCommittedFrameAvailable('mandelbrot', true);
+
+    const task = {
+        type: 'mandelbrot',
+        stage: 'repair-tile',
+    };
+
+    assert.equal(harness.shouldYieldBeforeDeepRenderStage(task, 1), true);
+    assert.equal(harness.shouldYieldBeforeDeepRenderStage(task, 6), false);
+    assert.equal(harness.shouldYieldBeforeDeepRenderStage({ ...task, stage: 'init' }, 1), false);
+});
+
+test('timed-out idle callbacks get a real deep render work budget', () => {
+    const harness = loadHarness();
+
+    harness.initMandelbrot();
+    harness.setCommittedFrameAvailable('mandelbrot', true);
+
+    assert.equal(
+        harness.getDeepRenderWorkBudgetMs('mandelbrot', {
+            didTimeout: true,
+            timeRemaining() {
+                return 0;
+            },
+        }),
+        6
+    );
+});
+
 test('Newton deep render deferral lowers the activation scale until reset', () => {
     const harness = loadHarness();
 
@@ -1369,6 +1411,30 @@ test('resizeCanvas preserves committed deep frames while clearing pending Newton
     assert.equal(harness.getCommittedFrameAvailable('julia'), true);
     assert.equal(harness.getCommittedFrameAvailable('newton'), true);
     assert.equal(harness.getNewtonDeferredCommittedFramePending(), false);
+});
+
+test('resizeCanvas caps high-DPR render size to reduce fragment pressure', () => {
+    const harness = loadHarness();
+    const canvas = {
+        width: 1600,
+        height: 900,
+        style: {},
+    };
+
+    harness.setGL({ canvas });
+    harness.setWindowMetrics({
+        innerWidth: 800,
+        innerHeight: 450,
+        devicePixelRatio: 2,
+    });
+    harness.setEnsureRenderTargetsImpl(() => {});
+
+    harness.resizeCanvas();
+
+    assert.equal(canvas.width, 1000);
+    assert.equal(canvas.height, 563);
+    assert.equal(canvas.style.width, '800px');
+    assert.equal(canvas.style.height, '450px');
 });
 
 test('stepJuliaCameraWithQualityPriority restores the previous camera when repair fails', () => {
