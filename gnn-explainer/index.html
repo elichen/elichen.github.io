@@ -3,361 +3,122 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>How a Graph Neural Network Sees a Node</title>
+  <title>Graph Signal Lab</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <script src="app.js" defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650;9..144,760&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=recommendation-lab">
+  <script src="app.js?v=recommendation-lab" defer></script>
 </head>
 <body>
   <header class="topbar">
-    <div class="topbar-inner">
-      <span class="brand"><span class="brand-dot"></span>gnn / explainer</span>
-      <nav class="topnav">
-        <a href="#message-figure">01 · message passing</a>
-        <a href="#depth-figure">02 · depth</a>
-        <a href="#takeaway">03 · takeaway</a>
-      </nav>
+    <div class="brand-lockup">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <p class="eyebrow">graph signal lab</p>
+        <h1>Recommendation GNN simulator</h1>
+      </div>
+    </div>
+    <div class="topbar-meta">
+      <span>Predict: should this user get this item?</span>
+      <span>Static demo</span>
     </div>
   </header>
 
-  <main class="publication">
-    <section class="hero reveal">
-      <div class="hero-meta">
-        <span class="tag">explorable</span>
-        <span class="tag tag-ghost">graph neural networks</span>
-        <span class="tag tag-ghost">interactive</span>
+  <main class="app-shell">
+    <aside class="scenario-panel" aria-label="Recommendation scenarios">
+      <div class="panel-heading">
+        <p class="eyebrow">levels</p>
+        <h2>Where graph context changes the answer</h2>
       </div>
-
-      <h1>
-        How a graph neural network
-        <span class="hero-accent">sees a node.</span>
-      </h1>
-
-      <p class="standfirst">
-        A GNN doesn't classify a node from its own features alone. It moves signal
-        across edges, compresses each neighborhood into a new hidden state, and
-        expands what a node can know — one hop at a time.
-      </p>
-
-      <div class="hero-grid">
-        <div class="prose">
-          <p>
-            In a node-wise MLP, every example is judged in isolation. In a GNN, a
-            node can borrow evidence from its neighbors. That makes local structure
-            part of the representation itself.
-          </p>
-          <p>
-            This piece keeps the math intentionally small: one scalar channel,
-            weighted directed edges, and a few graph motifs that isolate message
-            passing, receptive fields, and oversmoothing.
-          </p>
-        </div>
-
-        <aside class="callout">
-          <p class="tiny-label">update rule</p>
-          <p class="equation" id="hero-equation">Loading rule…</p>
-          <p class="callout-body" id="hero-note">Loading note…</p>
-        </aside>
-      </div>
-    </section>
-
-    <section class="section section-with-aside reveal">
-      <div class="prose">
-        <p class="section-index">§ 01</p>
-        <h2>The core intuition</h2>
+      <div id="scenario-list" class="scenario-list"></div>
+      <section class="lesson-box">
+        <p class="eyebrow">mental model</p>
         <p>
-          A node never receives the whole graph in one step. Each layer reads
-          incoming messages, aggregates them, and writes the result back into the
-          node state. Stacking layers repeats the same local rule — which is why
-          depth grows the receptive field.
+          A node-only model sees the user and item in isolation. A GNN lets nearby
+          saved items, similar users, and shared topics send evidence into the
+          recommendation.
         </p>
-        <p>
-          Figure 1 traces one update in slow motion. Figure 2 fixes the graph and
-          changes depth, so you can see when extra context helps and when
-          repeated averaging begins to erase structure.
-        </p>
-      </div>
+      </section>
+    </aside>
 
-      <aside class="callout callout-sticky">
-        <p class="tiny-label">this simplification</p>
-        <p class="callout-body">
-          Real GNNs propagate vectors, learn richer message functions, and often
-          use residual connections or normalization. Here the hidden state is a
-          single scalar so the mechanics stay visible.
-        </p>
-      </aside>
-    </section>
-
-    <section class="section reveal">
-      <div class="annotation-strip">
-        <article class="annotation-card">
-          <span class="big-num">01</span>
-          <h3>Start local</h3>
-          <p>At depth 0, each node only carries its own feature vector or scalar state.</p>
-        </article>
-        <article class="annotation-card">
-          <span class="big-num">02</span>
-          <h3>Send messages</h3>
-          <p>Each directed edge scales the sender and pushes that signal toward a neighbor.</p>
-        </article>
-        <article class="annotation-card">
-          <span class="big-num">03</span>
-          <h3>Aggregate</h3>
-          <p>The receiver compresses its incoming neighborhood into a single summary.</p>
-        </article>
-        <article class="annotation-card">
-          <span class="big-num">04</span>
-          <h3>Repeat</h3>
-          <p>Stacking layers repeats the same local rule: more reach, more mixing.</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="figure-block reveal" id="message-figure">
-      <div class="figure-shell">
-        <div class="figure-head">
-          <div class="figure-copy">
-            <p class="figure-label">Figure 1 · interactive</p>
-            <h2 id="message-title">Loading…</h2>
-            <p id="message-dek" class="figure-intro">Loading scene…</p>
-          </div>
-          <div class="segmented scene-picker" id="message-scene-picker" aria-label="Message passing scenes"></div>
+    <section class="lab-stage" aria-label="Recommendation graph workspace">
+      <div class="challenge-header">
+        <div>
+          <p id="scenario-kicker" class="eyebrow">scenario</p>
+          <h2 id="scenario-title">Loading scenario</h2>
+          <p id="scenario-objective" class="scenario-objective">Loading objective</p>
         </div>
-
-        <div class="figure-story">
-          <div class="figure-stage">
-            <div class="graph-frame graph-frame-primary">
-              <svg id="message-graph" viewBox="0 0 980 720" aria-label="Message passing graph"></svg>
-            </div>
-
-            <div class="figure-legend">
-              <span><i class="legend-swatch legend-low"></i> low orange confidence</span>
-              <span><i class="legend-swatch legend-high"></i> high orange confidence</span>
-              <span><i class="legend-line"></i> weighted directed edge</span>
-              <span><code>0.874</code> = edge message value</span>
-            </div>
-
-            <div class="metrics-bar">
-              <div class="metric-card">
-                <span class="metric-label">selected node</span>
-                <strong id="message-node-name">--</strong>
-              </div>
-              <div class="metric-card">
-                <span class="metric-label">local h<sup>0</sup></span>
-                <strong id="message-node-h0">--</strong>
-              </div>
-              <div class="metric-card">
-                <span class="metric-label">aggregate a<sup>0</sup></span>
-                <strong id="message-node-agg">--</strong>
-              </div>
-              <div class="metric-card metric-card-strong">
-                <span class="metric-label">updated h<sup>1</sup></span>
-                <strong id="message-node-h1">--</strong>
-              </div>
-              <div class="metric-card">
-                <span class="metric-label">best depth</span>
-                <strong id="message-best-depth">--</strong>
-              </div>
-            </div>
-
-            <div class="inspector-grid">
-              <section class="inspector-card equation-card">
-                <p class="tiny-label">current equation</p>
-                <p class="equation-large" id="message-equation">--</p>
-                <p id="message-stage-note" class="inspector-copy">--</p>
-              </section>
-
-              <section class="inspector-card">
-                <p class="tiny-label">selected node</p>
-                <h3 id="message-node-title">--</h3>
-                <p id="message-node-summary" class="inspector-copy">--</p>
-                <div id="message-node-values" class="value-stack"></div>
-              </section>
-
-              <section class="inspector-card">
-                <p class="tiny-label">incoming messages</p>
-                <div id="message-incoming" class="message-list"></div>
-              </section>
-            </div>
-          </div>
-
-          <div class="figure-narrative" id="message-steps">
-            <article class="figure-step is-active" data-step="features" tabindex="0">
-              <p class="step-index">01</p>
-              <h3>Start with the node itself</h3>
-              <p>At depth 0 the selected node only knows its own state. This is the MLP-like view.</p>
-            </article>
-            <article class="figure-step" data-step="messages" tabindex="0">
-              <p class="step-index">02</p>
-              <h3>Read the incoming edges</h3>
-              <p>Each sender pushes a weighted message along a directed edge into the selected node.</p>
-            </article>
-            <article class="figure-step" data-step="aggregate" tabindex="0">
-              <p class="step-index">03</p>
-              <h3>Compress the neighborhood</h3>
-              <p>The receiver summarizes those messages into one neighborhood statistic.</p>
-            </article>
-            <article class="figure-step" data-step="update" tabindex="0">
-              <p class="step-index">04</p>
-              <h3>Write a new hidden state</h3>
-              <p>The next-layer state blends the node's own feature with its neighborhood aggregate.</p>
-            </article>
-            <article class="figure-step" data-step="depth" tabindex="0">
-              <p class="step-index">05</p>
-              <h3>Read the full receptive field</h3>
-              <p>Use more layers only when evidence sits further away. Each extra layer buys reach — but also mixes the graph more aggressively.</p>
-            </article>
-          </div>
+        <div class="target-card">
+          <span>Candidate</span>
+          <strong id="candidate-name">--</strong>
+          <small id="candidate-meta">--</small>
         </div>
       </div>
-    </section>
 
-    <section class="section section-with-aside reveal">
-      <div class="prose">
-        <p class="section-index">§ 02</p>
-        <h2>Depth changes what a node can know</h2>
-        <p>
-          A 0-layer model is just a node-wise classifier: it only sees
-          <em>x<sub>v</sub></em>. One layer reaches immediate neighbors. Two layers
-          reach neighbors-of-neighbors. Beyond that, whether more depth helps
-          depends entirely on the graph.
-        </p>
-        <p>
-          In the two-hop witness motif, depth uncovers the useful evidence. In the
-          bridge motif, extra depth gradually pulls both communities toward the
-          same representation.
-        </p>
-      </div>
-
-      <aside class="callout callout-sticky">
-        <p class="tiny-label">read the depth control</p>
-        <p class="callout-body">
-          <code>0</code> behaves like an MLP on nodes. <code>1</code> and
-          <code>2</code> expand the receptive field. Larger values show what
-          repeated mixing does to the whole graph.
-        </p>
-      </aside>
-    </section>
-
-    <section class="figure-block reveal" id="depth-figure">
-      <div class="figure-shell">
-        <div class="figure-head">
-          <div class="figure-copy">
-            <p class="figure-label">Figure 2 · interactive</p>
-            <h2 id="depth-title">Loading…</h2>
-            <p id="depth-dek" class="figure-intro">Loading scene…</p>
-          </div>
-          <div class="segmented scene-picker" id="depth-scene-picker" aria-label="Depth scenes"></div>
+      <div class="graph-toolbar" aria-label="Model controls">
+        <div class="control-group">
+          <span class="control-label">model</span>
+          <div class="segmented" id="model-picker"></div>
         </div>
-
-        <div class="depth-layout">
-          <div class="depth-main">
-            <div class="graph-frame graph-frame-light">
-              <svg id="depth-graph" viewBox="0 0 980 620" aria-label="Depth comparison graph"></svg>
-            </div>
-
-            <div class="depth-controls">
-              <p class="tiny-label">layer depth</p>
-              <div class="segmented depth-picker" id="depth-picker" aria-label="Depth selector"></div>
-            </div>
-
-            <div id="depth-track" class="depth-track"></div>
-          </div>
-
-          <aside class="depth-rail">
-            <section class="inspector-card inspector-card-dark">
-              <p class="tiny-label tiny-label-inverse">current depth</p>
-              <h3 id="depth-level">--</h3>
-              <p id="depth-note" class="inspector-copy inspector-copy-inverse">--</p>
-            </section>
-
-            <section class="inspector-card">
-              <div class="mini-stat-grid">
-                <div>
-                  <span>focus state</span>
-                  <strong id="depth-focus-state">--</strong>
-                </div>
-                <div>
-                  <span>focus probability</span>
-                  <strong id="depth-focus-prob">--</strong>
-                </div>
-                <div>
-                  <span>graph spread</span>
-                  <strong id="depth-spread">--</strong>
-                </div>
-                <div>
-                  <span>orange–blue gap</span>
-                  <strong id="depth-gap">--</strong>
-                </div>
-              </div>
-            </section>
-
-            <section class="inspector-card">
-              <p class="tiny-label">why it matters</p>
-              <p id="depth-summary" class="inspector-copy">--</p>
-            </section>
-          </aside>
+        <div class="control-group">
+          <span class="control-label">message depth</span>
+          <div class="segmented depth-picker" id="depth-picker"></div>
         </div>
+        <button id="message-toggle" class="ghost-button" type="button" aria-pressed="true">
+          Show messages
+        </button>
+      </div>
+
+      <div class="graph-frame">
+        <svg id="graph" viewBox="0 0 920 620" role="img" aria-label="Recommendation graph"></svg>
+      </div>
+
+      <div class="graph-legend" aria-label="Graph legend">
+        <span><i class="legend-dot legend-user"></i>User</span>
+        <span><i class="legend-dot legend-item"></i>Item</span>
+        <span><i class="legend-dot legend-topic"></i>Topic</span>
+        <span><i class="legend-line"></i>Active message path</span>
       </div>
     </section>
 
-    <section class="section reveal">
-      <div class="prose">
-        <p class="section-index">§ 03</p>
-        <h2>Where GNNs help — and where they don't</h2>
-        <p>
-          GNNs help when a node's label genuinely lives in the neighborhood:
-          homophily, motifs, bridges, bottlenecks, or evidence that sits a few
-          hops away. They struggle when the graph is noisy, when locality is the
-          wrong inductive bias, or when too much depth makes node states collapse
-          together.
-        </p>
-      </div>
+    <aside class="decision-panel" aria-label="Prediction and explanation">
+      <section class="prediction-card">
+        <p class="eyebrow">prediction</p>
+        <div class="score-readout">
+          <strong id="score-value">--</strong>
+          <span id="score-label">Awaiting run</span>
+        </div>
+        <div class="score-meter" aria-hidden="true">
+          <span id="score-fill"></span>
+        </div>
+        <button id="run-button" class="primary-button" type="button">Run prediction</button>
+        <p id="result-copy" class="result-copy">Choose a depth, then run the model.</p>
+      </section>
 
-      <div class="annotation-strip annotation-strip-wide">
-        <article class="annotation-card">
-          <span class="big-num">MLP</span>
-          <h3>Depth 0</h3>
-          <p>Only sees the local feature. Great when the node already contains the answer.</p>
-        </article>
-        <article class="annotation-card">
-          <span class="big-num">1L</span>
-          <h3>One layer</h3>
-          <p>Reads one-hop context. Useful when nearby neighbors already contain the needed evidence.</p>
-        </article>
-        <article class="annotation-card">
-          <span class="big-num">2L</span>
-          <h3>Two layers</h3>
-          <p>Reaches motifs and relays. Two layers is usually the right call for small-graph tasks.</p>
-        </article>
-        <article class="annotation-card annotation-card-warn">
-          <span class="big-num">∞</span>
-          <h3>Too much depth</h3>
-          <p>Repeated averaging flattens the graph. Distinctions shrink even when the answer stays the same.</p>
-        </article>
-      </div>
-    </section>
+      <section class="compare-panel">
+        <div class="section-title-row">
+          <div>
+            <p class="eyebrow">compare</p>
+            <h3>Depth sweep</h3>
+          </div>
+          <button id="compare-button" class="text-button" type="button">Reset best</button>
+        </div>
+        <div id="depth-comparison" class="depth-comparison"></div>
+      </section>
 
-    <section class="section section-closing reveal" id="takeaway">
-      <div class="takeaway">
-        <p class="section-index">§ takeaway</p>
-        <h2>The right mental model</h2>
-        <p>
-          A GNN is not magic global reasoning. It's a local update rule applied
-          repeatedly to a graph. Every extra layer trades more context for more
-          mixing. The practical question is not <em>“should I use a GNN?”</em>
-          but <em>“does my node label actually live in the neighborhood — and if
-          so, how many hops away?”</em>
-        </p>
-      </div>
-    </section>
+      <section class="inspector-panel">
+        <p class="eyebrow">selected node</p>
+        <h3 id="node-name">--</h3>
+        <p id="node-description">Click a node to inspect it.</p>
+        <dl id="node-stats" class="node-stats"></dl>
+      </section>
 
-    <footer class="site-footer">
-      <span>gnn / explainer</span>
-      <span>— scroll-driven essay, one scalar channel, no training required.</span>
-    </footer>
+      <section class="message-panel">
+        <p class="eyebrow">why this depth behaves this way</p>
+        <div id="message-list" class="message-list"></div>
+      </section>
+    </aside>
   </main>
 </body>
 </html>
