@@ -8,9 +8,29 @@
 </head>
 <body>
     <article>
-        <header>
+        <header class="hero">
+            <p class="eyebrow">Permutation lab</p>
             <h1>Heap's Algorithm</h1>
-            <p class="subtitle">Generating all permutations with minimal swaps</p>
+            <p class="subtitle">Generate every arrangement by changing only two positions at a time.</p>
+            <div class="hero-actions" aria-label="Jump to interactive sections">
+                <a class="jump-link" href="#three-elements">Try 3 elements</a>
+                <a class="jump-link" href="#four-elements">Run 4 elements</a>
+                <a class="jump-link" href="#the-code">Read the code</a>
+            </div>
+            <div class="hero-metrics" aria-label="Algorithm summary">
+                <div class="metric">
+                    <span class="metric-value">n!</span>
+                    <span class="metric-label">outputs</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-value">n! - 1</span>
+                    <span class="metric-label">minimum swaps</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-value">in-place</span>
+                    <span class="metric-label">constant extra array memory</span>
+                </div>
+            </div>
         </header>
 
         <section id="intro">
@@ -52,9 +72,14 @@
 
             <div class="interactive-demo" id="demo-3">
                 <div class="demo-controls">
-                    <button id="play-3" class="btn">▶ Play</button>
-                    <button id="step-3" class="btn">Step</button>
-                    <button id="reset-3" class="btn">Reset</button>
+                    <button id="play-3" class="btn" type="button">Play</button>
+                    <button id="step-3" class="btn secondary" type="button">Next step</button>
+                    <button id="reset-3" class="btn ghost" type="button">Reset</button>
+                </div>
+
+                <div class="demo-progress" aria-label="Three element progress">
+                    <div class="progress-track"><span id="progress-3"></span></div>
+                    <span id="progress-text-3">1/6 outputs</span>
                 </div>
 
                 <div class="demo-stage">
@@ -63,7 +88,7 @@
                         <div class="element" data-idx="1">B</div>
                         <div class="element" data-idx="2">C</div>
                     </div>
-                    <div class="swap-info" id="swap-info-3">Play or Step. Each action either emits a permutation or prepares the next block.</div>
+                    <div class="swap-info" id="swap-info-3" aria-live="polite">Play or step. Each action either emits a permutation or prepares the next block.</div>
                     <div class="demo-badges">
                         <div class="level-indicator" id="level-3">
                             <span class="level-badge">k=3 (odd)</span>
@@ -71,6 +96,11 @@
                         <div class="block-indicator" id="block-3">
                             <span class="block-badge current">Current block: slot 2 fixed = C</span>
                         </div>
+                    </div>
+                    <div class="trace-panel" id="trace-3" aria-live="polite">
+                        <span class="trace-kicker">Next action</span>
+                        <strong>Swap positions 0 and 1</strong>
+                        <span>k=2 is even, so the child swaps i with the last prefix slot.</span>
                     </div>
                 </div>
 
@@ -238,13 +268,18 @@ BCA, CBA   // A fixed at the end</code></pre>
 
             <div class="interactive-demo large" id="demo-4">
                 <div class="demo-controls">
-                    <button id="play-4" class="btn">▶ Play</button>
-                    <button id="step-4" class="btn">Step</button>
-                    <button id="reset-4" class="btn">Reset</button>
+                    <button id="play-4" class="btn" type="button">Play</button>
+                    <button id="step-4" class="btn secondary" type="button">Next step</button>
+                    <button id="reset-4" class="btn ghost" type="button">Reset</button>
                     <div class="speed-control">
-                        <label>Speed:</label>
+                        <label for="speed-4">Speed</label>
                         <input type="range" id="speed-4" min="100" max="1000" value="700">
                     </div>
+                </div>
+
+                <div class="demo-progress" aria-label="Four element progress">
+                    <div class="progress-track"><span id="progress-4"></span></div>
+                    <span id="progress-text-4">1/24 outputs</span>
                 </div>
 
                 <div class="demo-stage">
@@ -254,7 +289,7 @@ BCA, CBA   // A fixed at the end</code></pre>
                         <div class="element" data-idx="2">C</div>
                         <div class="element" data-idx="3">D</div>
                     </div>
-                    <div class="swap-info" id="swap-info-4">Play or Step. Each action either emits a permutation or prepares the next block.</div>
+                    <div class="swap-info" id="swap-info-4" aria-live="polite">Play or step. Each action either emits a permutation or prepares the next block.</div>
                     <div class="demo-badges">
                         <div class="level-indicator" id="level-4">
                             <span class="level-badge">k=4 (even)</span>
@@ -262,6 +297,11 @@ BCA, CBA   // A fixed at the end</code></pre>
                         <div class="block-indicator" id="block-4">
                             <span class="block-badge current">Current block: slot 3 fixed = D</span>
                         </div>
+                    </div>
+                    <div class="trace-panel" id="trace-4" aria-live="polite">
+                        <span class="trace-kicker">Next action</span>
+                        <strong>Swap positions 0 and 1</strong>
+                        <span>k=2 is even, so the child swaps i with the last prefix slot.</span>
                     </div>
                 </div>
 

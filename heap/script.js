@@ -7,7 +7,7 @@ function generateHeapSteps(arr) {
 
     function generate(k) {
         if (k === 1) {
-            steps.push({ type: 'output', state: [...a] });
+            steps.push({ type: 'output', state: [...a], k });
             return;
         }
 
@@ -42,6 +42,8 @@ class Demo {
         this.currentState = [...elements];
         this.playing = false;
         this.speed = 400;
+        this.totalPermutations = this.steps.filter((step) => step.type === 'output').length;
+        this.totalSwaps = this.steps.filter((step) => step.type === 'swap').length;
         this.timeoutId = null;
         this.animationFrameId = null;
         this.tiles = new Map();
@@ -51,11 +53,17 @@ class Demo {
 
         this.stateEl = document.querySelector(`#demo-${id} .current-state`);
         this.infoEl = document.getElementById(`swap-info-${id}`);
+        this.traceEl = document.getElementById(`trace-${id}`);
         this.trailEl = document.getElementById(`trail-${id}`);
         this.permCount = document.getElementById(`perm-count-${id}`);
         this.swapCount = document.getElementById(`swap-count-${id}`);
+        this.progressEl = document.getElementById(`progress-${id}`);
+        this.progressText = document.getElementById(`progress-text-${id}`);
         this.levelEl = document.getElementById(`level-${id}`);
         this.blockEl = document.getElementById(`block-${id}`);
+        this.playBtn = document.getElementById(`play-${this.id}`);
+        this.stepBtn = document.getElementById(`step-${this.id}`);
+        this.resetBtn = document.getElementById(`reset-${this.id}`);
 
         this.permutations = 1;
         this.swaps = 0;
@@ -86,14 +94,11 @@ class Demo {
     }
 
     setupControls() {
-        const playBtn = document.getElementById(`play-${this.id}`);
-        const stepBtn = document.getElementById(`step-${this.id}`);
-        const resetBtn = document.getElementById(`reset-${this.id}`);
         const speedInput = document.getElementById(`speed-${this.id}`);
 
-        if (playBtn) playBtn.addEventListener('click', () => this.togglePlay());
-        if (stepBtn) stepBtn.addEventListener('click', () => this.step());
-        if (resetBtn) resetBtn.addEventListener('click', () => this.reset());
+        if (this.playBtn) this.playBtn.addEventListener('click', () => this.togglePlay());
+        if (this.stepBtn) this.stepBtn.addEventListener('click', () => this.step());
+        if (this.resetBtn) this.resetBtn.addEventListener('click', () => this.reset());
         if (speedInput) {
             this.updateSpeed(speedInput.value);
             speedInput.addEventListener('input', (e) => {
@@ -150,6 +155,9 @@ class Demo {
         this.updateBlockState(this.currentState, 'current');
         this.setOutputInfo(this.currentState);
         this.updateStats();
+        this.updateProgress();
+        this.updateNextAction();
+        this.updateControls();
     }
 
     syncTiles() {
@@ -363,16 +371,81 @@ class Demo {
         if (this.swapCount) this.swapCount.textContent = this.swaps;
     }
 
+    updateProgress() {
+        const outputRatio = this.totalPermutations
+            ? this.permutations / this.totalPermutations
+            : 0;
+
+        if (this.progressEl) {
+            this.progressEl.style.width = `${clamp(outputRatio * 100, 0, 100)}%`;
+        }
+
+        if (this.progressText) {
+            this.progressText.textContent = `${this.permutations}/${this.totalPermutations} outputs · ${this.swaps}/${this.totalSwaps} swaps`;
+        }
+    }
+
     updateLevel(k) {
         if (this.levelEl) {
             this.levelEl.innerHTML = `<span class="level-badge">k=${k} (${k % 2 === 0 ? 'even' : 'odd'})</span>`;
         }
     }
 
+    describeStep(step) {
+        if (!step) {
+            return {
+                kind: 'done',
+                title: 'All permutations emitted',
+                detail: `${this.totalPermutations} outputs reached with ${this.totalSwaps} swaps. Reset to replay the schedule.`
+            };
+        }
+
+        if (step.type === 'output') {
+            return {
+                kind: 'output',
+                title: `Emit ${step.state.join('')}`,
+                detail: 'The recursion reached k=1, so the current arrangement becomes the next output.'
+            };
+        }
+
+        const [i, j] = step.indices;
+        const parity = step.k % 2 === 0 ? 'even' : 'odd';
+        const rule = parity === 'even'
+            ? `k=${step.k} is even, so swap loop index ${i} with the last slot.`
+            : `k=${step.k} is odd, so swap position 0 with the last slot.`;
+
+        return {
+            kind: 'swap',
+            title: `Swap positions ${i} and ${j}`,
+            detail: rule
+        };
+    }
+
+    updateNextAction() {
+        if (!this.traceEl) return;
+
+        const summary = this.describeStep(this.steps[this.stepIndex]);
+        this.traceEl.dataset.kind = summary.kind;
+        this.traceEl.innerHTML = `
+            <span class="trace-kicker">Next action</span>
+            <strong>${summary.title}</strong>
+            <span>${summary.detail}</span>
+        `;
+    }
+
+    updateControls() {
+        const complete = this.stepIndex >= this.steps.length;
+        this.updatePlayButton();
+
+        if (this.stepBtn) this.stepBtn.disabled = complete || this.playing;
+        if (this.resetBtn) this.resetBtn.disabled = this.stepIndex <= 1 && this.permutations === 1 && this.swaps === 0;
+    }
+
     step() {
         if (this.stepIndex >= this.steps.length) {
             this.playing = false;
-            this.updatePlayButton();
+            this.updateNextAction();
+            this.updateControls();
             return false;
         }
 
@@ -414,6 +487,9 @@ class Demo {
         }
 
         this.stepIndex++;
+        this.updateProgress();
+        this.updateNextAction();
+        this.updateControls();
 
         return true;
     }
@@ -427,14 +503,17 @@ class Demo {
     }
 
     play() {
+        if (this.stepIndex >= this.steps.length) {
+            this.reset();
+        }
         this.playing = true;
-        this.updatePlayButton();
+        this.updateControls();
         this.runStep();
     }
 
     pause() {
         this.playing = false;
-        this.updatePlayButton();
+        this.updateControls();
         if (this.timeoutId) {
             clearTimeout(this.timeoutId);
             this.timeoutId = null;
@@ -451,9 +530,8 @@ class Demo {
     }
 
     updatePlayButton() {
-        const playBtn = document.getElementById(`play-${this.id}`);
-        if (playBtn) {
-            playBtn.textContent = this.playing ? '⏸ Pause' : '▶ Play';
+        if (this.playBtn) {
+            this.playBtn.textContent = this.playing ? 'Pause' : 'Play';
         }
     }
 
@@ -471,10 +549,17 @@ class Demo {
         this.resetTrail();
 
         this.updateStats();
+        this.updateProgress();
         this.updateLevel(this.elements.length);
         this.updateBlockState(this.currentState, 'current');
         this.setOutputInfo(this.currentState);
+        this.updateNextAction();
+        this.updateControls();
     }
+}
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
 }
 
 // Initialize demos when DOM is ready
