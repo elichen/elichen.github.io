@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <a class="skip-link" href="#reader">Skip to chapter</a>
     <div class="progress" id="readingProgress"></div>
 
     <header class="topbar">
@@ -16,7 +17,7 @@
             <span>Projects</span>
         </a>
         <div class="book-title">
-            <span class="eyebrow">Interactive book</span>
+            <span class="eyebrow">Webbook</span>
             <h1>The LLM History Book</h1>
         </div>
         <div class="top-actions">
@@ -39,7 +40,12 @@
             <nav class="chapter-nav" id="chapterNav"></nav>
         </aside>
 
-        <section class="reader-panel" aria-live="polite">
+        <section class="reader-panel" id="reader" tabindex="-1">
+            <div class="running-head">
+                <span id="runningChapter"></span>
+                <span id="folio"></span>
+            </div>
+            <div class="chapter-kicker" id="chapterKicker"></div>
             <div class="chapter-meta">
                 <span id="eraBadge"></span>
                 <span id="chapterRange"></span>
@@ -62,26 +68,35 @@
             <article class="chapter-content" id="chapterContent"></article>
 
             <section class="lesson-strip" aria-labelledby="lessonStripTitle">
-                <h3 id="lessonStripTitle">Lessons In This Chapter</h3>
+                <h3 id="lessonStripTitle">Chapter Notes</h3>
                 <div id="chapterLessons"></div>
+            </section>
+
+            <section class="chapter-biblio" aria-labelledby="chapterBiblioTitle">
+                <h3 id="chapterBiblioTitle">Chapter Sources</h3>
+                <div id="chapterReferences"></div>
             </section>
         </section>
 
         <aside class="atlas-panel" aria-label="Timeline and lineage">
             <section class="atlas-section">
                 <div class="section-title-row">
-                    <h2>Lineage Map</h2>
+                <h2>Lineage Figure</h2>
                     <button class="icon-button" id="resetMap" type="button" aria-label="Reset lineage map">
                         <i data-lucide="rotate-ccw" aria-hidden="true"></i>
                     </button>
                 </div>
-                <canvas id="lineageCanvas" width="640" height="420"></canvas>
+                <canvas id="lineageCanvas" width="640" height="420" aria-hidden="true"></canvas>
                 <div class="model-detail" id="modelDetail"></div>
+                <details class="lineage-text">
+                    <summary>Text lineage</summary>
+                    <div id="lineageFallback"></div>
+                </details>
             </section>
 
             <section class="atlas-section">
                 <div class="section-title-row">
-                    <h2>Timeline</h2>
+                    <h2>Chronology</h2>
                     <span id="timelineCount"></span>
                 </div>
                 <div class="era-filters" id="eraFilters"></div>

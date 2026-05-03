@@ -41,7 +41,23 @@ const sources = [
     { id: 40, title: "STaR: Bootstrapping Reasoning With Reasoning", detail: "Self-taught reasoner loop, 2022.", url: "https://arxiv.org/abs/2203.14465" },
     { id: 41, title: "Let's Verify Step by Step", detail: "OpenAI process supervision for mathematical reasoning, 2023.", url: "https://cdn.openai.com/improving-mathematical-reasoning-with-process-supervision/Lets_Verify_Step_by_Step.pdf" },
     { id: 42, title: "GPT-4 Technical Report", detail: "OpenAI technical report, 2023.", url: "https://arxiv.org/abs/2303.08774" },
-    { id: 43, title: "GPT-5.4 Thinking System Card", detail: "OpenAI safety and preparedness card, 2026.", url: "https://openai.com/index/gpt-5-4-thinking-system-card/" }
+    { id: 43, title: "GPT-5.4 Thinking System Card", detail: "OpenAI safety and preparedness card, 2026.", url: "https://openai.com/index/gpt-5-4-thinking-system-card/" },
+    { id: 44, title: "How does GPT Obtain its Ability? Tracing Emergent Abilities of Language Models to their Sources", detail: "Fu, Peng, and Khot lineage analysis, December 2022.", url: "https://yaofu.notion.site/How-does-GPT-Obtain-its-Ability-Tracing-Emergent-Abilities-of-Language-Models-to-their-Sources-b9a57ac0fcf74f30a1ab9e3e36fa1dc1" },
+    { id: 45, title: "To Code, or Not To Code? Exploring Impact of Code in Pre-training", detail: "Aryabumi et al., controlled code pretraining study, 2024.", url: "https://arxiv.org/abs/2408.10914" },
+    { id: 46, title: "A Neural Probabilistic Language Model", detail: "Bengio et al., distributed neural language model, 2003.", url: "https://jmlr.org/papers/v3/bengio03a.html" },
+    { id: 47, title: "Efficient Estimation of Word Representations in Vector Space", detail: "Mikolov et al., word2vec, 2013.", url: "https://arxiv.org/abs/1301.3781" },
+    { id: 48, title: "Sequence to Sequence Learning with Neural Networks", detail: "Sutskever, Vinyals, and Le, encoder-decoder sequence learning, 2014.", url: "https://arxiv.org/abs/1409.3215" },
+    { id: 49, title: "Neural Machine Translation by Jointly Learning to Align and Translate", detail: "Bahdanau, Cho, and Bengio, attention for neural translation, 2014.", url: "https://arxiv.org/abs/1409.0473" },
+    { id: 50, title: "Deep Contextualized Word Representations", detail: "Peters et al., ELMo contextual embeddings, 2018.", url: "https://arxiv.org/abs/1802.05365" },
+    { id: 51, title: "Universal Language Model Fine-tuning for Text Classification", detail: "Howard and Ruder, ULMFiT transfer learning, 2018.", url: "https://arxiv.org/abs/1801.06146" },
+    { id: 52, title: "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding", detail: "Devlin et al., masked-language-model pretraining, 2018.", url: "https://arxiv.org/abs/1810.04805" },
+    { id: 53, title: "The Llama 4 Herd: The Beginning of a New Era of Natively Multimodal AI Innovation", detail: "Meta AI Llama 4 release, 2025.", url: "https://ai.meta.com/blog/llama-4-multimodal-intelligence/" },
+    { id: 54, title: "Qwen3: Think Deeper, Act Faster", detail: "Alibaba Qwen3 hybrid reasoning model family, 2025.", url: "https://qwenlm.github.io/blog/qwen3/" },
+    { id: 55, title: "Kimi K2: Open Agentic Intelligence", detail: "Moonshot AI Kimi K2 model repository and technical report, 2025.", url: "https://github.com/MoonshotAI/Kimi-K2" },
+    { id: 56, title: "Holistic Evaluation of Language Models", detail: "Liang et al., HELM evaluation framework, 2022.", url: "https://arxiv.org/abs/2211.09110" },
+    { id: 57, title: "On the Dangers of Stochastic Parrots: Can Language Models Be Too Big?", detail: "Bender et al., data, environmental, and social risk critique, 2021.", url: "https://dl.acm.org/doi/10.1145/3442188.3445922" },
+    { id: 58, title: "The 2025 AI Index Report", detail: "Stanford HAI annual report on AI investment, capabilities, and policy, 2025.", url: "https://hai.stanford.edu/ai-index/2025-ai-index-report" },
+    { id: 59, title: "SWE-bench: Can Language Models Resolve Real-World GitHub Issues?", detail: "Jimenez et al., real-world software engineering benchmark, 2023.", url: "https://arxiv.org/abs/2310.06770" }
 ];
 
 const lessons = [
@@ -61,14 +77,51 @@ const lessons = [
 
 const chapters = [
     {
+        id: "before-transformers",
+        title: "Before Transformers: Language Modeling Becomes Learnable",
+        range: "1950s-2017",
+        era: "Prehistory",
+        tags: ["Language modeling", "Embeddings", "Seq2seq", "Attention"],
+        dek: "Transformers did not appear from nowhere. They inherited decades of work on predicting text, representing meaning as vectors, learning sequences end to end, and deciding which context matters.",
+        lessonIds: ["pretraining", "data", "scale"],
+        sourceIds: [46, 47, 48, 49, 50, 51],
+        sections: [
+            {
+                heading: "Prediction came before intelligence",
+                paragraphs: [
+                    "Long before anyone spoke of foundation models, language modeling meant assigning probabilities to text. Statistical systems used counts, smoothing, and n-grams to guess what word should come next. They were narrow, but they established the core interface: a model of language can be tested by how well it predicts language.",
+                    "The neural turn changed what could be shared across contexts. Bengio and collaborators' neural probabilistic language model learned distributed word representations while predicting sequences, attacking the curse of dimensionality that made count-based models brittle [[46]]. The key idea was not scale yet; it was that words and contexts could live in a learned continuous space.",
+                    "That idea is one of the hidden roots of modern LLMs. A model does not store language as a dictionary of exact phrases. It learns geometry: nearby representations, reusable features, and smooth generalization from seen contexts to unseen ones."
+                ]
+            },
+            {
+                heading: "Vectors made meaning portable",
+                paragraphs: [
+                    "Word2vec made representation learning feel concrete. Its simple architectures produced useful word vectors from large text corpora, and those vectors made semantic regularities visible enough to become a cultural object inside machine learning [[47]]. Meaning was no longer only a symbol table; it was a direction in a space learned from use.",
+                    "The limitation was also clear. A single vector for a word cannot fully represent context. The word 'bank' changes with a river, a loan, or a memory. Static embeddings made language portable, but they did not solve composition, long-range dependencies, or ambiguity.",
+                    "Modern LLMs inherited both the strength and the limitation. The strength was that self-supervised prediction can discover useful representations without hand labels. The limitation was that language requires context at every step, not only a lookup table at the beginning."
+                ]
+            },
+            {
+                heading: "Sequence models exposed the bottleneck",
+                paragraphs: [
+                    "Neural sequence-to-sequence learning replaced brittle translation pipelines with encoder-decoder models trained end to end [[48]]. It proved that one neural system could map one variable-length sequence to another, which mattered for translation, summarization, dialogue, and every later text-in text-out interface.",
+                    "Attention solved a specific failure mode. Fixed-length encodings forced the decoder to compress an entire source sentence into one vector. Bahdanau, Cho, and Bengio instead let the decoder soft-search over source positions while generating each target word, making alignment a learned operation rather than a hand-coded table [[49]].",
+                    "ELMo and ULMFiT then pushed contextual pretraining and fine-tuning toward the center of NLP. ELMo showed that representations should vary by context [[50]], while ULMFiT showed that language-model pretraining could transfer strongly to downstream classification with limited labels [[51]]. By the time the Transformer arrived, the field already knew the destination: broad pretraining, reusable representations, and task adaptation. What it lacked was a scalable machine."
+                ],
+                callout: "The Transformer was a decisive architecture, but the deeper story is older: learn language from prediction, represent meaning in vectors, condition on context, and reuse the result across tasks."
+            }
+        ]
+    },
+    {
         id: "transformer-roots",
-        title: "Before GPT-1: The Transformer Bet",
+        title: "The Transformer Bet",
         range: "2017-2018",
         era: "Roots",
         tags: ["Transformers", "Transfer learning", "NLP"],
         dek: "The modern LLM story starts before GPT-1, with a change in architecture and a change in attitude: language models became general-purpose representation learners.",
         lessonIds: ["pretraining", "scale"],
-        sourceIds: [1, 2],
+        sourceIds: [1, 2, 52],
         sections: [
             {
                 heading: "From sequence models to attention",
@@ -81,7 +134,7 @@ const chapters = [
             {
                 heading: "BERT and GPT split the transformer in two directions",
                 paragraphs: [
-                    "The transformer immediately forked into two major families. Encoder-style models such as BERT used bidirectional context and became excellent at understanding and classification. Decoder-only models such as GPT used causal prediction and became excellent at generation. The later public imagination mostly remembers the decoder-only branch because it led to ChatGPT, but the encoder branch proved that pretraining could replace large amounts of task-specific feature engineering.",
+                    "The transformer immediately forked into two major families. Encoder-style models such as BERT used bidirectional context and became excellent at understanding and classification [[52]]. Decoder-only models such as GPT used causal prediction and became excellent at generation. The later public imagination mostly remembers the decoder-only branch because it led to ChatGPT, but the encoder branch proved that pretraining could replace large amounts of task-specific feature engineering.",
                     "The GPT branch kept the training objective brutally simple. Predict the next token. The system would not be handed a database schema for every task or an ontology for every domain. It would learn from broad text and later be steered by examples, instructions, feedback, or tools.",
                     "That simplicity had a strategic advantage. Once the architecture and objective were stable, the field could run a repeated experiment: scale model, scale data, scale compute, measure what breaks, and then fix the next bottleneck."
                 ]
@@ -251,7 +304,7 @@ const chapters = [
         tags: ["Codex", "AlphaCode", "HumanEval"],
         dek: "The code branch of LLM history changed reasoning, evaluation, and product expectations because programs can be executed and tested.",
         lessonIds: ["code", "cot", "tools"],
-        sourceIds: [9, 10, 11, 12],
+        sourceIds: [9, 10, 11, 12, 44, 45],
         sections: [
             {
                 heading: "Codex made language executable",
@@ -273,8 +326,9 @@ const chapters = [
                 heading: "Did coding teach reasoning?",
                 paragraphs: [
                     "It is too strong to say that code alone taught LLMs to reason. Large-scale text, math, dialogue, tool use, and RL all contributed. But code appears to have been unusually useful because it is a dense record of procedural thought. It teaches decomposition, abstraction, reference, invariants, and repair.",
+                    "A widely circulated lineage analysis by Yao Fu, Hao Peng, and Tushar Khot traced GPT-3.5-era models through InstructGPT, Codex, and code-davinci-002. It argued that complex reasoning and chain-of-thought behavior were likely side effects of training on code while explicitly labeling the claim as a hypothesis rather than proof [[44]].",
                     "The clue came from several places. Codex dramatically outperformed GPT-3 on code synthesis [[9]]. Code-oriented GPT-3 variants such as code-davinci-002 were unexpectedly strong in reasoning prompting studies. Least-to-most prompting results found especially strong compositional generalization with a code-trained model. Chain-of-thought and self-consistency then made the model's intermediate work explicit [[11]][[12]].",
-                    "A cautious version of the lesson is best: code did not magically create reasoning, but it supplied training examples where reasoning-like structure has to be represented in a form that can be checked. That made it one of the most important forks on the road to agentic systems."
+                    "Later controlled work strengthened the case without making it monocausal: adding code to pretraining improved natural-language reasoning, world knowledge, generative win rates, and code performance in a systematic ablation, but the broader LLM reasoning stack still depends on instruction tuning, math data, RL, scale, tools, and inference-time search [[45]]."
                 ],
                 callout: "Coding models turned LLM output into something with a feedback loop: write, run, fail, inspect, repair. That loop is now central to frontier agents."
             }
@@ -356,36 +410,36 @@ const chapters = [
     },
     {
         id: "open-weight",
-        title: "The Open-Weight Explosion",
-        range: "2023-2025",
+        title: "The Open and Global Model Explosion",
+        range: "2023-2026",
         era: "Open",
-        tags: ["Llama", "Mistral", "DeepSeek", "gpt-oss"],
-        dek: "Open-weight models turned LLM progress from a closed-lab race into a broad ecosystem of fine-tunes, local deployments, audits, and specialization.",
+        tags: ["Llama", "Mistral", "Qwen", "DeepSeek", "Kimi"],
+        dek: "Open-weight and permissively available models turned LLM progress from a closed-lab race into a global ecosystem of fine-tunes, local deployments, audits, distillation, and specialization.",
         lessonIds: ["open", "data", "testtime"],
-        sourceIds: [19, 20, 21, 25, 27, 28, 32],
+        sourceIds: [19, 20, 21, 25, 27, 28, 32, 53, 54, 55],
         sections: [
             {
                 heading: "Llama changes the distribution channel",
                 paragraphs: [
-                    "Meta's Llama family made strong foundation models widely available to researchers and developers. Llama 2 expanded access for commercial use in 2023 [[19]], and Llama 3 continued the open-weight push in 2024 with larger training data, more code, and strong benchmark performance [[25]].",
+                    "Meta's Llama family made strong foundation models widely available to researchers and developers. Llama 2 expanded access for commercial use in 2023 [[19]], Llama 3 continued the push in 2024 with larger training data and stronger code capability [[25]], and Llama 4 moved the family toward natively multimodal mixture-of-experts systems in 2025 [[53]].",
                     "The open-weight ecosystem did something closed APIs could not. It let users fine-tune, quantize, distill, inspect, host privately, and build local products. The community created instruction-tuned variants, domain models, safety-tuned models, and efficient runtimes at a pace no single lab could match.",
-                    "This also created governance tension. Open weights support transparency and broad innovation, but they are harder to withdraw or patch. The debate over open models became a debate over who should control powerful AI capabilities and how misuse risk should be balanced against distributed benefit."
+                    "This also created governance tension. Meta describes Llama as open, but model licenses, acceptable-use terms, release geography, and downstream restrictions vary across families. The practical split is not simply open versus closed; it is a spectrum from fully open research artifacts to gated weights, custom licenses, commercial APIs, and private frontier systems."
                 ]
             },
             {
-                heading: "Mistral, Qwen, DeepSeek, and the efficiency race",
+                heading: "Mistral, Qwen, DeepSeek, and Kimi widen the map",
                 paragraphs: [
-                    "Mistral showed that smaller open models could be highly competitive [[20]], and Mixtral made sparse expert routing a mainstream open-model design [[21]]. Alibaba's Qwen family, DeepSeek, and other labs then intensified the race around multilingual data, code, math, long context, and low-cost inference.",
+                    "Mistral showed that smaller open models could be highly competitive [[20]], and Mixtral made sparse expert routing a mainstream open-model design [[21]]. Alibaba's Qwen family, DeepSeek, Moonshot's Kimi line, and other labs then intensified the race around multilingual data, code, math, long context, and low-cost inference.",
                     "DeepSeek-V3 was especially important because it combined a very large total parameter count with sparse activation, reporting 671B total parameters but only 37B active per token [[27]]. That design pointed toward a future where model capacity and inference cost are decoupled.",
-                    "DeepSeek-R1 then showed that open reasoning models could compete with closed reasoning systems on some public benchmarks, using reinforcement learning to elicit long-form reasoning behavior and distilling that behavior into smaller models [[28]]. It made the reasoning recipe legible to the open ecosystem."
+                    "Qwen3 made hybrid reasoning more explicit by letting users choose thinking and non-thinking modes across a broad model family [[54]]. Kimi K2 pushed the open agentic branch with a 1T-parameter MoE design, 32B activated parameters, tool-use emphasis, and a technical record centered on agentic capability [[55]]. DeepSeek-R1 then showed that open reasoning models could compete with closed reasoning systems on some public benchmarks, using reinforcement learning to elicit long-form reasoning behavior and distilling that behavior into smaller models [[28]]."
                 ]
             },
             {
-                heading: "OpenAI returns to open weights",
+                heading: "Open is a deployment culture",
                 paragraphs: [
                     "In 2025, OpenAI released gpt-oss-120b and gpt-oss-20b as open-weight reasoning models, its first open-weight model release since GPT-2 [[32]]. The release was a sign that open weights had become too strategically important to ignore.",
-                    "The open branch also changed how frontier labs compete. A closed model can lead on maximum capability, but open models can win on cost, deployment control, community trust, local latency, customization, and ecosystem energy. The result is not one winner; it is a layered market.",
-                    "The deepest lesson is that LLM history is not a straight line from GPT-1 to the latest OpenAI model. It is a tree. GPT influenced Llama; Llama enabled community tuning; Mistral and DeepSeek pushed efficient architecture and training; open reasoning put pressure back on closed labs; closed labs then integrated better coding, tool use, and inference scaling."
+                    "The open branch changed how frontier labs compete. A closed model can lead on maximum capability, but open models can win on cost, deployment control, community trust, local latency, customization, and ecosystem energy. Quantization, GGUF files, llama.cpp, vLLM, Ollama, LoRA fine-tunes, synthetic data, and distillation became part of model history because they changed who could build.",
+                    "The deepest lesson is that LLM history is not a straight line from GPT-1 to the latest OpenAI model. It is a tree. GPT influenced Llama; Llama enabled community tuning; Mistral and DeepSeek pushed efficient architecture and training; Qwen and Kimi made the frontier more geographically plural; open reasoning put pressure back on closed labs; closed labs then integrated better coding, tool use, and inference scaling."
                 ],
                 callout: "Open weights made the frontier reproducible enough to fork, and forking made the frontier move faster."
             }
@@ -503,6 +557,43 @@ const chapters = [
         ]
     },
     {
+        id: "industrial-stack",
+        title: "The Industrial Stack: Data, Chips, Benchmarks, and Governance",
+        range: "2021-2026",
+        era: "Industry",
+        tags: ["Data labor", "Benchmarks", "Governance", "Economics"],
+        dek: "LLM history is not only a sequence of model releases. It is also a history of data pipelines, labor markets, compute supply, benchmark politics, copyright fights, safety institutions, and platform power.",
+        lessonIds: ["data", "alignment", "agents", "future"],
+        sourceIds: [56, 57, 58, 59],
+        sections: [
+            {
+                heading: "Scale made model building industrial",
+                paragraphs: [
+                    "The stochastic-parrots critique landed before ChatGPT but named issues that became central afterward: the environmental and financial cost of scale, the hazards of indiscriminate web data, and the social consequences of deploying systems trained on opaque corpora [[57]]. Whether one agrees with every conclusion or not, the paper correctly anticipated that LLM history would become governance history.",
+                    "By the mid-2020s, training frontier models required data centers, custom accelerators, networking, power contracts, model-risk teams, red-teaming, policy review, evaluation infrastructure, and inference fleets. Stanford's AI Index tracks this wider industrialization through investment, model releases, benchmark progress, compute, policy activity, and international competition [[58]].",
+                    "The cost structure changed product strategy. A lab could have a brilliant model and still lose on serving cost, latency, memory bandwidth, or enterprise trust. That is why mixture-of-experts, quantization, distillation, caching, routing, and smaller specialized models became historical forces rather than implementation details."
+                ]
+            },
+            {
+                heading: "Benchmarks became contested infrastructure",
+                paragraphs: [
+                    "As model claims became more consequential, evaluation had to become broader and more transparent. HELM argued for holistic evaluation across scenarios, metrics, prompts, and models, releasing raw prompts and completions to make comparisons inspectable rather than just leaderboard theater [[56]].",
+                    "Coding exposed the same problem in a harder setting. SWE-bench used real GitHub issues and repository tests to ask whether models could repair software, not merely solve toy coding prompts [[59]]. Its influence came from a better unit of work: an issue, a repo, a patch, and a test suite.",
+                    "The benchmark lesson is double-edged. Better benchmarks steer progress, but they can also become targets for overfitting, contamination, prompt sensitivity, and narrow optimization. The best model histories therefore should treat benchmark scores as evidence with provenance, not as final truth."
+                ]
+            },
+            {
+                heading: "The hidden supply chain became visible",
+                paragraphs: [
+                    "The public sees chat interfaces. The system depends on people who write demonstrations, rank outputs, label safety data, maintain data filters, evaluate failures, moderate abuse, build benchmarks, operate clusters, and negotiate licenses. RLHF made this obvious: the assistant was not only a neural network, but also a trained social interface.",
+                    "Copyright and data provenance became part of technical history because dataset composition affects memorization, bias, factuality, language coverage, and legal exposure. Open models intensified the question: if weights circulate globally, who is accountable for the data, fine-tunes, derivatives, and downstream products?",
+                    "Enterprise adoption added a different pressure. Buyers asked about privacy, retention, audit logs, compliance, residency, indemnity, uptime, and cost predictability. Those questions shaped product architectures as much as benchmark tables did."
+                ],
+                callout: "The model release is the visible artifact. The real historical object is the stack around it: data, labor, chips, evaluations, policy, product, and distribution."
+            }
+        ]
+    },
+    {
         id: "frontier-2026",
         title: "The Frontier in 2026 and What Comes Next",
         range: "Current through May 3, 2026",
@@ -550,25 +641,35 @@ const chapters = [
 ];
 
 const timeline = [
+    { date: "2003", era: "Prehistory", title: "Neural probabilistic language model", text: "Distributed representations enter neural language modeling.", chapter: "before-transformers", source: 46 },
+    { date: "2013", era: "Prehistory", title: "Word2vec", text: "Efficient word vectors make learned semantic geometry widely useful.", chapter: "before-transformers", source: 47 },
+    { date: "2014", era: "Prehistory", title: "Seq2seq", text: "Encoder-decoder models make sequence-to-sequence learning practical.", chapter: "before-transformers", source: 48 },
+    { date: "2014", era: "Prehistory", title: "Neural attention", text: "Attention lets decoders select relevant source context instead of relying on one fixed vector.", chapter: "before-transformers", source: 49 },
     { date: "2017", era: "Roots", title: "Transformer architecture", text: "Attention replaces recurrence as the scalable core architecture for modern LLMs.", chapter: "transformer-roots", source: 1 },
+    { date: "2018 Jan", era: "Prehistory", title: "ULMFiT", text: "Language-model pretraining transfers strongly to downstream NLP with limited labels.", chapter: "before-transformers", source: 51 },
+    { date: "2018 Feb", era: "Prehistory", title: "ELMo", text: "Contextual word representations show that meaning should change with use.", chapter: "before-transformers", source: 50 },
     { date: "2018", era: "GPT", title: "GPT-1", text: "Generative pretraining plus fine-tuning becomes a transferable NLP recipe.", chapter: "gpt-1", source: 2 },
+    { date: "2018 Oct", era: "Roots", title: "BERT", text: "Masked-language-model pretraining makes the encoder branch dominant for understanding tasks.", chapter: "transformer-roots", source: 52 },
     { date: "2019", era: "GPT", title: "GPT-2", text: "Zero-shot multitask behavior and staged release make language models socially visible.", chapter: "gpt-2", source: 3 },
     { date: "2020 Jan", era: "Scaling", title: "Scaling laws", text: "Loss improves predictably with compute, data, and parameters across large ranges.", chapter: "gpt-3-scaling", source: 5 },
     { date: "2020 May", era: "Scaling", title: "GPT-3", text: "Few-shot prompting turns context into a task specification interface.", chapter: "gpt-3-scaling", source: 4 },
     { date: "2020", era: "Agents", title: "RAG", text: "Retrieval-augmented generation separates model memory from evidence retrieval.", chapter: "tools-agents", source: 15 },
     { date: "2021", era: "Code", title: "Codex", text: "Code-trained GPT models make executable evaluation central to LLM progress.", chapter: "code-reasoning", source: 9 },
+    { date: "2021 Mar", era: "Industry", title: "Stochastic Parrots", text: "A major critique frames scale, data, environmental cost, and social risk as central to language-model history.", chapter: "industrial-stack", source: 57 },
     { date: "2022 Jan", era: "Alignment", title: "InstructGPT", text: "RLHF makes models follow user intent more reliably than raw base models.", chapter: "instruct-chatgpt", source: 7 },
     { date: "2022 Jan", era: "Reasoning", title: "Chain of thought", text: "Intermediate reasoning steps improve hard tasks for sufficiently large models.", chapter: "reasoning-prompts", source: 11 },
     { date: "2022 Mar", era: "Reasoning", title: "Self-consistency and STaR", text: "Sampling multiple reasoning paths and learning from useful rationales become core ideas.", chapter: "reasoning-prompts", source: 12 },
     { date: "2022 Mar", era: "Efficiency", title: "Chinchilla", text: "Compute-optimal training shifts focus from parameter count to data allocation.", chapter: "compute-optimal", source: 6 },
     { date: "2022 Apr", era: "Scaling", title: "PaLM", text: "A 540B dense model pushes few-shot and reasoning performance.", chapter: "compute-optimal", source: 13 },
     { date: "2022 Nov", era: "Alignment", title: "ChatGPT", text: "The chat interface makes instruction-following capability broadly legible.", chapter: "instruct-chatgpt", source: 8 },
+    { date: "2022 Nov", era: "Industry", title: "HELM", text: "Holistic evaluation pushes model comparison beyond single-score leaderboard claims.", chapter: "industrial-stack", source: 56 },
     { date: "2022 Dec", era: "Alignment", title: "Constitutional AI", text: "Anthropic explores principle-guided AI feedback for harmlessness training.", chapter: "instruct-chatgpt", source: 18 },
     { date: "2023 Feb", era: "Agents", title: "Toolformer", text: "A model learns when and how to call simple external APIs.", chapter: "tools-agents", source: 17 },
     { date: "2023 Mar", era: "Multimodal", title: "GPT-4", text: "A large closed frontier model raises expectations for reasoning, coding, and multimodal evaluation.", chapter: "multimodal-frontier", source: 14 },
     { date: "2023 May", era: "Reasoning", title: "Tree of Thoughts", text: "Inference becomes a search over candidate reasoning paths.", chapter: "reasoning-prompts", source: 39 },
     { date: "2023 Jul", era: "Open", title: "Llama 2", text: "Open-weight models become a major commercial and research branch.", chapter: "open-weight", source: 19 },
     { date: "2023 Sep", era: "Efficiency", title: "Mistral 7B", text: "Small, efficient open models pressure larger incumbents.", chapter: "compute-optimal", source: 20 },
+    { date: "2023 Oct", era: "Industry", title: "SWE-bench", text: "Real GitHub issues become a more realistic test for coding agents.", chapter: "industrial-stack", source: 59 },
     { date: "2023 Dec", era: "Multimodal", title: "Gemini", text: "Google launches a multimodal model family across Ultra, Pro, and Nano tiers.", chapter: "multimodal-frontier", source: 22 },
     { date: "2023 Dec", era: "Open", title: "Mixtral", text: "Sparse mixture-of-experts design becomes a public open-model pattern.", chapter: "compute-optimal", source: 21 },
     { date: "2024 Mar", era: "Multimodal", title: "Claude 3", text: "Anthropic releases Haiku, Sonnet, and Opus tiers.", chapter: "multimodal-frontier", source: 23 },
@@ -580,8 +681,12 @@ const timeline = [
     { date: "2025 Feb", era: "Agents", title: "Claude 3.7 Sonnet", text: "Hybrid reasoning and Claude Code point toward integrated coding agents.", chapter: "tools-agents", source: 29 },
     { date: "2025 Apr", era: "Reasoning", title: "o3 and o4-mini", text: "Reasoning models combine tools, visual input, and complex task execution.", chapter: "test-time-compute", source: 30 },
     { date: "2025 Apr", era: "Agents", title: "GPT-4.1", text: "OpenAI targets coding, instruction following, and long context in the API.", chapter: "tools-agents", source: 31 },
+    { date: "2025 Apr", era: "Open", title: "Llama 4", text: "Meta's Llama line moves toward natively multimodal MoE open-weight models.", chapter: "open-weight", source: 53 },
+    { date: "2025 Apr", era: "Open", title: "Qwen3", text: "Alibaba's Qwen3 family makes hybrid thinking and non-thinking modes a major open-model pattern.", chapter: "open-weight", source: 54 },
+    { date: "2025 Jul", era: "Open", title: "Kimi K2", text: "Moonshot AI releases a large MoE model optimized for agentic workflows.", chapter: "open-weight", source: 55 },
     { date: "2025 Aug", era: "Open", title: "gpt-oss", text: "OpenAI releases open-weight reasoning models after years of closed frontier releases.", chapter: "open-weight", source: 32 },
     { date: "2025 Aug", era: "Reasoning", title: "GPT-5", text: "OpenAI unifies fast response, deeper thinking, and model routing.", chapter: "test-time-compute", source: 33 },
+    { date: "2025", era: "Industry", title: "AI Index 2025", text: "AI progress is tracked as an industrial, economic, and policy system, not only a research field.", chapter: "industrial-stack", source: 58 },
     { date: "2026 Feb", era: "Code", title: "GPT-5.3-Codex", text: "OpenAI emphasizes long-running agentic coding workflows.", chapter: "frontier-2026", source: 34 },
     { date: "2026 Feb", era: "Multimodal", title: "Gemini 3.1 Pro", text: "Google advances Gemini reasoning for complex tasks.", chapter: "frontier-2026", source: 35 },
     { date: "2026 Mar", era: "Reasoning", title: "GPT-5.4", text: "GPT-5.4 Thinking and Pro extend the GPT-5 reasoning line.", chapter: "frontier-2026", source: 36 },
@@ -608,36 +713,41 @@ const glossary = [
     ["Tool use", "Model-driven calls to APIs, browsers, code interpreters, search, databases, or computer actions."],
     ["SWE-bench", "A benchmark family for resolving real software issues in GitHub repositories."],
     ["Open weights", "Publicly released model parameters that can be run, fine-tuned, or inspected outside the originating lab."],
+    ["Quantization", "Reducing numerical precision so a model can run with less memory and often lower cost."],
+    ["Benchmark contamination", "When benchmark examples or near-duplicates appear in training data, making scores less trustworthy."],
     ["Model card", "A document describing intended use, evaluations, limitations, and safety findings for a model."],
     ["Router", "A system component that chooses which model or mode should handle a request."]
 ];
 
 const lineageNodes = [
-    { id: "transformer", label: "Transformer", family: "roots", x: 0.08, y: 0.46, chapter: "transformer-roots", detail: "The scalable attention architecture that made modern LLMs practical." },
-    { id: "gpt1", label: "GPT-1", family: "openai", x: 0.22, y: 0.30, chapter: "gpt-1", detail: "Generative pretraining plus fine-tuning." },
-    { id: "gpt2", label: "GPT-2", family: "openai", x: 0.34, y: 0.28, chapter: "gpt-2", detail: "Zero-shot multitask behavior and staged release." },
-    { id: "gpt3", label: "GPT-3", family: "openai", x: 0.48, y: 0.26, chapter: "gpt-3-scaling", detail: "Few-shot prompting and in-context learning at 175B parameters." },
-    { id: "codex", label: "Codex", family: "code", x: 0.53, y: 0.47, chapter: "code-reasoning", detail: "Code-trained GPT branch with executable evaluation." },
-    { id: "instruct", label: "InstructGPT", family: "align", x: 0.62, y: 0.22, chapter: "instruct-chatgpt", detail: "RLHF makes GPT-3 follow instructions." },
-    { id: "chatgpt", label: "ChatGPT", family: "align", x: 0.72, y: 0.22, chapter: "instruct-chatgpt", detail: "The chat interface makes aligned LLMs mainstream." },
-    { id: "gpt4", label: "GPT-4", family: "openai", x: 0.82, y: 0.26, chapter: "multimodal-frontier", detail: "A stronger closed frontier with multimodal direction." },
-    { id: "gpt5", label: "GPT-5", family: "reason", x: 0.88, y: 0.42, chapter: "test-time-compute", detail: "Unified fast and thinking system." },
-    { id: "gpt55", label: "GPT-5.5", family: "reason", x: 0.93, y: 0.57, chapter: "frontier-2026", detail: "Agentic coding, computer use, and knowledge-work frontier in April 2026." },
-    { id: "bert", label: "BERT", family: "google", x: 0.22, y: 0.62, chapter: "transformer-roots", detail: "The encoder branch proved self-supervised pretraining for understanding tasks." },
-    { id: "palm", label: "PaLM", family: "google", x: 0.57, y: 0.67, chapter: "compute-optimal", detail: "Large-scale dense model and chain-of-thought substrate." },
-    { id: "gemini", label: "Gemini", family: "google", x: 0.78, y: 0.68, chapter: "multimodal-frontier", detail: "Google's multimodal model family." },
-    { id: "gemini31", label: "Gemini 3.1", family: "google", x: 0.92, y: 0.72, chapter: "frontier-2026", detail: "Google's February 2026 reasoning-focused Pro model." },
-    { id: "llama", label: "Llama", family: "open", x: 0.57, y: 0.83, chapter: "open-weight", detail: "Open-weight branch that powered community fine-tuning." },
-    { id: "mistral", label: "Mistral", family: "open", x: 0.70, y: 0.86, chapter: "compute-optimal", detail: "Efficient open models and sparse expert designs." },
-    { id: "deepseek", label: "DeepSeek-R1", family: "open", x: 0.84, y: 0.86, chapter: "open-weight", detail: "Open reasoning branch trained with RL and distilled into smaller models." },
-    { id: "claude", label: "Claude", family: "anthropic", x: 0.74, y: 0.49, chapter: "multimodal-frontier", detail: "Anthropic's constitutional and long-context assistant line." },
-    { id: "opus47", label: "Opus 4.7", family: "anthropic", x: 0.92, y: 0.47, chapter: "frontier-2026", detail: "Anthropic's April 2026 frontier model." }
+    { id: "prelm", label: "Neural LM", family: "roots", x: 0.06, y: 0.48, chapter: "before-transformers", detail: "Embeddings, seq2seq, and attention made language modeling learnable before 2017." },
+    { id: "transformer", label: "Transformer", family: "roots", x: 0.17, y: 0.48, chapter: "transformer-roots", detail: "The scalable attention architecture that made modern LLMs practical." },
+    { id: "gpt1", label: "GPT-1", family: "openai", x: 0.29, y: 0.24, chapter: "gpt-1", detail: "Generative pretraining plus fine-tuning." },
+    { id: "gpt2", label: "GPT-2", family: "openai", x: 0.40, y: 0.22, chapter: "gpt-2", detail: "Zero-shot multitask behavior and staged release." },
+    { id: "gpt3", label: "GPT-3", family: "openai", x: 0.52, y: 0.24, chapter: "gpt-3-scaling", detail: "Few-shot prompting and in-context learning at 175B parameters." },
+    { id: "codex", label: "Codex", family: "code", x: 0.56, y: 0.41, chapter: "code-reasoning", detail: "Code-trained GPT branch with executable evaluation." },
+    { id: "instruct", label: "InstructGPT", family: "align", x: 0.64, y: 0.18, chapter: "instruct-chatgpt", detail: "RLHF makes GPT-3 follow instructions." },
+    { id: "chatgpt", label: "ChatGPT", family: "align", x: 0.74, y: 0.19, chapter: "instruct-chatgpt", detail: "The chat interface makes aligned LLMs mainstream." },
+    { id: "gpt4", label: "GPT-4", family: "openai", x: 0.84, y: 0.24, chapter: "multimodal-frontier", detail: "A stronger closed frontier with multimodal direction." },
+    { id: "gpt5", label: "GPT-5", family: "reason", x: 0.91, y: 0.34, chapter: "test-time-compute", detail: "Unified fast and thinking system." },
+    { id: "gpt55", label: "GPT-5.5", family: "reason", x: 0.95, y: 0.45, chapter: "frontier-2026", detail: "Agentic coding, computer use, and knowledge-work frontier in April 2026." },
+    { id: "bert", label: "BERT", family: "google", x: 0.31, y: 0.62, chapter: "transformer-roots", detail: "The encoder branch proved self-supervised pretraining for understanding tasks." },
+    { id: "palm", label: "PaLM", family: "google", x: 0.56, y: 0.64, chapter: "compute-optimal", detail: "Large-scale dense model and chain-of-thought substrate." },
+    { id: "gemini", label: "Gemini", family: "google", x: 0.76, y: 0.62, chapter: "multimodal-frontier", detail: "Google's multimodal model family." },
+    { id: "gemini31", label: "Gemini 3.1", family: "google", x: 0.94, y: 0.62, chapter: "frontier-2026", detail: "Google's February 2026 reasoning-focused Pro model." },
+    { id: "llama", label: "Llama", family: "open", x: 0.55, y: 0.82, chapter: "open-weight", detail: "Open-weight branch that powered community fine-tuning." },
+    { id: "mistral", label: "Mistral", family: "open", x: 0.68, y: 0.87, chapter: "compute-optimal", detail: "Efficient open models and sparse expert designs." },
+    { id: "qwen", label: "Qwen", family: "open", x: 0.78, y: 0.78, chapter: "open-weight", detail: "Alibaba's multilingual open and hybrid-reasoning model family." },
+    { id: "deepseek", label: "DeepSeek", family: "open", x: 0.88, y: 0.86, chapter: "open-weight", detail: "Open MoE and reasoning branch trained with RL and distilled into smaller models." },
+    { id: "kimi", label: "Kimi", family: "open", x: 0.95, y: 0.78, chapter: "open-weight", detail: "Moonshot's open agentic MoE branch." },
+    { id: "claude", label: "Claude", family: "anthropic", x: 0.73, y: 0.44, chapter: "multimodal-frontier", detail: "Anthropic's constitutional and long-context assistant line." },
+    { id: "opus47", label: "Opus 4.7", family: "anthropic", x: 0.92, y: 0.52, chapter: "frontier-2026", detail: "Anthropic's April 2026 frontier model." }
 ];
 
 const lineageEdges = [
-    ["transformer", "gpt1"], ["gpt1", "gpt2"], ["gpt2", "gpt3"], ["gpt3", "instruct"], ["instruct", "chatgpt"], ["chatgpt", "gpt4"], ["gpt4", "gpt5"], ["gpt5", "gpt55"],
+    ["prelm", "transformer"], ["transformer", "gpt1"], ["gpt1", "gpt2"], ["gpt2", "gpt3"], ["gpt3", "instruct"], ["instruct", "chatgpt"], ["chatgpt", "gpt4"], ["gpt4", "gpt5"], ["gpt5", "gpt55"],
     ["gpt3", "codex"], ["codex", "gpt5"], ["transformer", "bert"], ["bert", "palm"], ["palm", "gemini"], ["gemini", "gemini31"],
-    ["gpt3", "llama"], ["llama", "mistral"], ["llama", "deepseek"], ["deepseek", "gpt55"], ["instruct", "claude"], ["claude", "opus47"], ["opus47", "gpt55"]
+    ["gpt3", "llama"], ["llama", "mistral"], ["llama", "qwen"], ["llama", "deepseek"], ["llama", "kimi"], ["instruct", "claude"], ["claude", "opus47"]
 ];
 
 const families = {
@@ -657,6 +767,13 @@ const state = {
     selectedNode: null
 };
 
+const bookParts = [
+    { start: 0, label: "Part I", title: "Foundations" },
+    { start: 4, label: "Part II", title: "Scaling and Steering" },
+    { start: 8, label: "Part III", title: "Systems and Ecosystems" },
+    { start: 12, label: "Part IV", title: "Frontier and Consequences" }
+];
+
 const sourceById = new Map(sources.map((source) => [source.id, source]));
 const lessonById = new Map(lessons.map((lesson) => [lesson.id, lesson]));
 
@@ -666,10 +783,14 @@ const els = {
     eraBadge: document.getElementById("eraBadge"),
     chapterRange: document.getElementById("chapterRange"),
     chapterTags: document.getElementById("chapterTags"),
+    chapterKicker: document.getElementById("chapterKicker"),
+    runningChapter: document.getElementById("runningChapter"),
+    folio: document.getElementById("folio"),
     chapterTitle: document.getElementById("chapterTitle"),
     chapterDek: document.getElementById("chapterDek"),
     chapterContent: document.getElementById("chapterContent"),
     chapterLessons: document.getElementById("chapterLessons"),
+    chapterReferences: document.getElementById("chapterReferences"),
     prevChapter: document.getElementById("prevChapter"),
     nextChapter: document.getElementById("nextChapter"),
     timelineList: document.getElementById("timelineList"),
@@ -682,6 +803,7 @@ const els = {
     searchInput: document.getElementById("searchInput"),
     searchResults: document.getElementById("searchResults"),
     lineageCanvas: document.getElementById("lineageCanvas"),
+    lineageFallback: document.getElementById("lineageFallback"),
     modelDetail: document.getElementById("modelDetail"),
     resetMap: document.getElementById("resetMap"),
     readingProgress: document.getElementById("readingProgress"),
@@ -713,19 +835,49 @@ function slug(text) {
     return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
+function sourceKind(source) {
+    const url = source.url;
+    if (url.includes("arxiv.org") || url.includes("jmlr.org") || url.includes("acm.org")) return "Research";
+    if (url.includes("github.com")) return "Repository";
+    if (url.includes("stanford.edu") || source.title.includes("Report") || source.title.includes("System Card")) return "Report";
+    if (url.includes("openai.com") || url.includes("anthropic.com") || url.includes("meta.com") || url.includes("mistral.ai") || url.includes("qwenlm.github.io") || url.includes("google") || url.includes("deepmind")) return "Lab post";
+    return "Reference";
+}
+
+function sourceYear(source) {
+    return source.detail.match(/\b(19|20)\d{2}\b/)?.[0] || "n.d.";
+}
+
+function partForChapter(index) {
+    return bookParts.reduce((current, part) => index >= part.start ? part : current, bookParts[0]);
+}
+
 function renderChapterNav() {
     els.chapterCount.textContent = `${chapters.length} chapters`;
-    els.chapterNav.innerHTML = chapters.map((chapter, index) => `
-        <button class="chapter-link ${index === state.chapterIndex ? "active" : ""}" type="button" data-index="${index}">
-            <strong>${index + 1}. ${escapeHtml(chapter.title)}</strong>
-            <span>${escapeHtml(chapter.range)} / ${escapeHtml(chapter.era)}</span>
-        </button>
-    `).join("");
+    let previousPart = "";
+    els.chapterNav.innerHTML = chapters.map((chapter, index) => {
+        const part = partForChapter(index);
+        const partHeading = part.label !== previousPart
+            ? `<div class="part-heading">${escapeHtml(part.label)} / ${escapeHtml(part.title)}</div>`
+            : "";
+        previousPart = part.label;
+        return `
+            ${partHeading}
+            <button class="chapter-link ${index === state.chapterIndex ? "active" : ""}" type="button" data-index="${index}" ${index === state.chapterIndex ? 'aria-current="page"' : ""}>
+                <strong>${index + 1}. ${escapeHtml(chapter.title)}</strong>
+                <span>${escapeHtml(chapter.range)} / ${escapeHtml(chapter.era)}</span>
+            </button>
+        `;
+    }).join("");
 }
 
 function renderChapter() {
     const chapter = chapters[state.chapterIndex];
+    const part = partForChapter(state.chapterIndex);
     document.title = `${chapter.title} | The LLM History Book`;
+    els.runningChapter.textContent = "The LLM History Book";
+    els.folio.textContent = `Chapter ${state.chapterIndex + 1} of ${chapters.length}`;
+    els.chapterKicker.textContent = `${part.label}: ${part.title} / Chapter ${state.chapterIndex + 1}`;
     els.eraBadge.textContent = chapter.era;
     els.chapterRange.textContent = chapter.range;
     els.chapterTags.textContent = chapter.tags.join(" / ");
@@ -754,6 +906,18 @@ function renderChapter() {
         return `<div class="lesson-card"><strong>${escapeHtml(lesson.title)}</strong><span>${escapeHtml(lesson.text)}</span></div>`;
     }).join("");
 
+    els.chapterReferences.innerHTML = chapter.sourceIds.map((id) => {
+        const source = sourceById.get(id);
+        if (!source) return "";
+        return `
+            <a class="chapter-reference" href="${source.url}" target="_blank" rel="noreferrer">
+                <span>${source.id}</span>
+                <strong>${escapeHtml(source.title)}</strong>
+                <small>${escapeHtml(source.detail)}</small>
+            </a>
+        `;
+    }).join("");
+
     renderChapterNav();
     drawLineage();
     if (window.lucide) window.lucide.createIcons();
@@ -769,7 +933,7 @@ function setChapter(index, push = true) {
 function renderTimeline() {
     const eras = ["All", ...Array.from(new Set(timeline.map((event) => event.era)))];
     els.eraFilters.innerHTML = eras.map((era) => `
-        <button class="era-filter ${state.activeEra === era ? "active" : ""}" type="button" data-era="${escapeHtml(era)}">${escapeHtml(era)}</button>
+        <button class="era-filter ${state.activeEra === era ? "active" : ""}" type="button" data-era="${escapeHtml(era)}" aria-pressed="${state.activeEra === era}">${escapeHtml(era)}</button>
     `).join("");
 
     const visible = state.activeEra === "All" ? timeline : timeline.filter((event) => event.era === state.activeEra);
@@ -777,12 +941,14 @@ function renderTimeline() {
     els.timelineList.innerHTML = visible.map((event) => {
         const source = sourceById.get(event.source);
         return `
-            <button class="timeline-event" type="button" data-chapter="${escapeHtml(event.chapter)}">
-                <span>${escapeHtml(event.date)} / ${escapeHtml(event.era)}</span>
-                <strong>${escapeHtml(event.title)}</strong>
-                <p>${escapeHtml(event.text)}</p>
-                <p>Source: ${source ? escapeHtml(source.title) : "Reference"}</p>
-            </button>
+            <div class="timeline-event">
+                <button class="timeline-jump" type="button" data-chapter="${escapeHtml(event.chapter)}">
+                    <span>${escapeHtml(event.date)} / ${escapeHtml(event.era)}</span>
+                    <strong>${escapeHtml(event.title)}</strong>
+                    <p>${escapeHtml(event.text)}</p>
+                </button>
+                ${source ? `<a class="timeline-source" href="${source.url}" target="_blank" rel="noreferrer">Source: ${escapeHtml(source.title)}</a>` : ""}
+            </div>
         `;
     }).join("");
 }
@@ -795,9 +961,25 @@ function renderSources() {
             <div>
                 <a href="${source.url}" target="_blank" rel="noreferrer">${escapeHtml(source.title)}</a>
                 <small>${escapeHtml(source.detail)}</small>
+                <span class="source-meta">${escapeHtml(sourceKind(source))} / ${escapeHtml(sourceYear(source))}</span>
+                <span class="source-usage">Used in: ${chapters
+                    .map((chapter, index) => chapter.sourceIds.includes(source.id) ? `<a href="#${chapter.id}" data-index="${index}">Ch. ${index + 1}</a>` : "")
+                    .filter(Boolean)
+                    .join(", ") || "timeline only"}</span>
             </div>
         </div>
     `).join("");
+}
+
+function renderLineageFallback() {
+    els.lineageFallback.innerHTML = `
+        <ul class="lineage-fallback-list">
+            ${lineageNodes.map((node) => {
+                const index = chapters.findIndex((chapter) => chapter.id === node.chapter);
+                return `<li><a href="#${node.chapter}" data-index="${index}">${escapeHtml(node.label)}</a> - ${escapeHtml(node.detail)}</li>`;
+            }).join("")}
+        </ul>
+    `;
 }
 
 function renderGlossary() {
@@ -811,7 +993,8 @@ function renderGlossary() {
 }
 
 function getCssColor(name) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return getComputedStyle(document.body).getPropertyValue(name).trim()
+        || getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 function drawLineage() {
@@ -868,7 +1051,7 @@ function drawLineage() {
         ctx.fillText(node.label, x, y - 14);
     });
 
-    const selected = lineageNodes.find((node) => node.id === state.selectedNode) || lineageNodes.find((node) => node.id === "gpt55");
+    const selected = lineageNodes.find((node) => node.id === state.selectedNode) || lineageNodes.find((node) => node.id === "transformer");
     els.modelDetail.innerHTML = `
         <strong>${escapeHtml(selected.label)}</strong>
         <span>${escapeHtml(selected.detail)}</span>
@@ -978,11 +1161,17 @@ function updateProgress() {
 function applyInitialTheme() {
     const saved = localStorage.getItem("llm-history-theme");
     if (saved === "dark") document.body.classList.add("dark");
+    updateThemeToggleLabel();
+}
+
+function updateThemeToggleLabel() {
+    els.themeToggle.setAttribute("aria-label", document.body.classList.contains("dark") ? "Use light theme" : "Use dark theme");
 }
 
 function toggleTheme() {
     document.body.classList.toggle("dark");
     localStorage.setItem("llm-history-theme", document.body.classList.contains("dark") ? "dark" : "light");
+    updateThemeToggleLabel();
     drawLineage();
 }
 
@@ -1008,6 +1197,20 @@ function bindEvents() {
         if (!button) return;
         const index = chapters.findIndex((chapter) => chapter.id === button.dataset.chapter);
         if (index >= 0) setChapter(index);
+    });
+
+    els.sourcesList.addEventListener("click", (event) => {
+        const link = event.target.closest("[data-index]");
+        if (!link) return;
+        event.preventDefault();
+        setChapter(Number(link.dataset.index));
+    });
+
+    els.lineageFallback.addEventListener("click", (event) => {
+        const link = event.target.closest("[data-index]");
+        if (!link) return;
+        event.preventDefault();
+        setChapter(Number(link.dataset.index));
     });
 
     els.searchInput.addEventListener("input", (event) => renderSearchResults(event.target.value));
@@ -1050,6 +1253,7 @@ function init() {
     renderTimeline();
     renderSources();
     renderGlossary();
+    renderLineageFallback();
     bindEvents();
     updateProgress();
     if (window.lucide) window.lucide.createIcons();
