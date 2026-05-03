@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The LLM History Book</title>
+    <meta name="description" content="An interactive book about the history of large language models from GPT-1 to the frontier models of 2026.">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="progress" id="readingProgress"></div>
+
+    <header class="topbar">
+        <a class="home-link" href="../index.html" aria-label="Back to Eli Chen homepage">
+            <span class="home-mark">EC</span>
+            <span>Projects</span>
+        </a>
+        <div class="book-title">
+            <span class="eyebrow">Interactive book</span>
+            <h1>The LLM History Book</h1>
+        </div>
+        <div class="top-actions">
+            <label class="search-field" for="searchInput">
+                <i data-lucide="search" aria-hidden="true"></i>
+                <input id="searchInput" type="search" placeholder="Search chapters, lessons, models" autocomplete="off">
+            </label>
+            <button class="icon-button" id="themeToggle" type="button" aria-label="Toggle theme">
+                <i data-lucide="sun-moon" aria-hidden="true"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="book-layout">
+        <aside class="toc-panel" aria-label="Table of contents">
+            <div class="panel-heading">
+                <span>Contents</span>
+                <span id="chapterCount"></span>
+            </div>
+            <nav class="chapter-nav" id="chapterNav"></nav>
+        </aside>
+
+        <section class="reader-panel" aria-live="polite">
+            <div class="chapter-meta">
+                <span id="eraBadge"></span>
+                <span id="chapterRange"></span>
+                <span id="chapterTags"></span>
+            </div>
+            <h2 id="chapterTitle"></h2>
+            <p class="chapter-dek" id="chapterDek"></p>
+
+            <div class="chapter-controls">
+                <button id="prevChapter" type="button">
+                    <i data-lucide="arrow-left" aria-hidden="true"></i>
+                    <span>Previous</span>
+                </button>
+                <button id="nextChapter" type="button">
+                    <span>Next</span>
+                    <i data-lucide="arrow-right" aria-hidden="true"></i>
+                </button>
+            </div>
+
+            <article class="chapter-content" id="chapterContent"></article>
+
+            <section class="lesson-strip" aria-labelledby="lessonStripTitle">
+                <h3 id="lessonStripTitle">Lessons In This Chapter</h3>
+                <div id="chapterLessons"></div>
+            </section>
+        </section>
+
+        <aside class="atlas-panel" aria-label="Timeline and lineage">
+            <section class="atlas-section">
+                <div class="section-title-row">
+                    <h2>Lineage Map</h2>
+                    <button class="icon-button" id="resetMap" type="button" aria-label="Reset lineage map">
+                        <i data-lucide="rotate-ccw" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <canvas id="lineageCanvas" width="640" height="420"></canvas>
+                <div class="model-detail" id="modelDetail"></div>
+            </section>
+
+            <section class="atlas-section">
+                <div class="section-title-row">
+                    <h2>Timeline</h2>
+                    <span id="timelineCount"></span>
+                </div>
+                <div class="era-filters" id="eraFilters"></div>
+                <div class="timeline-list" id="timelineList"></div>
+            </section>
+        </aside>
+    </main>
+
+    <section class="reference-layout">
+        <section class="glossary-section">
+            <div class="section-title-row">
+                <h2>Glossary</h2>
+                <span id="glossaryCount"></span>
+            </div>
+            <div class="glossary-grid" id="glossaryGrid"></div>
+        </section>
+
+        <section class="sources-section" id="references">
+            <div class="section-title-row">
+                <h2>Sources</h2>
+                <span id="sourceCount"></span>
+            </div>
+            <div class="sources-list" id="sourcesList"></div>
+        </section>
+    </section>
+
+    <div class="search-results" id="searchResults" hidden></div>
+
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
