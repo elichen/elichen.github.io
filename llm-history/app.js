@@ -901,6 +901,8 @@ function renderChapter() {
         `;
     }).join("");
 
+    decorateGlossary(els.chapterContent);
+
     els.chapterLessons.innerHTML = chapter.lessonIds.map((id) => {
         const lesson = lessonById.get(id);
         return `<div class="lesson-card"><strong>${escapeHtml(lesson.title)}</strong><span>${escapeHtml(lesson.text)}</span></div>`;
@@ -927,7 +929,8 @@ function setChapter(index, push = true) {
     state.chapterIndex = Math.max(0, Math.min(index, chapters.length - 1));
     renderChapter();
     if (push) history.replaceState(null, "", `#${chapters[state.chapterIndex].id}`);
-    document.querySelector(".reader-panel").scrollIntoView({ block: "start" });
+    const reader = document.getElementById("reader");
+    if (reader) reader.scrollIntoView({ block: "start" });
 }
 
 function renderTimeline() {
@@ -1000,6 +1003,7 @@ function getCssColor(name) {
 function drawLineage() {
     const canvas = els.lineageCanvas;
     const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0) return; // canvas inside a closed drawer; redraw on open
     const ratio = window.devicePixelRatio || 1;
     canvas.width = Math.max(1, Math.floor(rect.width * ratio));
     canvas.height = Math.max(1, Math.floor(rect.height * ratio));
@@ -1175,6 +1179,203 @@ function toggleTheme() {
     drawLineage();
 }
 
+/* --- Inline glossary decoration ----------------------------------------- */
+
+let glossRegex = null;
+let glossMap = null;
+
+function buildGlossIndex() {
+    const terms = glossary.map(([term]) => term).sort((a, b) => b.length - a.length);
+    const escaped = terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    glossRegex = new RegExp(`\\b(${escaped.join("|")})\\b`, "i");
+    glossMap = new Map(glossary.map(([term, definition]) => [term.toLowerCase(), definition]));
+}
+
+function decorateGlossary(rootEl) {
+    if (!rootEl) return;
+    if (!glossRegex) buildGlossIndex();
+    const seen = new Set();
+    const skipParents = new Set(["A", "SCRIPT", "STYLE", "CODE"]);
+    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+            if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+            let parent = node.parentNode;
+            while (parent && parent !== rootEl) {
+                if (skipParents.has(parent.nodeName)) return NodeFilter.FILTER_REJECT;
+                if (parent.classList && (parent.classList.contains("cite") || parent.classList.contains("gloss"))) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                parent = parent.parentNode;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+        }
+    });
+
+    const targets = [];
+    let node;
+    while ((node = walker.nextNode())) targets.push(node);
+
+    for (const textNode of targets) {
+        const text = textNode.nodeValue;
+        const match = text.match(glossRegex);
+        if (!match) continue;
+        const term = match[1];
+        const key = term.toLowerCase();
+        if (seen.has(key)) continue;
+        const definition = glossMap.get(key);
+        if (!definition) continue;
+        seen.add(key);
+
+        const before = text.slice(0, match.index);
+        const after = text.slice(match.index + term.length);
+        const frag = document.createDocumentFragment();
+        if (before) frag.appendChild(document.createTextNode(before));
+
+        const span = document.createElement("span");
+        span.className = "gloss";
+        span.tabIndex = 0;
+        span.textContent = term;
+
+        const pop = document.createElement("span");
+        pop.className = "gloss-pop";
+        pop.textContent = definition;
+        // Right-align popover when the term is in the right half of the column,
+        // so it doesn't clip beyond the prose width.
+        if (textNode.parentNode && textNode.parentNode.getBoundingClientRect) {
+            const parentRect = textNode.parentNode.getBoundingClientRect();
+            const range = document.createRange();
+            range.setStart(textNode, match.index);
+            range.setEnd(textNode, match.index + term.length);
+            const termRect = range.getBoundingClientRect();
+            range.detach && range.detach();
+            if (parentRect.width && termRect.left - parentRect.left > parentRect.width * 0.55) {
+                pop.dataset.popAlign = "right";
+            }
+        }
+
+        span.appendChild(pop);
+        frag.appendChild(span);
+        if (after) frag.appendChild(document.createTextNode(after));
+        textNode.parentNode.replaceChild(frag, textNode);
+    }
+}
+
+/* --- Surface controller (drawers + search overlay) --------------------- */
+
+const surfaces = {
+    contents: { el: null, opener: null, returnTo: null },
+    atlas:    { el: null, opener: null, returnTo: null },
+    search:   { el: null, opener: null, returnTo: null }
+};
+let openSurfaceId = null;
+
+function openSurface(id) {
+    if (openSurfaceId === id) return;
+    if (openSurfaceId) closeSurface();
+    const surface = surfaces[id];
+    if (!surface || !surface.el) return;
+
+    surface.returnTo = document.activeElement;
+    surface.el.setAttribute("data-open", "");
+    surface.el.setAttribute("aria-hidden", "false");
+
+    const backdrop = document.getElementById("surfaceBackdrop");
+    if (backdrop) {
+        backdrop.hidden = false;
+        requestAnimationFrame(() => backdrop.setAttribute("data-open", ""));
+    }
+
+    document.body.classList.add("surface-open");
+    if (surface.opener) surface.opener.setAttribute("aria-expanded", "true");
+    openSurfaceId = id;
+
+    if (id === "atlas") {
+        // Canvas was 0×0 while drawer hidden; defer one frame for layout, then draw.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(drawLineage);
+        });
+    }
+
+    if (id === "search") {
+        setTimeout(() => els.searchInput && els.searchInput.focus(), 30);
+    } else {
+        const focusable = surface.el.querySelector("button, a, [tabindex]:not([tabindex='-1'])");
+        if (focusable) focusable.focus({ preventScroll: true });
+    }
+}
+
+function closeSurface() {
+    if (!openSurfaceId) return;
+    const surface = surfaces[openSurfaceId];
+    surface.el.removeAttribute("data-open");
+    surface.el.setAttribute("aria-hidden", "true");
+    if (surface.opener) surface.opener.setAttribute("aria-expanded", "false");
+
+    const backdrop = document.getElementById("surfaceBackdrop");
+    if (backdrop) {
+        backdrop.removeAttribute("data-open");
+        setTimeout(() => { backdrop.hidden = true; }, 240);
+    }
+
+    document.body.classList.remove("surface-open");
+    if (surface.returnTo && typeof surface.returnTo.focus === "function") {
+        surface.returnTo.focus({ preventScroll: true });
+    }
+    openSurfaceId = null;
+}
+
+function setupSurfaces() {
+    surfaces.contents.el = document.getElementById("contentsDrawer");
+    surfaces.atlas.el = document.getElementById("atlasDrawer");
+    surfaces.search.el = document.getElementById("searchOverlay");
+    surfaces.contents.opener = document.getElementById("openContents");
+    surfaces.atlas.opener = document.getElementById("openAtlas");
+    surfaces.search.opener = document.getElementById("openSearch");
+
+    if (surfaces.contents.opener) {
+        surfaces.contents.opener.addEventListener("click", () => openSurface("contents"));
+    }
+    if (surfaces.atlas.opener) {
+        surfaces.atlas.opener.addEventListener("click", () => openSurface("atlas"));
+    }
+    if (surfaces.search.opener) {
+        surfaces.search.opener.addEventListener("click", () => openSurface("search"));
+    }
+
+    const backdrop = document.getElementById("surfaceBackdrop");
+    if (backdrop) backdrop.addEventListener("click", closeSurface);
+
+    document.querySelectorAll("[data-close]").forEach((btn) => {
+        btn.addEventListener("click", closeSurface);
+    });
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && openSurfaceId) closeSurface();
+    });
+
+    // Auto-close after navigation actions inside a drawer/overlay.
+    if (els.chapterNav) {
+        els.chapterNav.addEventListener("click", (event) => {
+            if (event.target.closest("[data-index]")) closeSurface();
+        });
+    }
+    if (els.searchResults) {
+        els.searchResults.addEventListener("click", (event) => {
+            if (event.target.closest("[data-index]")) closeSurface();
+        });
+    }
+    if (els.timelineList) {
+        els.timelineList.addEventListener("click", (event) => {
+            if (event.target.closest("[data-chapter]")) closeSurface();
+        });
+    }
+    if (els.lineageFallback) {
+        els.lineageFallback.addEventListener("click", (event) => {
+            if (event.target.closest("[data-index]")) closeSurface();
+        });
+    }
+}
+
 function bindEvents() {
     els.chapterNav.addEventListener("click", (event) => {
         const button = event.target.closest("[data-index]");
@@ -1222,11 +1423,6 @@ function bindEvents() {
         renderSearchResults("");
     });
 
-    document.addEventListener("click", (event) => {
-        if (event.target.closest(".search-results") || event.target.closest(".search-field")) return;
-        renderSearchResults("");
-    });
-
     els.lineageCanvas.addEventListener("click", handleCanvasClick);
     els.resetMap.addEventListener("click", () => {
         state.selectedNode = null;
@@ -1255,6 +1451,7 @@ function init() {
     renderGlossary();
     renderLineageFallback();
     bindEvents();
+    setupSurfaces();
     updateProgress();
     if (window.lucide) window.lucide.createIcons();
 }

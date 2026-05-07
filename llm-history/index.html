@@ -15,76 +15,93 @@
     <div class="progress" id="readingProgress"></div>
 
     <header class="topbar">
-        <a class="home-link" href="../index.html" aria-label="Back to Eli Chen homepage">
-            <span class="home-mark">EC</span>
-            <span>Projects</span>
-        </a>
+        <button class="icon-button" id="openContents" type="button" aria-controls="contentsDrawer" aria-expanded="false" aria-label="Contents">
+            <i data-lucide="menu" aria-hidden="true"></i>
+        </button>
+
         <div class="book-title">
-            <span class="eyebrow">Webbook</span>
             <h1>The LLM History Book</h1>
         </div>
+
         <div class="top-actions">
-            <label class="search-field" for="searchInput">
+            <button class="icon-button" id="openAtlas" type="button" aria-controls="atlasDrawer" aria-expanded="false" aria-label="Atlas">
+                <i data-lucide="compass" aria-hidden="true"></i>
+            </button>
+            <button class="icon-button" id="openSearch" type="button" aria-controls="searchOverlay" aria-expanded="false" aria-label="Search">
                 <i data-lucide="search" aria-hidden="true"></i>
-                <input id="searchInput" type="search" placeholder="Search chapters, lessons, models" autocomplete="off">
-            </label>
+            </button>
             <button class="icon-button" id="themeToggle" type="button" aria-label="Toggle theme">
                 <i data-lucide="sun-moon" aria-hidden="true"></i>
             </button>
         </div>
     </header>
 
-    <main class="book-layout">
-        <aside class="toc-panel" aria-label="Table of contents">
-            <div class="panel-heading">
-                <span>Contents</span>
-                <span id="chapterCount"></span>
-            </div>
-            <nav class="chapter-nav" id="chapterNav"></nav>
-        </aside>
+    <main id="reader" class="reader" tabindex="-1">
+        <div class="running-head">
+            <span id="runningChapter"></span>
+            <span id="folio"></span>
+        </div>
 
-        <section class="reader-panel" id="reader" tabindex="-1">
-            <div class="running-head">
-                <span id="runningChapter"></span>
-                <span id="folio"></span>
-            </div>
-            <div class="chapter-kicker" id="chapterKicker"></div>
-            <div class="chapter-meta">
-                <span id="eraBadge"></span>
-                <span id="chapterRange"></span>
-                <span id="chapterTags"></span>
-            </div>
-            <h2 id="chapterTitle"></h2>
-            <p class="chapter-dek" id="chapterDek"></p>
+        <h2 id="chapterTitle"></h2>
+        <p class="chapter-dek" id="chapterDek"></p>
 
-            <div class="chapter-controls">
-                <button id="prevChapter" type="button">
-                    <i data-lucide="arrow-left" aria-hidden="true"></i>
-                    <span>Previous</span>
-                </button>
-                <button id="nextChapter" type="button">
-                    <span>Next</span>
-                    <i data-lucide="arrow-right" aria-hidden="true"></i>
-                </button>
-            </div>
+        <article class="chapter-content" id="chapterContent"></article>
 
-            <article class="chapter-content" id="chapterContent"></article>
-
-            <section class="lesson-strip" aria-labelledby="lessonStripTitle">
-                <h3 id="lessonStripTitle">Chapter Notes</h3>
+        <aside class="chapter-marginalia" aria-label="Chapter notes and sources">
+            <section aria-labelledby="lessonStripTitle">
+                <h3 id="lessonStripTitle">Notes</h3>
                 <div id="chapterLessons"></div>
             </section>
 
-            <section class="chapter-biblio" aria-labelledby="chapterBiblioTitle">
-                <h3 id="chapterBiblioTitle">Chapter Sources</h3>
+            <section aria-labelledby="chapterBiblioTitle">
+                <h3 id="chapterBiblioTitle">Sources</h3>
                 <div id="chapterReferences"></div>
             </section>
-        </section>
+        </aside>
 
-        <aside class="atlas-panel" aria-label="Timeline and lineage">
+        <nav class="chapter-controls" aria-label="Chapter navigation">
+            <button id="prevChapter" type="button">
+                <i data-lucide="arrow-left" aria-hidden="true"></i>
+                <span>Previous</span>
+            </button>
+            <button id="nextChapter" type="button">
+                <span>Next</span>
+                <i data-lucide="arrow-right" aria-hidden="true"></i>
+            </button>
+        </nav>
+    </main>
+
+    <!-- Contents drawer -->
+    <aside id="contentsDrawer" class="drawer drawer-left" aria-hidden="true" aria-label="Contents">
+        <header class="drawer-head">
+            <div>
+                <span class="drawer-eyebrow">Webbook</span>
+                <h2>Contents</h2>
+            </div>
+            <span id="chapterCount"></span>
+            <button class="icon-button drawer-close" type="button" data-close aria-label="Close contents">
+                <i data-lucide="x" aria-hidden="true"></i>
+            </button>
+        </header>
+        <nav id="chapterNav" class="chapter-nav"></nav>
+    </aside>
+
+    <!-- Atlas drawer -->
+    <aside id="atlasDrawer" class="drawer drawer-right" aria-hidden="true" aria-label="Atlas">
+        <header class="drawer-head">
+            <div>
+                <span class="drawer-eyebrow">Reference</span>
+                <h2>Atlas</h2>
+            </div>
+            <button class="icon-button drawer-close" type="button" data-close aria-label="Close atlas">
+                <i data-lucide="x" aria-hidden="true"></i>
+            </button>
+        </header>
+
+        <div class="drawer-body">
             <section class="atlas-section">
                 <div class="section-title-row">
-                <h2>Lineage Figure</h2>
+                    <h3>Lineage</h3>
                     <button class="icon-button" id="resetMap" type="button" aria-label="Reset lineage map">
                         <i data-lucide="rotate-ccw" aria-hidden="true"></i>
                     </button>
@@ -99,34 +116,48 @@
 
             <section class="atlas-section">
                 <div class="section-title-row">
-                    <h2>Chronology</h2>
+                    <h3>Chronology</h3>
                     <span id="timelineCount"></span>
                 </div>
                 <div class="era-filters" id="eraFilters"></div>
                 <div class="timeline-list" id="timelineList"></div>
             </section>
-        </aside>
-    </main>
+        </div>
+    </aside>
 
-    <section class="reference-layout">
-        <section class="glossary-section">
-            <div class="section-title-row">
-                <h2>Glossary</h2>
-                <span id="glossaryCount"></span>
-            </div>
-            <div class="glossary-grid" id="glossaryGrid"></div>
-        </section>
+    <!-- Search overlay -->
+    <div id="searchOverlay" class="overlay" aria-hidden="true" role="dialog" aria-label="Search">
+        <div class="overlay-card">
+            <label class="search-field" for="searchInput">
+                <i data-lucide="search" aria-hidden="true"></i>
+                <input id="searchInput" type="search" placeholder="Search chapters, lessons, models" autocomplete="off">
+                <button class="icon-button overlay-close" type="button" data-close aria-label="Close search">
+                    <i data-lucide="x" aria-hidden="true"></i>
+                </button>
+            </label>
+            <div class="search-results" id="searchResults" hidden></div>
+        </div>
+    </div>
 
-        <section class="sources-section" id="references">
-            <div class="section-title-row">
-                <h2>Sources</h2>
-                <span id="sourceCount"></span>
-            </div>
-            <div class="sources-list" id="sourcesList"></div>
-        </section>
-    </section>
+    <!-- Preserved hooks (kept hidden — populated harmlessly by app.js) -->
+    <div class="visually-hidden" aria-hidden="true">
+        <span id="chapterKicker"></span>
+        <span id="eraBadge"></span>
+        <span id="chapterRange"></span>
+        <span id="chapterTags"></span>
+        <div id="glossaryGrid"></div>
+        <span id="glossaryCount"></span>
+    </div>
 
-    <div class="search-results" id="searchResults" hidden></div>
+    <footer class="references" id="references">
+        <div class="section-title-row">
+            <h2>Sources</h2>
+            <span id="sourceCount"></span>
+        </div>
+        <div class="sources-list" id="sourcesList"></div>
+    </footer>
+
+    <div id="surfaceBackdrop" class="backdrop" hidden></div>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="app.js"></script>
