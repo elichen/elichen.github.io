@@ -1045,7 +1045,7 @@ function drawLineage() {
         ctx.fill();
         ctx.stroke();
 
-        ctx.font = "700 11px Inter, system-ui, sans-serif";
+        ctx.font = "500 10.5px Geist, ui-sans-serif, system-ui, sans-serif";
         ctx.fillStyle = ink;
         ctx.textAlign = "center";
         ctx.fillText(node.label, x, y - 14);
