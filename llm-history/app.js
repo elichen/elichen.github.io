@@ -796,8 +796,6 @@ const els = {
     timelineList: document.getElementById("timelineList"),
     timelineCount: document.getElementById("timelineCount"),
     eraFilters: document.getElementById("eraFilters"),
-    sourcesList: document.getElementById("sourcesList"),
-    sourceCount: document.getElementById("sourceCount"),
     glossaryGrid: document.getElementById("glossaryGrid"),
     glossaryCount: document.getElementById("glossaryCount"),
     searchInput: document.getElementById("searchInput"),
@@ -814,7 +812,9 @@ function citeText(text) {
     return text.replace(/\[\[(\d+)]]/g, (_, id) => {
         const source = sourceById.get(Number(id));
         const label = source ? source.title : `Source ${id}`;
-        return `<a class="cite" href="#source-${id}" title="${escapeHtml(label)}">[${id}]</a>`;
+        const href = source ? source.url : "#";
+        const externalAttrs = source ? ' target="_blank" rel="noreferrer"' : "";
+        return `<a class="cite" href="${escapeHtml(href)}"${externalAttrs} title="${escapeHtml(label)}">[${id}]</a>`;
     });
 }
 
@@ -833,19 +833,6 @@ function escapeHtml(text) {
 
 function slug(text) {
     return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
-
-function sourceKind(source) {
-    const url = source.url;
-    if (url.includes("arxiv.org") || url.includes("jmlr.org") || url.includes("acm.org")) return "Research";
-    if (url.includes("github.com")) return "Repository";
-    if (url.includes("stanford.edu") || source.title.includes("Report") || source.title.includes("System Card")) return "Report";
-    if (url.includes("openai.com") || url.includes("anthropic.com") || url.includes("meta.com") || url.includes("mistral.ai") || url.includes("qwenlm.github.io") || url.includes("google") || url.includes("deepmind")) return "Lab post";
-    return "Reference";
-}
-
-function sourceYear(source) {
-    return source.detail.match(/\b(19|20)\d{2}\b/)?.[0] || "n.d.";
 }
 
 function partForChapter(index) {
@@ -954,24 +941,6 @@ function renderTimeline() {
             </div>
         `;
     }).join("");
-}
-
-function renderSources() {
-    els.sourceCount.textContent = `${sources.length} references`;
-    els.sourcesList.innerHTML = sources.map((source) => `
-        <div class="source-row" id="source-${source.id}">
-            <span>${source.id}</span>
-            <div>
-                <a href="${source.url}" target="_blank" rel="noreferrer">${escapeHtml(source.title)}</a>
-                <small>${escapeHtml(source.detail)}</small>
-                <span class="source-meta">${escapeHtml(sourceKind(source))} / ${escapeHtml(sourceYear(source))}</span>
-                <span class="source-usage">Used in: ${chapters
-                    .map((chapter, index) => chapter.sourceIds.includes(source.id) ? `<a href="#${chapter.id}" data-index="${index}">Ch. ${index + 1}</a>` : "")
-                    .filter(Boolean)
-                    .join(", ") || "timeline only"}</span>
-            </div>
-        </div>
-    `).join("");
 }
 
 function renderLineageFallback() {
@@ -1400,13 +1369,6 @@ function bindEvents() {
         if (index >= 0) setChapter(index);
     });
 
-    els.sourcesList.addEventListener("click", (event) => {
-        const link = event.target.closest("[data-index]");
-        if (!link) return;
-        event.preventDefault();
-        setChapter(Number(link.dataset.index));
-    });
-
     els.lineageFallback.addEventListener("click", (event) => {
         const link = event.target.closest("[data-index]");
         if (!link) return;
@@ -1447,7 +1409,6 @@ function init() {
     renderChapterNav();
     renderChapter();
     renderTimeline();
-    renderSources();
     renderGlossary();
     renderLineageFallback();
     bindEvents();

@@ -326,11 +326,6 @@ summary:focus-visible,
 }
 .cite:hover { color: var(--ink); }
 
-#references div[id^="source-"]:target {
-    background: var(--accent-soft);
-    transition: background 1.2s ease;
-}
-
 /* --- Inline glossary popovers --------------------------------- */
 
 .gloss {
@@ -912,90 +907,6 @@ body.dark .backdrop { background: rgba(0, 0, 0, 0.55); }
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.22em;
-}
-
-/* --- Sources footer ------------------------------------------- */
-
-.references {
-    width: min(1080px, 100% - clamp(24px, 5vw, 64px));
-    margin: 0 auto clamp(64px, 9vw, 112px);
-    padding-top: clamp(36px, 6vw, 80px);
-    border-top: var(--rule);
-}
-
-.references .section-title-row { margin-bottom: 24px; }
-
-.references .section-title-row h2 {
-    margin: 0;
-    color: var(--muted);
-    font-family: var(--sans);
-    font-size: 0.66rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.22em;
-}
-
-.sources-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 0 clamp(28px, 4vw, 48px);
-}
-
-.source-row {
-    display: grid;
-    grid-template-columns: 1.8rem 1fr;
-    gap: 4px 12px;
-    align-items: baseline;
-    padding: 12px 0;
-    border-bottom: var(--rule);
-    background: transparent;
-}
-
-.source-row > span {
-    color: var(--accent);
-    font-family: var(--sans);
-    font-size: 0.7rem;
-    font-weight: 500;
-    letter-spacing: 0.04em;
-}
-
-.source-row a {
-    font-family: var(--serif-body);
-    font-weight: 500;
-    font-size: 0.98rem;
-    color: var(--ink);
-    text-decoration: none;
-    border-bottom: 1px solid var(--rail-strong);
-}
-.source-row a:hover { color: var(--accent); border-bottom-color: var(--accent); }
-
-.source-row small {
-    display: block;
-    color: var(--muted);
-    font-family: var(--sans);
-    font-size: 0.72rem;
-    letter-spacing: 0.04em;
-    margin-top: 2px;
-}
-
-.source-meta,
-.source-usage {
-    display: block;
-    margin-top: 4px;
-    color: var(--muted);
-    font-family: var(--sans);
-    font-size: 0.68rem;
-    letter-spacing: 0.06em;
-}
-
-.source-usage a {
-    font-family: var(--sans);
-    font-weight: 500;
-    font-size: 0.68rem;
-    color: var(--ink-soft);
-    border-bottom: 0;
-    text-decoration: underline;
-    text-decoration-color: var(--rail-strong);
 }
 
 /* --- Visually hidden (preserves IDs without rendering) -------- */
