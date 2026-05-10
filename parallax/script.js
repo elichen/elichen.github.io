@@ -25,7 +25,7 @@ const SCENE = {
     pathBottom: 1,
     runnerGround: 0.94,
 };
-const RUN_CYCLE = [0, 1, 3, 4, 5, 7];
+const RUN_CYCLE = [1, 2, 3, 4, 5, 6];
 
 function loadImage(src) {
     const image = new Image();
@@ -301,13 +301,7 @@ function drawRunner(time) {
     const x = canvas.width * 0.34 - source.anchorX * scale;
     const y = canvas.height * SCENE.runnerGround - drawH + bob;
 
-    ctx.save();
-    ctx.shadowColor = "rgba(0, 0, 0, 0.38)";
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = Math.round(canvas.width * 0.008);
-    ctx.shadowOffsetY = Math.round(canvas.height * 0.012);
     ctx.drawImage(runner, source.sx, source.sy, source.sw, source.sh, Math.round(x), Math.round(y), Math.round(drawW), Math.round(drawH));
-    ctx.restore();
 }
 
 function drawVignette() {
