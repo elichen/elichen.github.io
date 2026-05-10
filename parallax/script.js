@@ -20,6 +20,12 @@ const state = {
 const pace = 1;
 const depth = 1.15;
 const grade = { fill: "rgba(255, 190, 94, 0.04)", fog: "rgba(255, 222, 196, 0)", tint: null };
+const SCENE = {
+    pathTop: 0.82,
+    pathBottom: 1,
+    runnerGround: 0.94,
+};
+const RUN_CYCLE = [0, 1, 3, 4, 5, 7];
 
 function loadImage(src) {
     const image = new Image();
@@ -78,18 +84,124 @@ function measureAlphaBounds(image, columns = 1) {
     return columns === 1 ? boxes[0] : boxes;
 }
 
+function measureColorBounds(image, predicate) {
+    const scratch = document.createElement("canvas");
+    scratch.width = image.width;
+    scratch.height = image.height;
+    const scratchCtx = scratch.getContext("2d", { willReadFrequently: true });
+    scratchCtx.drawImage(image, 0, 0);
+
+    const data = scratchCtx.getImageData(0, 0, image.width, image.height).data;
+    let minX = image.width;
+    let minY = image.height;
+    let maxX = -1;
+    let maxY = -1;
+
+    for (let y = 0; y < image.height; y += 1) {
+        for (let x = 0; x < image.width; x += 1) {
+            const index = (y * image.width + x) * 4;
+            if (predicate(data[index], data[index + 1], data[index + 2], data[index + 3])) {
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            }
+        }
+    }
+
+    return { sx: minX, sy: minY, sw: maxX - minX + 1, sh: maxY - minY + 1 };
+}
+
+function measureOpaqueRow(image, minPixels) {
+    const scratch = document.createElement("canvas");
+    scratch.width = image.width;
+    scratch.height = image.height;
+    const scratchCtx = scratch.getContext("2d", { willReadFrequently: true });
+    scratchCtx.drawImage(image, 0, 0);
+    const data = scratchCtx.getImageData(0, 0, image.width, image.height).data;
+
+    for (let y = 0; y < image.height; y += 1) {
+        let count = 0;
+        for (let x = 0; x < image.width; x += 1) {
+            if (data[(y * image.width + x) * 4 + 3] > 12) {
+                count += 1;
+            }
+        }
+        if (count >= minPixels) {
+            return y;
+        }
+    }
+    return 0;
+}
+
+function yFromAnchor(targetY, sourceY, scale) {
+    return targetY - sourceY * scale;
+}
+
+function measureRunnerHeadAnchors(image, frameBounds) {
+    const scratch = document.createElement("canvas");
+    scratch.width = image.width;
+    scratch.height = image.height;
+    const scratchCtx = scratch.getContext("2d", { willReadFrequently: true });
+    scratchCtx.drawImage(image, 0, 0);
+    const data = scratchCtx.getImageData(0, 0, image.width, image.height).data;
+
+    return frameBounds.map((box) => {
+        const top = box.sy;
+        const bottom = box.sy + Math.round(box.sh * 0.28);
+        let weightedX = 0;
+        let weight = 0;
+
+        for (let y = top; y < bottom; y += 1) {
+            for (let x = box.sx; x < box.sx + box.sw; x += 1) {
+                const alpha = data[(y * image.width + x) * 4 + 3];
+                if (alpha > 12) {
+                    weightedX += x * alpha;
+                    weight += alpha;
+                }
+            }
+        }
+
+        return weight > 0 ? weightedX / weight : box.sx + box.sw / 2;
+    });
+}
+
+function makeRunnerCells(image, frameBounds, headAnchors) {
+    const frameWidth = image.width / 8;
+    const minY = Math.min(...frameBounds.map((box) => box.sy));
+    const maxY = Math.max(...frameBounds.map((box) => box.sy + box.sh));
+    const maxWidth = Math.max(...frameBounds.map((box) => box.sw));
+
+    return frameBounds.map((box, index) => {
+        const cellLeft = index * frameWidth;
+        const centerX = box.sx + box.sw / 2;
+        const sx = Math.max(cellLeft, centerX - maxWidth / 2);
+        const right = Math.min(cellLeft + frameWidth, sx + maxWidth);
+
+        return {
+            sx,
+            sy: minY,
+            sw: right - sx,
+            sh: maxY - minY,
+            anchorX: headAnchors[index] - sx,
+        };
+    });
+}
+
 function drawWrappedImage(image, time, options) {
     const source = options.source || { sx: 0, sy: 0, sw: image.width, sh: image.height };
     const scale = options.height / source.sh;
     const drawW = Math.ceil(source.sw * scale);
     const drawH = Math.ceil(options.height);
     const speed = options.speed * pace * (0.55 + depth * 0.45);
-    const scroll = (time * speed + (options.offset || 0)) % drawW;
+    const scroll = time * speed + (options.offset || 0);
     const y = Math.round(options.y);
-    const startIndex = Math.floor(scroll / drawW) - 1;
+    const originX = options.originX || 0;
+    const startIndex = Math.floor((scroll - originX) / drawW) - 1;
+    const endIndex = startIndex + Math.ceil(canvas.width / drawW) + 3;
 
-    for (let i = startIndex; i < startIndex + Math.ceil(canvas.width / drawW) + 3; i += 1) {
-        const x = Math.round(i * drawW - scroll + (options.originX || 0));
+    for (let i = startIndex; i < endIndex; i += 1) {
+        const x = Math.round(i * drawW - scroll + originX);
         if (options.mirror && Math.abs(i) % 2 === 1) {
             ctx.save();
             ctx.translate(x + drawW, y);
@@ -112,11 +224,14 @@ function drawSky(time) {
 }
 
 function drawMidground(time) {
-    const height = canvas.height * 0.54;
+    const targetPathTop = canvas.height * SCENE.pathTop;
+    const scale = (canvas.height * 0.53) / metrics.midground.sh;
+    const y = yFromAnchor(targetPathTop, metrics.bridgeBaseY - metrics.midground.sy, scale);
+
     drawWrappedImage(assets.midground, time, {
         source: metrics.midground,
-        y: canvas.height * 0.92 - height,
-        height,
+        y,
+        height: metrics.midground.sh * scale,
         speed: 24,
         originX: -canvas.width * 0.18,
         mirror: true,
@@ -124,40 +239,18 @@ function drawMidground(time) {
 }
 
 function drawForeground(time) {
+    const targetPathTop = canvas.height * SCENE.pathTop;
+    const targetPathBottom = canvas.height * SCENE.pathBottom;
+    const scale = (targetPathBottom - targetPathTop) / (metrics.foreground.sy + metrics.foreground.sh - metrics.pathTopY);
+    const y = yFromAnchor(targetPathTop, metrics.pathTopY - metrics.foreground.sy, scale);
+
     drawWrappedImage(assets.foreground, time, {
         source: metrics.foreground,
-        y: canvas.height * 0.76,
-        height: canvas.height * 0.24,
+        y,
+        height: metrics.foreground.sh * scale,
         speed: 126,
         mirror: true,
     });
-}
-
-function drawRowScrolledRoad(time) {
-    const top = canvas.height * 0.89;
-    const bottom = canvas.height * 0.985;
-    const palette = ["rgba(92, 52, 33, 0.34)", "rgba(255, 208, 119, 0.22)", "rgba(43, 27, 21, 0.28)"];
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, top, canvas.width, bottom - top);
-    ctx.clip();
-
-    for (let row = 0; row < 9; row += 1) {
-        const rowT = row / 8;
-        const y = Math.round(top + rowT * (bottom - top));
-        const h = Math.max(2, Math.round(canvas.height * (0.003 + rowT * 0.006)));
-        const speed = (130 + rowT * 270) * pace * (0.45 + depth * 0.55);
-        const spacing = canvas.width * (0.16 - rowT * 0.07);
-        const dashW = spacing * (0.28 + rowT * 0.35);
-        const offset = (time * speed + row * 91) % spacing;
-
-        ctx.fillStyle = palette[row % palette.length];
-        for (let x = -offset - spacing; x < canvas.width + spacing; x += spacing) {
-            ctx.fillRect(Math.round(x), y, Math.round(dashW), h);
-        }
-    }
-    ctx.restore();
 }
 
 function drawFog(time) {
@@ -198,14 +291,15 @@ function drawSpeedLines(time) {
 
 function drawRunner(time) {
     const runner = assets.runner;
-    const frameCount = 8;
-    const frame = Math.floor(time * 13 * pace) % frameCount;
-    const source = metrics.runnerFrames[frame];
-    const drawH = canvas.height * 0.34;
-    const drawW = source.sw * (drawH / source.sh);
-    const bob = Math.sin(time * Math.PI * 26 * pace) * canvas.height * 0.005;
-    const x = canvas.width * 0.34 - drawW * 0.5;
-    const y = canvas.height * 0.965 - drawH + bob;
+    const cycleIndex = Math.floor(time * 9 * pace) % RUN_CYCLE.length;
+    const frame = RUN_CYCLE[cycleIndex];
+    const source = metrics.runnerCells[frame];
+    const drawH = canvas.height * 0.31;
+    const scale = drawH / source.sh;
+    const drawW = source.sw * scale;
+    const bob = Math.sin(time * Math.PI * 18 * pace) * canvas.height * 0.003;
+    const x = canvas.width * 0.34 - source.anchorX * scale;
+    const y = canvas.height * SCENE.runnerGround - drawH + bob;
 
     ctx.save();
     ctx.shadowColor = "rgba(0, 0, 0, 0.38)";
@@ -250,7 +344,6 @@ function render(timestamp) {
     drawFog(sceneTime);
     drawForeground(sceneTime);
     drawRunner(state.runnerTime);
-    drawRowScrolledRoad(sceneTime);
     drawSpeedLines(sceneTime);
 
     if (grade.tint) {
@@ -275,6 +368,13 @@ Promise.all(Object.entries(assetSources).map(([name, src]) => (
     metrics.midground = measureAlphaBounds(assets.midground);
     metrics.foreground = measureAlphaBounds(assets.foreground);
     metrics.runnerFrames = measureAlphaBounds(assets.runner, 8);
+    metrics.runnerHeadAnchors = measureRunnerHeadAnchors(assets.runner, metrics.runnerFrames);
+    metrics.runnerCells = makeRunnerCells(assets.runner, metrics.runnerFrames, metrics.runnerHeadAnchors);
+    metrics.bridge = measureColorBounds(assets.midground, (r, g, b, a) => (
+        a > 20 && r > 105 && g < 115 && b < 90 && r > g * 1.15
+    ));
+    metrics.bridgeBaseY = metrics.bridge.sy + metrics.bridge.sh;
+    metrics.pathTopY = measureOpaqueRow(assets.foreground, assets.foreground.width * 0.25);
     resizeCanvas();
     requestAnimationFrame(render);
 }).catch((error) => {
