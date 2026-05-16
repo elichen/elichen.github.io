@@ -47,13 +47,6 @@
 
         <article class="chapter-content" id="chapterContent"></article>
 
-        <aside class="chapter-marginalia" aria-label="Chapter notes">
-            <section aria-labelledby="lessonStripTitle">
-                <h3 id="lessonStripTitle">Notes</h3>
-                <div id="chapterLessons"></div>
-            </section>
-        </aside>
-
         <nav class="chapter-controls" aria-label="Chapter navigation">
             <button id="prevChapter" type="button">
                 <i data-lucide="arrow-left" aria-hidden="true"></i>
@@ -96,15 +89,16 @@
         <div class="drawer-body">
             <section class="atlas-section">
                 <div class="section-title-row">
-                    <h3>Lineage</h3>
-                    <button class="icon-button" id="resetMap" type="button" aria-label="Reset lineage map">
+                    <h3>Influence map</h3>
+                    <button class="icon-button" id="resetMap" type="button" aria-label="Reset influence map">
                         <i data-lucide="rotate-ccw" aria-hidden="true"></i>
                     </button>
                 </div>
+                <p class="atlas-note">Edges trace conceptual influence, not weight derivation. Llama, Qwen, DeepSeek, and Kimi were trained independently of GPT-3; the arrows show which work each branch responded to.</p>
                 <canvas id="lineageCanvas" width="640" height="420" aria-hidden="true"></canvas>
                 <div class="model-detail" id="modelDetail"></div>
                 <details class="lineage-text">
-                    <summary>Text lineage</summary>
+                    <summary>Text view</summary>
                     <div id="lineageFallback"></div>
                 </details>
             </section>
@@ -125,7 +119,7 @@
         <div class="overlay-card">
             <label class="search-field" for="searchInput">
                 <i data-lucide="search" aria-hidden="true"></i>
-                <input id="searchInput" type="search" placeholder="Search chapters, lessons, models" autocomplete="off">
+                <input id="searchInput" type="search" placeholder="Search chapters, models, events" autocomplete="off">
                 <button class="icon-button overlay-close" type="button" data-close aria-label="Close search">
                     <i data-lucide="x" aria-hidden="true"></i>
                 </button>

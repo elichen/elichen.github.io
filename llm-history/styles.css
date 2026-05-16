@@ -369,51 +369,7 @@ summary:focus-visible,
 /* Avoid right-edge clipping inside the prose column */
 .gloss-pop[data-pop-align="right"] { left: auto; right: 0; }
 
-/* --- Chapter marginalia (lessons + chapter sources) ----------- */
-
-.chapter-marginalia {
-    margin-top: 64px;
-    padding-top: 28px;
-    border-top: var(--rule);
-    display: grid;
-    gap: 56px;
-}
-
-.chapter-marginalia h3 {
-    margin: 0 0 16px;
-    color: var(--muted);
-    font-family: var(--sans);
-    font-size: 0.66rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.24em;
-}
-
-#chapterLessons { display: grid; gap: 0; }
-
-.lesson-card {
-    padding: 12px 0;
-    border-bottom: var(--rule);
-    background: transparent;
-}
-.lesson-card:last-child { border-bottom: 0; }
-
-.lesson-card strong {
-    display: block;
-    margin-bottom: 3px;
-    color: var(--ink);
-    font-family: var(--serif-display);
-    font-style: italic;
-    font-weight: 500;
-    font-size: 1.02rem;
-}
-
-.lesson-card span {
-    color: var(--ink-soft);
-    font-family: var(--serif-body);
-    font-size: 0.96rem;
-    line-height: 1.55;
-}
+/* --- Chapter references ----------- */
 
 #chapterReferences { display: grid; gap: 0; }
 
@@ -617,6 +573,15 @@ summary:focus-visible,
 /* --- Atlas drawer contents ------------------------------------ */
 
 .atlas-section + .atlas-section { margin-top: 44px; }
+
+.atlas-note {
+    margin: 0 0 14px;
+    color: var(--muted);
+    font-family: var(--serif-body);
+    font-size: 0.9rem;
+    font-style: italic;
+    line-height: 1.5;
+}
 
 .section-title-row {
     display: flex;

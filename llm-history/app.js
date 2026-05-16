@@ -57,33 +57,29 @@ const sources = [
     { id: 56, title: "Holistic Evaluation of Language Models", detail: "Liang et al., HELM evaluation framework, 2022.", url: "https://arxiv.org/abs/2211.09110" },
     { id: 57, title: "On the Dangers of Stochastic Parrots: Can Language Models Be Too Big?", detail: "Bender et al., data, environmental, and social risk critique, 2021.", url: "https://dl.acm.org/doi/10.1145/3442188.3445922" },
     { id: 58, title: "The 2025 AI Index Report", detail: "Stanford HAI annual report on AI investment, capabilities, and policy, 2025.", url: "https://hai.stanford.edu/ai-index/2025-ai-index-report" },
-    { id: 59, title: "SWE-bench: Can Language Models Resolve Real-World GitHub Issues?", detail: "Jimenez et al., real-world software engineering benchmark, 2023.", url: "https://arxiv.org/abs/2310.06770" }
-];
-
-const lessons = [
-    { id: "pretraining", title: "Pretraining made language a reusable interface", text: "A next-token objective over broad text turned out to create features that could transfer across tasks, replacing many task-specific NLP pipelines." },
-    { id: "scale", title: "Scale was a scientific instrument", text: "GPT-2, scaling laws, GPT-3, PaLM, and later frontier systems showed that bigger training runs could expose capabilities before theory could explain them." },
-    { id: "data", title: "Data quality changed the slope", text: "Chinchilla and the open-model wave made clear that tokens, deduplication, code, filtering, and synthetic examples could matter as much as raw parameter count." },
-    { id: "alignment", title: "Alignment converted models into products", text: "Instruction tuning and RLHF did not invent all capabilities from scratch; they made latent capabilities easier, safer, and more predictable to access." },
-    { id: "code", title: "Code made reasoning executable", text: "Training on programs taught models to track variables, satisfy constraints, call tests, and revise outputs against external feedback." },
-    { id: "cot", title: "Reasoning improved when models had room to work", text: "Chain of thought, self-consistency, verifiers, and process supervision showed that an answer can improve when inference includes intermediate work." },
-    { id: "tools", title: "Tools made language models less trapped in language", text: "Retrieval, calculators, interpreters, browsers, and computer control moved LLMs from answer engines toward systems that can gather evidence and act." },
-    { id: "open", title: "Open weights made the field plural", text: "Llama, Mistral, Qwen, DeepSeek, Kimi, and gpt-oss turned frontier ideas into a competitive ecosystem of local, specialized, and audited models." },
-    { id: "multimodal", title: "The interface expanded beyond text", text: "Vision, speech, audio, video, and screen control changed the assistant from a text box into an operator over human work surfaces." },
-    { id: "testtime", title: "Test-time compute became its own scaling axis", text: "The o-series, DeepSeek-R1, Claude hybrid reasoning, GPT-5 Pro, and GPT-5.5 shifted part of progress from training scale to inference-time search, checking, and persistence." },
-    { id: "agents", title: "Agents exposed the reliability gap", text: "Long-horizon work needs memory, tool discipline, state tracking, rollback, verification, and permission boundaries, not just fluent text." },
-    { id: "future", title: "The next fork is trustworthy autonomy", text: "The next major systems will be judged by whether they can do valuable work under verification, policy, latency, budget, and audit constraints." }
+    { id: 59, title: "SWE-bench: Can Language Models Resolve Real-World GitHub Issues?", detail: "Jimenez et al., real-world software engineering benchmark, 2023.", url: "https://arxiv.org/abs/2310.06770" },
+    { id: 60, title: "Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity", detail: "Fedus, Zoph, and Shazeer, sparse MoE at scale, 2021.", url: "https://arxiv.org/abs/2101.03961" },
+    { id: 61, title: "Gemini 1.5: Unlocking multimodal understanding across millions of tokens of context", detail: "Google DeepMind long-context multimodal model, 2024.", url: "https://blog.google/technology/ai/google-gemini-next-generation-model-february-2024/" },
+    { id: 62, title: "Gemini 2.5: Our most intelligent AI model", detail: "Google DeepMind thinking-by-default Gemini release, March 2025.", url: "https://blog.google/technology/google-deepmind/gemini-model-thinking-updates-march-2025/" },
+    { id: 63, title: "Function calling and other API updates", detail: "OpenAI introduces native tool-call schema in the Chat Completions API, June 2023.", url: "https://openai.com/index/function-calling-and-other-api-updates/" },
+    { id: 64, title: "Introducing GPTs", detail: "OpenAI custom assistant builder for end users, November 2023.", url: "https://openai.com/index/introducing-gpts/" },
+    { id: 65, title: "The Pile: An 800GB Dataset of Diverse Text for Language Modeling", detail: "Gao et al., curated open pretraining corpus, 2020.", url: "https://arxiv.org/abs/2101.00027" },
+    { id: 66, title: "FineWeb: decanting the web for the finest text data at scale", detail: "Hugging Face open pretraining corpus and quality study, 2024.", url: "https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1" },
+    { id: 67, title: "Deduplicating Training Data Makes Language Models Better", detail: "Lee et al., near-duplicate removal in pretraining, 2021.", url: "https://arxiv.org/abs/2107.06499" },
+    { id: 68, title: "The New York Times v. Microsoft and OpenAI", detail: "NYT copyright lawsuit over training data, December 2023.", url: "https://www.nytimes.com/2023/12/27/business/media/new-york-times-open-ai-microsoft-lawsuit.html" },
+    { id: 69, title: "Inside Facebook's African Sweatshop", detail: "Time investigation of low-wage data labelers used to train OpenAI moderation, January 2023.", url: "https://time.com/6247678/openai-chatgpt-kenya-workers/" },
+    { id: 70, title: "Phi-3 Technical Report: A Highly Capable Language Model Locally on Your Phone", detail: "Abdin et al., Microsoft small-model data-quality line, 2024.", url: "https://arxiv.org/abs/2404.14219" },
+    { id: 71, title: "Hierarchical Text-Conditional Image Generation with CLIP Latents", detail: "Ramesh et al., DALL-E 2 generative multimodal model, 2022.", url: "https://arxiv.org/abs/2204.06125" }
 ];
 
 const chapters = [
     {
         id: "before-transformers",
         title: "Before Transformers: Language Modeling Becomes Learnable",
-        range: "1950s-2017",
+        range: "2003-2017",
         era: "Prehistory",
         tags: ["Language modeling", "Embeddings", "Seq2seq", "Attention"],
         dek: "Transformers did not appear from nowhere. They inherited decades of work on predicting text, representing meaning as vectors, learning sequences end to end, and deciding which context matters.",
-        lessonIds: ["pretraining", "data", "scale"],
         sourceIds: [46, 47, 48, 49, 50, 51],
         sections: [
             {
@@ -106,7 +102,20 @@ const chapters = [
                 heading: "Sequence models exposed the bottleneck",
                 paragraphs: [
                     "Neural sequence-to-sequence learning replaced brittle translation pipelines with encoder-decoder models trained end to end [[48]]. It proved that one neural system could map one variable-length sequence to another, which mattered for translation, summarization, dialogue, and every later text-in text-out interface.",
-                    "Attention solved a specific failure mode. Fixed-length encodings forced the decoder to compress an entire source sentence into one vector. Bahdanau, Cho, and Bengio instead let the decoder soft-search over source positions while generating each target word, making alignment a learned operation rather than a hand-coded table [[49]].",
+                    "The catch was the encoder bottleneck. Sutskever's original seq2seq compressed an entire source sentence into one fixed-length vector before the decoder began generating. That worked for short sentences and failed on long ones. The hidden state ran out of room, and translation quality collapsed."
+                ]
+            },
+            {
+                heading: "Attention foreshadows the Transformer",
+                paragraphs: [
+                    "Bahdanau, Cho, and Bengio's 2014 attention mechanism solved the bottleneck by letting the decoder soft-search over all source positions while generating each target word [[49]]. Alignment between source and target became a learned, differentiable operation rather than a hand-coded heuristic.",
+                    "That single idea is the direct ancestor of self-attention. Three years later, the Transformer would generalize it: every position attends to every other position, in parallel, with no recurrence at all. The 2017 paper's title — Attention Is All You Need — is best read as a claim that Bahdanau-style alignment, properly scaled, can replace the rest of the sequence-model machinery.",
+                    "It is worth pausing on how short this period is. Seq2seq, attention, and the Transformer all land in a four-year window. The architecture that defines the modern era was not a singular leap; it was the fast convergence of three closely related ideas."
+                ]
+            },
+            {
+                heading: "Pretraining moves to the center",
+                paragraphs: [
                     "ELMo and ULMFiT then pushed contextual pretraining and fine-tuning toward the center of NLP. ELMo showed that representations should vary by context [[50]], while ULMFiT showed that language-model pretraining could transfer strongly to downstream classification with limited labels [[51]]. By the time the Transformer arrived, the field already knew the destination: broad pretraining, reusable representations, and task adaptation. What it lacked was a scalable machine."
                 ],
                 callout: "The Transformer was a decisive architecture, but the deeper story is older: learn language from prediction, represent meaning in vectors, condition on context, and reuse the result across tasks."
@@ -120,7 +129,6 @@ const chapters = [
         era: "Roots",
         tags: ["Transformers", "Transfer learning", "NLP"],
         dek: "The modern LLM story starts before GPT-1, with a change in architecture and a change in attitude: language models became general-purpose representation learners.",
-        lessonIds: ["pretraining", "scale"],
         sourceIds: [1, 2, 52],
         sections: [
             {
@@ -156,7 +164,6 @@ const chapters = [
         era: "GPT",
         tags: ["GPT-1", "Transfer", "Fine-tuning"],
         dek: "GPT-1 was small by later standards, but it named the recipe that would dominate the next decade: generative pretraining followed by task adaptation.",
-        lessonIds: ["pretraining", "data"],
         sourceIds: [2],
         sections: [
             {
@@ -193,7 +200,6 @@ const chapters = [
         era: "GPT",
         tags: ["GPT-2", "Zero-shot", "Release policy"],
         dek: "GPT-2 made the field confront two ideas at once: unsupervised language models were becoming surprisingly general, and deployment choices were becoming part of AI research.",
-        lessonIds: ["scale", "alignment"],
         sourceIds: [3],
         sections: [
             {
@@ -229,7 +235,6 @@ const chapters = [
         era: "Scaling",
         tags: ["GPT-3", "Scaling laws", "In-context learning"],
         dek: "GPT-3 turned prompt examples into a programming interface and scaling laws into a roadmap for industrial AI.",
-        lessonIds: ["scale", "pretraining", "data"],
         sourceIds: [4, 5],
         sections: [
             {
@@ -266,7 +271,6 @@ const chapters = [
         era: "Alignment",
         tags: ["RLHF", "InstructGPT", "ChatGPT"],
         dek: "Instruction tuning and RLHF changed the user experience more than a raw benchmark table could capture.",
-        lessonIds: ["alignment", "pretraining"],
         sourceIds: [7, 8, 18],
         sections: [
             {
@@ -303,7 +307,6 @@ const chapters = [
         era: "Code",
         tags: ["Codex", "AlphaCode", "HumanEval"],
         dek: "The code branch of LLM history changed reasoning, evaluation, and product expectations because programs can be executed and tested.",
-        lessonIds: ["code", "cot", "tools"],
         sourceIds: [9, 10, 11, 12, 44, 45],
         sections: [
             {
@@ -341,7 +344,6 @@ const chapters = [
         era: "Reasoning",
         tags: ["Chain of thought", "Self-consistency", "Verifiers"],
         dek: "The reasoning wave began when researchers realized that models often perform better if inference includes visible intermediate work.",
-        lessonIds: ["cot", "testtime"],
         sourceIds: [11, 12, 39, 40, 41],
         sections: [
             {
@@ -378,8 +380,7 @@ const chapters = [
         era: "Efficiency",
         tags: ["Chinchilla", "Data", "Specialization"],
         dek: "Once scale worked, the field asked whether it had been scaling the wrong things.",
-        lessonIds: ["data", "scale", "open"],
-        sourceIds: [6, 13, 20, 21],
+        sourceIds: [6, 13, 20, 21, 60, 65, 66, 67],
         sections: [
             {
                 heading: "The Chinchilla correction",
@@ -398,10 +399,19 @@ const chapters = [
                 ]
             },
             {
+                heading: "The corpus becomes a research artifact",
+                paragraphs: [
+                    "If data allocation mattered as much as parameters, the corpus had to be treated as a research object in its own right. The Pile, released by EleutherAI in 2020, was an early move in that direction: an 800GB curated mixture of academic papers, code, web text, books, and dialogue, published with composition statistics so other labs could compare [[65]]. RedPajama, SlimPajama, and Dolma followed the same instinct on a larger scale.",
+                    "Two specific findings reshaped the recipe. First, near-duplicate removal: Lee et al. showed that deduplicating training data reduced memorization and improved perplexity, sometimes letting models reach a target loss with substantially fewer steps [[67]]. Second, quality filtering: Hugging Face's FineWeb work argued that aggressive web-scale filtering and classifier-based selection could outperform much larger raw corpora at the same compute [[66]].",
+                    "The throughline is that the open community turned data into a publishable contribution. Frontier labs still hold their exact mixtures private, but the techniques — dedup, quality classifiers, code injection, synthetic distillation, math-heavy sources — are now public craft."
+                ]
+            },
+            {
                 heading: "Small models stop being toys",
                 paragraphs: [
-                    "Mistral 7B showed that a carefully engineered 7B model could outperform older larger models on many benchmarks [[20]]. Mixtral 8x7B then helped popularize sparse mixture-of-experts models in the open ecosystem, activating only part of the model per token while preserving higher total capacity [[21]].",
+                    "Mistral 7B showed that a carefully engineered 7B model could outperform older larger models on many benchmarks [[20]]. Mixtral 8x7B then brought sparse mixture-of-experts into the open ecosystem, activating only part of the model per token while preserving higher total capacity [[21]]. MoE itself was not new — Google's Switch Transformer had already pushed the pattern to trillion-parameter scale in 2021 [[60]] — but Mixtral was the first time the open community could actually run a strong MoE locally, which is what made it historically important.",
                     "This was part of a broader efficiency fork. Some labs raced for maximum frontier capability. Others optimized for local deployment, low latency, cheap inference, controllability, and specialization. Both mattered. Consumer hardware, mobile devices, enterprise privacy rules, and edge applications all created demand for smaller capable models.",
+                    "Microsoft's Phi line pushed the data-quality argument hardest. Phi-3 argued that a 3.8B model trained on a heavily filtered and synthetic 'textbook-quality' mixture could rival much larger models on reasoning benchmarks while running on a phone [[70]]. The claim was contested on contamination grounds, but the underlying bet — that data curation is a stronger lever than parameter count for many useful workloads — became part of the small-model playbook.",
                     "By 2024, the field no longer believed in one model size for everything. It believed in a portfolio: tiny models for routing and extraction, medium models for local assistants, large models for complex work, and reasoning models when a task deserved extra inference budget."
                 ],
                 callout: "The scaling lesson matured from 'make it bigger' to 'allocate compute across parameters, data, post-training, tools, and inference where it buys the most reliability.'"
@@ -415,8 +425,7 @@ const chapters = [
         era: "Open",
         tags: ["Llama", "Mistral", "Qwen", "DeepSeek", "Kimi"],
         dek: "Open-weight and permissively available models turned LLM progress from a closed-lab race into a global ecosystem of fine-tunes, local deployments, audits, distillation, and specialization.",
-        lessonIds: ["open", "data", "testtime"],
-        sourceIds: [19, 20, 21, 25, 27, 28, 32, 53, 54, 55],
+        sourceIds: [19, 20, 21, 25, 27, 28, 32, 53, 54, 55, 70],
         sections: [
             {
                 heading: "Llama changes the distribution channel",
@@ -439,7 +448,8 @@ const chapters = [
                 paragraphs: [
                     "In 2025, OpenAI released gpt-oss-120b and gpt-oss-20b as open-weight reasoning models, its first open-weight model release since GPT-2 [[32]]. The release was a sign that open weights had become too strategically important to ignore.",
                     "The open branch changed how frontier labs compete. A closed model can lead on maximum capability, but open models can win on cost, deployment control, community trust, local latency, customization, and ecosystem energy. Quantization, GGUF files, llama.cpp, vLLM, Ollama, LoRA fine-tunes, synthetic data, and distillation became part of model history because they changed who could build.",
-                    "The deepest lesson is that LLM history is not a straight line from GPT-1 to the latest OpenAI model. It is a tree. GPT influenced Llama; Llama enabled community tuning; Mistral and DeepSeek pushed efficient architecture and training; Qwen and Kimi made the frontier more geographically plural; open reasoning put pressure back on closed labs; closed labs then integrated better coding, tool use, and inference scaling."
+                    "The deepest lesson is that LLM history is not a straight line from GPT-1 to the latest OpenAI model. It is a tree. GPT influenced Llama; Llama enabled community tuning; Mistral and DeepSeek pushed efficient architecture and training; Qwen and Kimi made the frontier more geographically plural; open reasoning put pressure back on closed labs; closed labs then integrated better coding, tool use, and inference scaling.",
+                    "This book focuses on the families that most shaped the public arc, which means several branches are mentioned only in passing: Microsoft's Phi line for small-model data quality, xAI's Grok for the closed-but-fast-iterating branch, Cohere and AI21 for the enterprise-API branch, IBM's Granite for regulated deployment, and the Hugging Face ecosystem that made most of the above usable. A complete history would give each of those its own chapter."
                 ],
                 callout: "Open weights made the frontier reproducible enough to fork, and forking made the frontier move faster."
             }
@@ -452,8 +462,7 @@ const chapters = [
         era: "Multimodal",
         tags: ["GPT-4", "Claude", "Gemini", "GPT-4o"],
         dek: "The next major shift was not only smarter text. Models began to see, hear, speak, use longer context, and fit into everyday workflows.",
-        lessonIds: ["multimodal", "alignment", "tools"],
-        sourceIds: [14, 22, 23, 24, 42],
+        sourceIds: [14, 22, 23, 24, 42, 61, 62, 71],
         sections: [
             {
                 heading: "GPT-4 and the closed frontier",
@@ -472,11 +481,26 @@ const chapters = [
                 ]
             },
             {
-                heading: "Gemini and native multimodality",
+                heading: "Gemini moves from multimodal to long context to thinking",
                 paragraphs: [
-                    "Google's Gemini line pushed a model family designed for multimodal reasoning across text, image, audio, video, and code, with Ultra, Pro, and Nano tiers in the initial release [[22]]. This was a strategic answer to both GPT-4 and the reality that Google controlled enormous multimodal product surfaces.",
-                    "GPT-4o then made real-time multimodal interaction feel central rather than auxiliary. OpenAI described GPT-4o as accepting text, audio, image, and video and generating text, audio, and image outputs, with a faster and more natural interaction style [[24]].",
+                    "Google's Gemini line launched as a model family designed for multimodal reasoning across text, image, audio, video, and code, with Ultra, Pro, and Nano tiers in the initial release [[22]]. This was a strategic answer to both GPT-4 and the reality that Google controlled enormous multimodal product surfaces.",
+                    "Gemini 1.5, announced in February 2024, then made long context the headline feature: a mixture-of-experts architecture that could attend to up to a million tokens of text, audio, and video in a single prompt, with strong needle-in-a-haystack recall reported across that window [[61]]. That changed what counted as a unit of input. Whole codebases, hours of video, or full document sets could be passed in directly without retrieval scaffolding.",
+                    "Gemini 2.5 Pro, released in March 2025, was the line's pivot to thinking-by-default: the model reasons through intermediate steps before answering, with Google positioning the family alongside the o-series and Claude's extended thinking [[62]]. Read together, the Gemini progression mirrors the broader field: first multimodality, then long context, then test-time reasoning."
+                ]
+            },
+            {
+                heading: "GPT-4o and real-time multimodal interaction",
+                paragraphs: [
+                    "GPT-4o, released in May 2024, made real-time multimodal interaction feel central rather than auxiliary. OpenAI described GPT-4o as accepting text, audio, image, and video and generating text, audio, and image outputs, with a faster and more natural interaction style [[24]].",
                     "The lesson was that LLMs were leaving the document. They were moving into voice calls, cameras, screenshots, spreadsheets, IDEs, phones, browsers, and operating systems. Once the model can perceive the same surface the user sees, the assistant becomes a participant in the workflow rather than a separate text box."
+                ]
+            },
+            {
+                heading: "Generation crossed modalities too",
+                paragraphs: [
+                    "While the chat-model lineage was learning to read images, a parallel branch was learning to produce them. DALL-E 2 in 2022 paired a CLIP text-image embedding with a diffusion decoder and showed that natural-language prompts could control image synthesis at a quality that surprised even the researchers [[71]]. Imagen, Stable Diffusion, Midjourney, and later video models followed.",
+                    "These systems are not LLMs in the strict sense, but they reshaped what users expected from a 'chat' interface. By 2024, the same assistant could discuss a document, render a diagram, generate a logo, and edit a photo. Multimodal stopped meaning 'the model can see' and started meaning 'the model can produce in any modality the user is working in.'",
+                    "The convergence is still incomplete. Text and image generation increasingly share architectures and tokenizers; video, audio, and 3D remain partially separate stacks. But the product surface has already merged."
                 ],
                 callout: "Multimodality changed the unit of work. The prompt was no longer just text; it could be a screen, a diagram, a voice exchange, or a messy folder of artifacts."
             }
@@ -489,8 +513,7 @@ const chapters = [
         era: "Agents",
         tags: ["RAG", "Tools", "Agents"],
         dek: "The model became one component in a larger system: retrieve evidence, call tools, write code, inspect results, and keep state.",
-        lessonIds: ["tools", "agents", "alignment"],
-        sourceIds: [15, 16, 17, 29, 30, 31],
+        sourceIds: [15, 16, 17, 29, 30, 31, 63, 64],
         sections: [
             {
                 heading: "Retrieval fights stale memory",
@@ -506,6 +529,14 @@ const chapters = [
                     "ReAct showed how reasoning traces and actions could be interleaved, letting a model think, call an external source or environment, observe the result, and continue [[16]]. Toolformer explored self-supervised training for deciding when and how to call APIs [[17]].",
                     "These ideas anticipated modern agent frameworks. A tool-using model is not limited to what is in its weights. It can search, calculate, run code, query a database, open a browser, or operate a computer. Each tool call converts language into state change.",
                     "The hard part is not calling a tool once. The hard part is knowing when to call it, checking whether the output is trustworthy, recovering from failure, and not taking actions beyond the user's intent. That is why agentic systems need permissions, logs, sandboxes, and human review."
+                ]
+            },
+            {
+                heading: "The 2023 agent hype cycle and what survived",
+                paragraphs: [
+                    "Between ReAct in 2022 and Claude Code in 2025, the field went through a loud and instructive detour. In March and April 2023, AutoGPT and BabyAGI demonstrated GPT-4 running in a self-prompting loop that decomposed goals, spawned subtasks, and called tools without further human input. They went viral. They also mostly did not work. Loops drifted off task, costs spiraled, and reliability on real work was poor. The hype faded by the end of the year.",
+                    "What survived was less glamorous and more durable. In June 2023, OpenAI added function calling to the Chat Completions API, giving developers a structured way to expose tools to the model and parse its responses [[63]]. That turned tool use from a prompt-engineering trick into a typed contract. Most subsequent agent frameworks — LangChain, LlamaIndex, the OpenAI Assistants API, Anthropic's tool-use API — adopted the same shape.",
+                    "November 2023 added GPTs, which let non-developers package instructions, tools, and files into shareable assistants [[64]]. In early 2024, Cognition Labs' Devin demo and the first generation of SWE-bench-targeted coding agents made it concrete that the interesting agent problems were domain-specific. The lesson was that 'general agent' was the wrong abstraction for 2023-era models; 'agent for a specific task with a specific verifier' was the one that paid off. Claude Code, Cursor, and the o3-style tool-using reasoners are the descendants of that correction."
                 ]
             },
             {
@@ -526,7 +557,6 @@ const chapters = [
         era: "Reasoning",
         tags: ["o1", "DeepSeek-R1", "GPT-5"],
         dek: "The o-series and its successors made a new scaling law feel practical: spend more compute while answering when the problem deserves it.",
-        lessonIds: ["testtime", "cot", "code"],
         sourceIds: [26, 28, 29, 30, 33, 36, 38],
         sections: [
             {
@@ -563,8 +593,7 @@ const chapters = [
         era: "Industry",
         tags: ["Data labor", "Benchmarks", "Governance", "Economics"],
         dek: "LLM history is not only a sequence of model releases. It is also a history of data pipelines, labor markets, compute supply, benchmark politics, copyright fights, safety institutions, and platform power.",
-        lessonIds: ["data", "alignment", "agents", "future"],
-        sourceIds: [56, 57, 58, 59],
+        sourceIds: [56, 57, 58, 59, 68, 69],
         sections: [
             {
                 heading: "Scale made model building industrial",
@@ -585,8 +614,8 @@ const chapters = [
             {
                 heading: "The hidden supply chain became visible",
                 paragraphs: [
-                    "The public sees chat interfaces. The system depends on people who write demonstrations, rank outputs, label safety data, maintain data filters, evaluate failures, moderate abuse, build benchmarks, operate clusters, and negotiate licenses. RLHF made this obvious: the assistant was not only a neural network, but also a trained social interface.",
-                    "Copyright and data provenance became part of technical history because dataset composition affects memorization, bias, factuality, language coverage, and legal exposure. Open models intensified the question: if weights circulate globally, who is accountable for the data, fine-tunes, derivatives, and downstream products?",
+                    "The public sees chat interfaces. The system depends on people who write demonstrations, rank outputs, label safety data, maintain data filters, evaluate failures, moderate abuse, build benchmarks, operate clusters, and negotiate licenses. RLHF made this obvious: the assistant was not only a neural network, but also a trained social interface. A 2023 Time investigation documented how OpenAI relied on Kenyan workers paid less than two dollars an hour to label graphic content for safety training, a reminder that the assistant's politeness is built on labor most users never see [[69]].",
+                    "Copyright and data provenance became part of technical history because dataset composition affects memorization, bias, factuality, language coverage, and legal exposure. The New York Times sued OpenAI and Microsoft in December 2023 over training on Times articles, alleging both direct reproduction and market harm [[68]]. The Authors Guild, Getty Images, and music publishers filed parallel suits. The outcomes will shape what 'training data' can legally mean. Open models intensified the question further: if weights circulate globally, who is accountable for the data, fine-tunes, derivatives, and downstream products?",
                     "Enterprise adoption added a different pressure. Buyers asked about privacy, retention, audit logs, compliance, residency, indemnity, uptime, and cost predictability. Those questions shaped product architectures as much as benchmark tables did."
                 ],
                 callout: "The model release is the visible artifact. The real historical object is the stack around it: data, labor, chips, evaluations, policy, product, and distribution."
@@ -596,17 +625,16 @@ const chapters = [
     {
         id: "frontier-2026",
         title: "The Frontier in 2026 and What Comes Next",
-        range: "Current through May 3, 2026",
+        range: "Current through mid-2026",
         era: "Future",
         tags: ["GPT-5.5", "Gemini 3.1", "Claude Opus 4.7", "Future"],
         dek: "By May 2026, the frontier is a competition among agentic work systems, reasoning modes, open-weight ecosystems, and multimodal operating surfaces.",
-        lessonIds: ["future", "agents", "testtime", "open"],
         sourceIds: [34, 35, 36, 37, 38, 43],
         sections: [
             {
-                heading: "The May 2026 snapshot",
+                heading: "The mid-2026 snapshot",
                 paragraphs: [
-                    "As of May 3, 2026, the latest public OpenAI frontier release is GPT-5.5, announced on April 23, 2026. OpenAI describes it as strongest in agentic coding, computer use, knowledge work, and early scientific research, with GPT-5.5 and GPT-5.5 Pro available in ChatGPT, Codex, and the API under staged safeguards [[38]].",
+                    "As of mid-2026, the latest public OpenAI frontier release is GPT-5.5, announced on April 23, 2026. OpenAI describes it as strongest in agentic coding, computer use, knowledge work, and early scientific research, with GPT-5.5 and GPT-5.5 Pro available in ChatGPT, Codex, and the API under staged safeguards [[38]].",
                     "The competitive frontier around it is broad. Anthropic released Claude Opus 4.7 in April 2026 with a focus on coding and complex work [[37]]. Google released Gemini 3.1 Pro in February 2026 as its most advanced model for complex tasks at the time of its model card [[35]]. OpenAI released GPT-5.4 Thinking and Pro in March 2026, and a GPT-5.4 Thinking system card documented safety mitigations and preparedness framing [[36]][[43]].",
                     "The meaning of 'frontier model' has changed. It no longer means a single chat model with the highest text benchmark. It means a system that can reason, see, use tools, operate software, write code, handle long context, follow policy, and complete multi-step work with fewer human corrections."
                 ]
@@ -654,9 +682,12 @@ const timeline = [
     { date: "2020 Jan", era: "Scaling", title: "Scaling laws", text: "Loss improves predictably with compute, data, and parameters across large ranges.", chapter: "gpt-3-scaling", source: 5 },
     { date: "2020 May", era: "Scaling", title: "GPT-3", text: "Few-shot prompting turns context into a task specification interface.", chapter: "gpt-3-scaling", source: 4 },
     { date: "2020", era: "Agents", title: "RAG", text: "Retrieval-augmented generation separates model memory from evidence retrieval.", chapter: "tools-agents", source: 15 },
+    { date: "2020 Dec", era: "Efficiency", title: "The Pile", text: "An open 800GB pretraining corpus makes data composition a publishable research artifact.", chapter: "compute-optimal", source: 65 },
     { date: "2021", era: "Code", title: "Codex", text: "Code-trained GPT models make executable evaluation central to LLM progress.", chapter: "code-reasoning", source: 9 },
+    { date: "2021 Jan", era: "Efficiency", title: "Switch Transformer", text: "Sparse mixture-of-experts is pushed to trillion-parameter scale at Google.", chapter: "compute-optimal", source: 60 },
     { date: "2021 Mar", era: "Industry", title: "Stochastic Parrots", text: "A major critique frames scale, data, environmental cost, and social risk as central to language-model history.", chapter: "industrial-stack", source: 57 },
-    { date: "2022 Jan", era: "Alignment", title: "InstructGPT", text: "RLHF makes models follow user intent more reliably than raw base models.", chapter: "instruct-chatgpt", source: 7 },
+    { date: "2022 Apr", era: "Multimodal", title: "DALL-E 2", text: "CLIP-guided diffusion shows that natural-language prompts can control high-quality image generation.", chapter: "multimodal-frontier", source: 71 },
+    { date: "2022 Jan", era: "Alignment", title: "InstructGPT", text: "RLHF reaches production as text-davinci-001 in January 2022; the paper follows in March.", chapter: "instruct-chatgpt", source: 7 },
     { date: "2022 Jan", era: "Reasoning", title: "Chain of thought", text: "Intermediate reasoning steps improve hard tasks for sufficiently large models.", chapter: "reasoning-prompts", source: 11 },
     { date: "2022 Mar", era: "Reasoning", title: "Self-consistency and STaR", text: "Sampling multiple reasoning paths and learning from useful rationales become core ideas.", chapter: "reasoning-prompts", source: 12 },
     { date: "2022 Mar", era: "Efficiency", title: "Chinchilla", text: "Compute-optimal training shifts focus from parameter count to data allocation.", chapter: "compute-optimal", source: 6 },
@@ -664,21 +695,29 @@ const timeline = [
     { date: "2022 Nov", era: "Alignment", title: "ChatGPT", text: "The chat interface makes instruction-following capability broadly legible.", chapter: "instruct-chatgpt", source: 8 },
     { date: "2022 Nov", era: "Industry", title: "HELM", text: "Holistic evaluation pushes model comparison beyond single-score leaderboard claims.", chapter: "industrial-stack", source: 56 },
     { date: "2022 Dec", era: "Alignment", title: "Constitutional AI", text: "Anthropic explores principle-guided AI feedback for harmlessness training.", chapter: "instruct-chatgpt", source: 18 },
+    { date: "2023 Jan", era: "Industry", title: "Kenya labelers exposed", text: "A Time investigation documents low-wage workers labeling toxic content for OpenAI safety training.", chapter: "industrial-stack", source: 69 },
     { date: "2023 Feb", era: "Agents", title: "Toolformer", text: "A model learns when and how to call simple external APIs.", chapter: "tools-agents", source: 17 },
     { date: "2023 Mar", era: "Multimodal", title: "GPT-4", text: "A large closed frontier model raises expectations for reasoning, coding, and multimodal evaluation.", chapter: "multimodal-frontier", source: 14 },
     { date: "2023 May", era: "Reasoning", title: "Tree of Thoughts", text: "Inference becomes a search over candidate reasoning paths.", chapter: "reasoning-prompts", source: 39 },
+    { date: "2023 Jun", era: "Agents", title: "Function calling API", text: "OpenAI ships native tool-call schemas, turning tool use into a typed contract.", chapter: "tools-agents", source: 63 },
     { date: "2023 Jul", era: "Open", title: "Llama 2", text: "Open-weight models become a major commercial and research branch.", chapter: "open-weight", source: 19 },
     { date: "2023 Sep", era: "Efficiency", title: "Mistral 7B", text: "Small, efficient open models pressure larger incumbents.", chapter: "compute-optimal", source: 20 },
     { date: "2023 Oct", era: "Industry", title: "SWE-bench", text: "Real GitHub issues become a more realistic test for coding agents.", chapter: "industrial-stack", source: 59 },
+    { date: "2023 Nov", era: "Agents", title: "GPTs", text: "OpenAI lets non-developers package instructions, tools, and files into shareable assistants.", chapter: "tools-agents", source: 64 },
     { date: "2023 Dec", era: "Multimodal", title: "Gemini", text: "Google launches a multimodal model family across Ultra, Pro, and Nano tiers.", chapter: "multimodal-frontier", source: 22 },
     { date: "2023 Dec", era: "Open", title: "Mixtral", text: "Sparse mixture-of-experts design becomes a public open-model pattern.", chapter: "compute-optimal", source: 21 },
+    { date: "2023 Dec", era: "Industry", title: "NYT v. OpenAI", text: "The New York Times sues OpenAI and Microsoft over training data, opening the LLM copyright era.", chapter: "industrial-stack", source: 68 },
+    { date: "2024 Feb", era: "Multimodal", title: "Gemini 1.5", text: "Million-token context with strong recall makes long-context a frontier feature.", chapter: "multimodal-frontier", source: 61 },
     { date: "2024 Mar", era: "Multimodal", title: "Claude 3", text: "Anthropic releases Haiku, Sonnet, and Opus tiers.", chapter: "multimodal-frontier", source: 23 },
+    { date: "2024 Apr", era: "Efficiency", title: "Phi-3", text: "Microsoft argues that data curation can beat parameter count, with a 3.8B model competitive on reasoning benchmarks.", chapter: "compute-optimal", source: 70 },
+    { date: "2024 Apr", era: "Efficiency", title: "FineWeb", text: "Hugging Face publishes a quality-filtered web corpus and pretraining study at frontier scale.", chapter: "compute-optimal", source: 66 },
     { date: "2024 Apr", era: "Open", title: "Llama 3", text: "Meta expands open-weight competition with stronger data and code training.", chapter: "open-weight", source: 25 },
     { date: "2024 May", era: "Multimodal", title: "GPT-4o", text: "Real-time multimodal interaction moves toward voice, vision, and screen workflows.", chapter: "multimodal-frontier", source: 24 },
     { date: "2024 Sep", era: "Reasoning", title: "OpenAI o1", text: "Reasoning time becomes a product-level capability.", chapter: "test-time-compute", source: 26 },
     { date: "2024 Dec", era: "Open", title: "DeepSeek-V3", text: "Sparse MoE economics make large total capacity cheaper to serve.", chapter: "open-weight", source: 27 },
     { date: "2025 Jan", era: "Reasoning", title: "DeepSeek-R1", text: "Open reasoning models intensify competition around RL and distillation.", chapter: "open-weight", source: 28 },
     { date: "2025 Feb", era: "Agents", title: "Claude 3.7 Sonnet", text: "Hybrid reasoning and Claude Code point toward integrated coding agents.", chapter: "tools-agents", source: 29 },
+    { date: "2025 Mar", era: "Multimodal", title: "Gemini 2.5 Pro", text: "Google's line pivots to thinking-by-default reasoning across long-context multimodal inputs.", chapter: "multimodal-frontier", source: 62 },
     { date: "2025 Apr", era: "Reasoning", title: "o3 and o4-mini", text: "Reasoning models combine tools, visual input, and complex task execution.", chapter: "test-time-compute", source: 30 },
     { date: "2025 Apr", era: "Agents", title: "GPT-4.1", text: "OpenAI targets coding, instruction following, and long context in the API.", chapter: "tools-agents", source: 31 },
     { date: "2025 Apr", era: "Open", title: "Llama 4", text: "Meta's Llama line moves toward natively multimodal MoE open-weight models.", chapter: "open-weight", source: 53 },
@@ -716,7 +755,11 @@ const glossary = [
     ["Quantization", "Reducing numerical precision so a model can run with less memory and often lower cost."],
     ["Benchmark contamination", "When benchmark examples or near-duplicates appear in training data, making scores less trustworthy."],
     ["Model card", "A document describing intended use, evaluations, limitations, and safety findings for a model."],
-    ["Router", "A system component that chooses which model or mode should handle a request."]
+    ["Router", "A system component that chooses which model or mode should handle a request."],
+    ["Few-shot", "Giving the model a handful of example input-output pairs in the prompt so it infers the task without weight updates."],
+    ["Scratchpad", "Tokens the model generates as intermediate working state before committing to a final answer."],
+    ["System card", "A public document describing a deployed model's capabilities, evaluations, mitigations, and known risks."],
+    ["Red-teaming", "Structured adversarial testing of a model to surface harmful, unsafe, or policy-violating behaviors before release."]
 ];
 
 const lineageNodes = [
@@ -775,7 +818,6 @@ const bookParts = [
 ];
 
 const sourceById = new Map(sources.map((source) => [source.id, source]));
-const lessonById = new Map(lessons.map((lesson) => [lesson.id, lesson]));
 
 const els = {
     chapterNav: document.getElementById("chapterNav"),
@@ -789,7 +831,6 @@ const els = {
     chapterTitle: document.getElementById("chapterTitle"),
     chapterDek: document.getElementById("chapterDek"),
     chapterContent: document.getElementById("chapterContent"),
-    chapterLessons: document.getElementById("chapterLessons"),
     chapterReferences: document.getElementById("chapterReferences"),
     prevChapter: document.getElementById("prevChapter"),
     nextChapter: document.getElementById("nextChapter"),
@@ -889,11 +930,6 @@ function renderChapter() {
     }).join("");
 
     decorateGlossary(els.chapterContent);
-
-    els.chapterLessons.innerHTML = chapter.lessonIds.map((id) => {
-        const lesson = lessonById.get(id);
-        return `<div class="lesson-card"><strong>${escapeHtml(lesson.title)}</strong><span>${escapeHtml(lesson.text)}</span></div>`;
-    }).join("");
 
     els.chapterReferences.innerHTML = chapter.sourceIds.map((id) => {
         const source = sourceById.get(id);
@@ -1073,14 +1109,7 @@ function buildSearchIndex() {
         chapterIndex: chapters.findIndex((chapter) => chapter.id === event.chapter)
     }));
 
-    const lessonEntries = lessons.map((lesson) => ({
-        type: "Lesson",
-        label: lesson.title,
-        body: lesson.text,
-        chapterIndex: chapters.findIndex((chapter) => chapter.lessonIds.includes(lesson.id))
-    }));
-
-    return [...chapterEntries, ...timelineEntries, ...lessonEntries];
+    return [...chapterEntries, ...timelineEntries];
 }
 
 const searchIndex = buildSearchIndex();
