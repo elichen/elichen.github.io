@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vim Blaster</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <main class="shell">
+        <section class="game-wrap" aria-label="Vim Blaster game">
+            <div class="screen">
+                <canvas id="game" width="960" height="540" aria-label="Vim Blaster canvas"></canvas>
+            </div>
+            <aside class="panel">
+                <h1>Vim Blaster</h1>
+                <div class="status" id="status">Loading assets...</div>
+                <div class="weapon-select" id="weaponSelect" aria-label="Weapon select"></div>
+                <div class="controls">
+                    <span><kbd>h</kbd><kbd>l</kbd> move</span>
+                    <span><kbd>k</kbd> jump / climb</span>
+                    <span><kbd>j</kbd> crouch / drop</span>
+                    <span><kbd>x</kbd> fire</span>
+                    <span><kbd>z</kbd> dash</span>
+                    <span><kbd>u</kbd><kbd>i</kbd> weapon</span>
+                    <span><kbd>1</kbd>-<kbd>4</kbd> select</span>
+                    <span><kbd>enter</kbd> select</span>
+                    <span><kbd>r</kbd> restart</span>
+                </div>
+            </aside>
+        </section>
+    </main>
+    <script src="game.js"></script>
+</body>
+</html>
