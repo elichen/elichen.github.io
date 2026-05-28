@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU Galaxy</title>
+    <meta name="description" content="A million particles orbiting a galactic core, integrated entirely on the GPU with WebGPU compute shaders.">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <canvas id="gpu"></canvas>
+
+    <div id="panel">
+        <div class="title">WEBGPU GALAXY</div>
+        <div class="row">
+            <label for="count">Particles</label>
+            <select id="count">
+                <option value="100000">100K</option>
+                <option value="500000">500K</option>
+                <option value="1000000" selected>1M</option>
+                <option value="2000000">2M</option>
+                <option value="4000000">4M</option>
+            </select>
+        </div>
+        <div class="row">
+            <label for="trails">Trails</label>
+            <input id="trails" type="range" min="0" max="100" value="78">
+        </div>
+        <div class="row">
+            <label for="gravity">Gravity</label>
+            <input id="gravity" type="range" min="10" max="200" value="60">
+        </div>
+        <div class="row buttons">
+            <button id="pause">Pause</button>
+            <button id="reset">Reset</button>
+        </div>
+        <div class="hint">Hold / drag on the field to pull particles. Shift-drag to push.</div>
+        <div class="stats"><span id="fps">--</span> fps &middot; <span id="pcount">--</span></div>
+    </div>
+
+    <div id="unsupported" hidden>
+        <div class="box">
+            <h1>WebGPU not available</h1>
+            <p>This demo runs entirely on the GPU through the WebGPU compute pipeline. Your browser hasn't exposed <code>navigator.gpu</code>.</p>
+            <p>Try the latest Chrome or Edge (desktop), or Safari 18+. On Linux you may need to enable the Vulkan backend flag.</p>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
