@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-2 Attention</title>
+    <meta name="description" content="Watch real GPT-2 small attention: type a sentence and see all 144 attention heads light up across 12 layers, computed live in your browser.">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="loader">
+        <div class="loader-box">
+            <div class="loader-title">GPT-2 ATTENTION</div>
+            <div class="loader-sub">Loading GPT-2 small weights (122 MB, cached after first visit)</div>
+            <div class="bar"><div id="bar-fill"></div></div>
+            <div id="loader-status">connecting&hellip;</div>
+        </div>
+    </div>
+
+    <div id="app" hidden>
+        <header>
+            <h1>GPT-2 ATTENTION</h1>
+            <p class="tagline">Real GPT-2 small, running in your browser. Every one of the 144 attention
+            heads, computed live from the actual OpenAI weights.</p>
+        </header>
+
+        <section class="input-area">
+            <div class="input-row">
+                <input id="text" type="text" autocomplete="off" spellcheck="false"
+                       value="The cat sat on the mat because it was tired">
+                <button id="run">Run</button>
+            </div>
+            <div id="tokens" class="tokens"></div>
+            <div class="legend">
+                <span class="legend-label">Query token:</span>
+                <span id="query-label">last token</span>
+                <span class="legend-hint">click a token above to inspect what it attends to</span>
+            </div>
+        </section>
+
+        <section class="grid-area">
+            <div class="panel">
+                <div class="panel-head">
+                    <span>All heads &middot; layer <span class="dim">(rows, 0&ndash;11)</span> &times; head <span class="dim">(cols, 0&ndash;11)</span></span>
+                    <span id="grid-hint" class="dim">hover to read &middot; click to inspect</span>
+                </div>
+                <canvas id="grid"></canvas>
+            </div>
+
+            <div class="panel detail-panel">
+                <div class="panel-head">
+                    <span>Layer <span id="sel-layer">0</span> &middot; Head <span id="sel-head">0</span></span>
+                    <span id="detail-stats" class="dim"></span>
+                </div>
+                <canvas id="detail"></canvas>
+                <div class="arc-wrap">
+                    <div class="arc-title">Attention from <span id="arc-query" class="hl">&middot;</span></div>
+                    <canvas id="arc"></canvas>
+                </div>
+                <div class="pred">
+                    <div class="pred-title">Most likely next token</div>
+                    <div id="pred-list"></div>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <span id="run-stats" class="dim"></span>
+            <a href="/" class="back">&larr; back to elichen.github.io</a>
+        </footer>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
