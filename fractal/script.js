@@ -16,7 +16,7 @@ let newtonQualityHoldWarningShown = false;
 const ZOOM_SPEED = 0.994;
 const MIN_DECIMAL_DIGITS = 80;
 const EXTRA_DECIMAL_DIGITS = 28;
-const MAX_GPU_ITERATIONS = 1536;
+const MAX_GPU_ITERATIONS = 2048;
 const MAX_ORBIT_TEXTURE_LENGTH = MAX_GPU_ITERATIONS + 1;
 const MASK_REDUCTION_FACTOR = 2;
 const STABLE_MASK_VERIFY_SKIP_FRAMES = 1;
@@ -1562,9 +1562,30 @@ function decimalFromNumber(value) {
     return decimalFromString(value.toExponential(20));
 }
 
+// Above this digit count, 10^decimalDigits no longer fits in a double, so the
+// direct BigInt->double cast would overflow and we fall back to the string path.
+const DECIMAL_TO_NUMBER_FAST_MAX_DIGITS = 300;
+let decimalScaleNumber = Number(decimalScale);
+let decimalScaleNumberDigits = decimalDigits;
+
+function getDecimalScaleNumber() {
+    if (decimalScaleNumberDigits !== decimalDigits) {
+        decimalScaleNumber = Number(decimalScale);
+        decimalScaleNumberDigits = decimalDigits;
+    }
+    return decimalScaleNumber;
+}
+
 function decimalToNumber(value) {
     if (value === 0n) {
         return 0;
+    }
+
+    // Fast path: orbit/camera magnitudes are bounded, so a direct BigInt->double
+    // cast and divide is exact to double precision and skips the O(n^2) toString
+    // of an 80+ digit BigInt that this function is called for twice per iteration.
+    if (decimalDigits <= DECIMAL_TO_NUMBER_FAST_MAX_DIGITS) {
+        return Number(value) / getDecimalScaleNumber();
     }
 
     const sign = value < 0n ? '-' : '';
@@ -2681,25 +2702,26 @@ function computeEscapeIteration(centerX, centerY, iterations, type = fractalType
     }
 
     const juliaConstant = type === 'julia' ? getDeepConstant(type) : null;
+    const constantReal = type === 'julia' ? juliaConstant.x : centerX;
+    const constantImaginary = type === 'julia' ? juliaConstant.y : centerY;
+    const escapeThreshold = mulDecimalInt(decimalScale, 4);
     let zr = type === 'julia' ? centerX : 0n;
     let zi = type === 'julia' ? centerY : 0n;
+    // Carry z^2 across iterations: the magnitude test and the next iteration's
+    // update share zr^2/zi^2, so we compute each square once instead of twice.
+    let zr2 = mulDecimal(zr, zr);
+    let zi2 = mulDecimal(zi, zi);
 
     for (let i = 0; i < iterations; i += 1) {
-        const zr2 = mulDecimal(zr, zr);
-        const zi2 = mulDecimal(zi, zi);
         const zrzi = mulDecimal(zr, zi);
 
-        zr = addDecimal(
-            subDecimal(zr2, zi2),
-            type === 'julia' ? juliaConstant.x : centerX
-        );
-        zi = addDecimal(
-            mulDecimalInt(zrzi, 2),
-            type === 'julia' ? juliaConstant.y : centerY
-        );
+        zr = addDecimal(subDecimal(zr2, zi2), constantReal);
+        zi = addDecimal(mulDecimalInt(zrzi, 2), constantImaginary);
 
-        const magnitude = addDecimal(mulDecimal(zr, zr), mulDecimal(zi, zi));
-        if (magnitude > mulDecimalInt(decimalScale, 4)) {
+        zr2 = mulDecimal(zr, zr);
+        zi2 = mulDecimal(zi, zi);
+        const magnitude = addDecimal(zr2, zi2);
+        if (magnitude > escapeThreshold) {
             return i + 1;
         }
     }
@@ -2766,35 +2788,34 @@ function computeReferenceOrbit(centerX, centerY, iterations, type = fractalType)
 
     const orbitData = new Float32Array(MAX_ORBIT_TEXTURE_LENGTH * 4);
     const juliaConstant = type === 'julia' ? getDeepConstant(type) : null;
+    const constantReal = type === 'julia' ? juliaConstant.x : centerX;
+    const constantImaginary = type === 'julia' ? juliaConstant.y : centerY;
+    const escapeThreshold = mulDecimalInt(decimalScale, 4);
     let zr = type === 'julia' ? centerX : 0n;
     let zi = type === 'julia' ? centerY : 0n;
 
     orbitData[0] = decimalToNumber(zr);
     orbitData[1] = decimalToNumber(zi);
 
+    // Carry z^2 across iterations: the magnitude test and the next iteration's
+    // update share zr^2/zi^2, so we compute each square once instead of twice.
+    let zr2 = mulDecimal(zr, zr);
+    let zi2 = mulDecimal(zi, zi);
+
     for (let i = 0; i < iterations; i += 1) {
-        const zr2 = mulDecimal(zr, zr);
-        const zi2 = mulDecimal(zi, zi);
         const zrzi = mulDecimal(zr, zi);
 
-        const nextZr = addDecimal(
-            subDecimal(zr2, zi2),
-            type === 'julia' ? juliaConstant.x : centerX
-        );
-        const nextZi = addDecimal(
-            mulDecimalInt(zrzi, 2),
-            type === 'julia' ? juliaConstant.y : centerY
-        );
-
-        zr = nextZr;
-        zi = nextZi;
+        zr = addDecimal(subDecimal(zr2, zi2), constantReal);
+        zi = addDecimal(mulDecimalInt(zrzi, 2), constantImaginary);
 
         const baseIndex = (i + 1) * 4;
         orbitData[baseIndex] = decimalToNumber(zr);
         orbitData[baseIndex + 1] = decimalToNumber(zi);
 
-        const magnitude = addDecimal(mulDecimal(zr, zr), mulDecimal(zi, zi));
-        if (magnitude > mulDecimalInt(decimalScale, 4)) {
+        zr2 = mulDecimal(zr, zr);
+        zi2 = mulDecimal(zi, zi);
+        const magnitude = addDecimal(zr2, zi2);
+        if (magnitude > escapeThreshold) {
             return {
                 escapedEarly: true,
                 escapeIteration: i + 1,
