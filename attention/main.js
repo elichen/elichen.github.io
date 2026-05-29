@@ -2,7 +2,7 @@
 // worker orchestration, and all canvas rendering.
 import { AutoTokenizer } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3/+esm';
 
-const MAX_TOKENS = 24; // keep the 12x12 head grid legible and the forward fast
+const MAX_TOKENS = 48; // cap so the forward stays a few seconds and labels stay legible
 
 const $ = (id) => document.getElementById(id);
 const loader = $('loader'), barFill = $('bar-fill'), loaderStatus = $('loader-status');
@@ -118,10 +118,43 @@ function onResult(m) {
     state.T = m.T;
     $('run').disabled = false;
     $('run-stats').textContent = `${m.T} tokens · forward ${m.ms.toFixed(0)} ms`;
+    autoSelectHead(state.queryTok);
     drawGrid();
     drawDetail();
     drawArc();
     drawPredictions();
+}
+
+// ---------- auto-select the head that most sharply focuses a query token ----------
+// For query token q, find the head whose attention puts the most weight on a
+// single earlier word, skipping the first-token attention sink (k=0) and the
+// immediately-preceding token (k=q-1). Those two are present in almost every
+// head — the sink as a no-op dump and the neighbor as the ubiquitous
+// previous-token head — so excluding them surfaces longer-range structure like
+// coreference and induction instead. Tokens too near the start have no interior
+// key, so we relax the range in two fallback steps.
+function autoSelectHead(q) {
+    if (!state.attn || q <= 0) return;
+    const L = state.cfg.n_layer, H = state.cfg.n_head, T = state.T;
+    const scan = (lo, hi) => {
+        let best = null;
+        for (let l = 0; l < L; l++) {
+            for (let h = 0; h < H; h++) {
+                const base = (l * H + h) * T * T + q * T;
+                for (let k = lo; k <= hi; k++) {
+                    const w = state.attn[base + k];
+                    if (!best || w > best.w) best = { l, h, w };
+                }
+            }
+        }
+        return best;
+    };
+    const best = scan(1, q - 2) || scan(1, q - 1) || scan(0, q - 1);
+    if (!best) return;
+    state.selLayer = best.l;
+    state.selHead = best.h;
+    $('sel-layer').textContent = best.l;
+    $('sel-head').textContent = best.h;
 }
 
 // ---------- token chips ----------
@@ -135,7 +168,9 @@ function renderTokens() {
         el.title = `token ${i}`;
         el.onclick = () => {
             state.queryTok = i;
-            renderTokens(); // also refreshes the query label
+            autoSelectHead(i);  // jump to the head that focuses on this token most
+            renderTokens();     // also refreshes the query label
+            drawGrid();         // move the selected-head highlight box
             drawDetail();
             drawArc();
         };
@@ -235,15 +270,30 @@ function trim(s) { return (s ?? '').replace(/\n/g, '⏎'); }
 
 // ---------- detail heatmap ----------
 const detailCanvas = $('detail');
+let detailGeom = null;
 function drawDetail() {
     if (!state.attn) return;
     const T = state.T;
     const dpr = window.devicePixelRatio || 1;
-    const cssW = detailCanvas.clientWidth || 520;
-    const labelL = 96, labelT = 96;
-    const gridSize = cssW - labelL - 6;
-    const cell = gridSize / T;
+    const wrapW = (detailCanvas.parentElement && detailCanvas.parentElement.clientWidth) || 480;
+
+    // Choose a cell size that fills the available width but stays bounded: small
+    // inputs don't balloon, long ones stay legible. Labels are dropped when cells
+    // get too small to carry text, so a 40-token sentence still renders cleanly.
+    const labelL = 84;
+    let cell = Math.floor((wrapW - labelL - 8) / T);
+    cell = Math.max(6, Math.min(30, cell));
+    const gridSize = cell * T;
+    const fs = Math.max(7, Math.min(12, cell * 0.66));
+    const showLabels = cell >= 8;
+    const maxChars = Math.max(3, Math.floor((labelL - 8) / (fs * 0.6)));
+    const proj = Math.ceil(maxChars * fs * 0.6 * 0.72); // -45° projection of a label
+    const labelT = showLabels ? proj + 10 : 12;
+    const rightPad = showLabels ? Math.max(8, proj) : 8;
+
+    const cssW = labelL + gridSize + rightPad;
     const cssH = labelT + gridSize + 4;
+    detailCanvas.style.width = cssW + 'px';
     detailCanvas.style.height = cssH + 'px';
     detailCanvas.width = Math.round(cssW * dpr);
     detailCanvas.height = Math.round(cssH * dpr);
@@ -260,29 +310,30 @@ function drawDetail() {
         }
     }
     // highlight selected query row
-    ctx.strokeStyle = 'rgba(144,238,144,0.8)';
+    ctx.strokeStyle = 'rgba(144,238,144,0.85)';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(x0 + 0.5, y0 + state.queryTok * cell + 0.5, gridSize - 1, cell);
 
-    const fs = Math.max(8, Math.min(12, cell * 0.62));
     ctx.font = `${fs}px "Source Code Pro", monospace`;
-    // query labels (left, right-aligned)
+    ctx.textBaseline = 'middle';
+    // query labels (left, right-aligned) — always show the selected row's label
     ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
     for (let q = 0; q < T; q++) {
+        if (!showLabels && q !== state.queryTok) continue;
         ctx.fillStyle = q === state.queryTok ? '#90ee90' : '#7fbf7f';
-        ctx.fillText(clip(trim(state.tokens[q]), 13), labelL - 6, y0 + q * cell + cell / 2);
+        ctx.fillText(clip(trim(state.tokens[q]), maxChars), labelL - 6, y0 + q * cell + cell / 2);
     }
-    // key labels (top, rotated)
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#7fbf7f';
-    for (let k = 0; k < T; k++) {
-        ctx.save();
-        ctx.translate(x0 + k * cell + cell / 2, labelT - 6);
-        ctx.rotate(-Math.PI / 4);
-        ctx.fillText(clip(trim(state.tokens[k]), 13), 0, 0);
-        ctx.restore();
+    // key labels (top, rotated up-left so the last column never clips off the edge)
+    if (showLabels) {
+        ctx.textAlign = 'left';
+        for (let k = 0; k < T; k++) {
+            ctx.fillStyle = k === state.queryTok ? '#90ee90' : '#7fbf7f';
+            ctx.save();
+            ctx.translate(x0 + k * cell + cell / 2, labelT - 6);
+            ctx.rotate(-Math.PI / 4);
+            ctx.fillText(clip(trim(state.tokens[k]), maxChars), 0, 0);
+            ctx.restore();
+        }
     }
 
     // detail stats: entropy of the selected query row
@@ -293,21 +344,20 @@ function drawDetail() {
         if (p > 1e-9) ent -= p * Math.log2(p);
     }
     $('detail-stats').textContent = `row entropy ${ent.toFixed(2)} bits`;
+    detailGeom = { y0, cell, T };
 }
 
 function clip(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
 detailCanvas.addEventListener('click', (e) => {
-    const T = state.T;
+    if (!detailGeom) return;
     const r = detailCanvas.getBoundingClientRect();
-    const cssW = detailCanvas.clientWidth;
-    const labelL = 96, labelT = 96;
-    const cell = (cssW - labelL - 6) / T;
-    const q = Math.floor((e.clientY - r.top - labelT) / cell);
-    if (q >= 0 && q < T) {
+    const g = detailGeom;
+    const q = Math.floor((e.clientY - r.top - g.y0) / g.cell);
+    if (q >= 0 && q < g.T) {
         state.queryTok = q;
         renderTokens(); // also refreshes the query label
-        drawDetail();
+        drawDetail();   // clicking a row keeps the current head, just moves the query
         drawArc();
     }
 });
@@ -318,8 +368,16 @@ function drawArc() {
     if (!state.attn) return;
     const T = state.T;
     const dpr = window.devicePixelRatio || 1;
-    const cssW = arcCanvas.clientWidth || 520;
-    const cssH = 130;
+    const cssW = (arcCanvas.parentElement && arcCanvas.parentElement.clientWidth) || 900;
+
+    // Labels are rotated below the axis so they never run together, even at 40+
+    // tokens; the font and label length shrink as the sequence grows.
+    const fs = Math.max(8, Math.min(12, 760 / T));
+    const labelChars = T > 26 ? 6 : 10;
+    const labelRoom = Math.ceil(labelChars * fs * 0.6 * 0.72) + 14;
+    const arcH = 92;
+    const yTok = arcH + 10;
+    const cssH = yTok + labelRoom;
     arcCanvas.style.height = cssH + 'px';
     arcCanvas.width = Math.round(cssW * dpr);
     arcCanvas.height = Math.round(cssH * dpr);
@@ -327,10 +385,11 @@ function drawArc() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
 
-    const margin = 12;
-    const yTok = cssH - 22;
-    const span = cssW - margin * 2;
-    const xOf = (i) => margin + (T <= 1 ? span / 2 : (i / (T - 1)) * span);
+    // rotated labels drop to the lower-left, so reserve room on the left edge
+    const marginL = Math.max(26, Math.ceil(labelChars * fs * 0.6 * 0.72));
+    const marginR = 26;
+    const span = cssW - marginL - marginR;
+    const xOf = (i) => marginL + (T <= 1 ? span / 2 : (i / (T - 1)) * span);
 
     const base = (state.selLayer * state.cfg.n_head + state.selHead) * T * T;
     const q = state.queryTok;
@@ -340,7 +399,7 @@ function drawArc() {
         const w = state.attn[base + q * T + k];
         if (w < 0.01) continue;
         const x1 = xOf(q), x2 = xOf(k);
-        const lift = Math.min(70, 18 + Math.abs(x1 - x2) * 0.45);
+        const lift = Math.min(arcH - 6, 16 + Math.abs(x1 - x2) * 0.5);
         ctx.beginPath();
         ctx.moveTo(x1, yTok);
         ctx.quadraticCurveTo((x1 + x2) / 2, yTok - lift, x2, yTok);
@@ -349,16 +408,20 @@ function drawArc() {
         ctx.stroke();
     }
 
-    // token row
-    const fs = Math.max(8, Math.min(12, span / T * 0.7));
+    // token ticks + rotated labels
     ctx.font = `${fs}px "Source Code Pro", monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
+    ctx.textBaseline = 'middle';
     for (let i = 0; i < T; i++) {
-        ctx.fillStyle = i === q ? '#90ee90' : (i <= q ? '#7fbf7f' : '#345834');
-        ctx.fillText(clip(trim(state.tokens[i]), 8), xOf(i), yTok + 6);
+        const x = xOf(i);
         ctx.fillStyle = i === q ? '#90ee90' : '#2f5f2f';
-        ctx.fillRect(xOf(i) - 1.5, yTok - 2, 3, 4);
+        ctx.fillRect(x - 1.5, yTok - 2, 3, 4);
+        ctx.save();
+        ctx.translate(x, yTok + 8);
+        ctx.rotate(-Math.PI / 4);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = i === q ? '#90ee90' : (i <= q ? '#7fbf7f' : '#345834');
+        ctx.fillText(clip(trim(state.tokens[i]), labelChars), 0, 0);
+        ctx.restore();
     }
 }
 

@@ -35,34 +35,41 @@
             <div class="legend">
                 <span class="legend-label">Query token:</span>
                 <span id="query-label">last token</span>
-                <span class="legend-hint">click a token above to inspect what it attends to</span>
+                <span class="legend-hint">click a token to jump to the head that focuses on it most &middot; or pick any cell in the all-heads grid below</span>
             </div>
         </section>
 
-        <section class="grid-area">
-            <div class="panel">
-                <div class="panel-head">
-                    <span>All heads &middot; layer <span class="dim">(rows, 0&ndash;11)</span> &times; head <span class="dim">(cols, 0&ndash;11)</span></span>
-                    <span id="grid-hint" class="dim">hover to read &middot; click to inspect</span>
-                </div>
-                <canvas id="grid"></canvas>
+        <section class="panel hero">
+            <div class="panel-head">
+                <span>Layer <span id="sel-layer">0</span> &middot; Head <span id="sel-head">0</span> <span class="dim">attention</span></span>
+                <span id="detail-stats" class="dim"></span>
             </div>
+            <div class="hero-grid">
+                <div class="heatmap-wrap">
+                    <canvas id="detail"></canvas>
+                </div>
+                <div class="hero-side">
+                    <div class="pred">
+                        <div class="pred-title">Most likely next token</div>
+                        <div id="pred-list"></div>
+                    </div>
+                    <p class="readme">Each row is a token attending back to earlier tokens; brighter cells
+                    take more of that row's attention, and every row sums to 1. The first column is the
+                    attention sink and the diagonal is self-attention.</p>
+                </div>
+            </div>
+            <div class="arc-wrap">
+                <div class="arc-title">Attention from <span id="arc-query" class="hl">&middot;</span></div>
+                <canvas id="arc"></canvas>
+            </div>
+        </section>
 
-            <div class="panel detail-panel">
-                <div class="panel-head">
-                    <span>Layer <span id="sel-layer">0</span> &middot; Head <span id="sel-head">0</span></span>
-                    <span id="detail-stats" class="dim"></span>
-                </div>
-                <canvas id="detail"></canvas>
-                <div class="arc-wrap">
-                    <div class="arc-title">Attention from <span id="arc-query" class="hl">&middot;</span></div>
-                    <canvas id="arc"></canvas>
-                </div>
-                <div class="pred">
-                    <div class="pred-title">Most likely next token</div>
-                    <div id="pred-list"></div>
-                </div>
+        <section class="panel lower-grid">
+            <div class="panel-head">
+                <span>All 144 heads &middot; layer <span class="dim">(rows, 0&ndash;11)</span> &times; head <span class="dim">(cols, 0&ndash;11)</span></span>
+                <span id="grid-hint" class="dim">hover to read &middot; click any cell to inspect</span>
             </div>
+            <canvas id="grid"></canvas>
         </section>
 
         <footer>
