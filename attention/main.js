@@ -203,7 +203,7 @@ function drawGrid() {
     ctx.clearRect(0, 0, cssW, cssH);
     ctx.imageSmoothingEnabled = false;
 
-    ctx.font = '9px "Source Code Pro", monospace';
+    ctx.font = '9px "IBM Plex Mono", monospace';
     ctx.fillStyle = '#4d8b4d';
     ctx.textAlign = 'center';
     for (let h = 0; h < H; h++) ctx.fillText(h, padL + h * cell + cell / 2, 11);
@@ -314,7 +314,7 @@ function drawDetail() {
     ctx.lineWidth = 1.5;
     ctx.strokeRect(x0 + 0.5, y0 + state.queryTok * cell + 0.5, gridSize - 1, cell);
 
-    ctx.font = `${fs}px "Source Code Pro", monospace`;
+    ctx.font = `${fs}px "IBM Plex Mono", monospace`;
     ctx.textBaseline = 'middle';
     // query labels (left, right-aligned) — always show the selected row's label
     ctx.textAlign = 'right';
@@ -409,7 +409,7 @@ function drawArc() {
     }
 
     // token ticks + rotated labels
-    ctx.font = `${fs}px "Source Code Pro", monospace`;
+    ctx.font = `${fs}px "IBM Plex Mono", monospace`;
     ctx.textBaseline = 'middle';
     for (let i = 0; i < T; i++) {
         const x = xOf(i);
@@ -479,6 +479,13 @@ function bindUI() {
             drawGrid(); drawDetail(); drawArc();
         });
     });
+    // canvas text is painted once with whatever font is loaded; repaint when the
+    // web font arrives so labels switch from the fallback to IBM Plex Mono
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => {
+            if (state.attn) { drawGrid(); drawDetail(); drawArc(); }
+        });
+    }
 }
 
 initWorker();
