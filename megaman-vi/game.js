@@ -567,22 +567,32 @@ function moveEntity(entity, dt, terrain) {
 
 function activateBoss() {
     bossActive = true;
-    const x = currentStage.worldWidth - 260;
     const isFinal = currentStage.id === 'final';
+    const grounded = currentStage.id === 'foundry';
+    const w = isFinal ? 142 : 130;
+    const h = isFinal ? 170 : 134;
+    const maxX = currentStage.worldWidth - 150;
     boss = {
-        x,
-        y: GROUND - (isFinal ? 170 : 134),
-        w: isFinal ? 142 : 130,
-        h: isFinal ? 170 : 134,
-        hp: isFinal ? 190 : 130,
-        maxHp: isFinal ? 190 : 130,
+        x: maxX - 130,
+        y: grounded ? GROUND - h : GROUND - h - 78,
+        w,
+        h,
+        hp: isFinal ? 200 : 130,
+        maxHp: isFinal ? 200 : 130,
         vx: 0,
         vy: 0,
-        phase: 0,
-        timer: 0.8,
-        cooldown: 0.6,
+        onGround: grounded,
+        phase: 1,
+        state: 'idle',
+        stateTimer: 1.2,
         invuln: 0,
-        attackPose: 0
+        attackPose: 0,
+        tell: 0,
+        facing: 1,
+        baseY: GROUND - h - (isFinal ? 96 : 78),
+        homeX: maxX - 110,
+        targetX: 0,
+        alt: 0
     };
     message = `${currentStage.bossName}`;
     messageTimer = 1.9;
@@ -631,104 +641,242 @@ function updateEnemies(dt) {
     enemies = enemies.filter((enemy) => enemy.hp > 0);
 }
 
+// --- Boss combat ---
+// Every boss runs the same readable cadence: idle (reposition, vulnerable) ->
+// wind (a visible tell + sound, no fire yet) -> attack (the pattern) -> recover
+// (a pause where it can't hurt you, your window to punish). Phase 2 at half HP
+// shortens the cadence and adds a second attack variant.
+
+function bossArena() {
+    return { minX: currentStage.worldWidth - 660, maxX: currentStage.worldWidth - 150 };
+}
+
+function bossState(s, t) {
+    boss.state = s;
+    boss.stateTimer = t;
+}
+
+function bossWindUp(t) {
+    bossState('wind', t);
+    boss.tell = t;
+    boss.attackPose = t + 0.4;
+    GameAudio.sfx('charge');
+}
+
+function bossShot(x, y, vx, vy, r, color, damage, life) {
+    enemyBullets.push({ x, y, vx, vy, r, color, damage: damage, life: life });
+}
+
+function aimAngle() {
+    return Math.atan2(
+        player.y + player.h / 2 - (boss.y + boss.h / 2),
+        player.x + player.w / 2 - (boss.x + boss.w / 2)
+    );
+}
+
+const BOSS_BEHAVIOR = {
+    cinder: bossCinder,
+    tide: bossTide,
+    volt: bossVolt,
+    'null': bossNull
+};
+
 function updateBoss(dt) {
     if (!boss) return;
     boss.invuln = Math.max(0, boss.invuln - dt);
-    boss.timer -= dt;
-    boss.cooldown -= dt;
     boss.attackPose = Math.max(0, boss.attackPose - dt);
+    boss.tell = Math.max(0, boss.tell - dt);
+    boss.stateTimer -= dt;
 
-    if (currentStage.id === 'foundry') {
-        if (boss.timer <= 0) {
-            boss.timer = 1.8;
-            boss.vx = boss.x > player.x ? -310 : 310;
-            boss.vy = -260;
-        }
-        boss.vy += GRAVITY * dt;
-        moveBoss(dt);
-        if (boss.cooldown <= 0) {
-            boss.cooldown = 0.9;
-            bossShot(-320, -80, 8, '#ff7c36');
-            bossShot(-280, -220, 7, '#ffb743');
-        }
-    } else if (currentStage.id === 'hydro') {
-        boss.y = GROUND - boss.h - 46 + Math.sin(performance.now() / 360) * 28;
-        boss.x = currentStage.worldWidth - 268 + Math.sin(performance.now() / 530) * 42;
-        if (boss.cooldown <= 0) {
-            boss.cooldown = 0.55;
-            for (let i = -1; i <= 1; i++) bossShot(-300, i * 95, 6, '#5cc7ff');
-        }
-    } else if (currentStage.id === 'sky') {
-        boss.y = GROUND - boss.h - 80 + Math.sin(performance.now() / 280) * 48;
-        boss.x = currentStage.worldWidth - 270 + Math.sin(performance.now() / 440) * 80;
-        if (boss.cooldown <= 0) {
-            boss.cooldown = 0.72;
-            bossShot(-330, 0, 6, '#f3dd4e');
-            enemyBullets.push({
-                x: player.x + player.w / 2,
-                y: 92,
-                vx: 0,
-                vy: 360,
-                r: 7,
-                damage: 9,
-                color: '#f3dd4e',
-                life: 1.4
-            });
-        }
-    } else {
-        const phaseTwo = boss.hp < boss.maxHp * 0.52;
-        boss.y = GROUND - boss.h - 46 + Math.sin(performance.now() / 300) * (phaseTwo ? 52 : 28);
-        boss.x = currentStage.worldWidth - 282 + Math.sin(performance.now() / 520) * (phaseTwo ? 96 : 52);
-        if (boss.cooldown <= 0) {
-            boss.cooldown = phaseTwo ? 0.48 : 0.72;
-            boss.attackPose = 0.34;
-            const palette = ['#ff8a3d', '#5cc7ff', '#f3dd4e'];
-            for (let i = 0; i < (phaseTwo ? 5 : 3); i++) {
-                const angle = -Math.PI + (i - 2) * 0.22;
-                enemyBullets.push({
-                    x: boss.x + 24,
-                    y: boss.y + boss.h * 0.45,
-                    vx: Math.cos(angle) * 310,
-                    vy: Math.sin(angle) * 240,
-                    r: 6,
-                    damage: 10,
-                    color: palette[i % palette.length],
-                    life: 2.2
-                });
-            }
-        }
+    if (boss.phase === 1 && boss.hp <= boss.maxHp * 0.5) {
+        boss.phase = 2;
+        addShake(9);
+        addHitStop(0.07);
+        GameAudio.sfx('weak');
+        message = 'PHASE 2';
+        messageTimer = 1.1;
+        bossState('idle', 0.5);
+        boss.tell = 0.6;
+        boss.invuln = 0.5;
+    }
+
+    BOSS_BEHAVIOR[currentStage.bossFrame](dt);
+
+    // Charge-up sparks during the tell so the wind-up reads at a glance.
+    if (boss.tell > 0 && Math.random() < 0.6) {
+        puff(boss.x + boss.w / 2 + (Math.random() * 2 - 1) * boss.w * 0.5,
+            boss.y + boss.h * 0.4 + (Math.random() * 2 - 1) * boss.h * 0.3,
+            currentStage.color, 1);
     }
 
     if (rectsOverlap(player, boss)) damagePlayer(currentStage.id === 'final' ? 16 : 12);
     if (boss.hp <= 0) clearStage();
 }
 
-function moveBoss(dt) {
-    boss.x += boss.vx * dt;
-    if (boss.x < currentStage.worldWidth - 540 || boss.x > currentStage.worldWidth - 150) {
-        boss.vx *= -1;
+// Cinder Ram: a grounded charger. Telegraphs by lowering its head, then barrels
+// across the arena -- jump it -- and slams into the wall, leaving it stunned.
+function bossCinder(dt) {
+    const arena = bossArena();
+    boss.vy += GRAVITY * dt;
+    if (boss.state === 'idle') {
+        boss.vx *= Math.pow(0.8, dt * 60);
+        boss.facing = player.x < boss.x ? 1 : -1;
+        if (boss.stateTimer <= 0) bossWindUp(boss.phase === 2 ? 0.5 : 0.72);
+    } else if (boss.state === 'wind') {
+        boss.vx *= Math.pow(0.8, dt * 60);
+        boss.facing = player.x < boss.x ? 1 : -1;
+        if (boss.stateTimer <= 0) {
+            bossState('charge', 2.2);
+            boss.vx = (player.x < boss.x ? -1 : 1) * (boss.phase === 2 ? 660 : 540);
+            boss.facing = boss.vx < 0 ? 1 : -1;
+            GameAudio.sfx('dash');
+        }
+    } else if (boss.state === 'charge') {
+        boss.attackPose = 0.2;
+        boss.x += boss.vx * dt;
+        if (boss.x <= arena.minX || boss.x >= arena.maxX || boss.stateTimer <= 0) {
+            boss.x = clamp(boss.x, arena.minX, arena.maxX);
+            cinderSlam();
+        }
+    } else if (boss.state === 'recover') {
+        boss.vx *= Math.pow(0.7, dt * 60);
+        if (boss.stateTimer <= 0) bossState('idle', boss.phase === 2 ? 0.5 : 0.8);
     }
     boss.y += boss.vy * dt;
-    if (boss.y + boss.h > GROUND) {
+    if (boss.y + boss.h >= GROUND) {
         boss.y = GROUND - boss.h;
         boss.vy = 0;
-        boss.vx *= 0.35;
+        boss.onGround = true;
+    }
+
+    function cinderSlam() {
+        boss.vx = 0;
+        bossState('recover', boss.phase === 2 ? 0.65 : 0.95);
+        addShake(7);
+        GameAudio.sfx('land');
         puff(boss.x + boss.w / 2, GROUND, currentStage.color, 16);
+        if (boss.phase === 2) {
+            for (let i = -1; i <= 1; i++) {
+                bossShot(boss.x + boss.w / 2, GROUND - 20, i * 190, -380, 7, '#ffb743', 9, 1.7);
+            }
+        }
     }
 }
 
-function bossShot(vx, vy, r, color) {
-    if (boss) boss.attackPose = 0.34;
-    enemyBullets.push({
-        x: boss.x + boss.w * 0.3,
-        y: boss.y + boss.h * 0.48,
-        vx,
-        vy,
-        r,
-        damage: 10,
-        color,
-        life: 2.2
-    });
+// Tide Warden: floats and volleys. Telegraphs, then fires a spread fan with
+// dodgeable gaps; in phase 2 it alternates a low water-wave you must jump.
+function bossTide(dt) {
+    boss.facing = 1;
+    boss.x += (boss.homeX - boss.x) * Math.min(1, dt * 3);
+    boss.y = boss.baseY + Math.sin(performance.now() / 360) * 22;
+    if (boss.state === 'idle') {
+        if (boss.stateTimer <= 0) bossWindUp(boss.phase === 2 ? 0.5 : 0.66);
+    } else if (boss.state === 'wind') {
+        boss.attackPose = 0.2;
+        if (boss.stateTimer <= 0) {
+            bossState('attack', 0.12);
+            boss.alt = (boss.alt + 1) % 2;
+            const cx = boss.x + boss.w * 0.3;
+            const cy = boss.y + boss.h * 0.45;
+            if (boss.phase === 2 && boss.alt === 0) {
+                bossShot(boss.x, GROUND - 24, -300, 0, 15, '#5cc7ff', 12, 3.4);
+                bossShot(boss.x, GROUND - 24, -300, 0, 9, '#aef0ff', 12, 3.4);
+            } else {
+                const a = aimAngle();
+                for (let i = -2; i <= 2; i++) {
+                    bossShot(cx, cy, Math.cos(a + i * 0.2) * 350, Math.sin(a + i * 0.2) * 350, 6, '#5cc7ff', 9, 2.6);
+                }
+            }
+            GameAudio.sfx('shot', 'tide');
+        }
+    } else if (boss.state === 'attack') {
+        if (boss.stateTimer <= 0) bossState('recover', boss.phase === 2 ? 0.5 : 0.72);
+    } else if (boss.state === 'recover') {
+        if (boss.stateTimer <= 0) bossState('idle', boss.phase === 2 ? 0.45 : 0.7);
+    }
+}
+
+// Volt Heron: a dive bomber. Telegraphs while hovering over your position, then
+// swoops to that spot -- move away -- and is grounded and exposed on recovery.
+function bossVolt(dt) {
+    const arena = bossArena();
+    if (boss.state === 'idle') {
+        boss.y += (boss.baseY - 40 - boss.y) * Math.min(1, dt * 3);
+        boss.x += (boss.homeX - boss.x) * Math.min(1, dt * 2);
+        boss.facing = player.x < boss.x ? 1 : -1;
+        if (boss.stateTimer <= 0) bossWindUp(boss.phase === 2 ? 0.55 : 0.72);
+    } else if (boss.state === 'wind') {
+        boss.attackPose = 0.2;
+        boss.targetX = clamp(player.x + player.w / 2 - boss.w / 2, arena.minX, arena.maxX);
+        boss.x += (boss.targetX - boss.x) * Math.min(1, dt * 4);
+        boss.y += (boss.baseY - 54 - boss.y) * Math.min(1, dt * 3);
+        boss.facing = player.x < boss.x ? 1 : -1;
+        if (boss.stateTimer <= 0) {
+            bossState('dive', 1.3);
+            GameAudio.sfx('dash');
+        }
+    } else if (boss.state === 'dive') {
+        boss.attackPose = 0.2;
+        boss.x += (boss.targetX - boss.x) * Math.min(1, dt * 5);
+        boss.y += 780 * dt;
+        if (boss.phase === 2 && Math.random() < 0.18) {
+            bossShot(boss.x + boss.w / 2, boss.y + boss.h, 0, 320, 6, '#f3dd4e', 8, 1.4);
+        }
+        if (boss.y + boss.h >= GROUND) {
+            boss.y = GROUND - boss.h;
+            addShake(7);
+            GameAudio.sfx('land');
+            puff(boss.x + boss.w / 2, GROUND, '#f3dd4e', 16);
+            if (boss.phase === 2) {
+                for (let i = -1; i <= 1; i++) bossShot(boss.x + boss.w / 2, GROUND - 16, i * 230, -320, 6, '#f3dd4e', 8, 1.5);
+            }
+            bossState('recover', boss.phase === 2 ? 0.7 : 0.95);
+        }
+    } else if (boss.state === 'recover') {
+        boss.facing = player.x < boss.x ? 1 : -1;
+        if (boss.stateTimer <= 0) bossState('idle', boss.phase === 2 ? 0.4 : 0.7);
+    }
+}
+
+// Null Regent: hovers and alternates an aimed triple with a radial burst; phase
+// 2 quickens and adds a wide pink arc. Every shot still gets a wind-up first.
+function bossNull(dt) {
+    boss.facing = 1;
+    boss.x += (boss.homeX - boss.x) * Math.min(1, dt * 2.5);
+    boss.y = boss.baseY + Math.sin(performance.now() / 300) * (boss.phase === 2 ? 40 : 24);
+    if (boss.state === 'idle') {
+        if (boss.stateTimer <= 0) bossWindUp(boss.phase === 2 ? 0.46 : 0.7);
+    } else if (boss.state === 'wind') {
+        boss.attackPose = 0.2;
+        if (boss.stateTimer <= 0) {
+            bossState('attack', 0.12);
+            boss.alt = (boss.alt + 1) % (boss.phase === 2 ? 3 : 2);
+            const cx = boss.x + boss.w * 0.32;
+            const cy = boss.y + boss.h * 0.45;
+            if (boss.alt === 0) {
+                const a = aimAngle();
+                for (let i = -1; i <= 1; i++) {
+                    bossShot(cx, cy, Math.cos(a + i * 0.16) * 340, Math.sin(a + i * 0.16) * 340, 7, '#c39cff', 10, 2.6);
+                }
+            } else if (boss.alt === 1) {
+                const n = boss.phase === 2 ? 10 : 8;
+                for (let i = 0; i < n; i++) {
+                    const a = Math.PI / 2 + Math.PI * 2 * i / n;
+                    bossShot(cx, cy, Math.cos(a) * 250, Math.sin(a) * 250, 6, '#9f7cff', 9, 2.5);
+                }
+            } else {
+                const a = aimAngle();
+                for (let i = -2; i <= 2; i++) {
+                    bossShot(cx, cy, Math.cos(a + i * 0.26) * 320, Math.sin(a + i * 0.26) * 320, 6, '#ff8af0', 9, 2.6);
+                }
+            }
+            GameAudio.sfx('shot', 'storm');
+        }
+    } else if (boss.state === 'attack') {
+        if (boss.stateTimer <= 0) bossState('recover', boss.phase === 2 ? 0.46 : 0.7);
+    } else if (boss.state === 'recover') {
+        if (boss.stateTimer <= 0) bossState('idle', boss.phase === 2 ? 0.4 : 0.66);
+    }
 }
 
 function updateProjectiles(dt) {
@@ -1100,11 +1248,25 @@ function currentHeroFrame() {
 
 function drawBoss() {
     if (!boss) return;
+    // Telegraph ring: a pulsing aura that swells during the wind-up tell.
+    if (boss.tell > 0) {
+        const pulse = (boss.tell % 0.4) / 0.4;
+        ctx.save();
+        ctx.strokeStyle = currentStage.color;
+        ctx.globalAlpha = 0.55 * (0.4 + 0.6 * pulse);
+        ctx.lineWidth = 3;
+        const rr = boss.w * (0.45 + 0.55 * pulse);
+        ctx.beginPath();
+        ctx.ellipse(boss.x + boss.w / 2, boss.y + boss.h / 2, rr, rr * 0.8, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
     const flicker = boss.invuln > 0 && Math.floor(performance.now() / 45) % 2 === 0;
     if (!flicker) {
         const art = BOSS_ART[currentStage.bossFrame];
-        const frameName = boss.attackPose > 0 ? art.atk : art.idle;
-        drawSprite(frameName, boss.x + boss.w / 2, boss.y + boss.h, bossScale(currentStage.bossFrame), 1, 1);
+        const acting = boss.attackPose > 0 || boss.state === 'wind' || boss.state === 'charge' || boss.state === 'dive';
+        const frameName = acting ? art.atk : art.idle;
+        drawSprite(frameName, boss.x + boss.w / 2, boss.y + boss.h, bossScale(currentStage.bossFrame), boss.facing || 1, 1);
     }
     ctx.fillStyle = 'rgba(7,9,15,0.78)';
     ctx.fillRect(currentStage.worldWidth - 500, 38, 390, 16);

@@ -200,6 +200,10 @@ const GameAudio = (() => {
             case 'jump':
                 tone(t, 320, 0.14, 'square', 0.26, out, 720);
                 break;
+            case 'charge':
+                tone(t, 200, 0.5, 'sawtooth', 0.16, out, 620);
+                noise(t + 0.3, 0.18, 0.08, out, 'bandpass', 2200);
+                break;
             case 'dash':
                 noise(t, 0.16, 0.2, out, 'highpass', 1500);
                 tone(t, 600, 0.14, 'sawtooth', 0.16, out, 200);
