@@ -36,14 +36,14 @@ const FRAMES = {
     heroRunShoot1: { sheet: 'herogun', sx: 59, sy: 92, sw: 370, sh: 289 },
     heroRunShoot2: { sheet: 'herogun', sx: 565, sy: 92, sw: 296, sh: 289 },
     heroRunShoot3: { sheet: 'herogun', sx: 914, sy: 92, sw: 394, sh: 290 },
-    cinderIdle: { sheet: 'bosses', sx: 60, sy: 110, sw: 384, sh: 308 },
-    tideIdle: { sheet: 'bosses', sx: 444, sy: 43, sw: 350, sh: 383 },
-    voltIdle: { sheet: 'bosses', sx: 970, sy: 36, sw: 255, sh: 398 },
-    nullIdle: { sheet: 'bosses', sx: 1370, sy: 34, sw: 319, sh: 384 },
-    cinderAtk: { sheet: 'bosses', sx: 23, sy: 563, sw: 421, sh: 256 },
-    tideAtk: { sheet: 'bosses', sx: 444, sy: 485, sw: 393, sh: 343 },
-    voltAtk: { sheet: 'bosses', sx: 888, sy: 458, sw: 444, sh: 374 },
-    nullAtk: { sheet: 'bosses', sx: 1332, sy: 462, sw: 407, sh: 352 },
+    cinderIdle: { sheet: 'bosses', sx: 72, sy: 123, sw: 299, sh: 197 },
+    tideIdle: { sheet: 'bosses', sx: 560, sy: 74, sw: 212, sh: 295 },
+    voltIdle: { sheet: 'bosses', sx: 1018, sy: 61, sw: 183, sh: 321 },
+    nullIdle: { sheet: 'bosses', sx: 1408, sy: 71, sw: 290, sh: 319 },
+    cinderAtk: { sheet: 'bosses', sx: 55, sy: 573, sw: 332, sh: 185 },
+    tideAtk: { sheet: 'bosses', sx: 486, sy: 563, sw: 360, sh: 205 },
+    voltAtk: { sheet: 'bosses', sx: 932, sy: 532, sw: 355, sh: 267 },
+    nullAtk: { sheet: 'bosses', sx: 1385, sy: 531, sw: 339, sh: 285 },
     turretIdle: { sheet: 'enemies', sx: 59, sy: 202, sw: 354, sh: 309 },
     droneIdle: { sheet: 'enemies', sx: 468, sy: 247, sw: 345, sh: 227 },
     hopperIdle: { sheet: 'enemies', sx: 874, sy: 217, sw: 301, sh: 304 },
@@ -65,6 +65,19 @@ const ENEMY_ART = {
     turret: { idle: 'turretIdle', atk: 'turretAtk', height: 54 },
     drone: { idle: 'droneIdle', atk: 'droneAtk', height: 46 },
     hopper: { idle: 'hopperIdle', atk: 'hopperAtk', height: 56 }
+};
+
+// Game-feel tuning. The platformer trinity (coyote, buffer, variable height)
+// makes jumps forgiving; shake and hit-stop give impacts weight. Dial here.
+const FEEL = {
+    jumpVelocity: 610,
+    coyote: 0.10,        // grace window to still jump after leaving a ledge
+    jumpBuffer: 0.12,    // a jump pressed this early before landing still fires
+    jumpCut: 0.42,       // vy kept when the jump button is released while rising
+    landSquash: 0.16,    // duration of the landing squash
+    landFallSpeed: 320,  // min downward speed that triggers landing dust + shake
+    shakeMax: 16,
+    shakeDecay: 0.84
 };
 
 const WEAPONS = [
@@ -182,6 +195,16 @@ let selectStartLocked = false;
 let lastTime = performance.now();
 let accumulator = 0;
 let weaponPanelBuilt = false;
+let shake = 0;
+let hitStop = 0;
+
+function addShake(amount) {
+    shake = Math.min(FEEL.shakeMax, shake + amount);
+}
+
+function addHitStop(seconds) {
+    hitStop = Math.max(hitStop, seconds);
+}
 
 const progress = {
     defeated: new Set(),
@@ -204,6 +227,10 @@ const player = {
     shootTimer: 0,
     onGround: false,
     crouch: false,
+    coyote: 0,
+    jumpBuffer: 0,
+    jumping: false,
+    land: 0,
     weaponIndex: 0,
     energy: { ember: 100, tide: 100, storm: 100 }
 };
@@ -295,8 +322,14 @@ function startStage(stage) {
         dash: 0,
         shootTimer: 0,
         onGround: false,
-        crouch: false
+        crouch: false,
+        coyote: 0,
+        jumpBuffer: 0,
+        jumping: false,
+        land: 0
     });
+    shake = 0;
+    hitStop = 0;
     for (const id of ['ember', 'tide', 'storm']) {
         player.energy[id] = progress.weapons.has(id) ? 100 : 0;
     }
@@ -415,6 +448,9 @@ function shoot() {
         life: weapon.id === 'storm' ? 1.35 : 1.1,
         pierce: weapon.id === 'tide' ? 1 : 0
     });
+    const crouchY = player.crouch ? 16 : 0;
+    puff(player.x + player.w / 2 + player.face * 30, player.y + 23 + crouchY, weapon.color, 4);
+    addShake(weapon.id === 'storm' ? 1.1 : 0.5);
 }
 
 function updatePlayer(dt) {
@@ -429,6 +465,7 @@ function updatePlayer(dt) {
     player.invuln = Math.max(0, player.invuln - dt);
     player.dash = Math.max(0, player.dash - dt);
     player.shootTimer = Math.max(0, player.shootTimer - dt);
+    player.land = Math.max(0, player.land - dt);
     player.crouch = down('j') && player.onGround;
 
     const dir = (down('l') ? 1 : 0) - (down('h') ? 1 : 0);
@@ -439,10 +476,27 @@ function updatePlayer(dt) {
     if (!dir) player.vx *= Math.pow(FRICTION, dt * 60);
     player.vx = clamp(player.vx, -maxSpeed, maxSpeed);
 
-    if (just('k') && player.onGround && !player.crouch) {
-        player.vy = -610;
+    // Coyote time: keep the ledge-grace alive for a beat after leaving ground.
+    player.coyote = player.onGround ? FEEL.coyote : Math.max(0, player.coyote - dt);
+    // Jump buffer: remember a press so it fires the instant a jump is legal.
+    player.jumpBuffer = just('k') ? FEEL.jumpBuffer : Math.max(0, player.jumpBuffer - dt);
+
+    if (player.jumpBuffer > 0 && (player.onGround || player.coyote > 0) && !player.crouch) {
+        player.vy = -FEEL.jumpVelocity;
         player.onGround = false;
+        player.coyote = 0;
+        player.jumpBuffer = 0;
+        player.jumping = true;
         puff(player.x + player.w / 2, player.y + player.h, '#aefcff', 8);
+    }
+    // Variable jump height: releasing the button while rising cuts the climb.
+    if (player.jumping) {
+        if (player.vy >= 0) {
+            player.jumping = false;
+        } else if (!down('k')) {
+            player.vy *= FEEL.jumpCut;
+            player.jumping = false;
+        }
     }
 
     if (just('z') && player.dash <= 0 && !player.crouch) {
@@ -454,7 +508,14 @@ function updatePlayer(dt) {
     if (down('x') || down(' ')) shoot();
 
     player.vy += GRAVITY * dt;
+    const wasAirborne = !player.onGround;
+    const fallSpeed = player.vy;
     moveEntity(player, dt, currentStage.terrain);
+    if (wasAirborne && player.onGround && fallSpeed > FEEL.landFallSpeed) {
+        player.land = FEEL.landSquash;
+        addShake(Math.min(5, fallSpeed / 150));
+        puff(player.x + player.w / 2, player.y + player.h, '#aefcff', Math.min(14, Math.round(fallSpeed / 70)));
+    }
 
     player.x = clamp(player.x, 0, currentStage.worldWidth - player.w);
     if (player.y > H + 180) damagePlayer(100);
@@ -677,6 +738,7 @@ function updateProjectiles(dt) {
                 bullet.life = bullet.pierce > 0 ? bullet.life : -1;
                 bullet.pierce -= 1;
                 puff(bullet.x, bullet.y, bullet.color, 6);
+                addShake(enemy.hp <= 0 ? 2 : 0.8);
                 break;
             }
         }
@@ -686,6 +748,8 @@ function updateProjectiles(dt) {
             boss.invuln = 0.08;
             bullet.life = bullet.weapon === 'tide' ? bullet.life : -1;
             puff(bullet.x, bullet.y, weak ? '#ffffff' : bullet.color, weak ? 14 : 7);
+            addShake(weak ? 5 : 1.6);
+            if (weak) addHitStop(0.05);
         }
     }
     bullets = bullets.filter((bullet) => bullet.life > 0 && bullet.x > cameraX - 80 && bullet.x < cameraX + W + 120 && bullet.y > -80 && bullet.y < H + 80);
@@ -730,6 +794,8 @@ function updateGame(dt) {
     updateProjectiles(dt);
     updateParticles(dt);
     messageTimer = Math.max(0, messageTimer - dt);
+    shake *= FEEL.shakeDecay;
+    if (shake < 0.2) shake = 0;
     cameraX = clamp(player.x - W * 0.36, 0, currentStage.worldWidth - W);
     if (bossActive) cameraX = clamp(currentStage.worldWidth - W, 0, currentStage.worldWidth - W);
 
@@ -742,6 +808,8 @@ function updateGame(dt) {
 
 function clearStage() {
     puff(boss.x + boss.w / 2, boss.y + boss.h / 2, '#ffffff', 48);
+    addShake(13);
+    addHitStop(0.1);
     const defeatedId = currentStage.id;
     const unlock = currentStage.unlock;
     if (defeatedId === 'final') {
@@ -770,6 +838,8 @@ function damagePlayer(amount) {
     player.invuln = 0.9;
     player.vx = -player.face * 260;
     puff(player.x + player.w / 2, player.y + player.h / 2, '#ff5d5d', 10);
+    addShake(6);
+    addHitStop(0.05);
 }
 
 function puff(x, y, color, count) {
@@ -862,7 +932,9 @@ function drawStageCard(stage, x, y, w, h, selected, cleared) {
 function drawPlay() {
     drawBackground(currentStage, cameraX);
     ctx.save();
-    ctx.translate(-cameraX, 0);
+    const shakeX = shake > 0 ? (Math.random() * 2 - 1) * shake : 0;
+    const shakeY = shake > 0 ? (Math.random() * 2 - 1) * shake : 0;
+    ctx.translate(-cameraX + shakeX, shakeY);
     drawTerrain();
     drawHazards();
     drawEnemies();
@@ -975,8 +1047,16 @@ function drawPlayer() {
     if (flicker) return;
     const footX = player.x + player.w / 2;
     const footY = player.y + player.h;
-    const squashY = player.crouch ? 0.74 : 1;
-    const squashX = player.crouch ? 1.08 : 1;
+    let squashX = 1;
+    let squashY = 1;
+    if (player.crouch) {
+        squashX = 1.08;
+        squashY = 0.74;
+    } else if (player.land > 0) {
+        const t = player.land / FEEL.landSquash;
+        squashX = 1 + 0.2 * t;
+        squashY = 1 - 0.24 * t;
+    }
     if (player.dash > 0) {
         drawSprite('heroRun3', footX - player.face * 24, footY, HERO_SCALE, player.face, 0.28, squashX, squashY);
     }
@@ -1127,7 +1207,11 @@ function frame(now) {
     accumulator += dt;
     let stepped = false;
     while (accumulator >= 1 / 60) {
-        updateGame(1 / 60);
+        if (hitStop > 0) {
+            hitStop = Math.max(0, hitStop - 1 / 60);
+        } else {
+            updateGame(1 / 60);
+        }
         accumulator -= 1 / 60;
         stepped = true;
     }
