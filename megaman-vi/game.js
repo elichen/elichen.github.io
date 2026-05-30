@@ -8,10 +8,11 @@ const H = canvas.height;
 const GROUND = 456;
 const GRAVITY = 1700;
 const FRICTION = 0.83;
-const CELL = 192;
-
 const ASSETS = {
-    actors: 'assets/sprites/actors.png?v=2',
+    hero: 'assets/sprites/hero_gen.png',
+    herogun: 'assets/sprites/hero_rungun_gen.png',
+    bosses: 'assets/sprites/bosses_gen.png',
+    enemies: 'assets/sprites/enemies_gen.png',
     backgrounds: {
         foundry: 'assets/backgrounds/foundry.png',
         hydro: 'assets/backgrounds/hydro.png',
@@ -20,21 +21,50 @@ const ASSETS = {
     }
 };
 
+// Trimmed source rects (sx, sy, sw, sh) per frame, extracted from each sheet.
+// Frames are anchored by their bounding-box bottom-center so a shared scale
+// keeps every pose grounded on one baseline -- no per-frame pivot drift.
 const FRAMES = {
-    heroIdle1: { sx: 0, sy: 0 },
-    heroIdle2: { sx: 192, sy: 0 },
-    heroRun1: { sx: 384, sy: 0 },
-    heroRun2: { sx: 576, sy: 0 },
-    heroJump: { sx: 768, sy: 0 },
-    heroShoot: { sx: 960, sy: 0 },
-    cinderIdle1: { sx: 1152, sy: 0 },
-    cinderIdle2: { sx: 0, sy: 192 },
-    tideIdle1: { sx: 192, sy: 192 },
-    tideIdle2: { sx: 384, sy: 192 },
-    voltIdle1: { sx: 576, sy: 192 },
-    voltIdle2: { sx: 768, sy: 192 },
-    nullIdle1: { sx: 960, sy: 192 },
-    nullIdle2: { sx: 1152, sy: 192 }
+    heroIdle1: { sheet: 'hero', sx: 129, sy: 40, sw: 188, sh: 374 },
+    heroIdle2: { sheet: 'hero', sx: 580, sy: 41, sw: 184, sh: 373 },
+    heroRun1: { sheet: 'hero', sx: 980, sy: 90, sw: 279, sh: 324 },
+    heroRun2: { sheet: 'hero', sx: 1444, sy: 83, sw: 246, sh: 331 },
+    heroRun3: { sheet: 'hero', sx: 55, sy: 557, sw: 321, sh: 305 },
+    heroJumpUp: { sheet: 'hero', sx: 570, sy: 596, sw: 220, sh: 266 },
+    heroJumpDown: { sheet: 'hero', sx: 983, sy: 474, sw: 258, sh: 372 },
+    heroShoot: { sheet: 'hero', sx: 1379, sy: 552, sw: 378, sh: 309 },
+    heroRunShoot1: { sheet: 'herogun', sx: 59, sy: 92, sw: 370, sh: 289 },
+    heroRunShoot2: { sheet: 'herogun', sx: 565, sy: 92, sw: 296, sh: 289 },
+    heroRunShoot3: { sheet: 'herogun', sx: 914, sy: 92, sw: 394, sh: 290 },
+    cinderIdle: { sheet: 'bosses', sx: 60, sy: 110, sw: 384, sh: 308 },
+    tideIdle: { sheet: 'bosses', sx: 444, sy: 43, sw: 350, sh: 383 },
+    voltIdle: { sheet: 'bosses', sx: 970, sy: 36, sw: 255, sh: 398 },
+    nullIdle: { sheet: 'bosses', sx: 1370, sy: 34, sw: 319, sh: 384 },
+    cinderAtk: { sheet: 'bosses', sx: 23, sy: 563, sw: 421, sh: 256 },
+    tideAtk: { sheet: 'bosses', sx: 444, sy: 485, sw: 393, sh: 343 },
+    voltAtk: { sheet: 'bosses', sx: 888, sy: 458, sw: 444, sh: 374 },
+    nullAtk: { sheet: 'bosses', sx: 1332, sy: 462, sw: 407, sh: 352 },
+    turretIdle: { sheet: 'enemies', sx: 59, sy: 202, sw: 354, sh: 309 },
+    droneIdle: { sheet: 'enemies', sx: 468, sy: 247, sw: 345, sh: 227 },
+    hopperIdle: { sheet: 'enemies', sx: 874, sy: 217, sw: 301, sh: 304 },
+    turretAtk: { sheet: 'enemies', sx: 15, sy: 728, sw: 398, sh: 309 },
+    droneAtk: { sheet: 'enemies', sx: 480, sy: 770, sw: 323, sh: 256 },
+    hopperAtk: { sheet: 'enemies', sx: 864, sy: 652, sw: 361, sh: 392 }
+};
+
+// World-pixel display height per character; the draw scale is derived from the
+// idle frame's source height so every pose shares one consistent scale.
+const HERO_SCALE = 0.24;
+const BOSS_ART = {
+    cinder: { idle: 'cinderIdle', atk: 'cinderAtk', height: 152 },
+    tide: { idle: 'tideIdle', atk: 'tideAtk', height: 160 },
+    volt: { idle: 'voltIdle', atk: 'voltAtk', height: 184 },
+    'null': { idle: 'nullIdle', atk: 'nullAtk', height: 204 }
+};
+const ENEMY_ART = {
+    turret: { idle: 'turretIdle', atk: 'turretAtk', height: 54 },
+    drone: { idle: 'droneIdle', atk: 'droneAtk', height: 46 },
+    hopper: { idle: 'hopperIdle', atk: 'hopperAtk', height: 56 }
 };
 
 const WEAPONS = [
@@ -129,7 +159,10 @@ const FINAL_STAGE = {
 };
 
 const images = {
-    actors: null,
+    hero: null,
+    herogun: null,
+    bosses: null,
+    enemies: null,
     backgrounds: {}
 };
 
@@ -190,7 +223,12 @@ function loadImage(src) {
 }
 
 async function loadAssets() {
-    images.actors = await loadImage(ASSETS.actors);
+    [images.hero, images.herogun, images.bosses, images.enemies] = await Promise.all([
+        loadImage(ASSETS.hero),
+        loadImage(ASSETS.herogun),
+        loadImage(ASSETS.bosses),
+        loadImage(ASSETS.enemies)
+    ]);
     const entries = Object.entries(ASSETS.backgrounds);
     await Promise.all(entries.map(async ([key, src]) => {
         images.backgrounds[key] = await loadImage(src);
@@ -243,7 +281,8 @@ function startStage(stage) {
         vy: 0,
         hp: type === 'hopper' ? 24 : 18,
         maxHp: type === 'hopper' ? 24 : 18,
-        cooldown: 0.6 + index * 0.17
+        cooldown: 0.6 + index * 0.17,
+        firePose: 0
     }));
     Object.assign(player, {
         x: 88,
@@ -472,7 +511,8 @@ function activateBoss() {
         phase: 0,
         timer: 0.8,
         cooldown: 0.6,
-        invuln: 0
+        invuln: 0,
+        attackPose: 0
     };
     message = `${currentStage.bossName}`;
     messageTimer = 1.9;
@@ -481,6 +521,7 @@ function activateBoss() {
 function updateEnemies(dt) {
     for (const enemy of enemies) {
         enemy.cooldown -= dt;
+        enemy.firePose = Math.max(0, enemy.firePose - dt);
         if (enemy.type === 'drone') {
             enemy.x += enemy.vx * dt;
             if (enemy.x < 120 || enemy.x > currentStage.worldWidth - 780 || Math.abs(enemy.x - player.x) > 260) {
@@ -499,6 +540,7 @@ function updateEnemies(dt) {
 
         if (enemy.cooldown <= 0 && Math.abs(enemy.x - player.x) < 560) {
             enemy.cooldown = enemy.type === 'turret' ? 1.45 : 1.1;
+            enemy.firePose = 0.4;
             const dx = player.x + player.w / 2 - (enemy.x + enemy.w / 2);
             const dy = player.y + player.h / 2 - (enemy.y + enemy.h / 2);
             const len = Math.hypot(dx, dy) || 1;
@@ -524,6 +566,7 @@ function updateBoss(dt) {
     boss.invuln = Math.max(0, boss.invuln - dt);
     boss.timer -= dt;
     boss.cooldown -= dt;
+    boss.attackPose = Math.max(0, boss.attackPose - dt);
 
     if (currentStage.id === 'foundry') {
         if (boss.timer <= 0) {
@@ -568,6 +611,7 @@ function updateBoss(dt) {
         boss.x = currentStage.worldWidth - 282 + Math.sin(performance.now() / 520) * (phaseTwo ? 96 : 52);
         if (boss.cooldown <= 0) {
             boss.cooldown = phaseTwo ? 0.48 : 0.72;
+            boss.attackPose = 0.34;
             const palette = ['#ff8a3d', '#5cc7ff', '#f3dd4e'];
             for (let i = 0; i < (phaseTwo ? 5 : 3); i++) {
                 const angle = -Math.PI + (i - 2) * 0.22;
@@ -604,6 +648,7 @@ function moveBoss(dt) {
 }
 
 function bossShot(vx, vy, r, color) {
+    if (boss) boss.attackPose = 0.34;
     enemyBullets.push({
         x: boss.x + boss.w * 0.3,
         y: boss.y + boss.h * 0.48,
@@ -802,7 +847,9 @@ function drawStageCard(stage, x, y, w, h, selected, cleared) {
     const compact = h < 180;
     drawText(stage.name.toUpperCase(), x + w / 2, y + (compact ? 30 : 44), compact ? 16 : 20, '#e8f7ff', 'center');
     drawText(stage.bossName, x + w / 2, y + (compact ? 56 : 76), compact ? 12 : 15, '#a7bdd0', 'center');
-    drawActor(`${stage.bossFrame}Idle1`, x + w / 2, y + h - 18, compact ? 72 : stage.id === 'final' ? 124 : 108, compact ? 72 : stage.id === 'final' ? 124 : 108, -1, cleared ? 0.5 : 1);
+    const previewH = compact ? 74 : 116;
+    const previewScale = previewH / FRAMES[BOSS_ART[stage.bossFrame].idle].sh;
+    drawSprite(BOSS_ART[stage.bossFrame].idle, x + w / 2, y + h - 14, previewScale, 1, cleared ? 0.5 : 1);
     if (cleared) {
         ctx.fillStyle = 'rgba(7, 9, 15, 0.78)';
         ctx.fillRect(x + w - 78, y + 14, 62, 24);
@@ -893,32 +940,12 @@ function drawHazards() {
 
 function drawEnemies() {
     for (const enemy of enemies) {
-        const cx = enemy.x + enemy.w / 2;
-        const cy = enemy.y + enemy.h / 2;
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.fillStyle = '#101722';
-        ctx.strokeStyle = currentStage.color;
-        ctx.lineWidth = 2;
-        if (enemy.type === 'drone') {
-            ctx.beginPath();
-            ctx.ellipse(0, 0, enemy.w / 2, enemy.h / 2, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#e8f7ff';
-            ctx.fillRect(-5, -3, 10, 6);
-        } else if (enemy.type === 'hopper') {
-            ctx.fillRect(-enemy.w / 2, -enemy.h / 2, enemy.w, enemy.h);
-            ctx.strokeRect(-enemy.w / 2, -enemy.h / 2, enemy.w, enemy.h);
-            ctx.fillStyle = currentStage.color;
-            ctx.fillRect(-10, -20, 20, 8);
-        } else {
-            ctx.fillRect(-enemy.w / 2, -enemy.h / 2, enemy.w, enemy.h);
-            ctx.strokeRect(-enemy.w / 2, -enemy.h / 2, enemy.w, enemy.h);
-            ctx.fillStyle = currentStage.color;
-            ctx.fillRect(-4, -8, 26, 10);
-        }
-        ctx.restore();
+        const art = ENEMY_ART[enemy.type];
+        const scale = art.height / FRAMES[art.idle].sh;
+        const frameName = enemy.firePose > 0 ? art.atk : art.idle;
+        // Art faces left; flip only when the player is to the enemy's right.
+        const face = player.x < enemy.x ? 1 : -1;
+        drawSprite(frameName, enemy.x + enemy.w / 2, enemy.y + enemy.h, scale, face, 1);
     }
 }
 
@@ -946,28 +973,37 @@ function drawBullets() {
 function drawPlayer() {
     const flicker = player.invuln > 0 && Math.floor(performance.now() / 80) % 2 === 0;
     if (flicker) return;
-    const drawH = player.crouch ? 62 : 82;
-    drawActor(currentHeroFrame(), player.x + player.w / 2, player.y + player.h + 9, 78, drawH, player.face, player.dash > 0 ? 0.7 : 1);
+    const footX = player.x + player.w / 2;
+    const footY = player.y + player.h;
+    const squashY = player.crouch ? 0.74 : 1;
+    const squashX = player.crouch ? 1.08 : 1;
     if (player.dash > 0) {
-        ctx.globalAlpha = 0.26;
-        drawActor('heroRun1', player.x + player.w / 2 - player.face * 28, player.y + player.h + 9, 78, drawH, player.face, 1);
-        ctx.globalAlpha = 1;
+        drawSprite('heroRun3', footX - player.face * 24, footY, HERO_SCALE, player.face, 0.28, squashX, squashY);
     }
+    drawSprite(currentHeroFrame(), footX, footY, HERO_SCALE, player.face, player.dash > 0 ? 0.85 : 1, squashX, squashY);
 }
 
 function currentHeroFrame() {
-    if (!player.onGround) return 'heroJump';
+    if (player.crouch) return 'heroIdle1';
+    if (!player.onGround) return player.vy < -40 ? 'heroJumpUp' : 'heroJumpDown';
+    if (Math.abs(player.vx) > 35) {
+        const step = Math.floor(performance.now() / 100) % 3;
+        if (player.shootTimer > 0) {
+            return step === 0 ? 'heroRunShoot1' : step === 1 ? 'heroRunShoot2' : 'heroRunShoot3';
+        }
+        return step === 0 ? 'heroRun1' : step === 1 ? 'heroRun2' : 'heroRun3';
+    }
     if (player.shootTimer > 0) return 'heroShoot';
-    if (Math.abs(player.vx) > 35) return Math.floor(performance.now() / 120) % 2 ? 'heroRun1' : 'heroRun2';
-    return Math.floor(performance.now() / 520) % 2 ? 'heroIdle1' : 'heroIdle2';
+    return Math.floor(performance.now() / 600) % 2 ? 'heroIdle1' : 'heroIdle2';
 }
 
 function drawBoss() {
     if (!boss) return;
     const flicker = boss.invuln > 0 && Math.floor(performance.now() / 45) % 2 === 0;
     if (!flicker) {
-        const size = currentStage.id === 'final' ? 178 : currentStage.id === 'sky' ? 152 : 148;
-        drawActor(currentBossFrame(), boss.x + boss.w / 2, boss.y + boss.h + 10, size, size, -1, 1);
+        const art = BOSS_ART[currentStage.bossFrame];
+        const frameName = boss.attackPose > 0 ? art.atk : art.idle;
+        drawSprite(frameName, boss.x + boss.w / 2, boss.y + boss.h, bossScale(currentStage.bossFrame), 1, 1);
     }
     ctx.fillStyle = 'rgba(7,9,15,0.78)';
     ctx.fillRect(currentStage.worldWidth - 500, 38, 390, 16);
@@ -977,19 +1013,26 @@ function drawBoss() {
     ctx.fillRect(currentStage.worldWidth - 498, 40, 386 * Math.max(0, boss.hp / boss.maxHp), 12);
 }
 
-function currentBossFrame() {
-    return `${currentStage.bossFrame}Idle${Math.floor(performance.now() / 260) % 2 + 1}`;
-}
-
-function drawActor(frame, cx, bottom, width, height, face = 1, alpha = 1) {
-    const f = FRAMES[frame];
-    if (!f || !images.actors) return;
+// Draw a frame anchored by its bounding-box bottom-center at (footX, footY).
+// scale = world px per source px. sx/sy are squash multipliers (1 = none),
+// applied around the feet so a squash keeps the character planted.
+function drawSprite(frameName, footX, footY, scale, face = 1, alpha = 1, sx = 1, sy = 1) {
+    const f = FRAMES[frameName];
+    const img = f && images[f.sheet];
+    if (!f || !img) return;
+    const w = f.sw * scale * sx;
+    const h = f.sh * scale * sy;
     ctx.save();
     ctx.globalAlpha *= alpha;
-    ctx.translate(cx, bottom);
+    ctx.translate(footX, footY);
     ctx.scale(face < 0 ? -1 : 1, 1);
-    ctx.drawImage(images.actors, f.sx, f.sy, CELL, CELL, -width / 2, -height, width, height);
+    ctx.drawImage(img, f.sx, f.sy, f.sw, f.sh, -w / 2, -h, w, h);
     ctx.restore();
+}
+
+function bossScale(bossFrame) {
+    const art = BOSS_ART[bossFrame];
+    return art.height / FRAMES[art.idle].sh;
 }
 
 function drawParticles() {
@@ -1046,7 +1089,7 @@ function drawVictory() {
     ctx.fillRect(0, 0, W, H);
     drawText('NULL REGENT DOWN', W / 2, 214 + Math.sin(winTimer * 3) * 4, 40, '#56f6e0', 'center');
     drawText('Three weapons stabilized. Press r to run it again.', W / 2, 262, 18, '#e8f7ff', 'center');
-    drawActor(Math.floor(performance.now() / 520) % 2 ? 'heroIdle1' : 'heroIdle2', W / 2, 400, 92, 96, 1, 1);
+    drawSprite(Math.floor(performance.now() / 520) % 2 ? 'heroIdle1' : 'heroIdle2', W / 2, 446, 0.32, 1, 1);
 }
 
 function drawText(text, x, y, size, color, align = 'left') {
