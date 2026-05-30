@@ -268,9 +268,12 @@ async function loadAssets() {
 
 window.addEventListener('keydown', (event) => {
     const key = event.key.toLowerCase();
-    if (['h', 'j', 'k', 'l', 'x', 'z', 'u', 'i', 'r', 'enter', ' ', '1', '2', '3', '4'].includes(key)) {
+    if (['h', 'j', 'k', 'l', 'x', 'z', 'u', 'i', 'r', 'm', 'enter', ' ', '1', '2', '3', '4'].includes(key)) {
         event.preventDefault();
     }
+    // Audio context can only start from a user gesture; kick it off on first key.
+    GameAudio.resume();
+    GameAudio.playMusic(mode === 'play' && currentStage ? currentStage.id : 'menu');
     if (!keys.get(key)) {
         pressed.add(key);
     }
@@ -338,6 +341,7 @@ function startStage(stage) {
     messageTimer = 2.4;
     statusEl.textContent = `${stage.name}. Defeat ${stage.bossName}.`;
     updateWeaponPanel();
+    GameAudio.playMusic(stage.id);
 }
 
 function restart() {
@@ -357,8 +361,8 @@ function restart() {
 function handleSelectInput() {
     const finalUnlocked = progress.defeated.size === STAGES.length;
     const choices = finalUnlocked ? [...STAGES, FINAL_STAGE] : STAGES;
-    if (just('h')) selectedStage = (selectedStage - 1 + choices.length) % choices.length;
-    if (just('l')) selectedStage = (selectedStage + 1) % choices.length;
+    if (just('h')) { selectedStage = (selectedStage - 1 + choices.length) % choices.length; GameAudio.sfx('menuMove'); }
+    if (just('l')) { selectedStage = (selectedStage + 1) % choices.length; GameAudio.sfx('menuMove'); }
     selectedStage = Math.min(selectedStage, choices.length - 1);
     const startHeld = down('enter') || down('x') || down(' ');
     if (!startHeld) selectStartLocked = false;
@@ -366,6 +370,7 @@ function handleSelectInput() {
         selectStartLocked = true;
         const stage = choices[selectedStage];
         if (stage.id === 'final' || !progress.defeated.has(stage.id)) {
+            GameAudio.sfx('menuSelect');
             startStage(stage);
             return;
         }
@@ -451,6 +456,7 @@ function shoot() {
     const crouchY = player.crouch ? 16 : 0;
     puff(player.x + player.w / 2 + player.face * 30, player.y + 23 + crouchY, weapon.color, 4);
     addShake(weapon.id === 'storm' ? 1.1 : 0.5);
+    GameAudio.sfx('shot', weapon.id);
 }
 
 function updatePlayer(dt) {
@@ -488,6 +494,7 @@ function updatePlayer(dt) {
         player.jumpBuffer = 0;
         player.jumping = true;
         puff(player.x + player.w / 2, player.y + player.h, '#aefcff', 8);
+        GameAudio.sfx('jump');
     }
     // Variable jump height: releasing the button while rising cuts the climb.
     if (player.jumping) {
@@ -503,6 +510,7 @@ function updatePlayer(dt) {
         player.dash = 0.28;
         player.vx = player.face * 520;
         puff(player.x + player.w / 2 - player.face * 12, player.y + 46, '#56f6e0', 12);
+        GameAudio.sfx('dash');
     }
 
     if (down('x') || down(' ')) shoot();
@@ -515,6 +523,7 @@ function updatePlayer(dt) {
         player.land = FEEL.landSquash;
         addShake(Math.min(5, fallSpeed / 150));
         puff(player.x + player.w / 2, player.y + player.h, '#aefcff', Math.min(14, Math.round(fallSpeed / 70)));
+        GameAudio.sfx('land');
     }
 
     player.x = clamp(player.x, 0, currentStage.worldWidth - player.w);
@@ -739,6 +748,7 @@ function updateProjectiles(dt) {
                 bullet.pierce -= 1;
                 puff(bullet.x, bullet.y, bullet.color, 6);
                 addShake(enemy.hp <= 0 ? 2 : 0.8);
+                GameAudio.sfx(enemy.hp <= 0 ? 'enemyDeath' : 'enemyHit');
                 break;
             }
         }
@@ -750,6 +760,7 @@ function updateProjectiles(dt) {
             puff(bullet.x, bullet.y, weak ? '#ffffff' : bullet.color, weak ? 14 : 7);
             addShake(weak ? 5 : 1.6);
             if (weak) addHitStop(0.05);
+            GameAudio.sfx(weak ? 'weak' : 'enemyHit');
         }
     }
     bullets = bullets.filter((bullet) => bullet.life > 0 && bullet.x > cameraX - 80 && bullet.x < cameraX + W + 120 && bullet.y > -80 && bullet.y < H + 80);
@@ -777,6 +788,11 @@ function updateParticles(dt) {
 }
 
 function updateGame(dt) {
+    if (just('m')) {
+        const off = GameAudio.toggleMute();
+        message = off ? 'Sound off' : 'Sound on';
+        messageTimer = 1;
+    }
     if (mode === 'select') {
         handleSelectInput();
         return;
@@ -810,12 +826,14 @@ function clearStage() {
     puff(boss.x + boss.w / 2, boss.y + boss.h / 2, '#ffffff', 48);
     addShake(13);
     addHitStop(0.1);
+    GameAudio.sfx('bossDeath');
     const defeatedId = currentStage.id;
     const unlock = currentStage.unlock;
     if (defeatedId === 'final') {
         mode = 'victory';
         winTimer = 0;
         statusEl.textContent = 'Null Regent defeated. Press r for a fresh run.';
+        GameAudio.stopMusic();
         return;
     }
     progress.defeated.add(defeatedId);
@@ -830,6 +848,8 @@ function clearStage() {
     const weaponName = WEAPONS.find((weapon) => weapon.id === unlock)?.name || 'weapon';
     statusEl.textContent = `${currentStage.bossName} defeated. ${weaponName} acquired.`;
     updateWeaponPanel();
+    GameAudio.playMusic('menu');
+    GameAudio.sfx('clear');
 }
 
 function damagePlayer(amount) {
@@ -840,6 +860,7 @@ function damagePlayer(amount) {
     puff(player.x + player.w / 2, player.y + player.h / 2, '#ff5d5d', 10);
     addShake(6);
     addHitStop(0.05);
+    GameAudio.sfx('hit');
 }
 
 function puff(x, y, color, count) {
