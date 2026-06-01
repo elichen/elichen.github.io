@@ -35,7 +35,7 @@ body.pointer-locked {
     left: 0;
     right: 0;
     background: rgba(0, 0, 0, 0.7);
-    padding: 15px 20px;
+    padding: 10px 16px;
     color: white;
     z-index: 10;
     backdrop-filter: blur(10px);
@@ -43,7 +43,7 @@ body.pointer-locked {
 
 .stat-container {
     display: flex;
-    gap: 30px;
+    gap: 14px 24px;
     align-items: center;
     flex-wrap: wrap;
 }
@@ -51,21 +51,25 @@ body.pointer-locked {
 .stat {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .stat-label {
     font-weight: bold;
-    font-size: 16px;
+    font-size: 15px;
 }
 
 .bar-container {
-    width: 200px;
-    height: 25px;
+    width: 170px;
+    height: 22px;
     background: rgba(255, 255, 255, 0.2);
     border-radius: 12px;
     overflow: hidden;
     border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.small-bar {
+    width: 140px;
 }
 
 .bar {
@@ -78,6 +82,10 @@ body.pointer-locked {
     background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
 }
 
+.warmth-bar {
+    background: linear-gradient(90deg, #ffd166 0%, #f8961e 100%);
+}
+
 .stat-value {
     font-weight: bold;
     font-size: 16px;
@@ -86,26 +94,93 @@ body.pointer-locked {
 
 .resources {
     display: flex;
-    gap: 20px;
-    font-size: 16px;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 14px;
     font-weight: bold;
 }
 
 .resources span {
     background: rgba(255, 255, 255, 0.1);
-    padding: 5px 12px;
+    padding: 4px 9px;
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .controls {
-    margin-top: 10px;
+    margin-top: 8px;
 }
 
 .control-hint {
-    font-size: 14px;
+    font-size: 13px;
     color: #aaa;
     font-style: italic;
+}
+
+.time-value {
+    min-width: 78px;
+    font-weight: bold;
+    color: #ffd166;
+}
+
+.objectives {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 12px;
+}
+
+.objective {
+    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #dfe9f3;
+}
+
+.objective.complete {
+    color: #d5ffd5;
+    border-color: rgba(120, 255, 120, 0.35);
+    background: rgba(80, 180, 80, 0.2);
+}
+
+.message-log {
+    position: absolute;
+    left: 20px;
+    bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 60;
+    pointer-events: none;
+}
+
+.message {
+    max-width: min(420px, calc(100vw - 40px));
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    border-left: 3px solid #ffd166;
+    animation: messageFade 3.2s ease forwards;
+}
+
+@keyframes messageFade {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    12%, 78% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
 }
 
 .build-mode {
@@ -258,8 +333,51 @@ body.pointer-locked {
 
 .selected-block {
     background: rgba(255, 255, 255, 0.1);
-    padding: 5px 12px;
+    padding: 4px 10px;
     border-radius: 8px;
     border: 2px solid rgba(255, 215, 0, 0.5);
     font-weight: bold;
+}
+
+@media (max-width: 700px) {
+    .hud {
+        padding: 8px 10px;
+        max-height: 46vh;
+        overflow-y: auto;
+    }
+
+    .stat-container {
+        gap: 8px 12px;
+    }
+
+    .stat-label,
+    .stat-value,
+    .resources,
+    .control-hint {
+        font-size: 12px;
+    }
+
+    .bar-container {
+        width: 120px;
+        height: 18px;
+    }
+
+    .small-bar {
+        width: 110px;
+    }
+
+    .objectives {
+        gap: 5px;
+    }
+
+    .objective {
+        font-size: 11px;
+        padding: 3px 6px;
+    }
+
+    .click-prompt {
+        width: calc(100vw - 36px);
+        text-align: center;
+        font-size: 14px;
+    }
 }

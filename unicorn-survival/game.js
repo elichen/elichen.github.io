@@ -7,17 +7,34 @@ let player = {
     jumpVelocity: 0,
     onGround: false,
     hunger: 100,
+    warmth: 100,
     wood: 0,
     stone: 0,
+    apples: 0,
+    unicornFeed: 0,
+    crystals: 0,
+    hasAxe: false,
+    hasPickaxe: false,
+    tamedUnicorns: 0,
+    stableBlocksPlaced: 0,
     selectedBlock: 'grass',
     yaw: 0,
     pitch: 0
 };
 let crosshairElement;
 let clickPromptElement;
+let messageLogElement;
 let suppressNextBlockAction = false;
 let lastGeneratedChunkX = null;
 let lastGeneratedChunkZ = null;
+let ambientLight;
+let directionalLight;
+let timeOfDay = 0.22;
+let dayCount = 1;
+let elapsedSurvivalTime = 0;
+let campfireLights = {};
+let lastCampfireTip = 0;
+let gameEnded = false;
 
 const CHUNK_SIZE = 32;
 const BLOCK_SIZE = 1;
@@ -32,8 +49,32 @@ const BLOCK_TYPES = {
     dirt: { id: 2, color: 0x8B4513, name: 'Dirt' },
     stone: { id: 3, color: 0x808080, name: 'Stone' },
     wood: { id: 4, color: 0xDEB887, name: 'Wood' },
-    leaves: { id: 5, color: 0x228B22, name: 'Leaves' }
+    leaves: { id: 5, color: 0x228B22, name: 'Leaves' },
+    campfire: { id: 6, color: 0xff8c1a, name: 'Campfire', cost: { wood: 3, stone: 1 } },
+    crystal: { id: 7, color: 0xb968ff, name: 'Rainbow Crystal' }
 };
+
+const BLOCK_COSTS = {
+    grass: {},
+    dirt: {},
+    stone: { stone: 1 },
+    wood: { wood: 1 },
+    leaves: {},
+    campfire: { wood: 3, stone: 1 }
+};
+
+const OBJECTIVES = [
+    { id: 'survive', label: 'Survive 3 days', complete: () => dayCount >= 4 },
+    { id: 'befriend', label: 'Befriend 3 unicorns', complete: () => player.tamedUnicorns >= 3 },
+    { id: 'stable', label: 'Build a 12-block stable', complete: () => player.stableBlocksPlaced >= 12 },
+    { id: 'crystal', label: 'Find a rainbow crystal', complete: () => player.crystals >= 1 }
+];
+
+const DAY_LENGTH_SECONDS = 180;
+const NIGHT_START = 0.72;
+const NIGHT_END = 0.22;
+const CAMPFIRE_RADIUS = 9;
+const SHELTER_CHECK_HEIGHT = 4;
 
 const UNICORN_COUNT = 6;
 const UNICORN_WANDER_RADIUS = CHUNK_SIZE * (RENDER_DISTANCE - 0.5);
@@ -43,6 +84,48 @@ const UNICORN_BASE_SPEED = 0.8; // blocks per second
 
 const unicorns = [];
 const clock = new THREE.Clock();
+
+function hashCoords(x, z, salt = 0) {
+    const value = Math.sin(x * 127.1 + z * 311.7 + salt * 74.7) * 43758.5453;
+    return value - Math.floor(value);
+}
+
+function showMessage(text) {
+    if (!messageLogElement) return;
+
+    const message = document.createElement('div');
+    message.className = 'message';
+    message.textContent = text;
+    messageLogElement.appendChild(message);
+
+    window.setTimeout(() => {
+        message.remove();
+    }, 3300);
+}
+
+function hasResources(cost = {}) {
+    return Object.entries(cost).every(([resource, amount]) => player[resource] >= amount);
+}
+
+function spendResources(cost = {}) {
+    if (!hasResources(cost)) return false;
+
+    Object.entries(cost).forEach(([resource, amount]) => {
+        player[resource] -= amount;
+    });
+
+    return true;
+}
+
+function formatCost(cost = {}) {
+    const entries = Object.entries(cost);
+    if (entries.length === 0) return 'free';
+    return entries.map(([resource, amount]) => `${amount} ${resource}`).join(', ');
+}
+
+function isNight() {
+    return timeOfDay >= NIGHT_START || timeOfDay < NIGHT_END;
+}
 
 function getChunkKey(chunkX, chunkZ) {
     return `${chunkX},${chunkZ}`;
@@ -177,7 +260,9 @@ function spawnUnicorns(count = UNICORN_COUNT) {
             speed: UNICORN_BASE_SPEED * (0.8 + Math.random() * 0.4),
             turnTimer: UNICORN_MIN_TURN_TIME + Math.random() * (UNICORN_MAX_TURN_TIME - UNICORN_MIN_TURN_TIME),
             bobPhase: Math.random() * Math.PI * 2,
-            bobSpeed: 2 + Math.random()
+            bobSpeed: 2 + Math.random(),
+            scaredTimer: 0,
+            tamed: false
         };
 
         unicorns.push(unicorn);
@@ -192,13 +277,28 @@ function updateUnicorns(delta = 0) {
         const data = unicorn.userData;
         if (!data) return;
 
+        const toPlayerX = camera.position.x - unicorn.position.x;
+        const toPlayerZ = camera.position.z - unicorn.position.z;
+        const distToPlayerSq = toPlayerX * toPlayerX + toPlayerZ * toPlayerZ;
+
+        if (data.tamed) {
+            if (distToPlayerSq > 18) {
+                data.heading = Math.atan2(toPlayerZ, toPlayerX);
+            } else if (distToPlayerSq < 5) {
+                data.heading = Math.atan2(-toPlayerZ, -toPlayerX);
+            }
+        } else if (data.scaredTimer > 0) {
+            data.scaredTimer -= delta;
+            data.heading = Math.atan2(-toPlayerZ, -toPlayerX);
+        }
+
         data.turnTimer -= delta;
-        if (data.turnTimer <= 0) {
+        if (data.turnTimer <= 0 && !data.tamed && data.scaredTimer <= 0) {
             data.turnTimer = UNICORN_MIN_TURN_TIME + Math.random() * (UNICORN_MAX_TURN_TIME - UNICORN_MIN_TURN_TIME);
             data.heading += (Math.random() - 0.5) * Math.PI * 0.6;
         }
 
-        const moveDistance = data.speed * delta;
+        const moveDistance = data.speed * (data.scaredTimer > 0 ? 1.8 : 1) * delta;
         unicorn.position.x += Math.cos(data.heading) * moveDistance;
         unicorn.position.z += Math.sin(data.heading) * moveDistance;
 
@@ -222,6 +322,66 @@ function updateUnicorns(delta = 0) {
 
         const targetRotation = data.heading;
         unicorn.rotation.y = THREE.MathUtils.lerp(unicorn.rotation.y, targetRotation, 0.06);
+    });
+}
+
+function getNearestUnicorn(maxDistance = 4) {
+    let nearest = null;
+    let nearestDistanceSq = maxDistance * maxDistance;
+
+    unicorns.forEach(unicorn => {
+        const dx = unicorn.position.x - camera.position.x;
+        const dz = unicorn.position.z - camera.position.z;
+        const distSq = dx * dx + dz * dz;
+        if (distSq < nearestDistanceSq) {
+            nearestDistanceSq = distSq;
+            nearest = unicorn;
+        }
+    });
+
+    return nearest;
+}
+
+function tameNearestUnicorn() {
+    const unicorn = getNearestUnicorn(5);
+    if (!unicorn) {
+        showMessage('No unicorn is close enough to feed.');
+        return;
+    }
+
+    if (unicorn.userData.tamed) {
+        showMessage('This unicorn already trusts you.');
+        return;
+    }
+
+    if (player.unicornFeed <= 0) {
+        showMessage('Craft unicorn feed first: press R with 2 apples and 1 crystal.');
+        return;
+    }
+
+    player.unicornFeed--;
+    unicorn.userData.tamed = true;
+    unicorn.userData.scaredTimer = 0;
+    unicorn.userData.speed *= 1.1;
+    player.tamedUnicorns++;
+
+    unicorn.traverse(part => {
+        if (part.material && part.material.color) {
+            part.material = part.material.clone();
+            part.material.color.lerp(new THREE.Color(0xffc6f7), 0.35);
+        }
+    });
+
+    showMessage('A unicorn joined you. It will follow and steady your hunger.');
+    updateUI();
+}
+
+function scareNearbyUnicorns(radius = 8) {
+    unicorns.forEach(unicorn => {
+        if (unicorn.userData.tamed) return;
+        if (unicorn.position.distanceTo(camera.position) < radius) {
+            unicorn.userData.scaredTimer = 4;
+        }
     });
 }
 
@@ -315,6 +475,7 @@ function init() {
 
     crosshairElement = document.getElementById('crosshair');
     clickPromptElement = document.getElementById('clickPrompt');
+    messageLogElement = document.getElementById('messageLog');
     if (crosshairElement) crosshairElement.style.display = 'none';
     if (clickPromptElement) {
         clickPromptElement.style.display = 'block';
@@ -327,10 +488,10 @@ function init() {
     pointer = new THREE.Vector2(0, 0);
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(50, 100, 50);
     directionalLight.castShadow = true;
     directionalLight.shadow.camera.left = -50;
@@ -438,12 +599,55 @@ function generateChunk(chunkX, chunkZ) {
         }
     }
 
+    addLandmarks(chunk, chunkX, chunkZ);
+
     chunk.mesh = createChunkMesh(chunk, chunkX, chunkZ);
     if (chunk.mesh) {
         scene.add(chunk.mesh);
     }
 
     world[chunkKey] = chunk;
+}
+
+function addLandmarks(chunk, chunkX, chunkZ) {
+    const roll = hashCoords(chunkX, chunkZ, 1);
+    const centerX = Math.floor(CHUNK_SIZE / 2);
+    const centerZ = Math.floor(CHUNK_SIZE / 2);
+
+    if (roll < 0.18) {
+        // Apple groves are safer food pockets with several dense trees.
+        for (let i = 0; i < 6; i++) {
+            const localX = 5 + Math.floor(hashCoords(chunkX, chunkZ, 10 + i) * (CHUNK_SIZE - 10));
+            const localZ = 5 + Math.floor(hashCoords(chunkX, chunkZ, 20 + i) * (CHUNK_SIZE - 10));
+            const worldX = chunkX * CHUNK_SIZE + localX;
+            const worldZ = chunkZ * CHUNK_SIZE + localZ;
+            const baseY = Math.min(WORLD_HEIGHT - 6, getProceduralSurfaceHeight(worldX, worldZ));
+            addTree(chunk, localX, baseY, localZ);
+        }
+    } else if (roll < 0.32) {
+        // Crystal outcrops are rarer and exposed, rewarding exploration.
+        for (let dx = -2; dx <= 2; dx++) {
+            for (let dz = -2; dz <= 2; dz++) {
+                if (Math.abs(dx) + Math.abs(dz) > 3) continue;
+                const localX = centerX + dx;
+                const localZ = centerZ + dz;
+                const worldX = chunkX * CHUNK_SIZE + localX;
+                const worldZ = chunkZ * CHUNK_SIZE + localZ;
+                const y = getProceduralSurfaceHeight(worldX, worldZ);
+                chunk.blocks[`${localX},${y},${localZ}`] = hashCoords(worldX, worldZ, 30) > 0.55 ? 'crystal' : 'stone';
+            }
+        }
+    } else if (roll < 0.45) {
+        // Dark woods offer more leaves/apples but are harder to move through at night.
+        for (let i = 0; i < 12; i++) {
+            const localX = 3 + Math.floor(hashCoords(chunkX, chunkZ, 40 + i) * (CHUNK_SIZE - 6));
+            const localZ = 3 + Math.floor(hashCoords(chunkX, chunkZ, 60 + i) * (CHUNK_SIZE - 6));
+            const worldX = chunkX * CHUNK_SIZE + localX;
+            const worldZ = chunkZ * CHUNK_SIZE + localZ;
+            const baseY = Math.min(WORLD_HEIGHT - 6, getProceduralSurfaceHeight(worldX, worldZ));
+            addTree(chunk, localX, baseY, localZ);
+        }
+    }
 }
 
 function addTree(chunk, x, baseY, z) {
@@ -556,13 +760,21 @@ function spawnItems() {
         const surfaceY = getSurfaceHeightAt(x, z);
         const y = surfaceY + 0.25;
 
-        const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-        const material = new THREE.MeshLambertMaterial({ color: 0xFF0000 });
-        const food = new THREE.Mesh(geometry, material);
-        food.position.set(x, y, z);
-        food.userData = { type: 'food', value: 20 };
-        scene.add(food);
+        spawnFoodAt(x, y, z, 20);
     }
+}
+
+function spawnFoodAt(x, y, z, value = 20) {
+    const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+    const material = new THREE.MeshLambertMaterial({ color: 0xFF0000 });
+    const food = new THREE.Mesh(geometry, material);
+    food.position.set(x, y, z);
+    food.userData = { type: 'food', value };
+    scene.add(food);
+}
+
+function getBlockKey(x, y, z) {
+    return `${x},${y},${z}`;
 }
 
 // Input handlers
@@ -583,11 +795,17 @@ function onKeyDown(e) {
     }
 
     // Block selection
-    if (e.key >= '1' && e.key <= '5') {
-        const blockTypes = ['grass', 'dirt', 'stone', 'wood', 'leaves'];
+    if (e.key >= '1' && e.key <= '6') {
+        const blockTypes = ['grass', 'dirt', 'stone', 'wood', 'leaves', 'campfire'];
         player.selectedBlock = blockTypes[parseInt(e.key) - 1];
         document.getElementById('selectedBlock').textContent = BLOCK_TYPES[player.selectedBlock].name;
     }
+
+    if (lowerKey === 'f') tameNearestUnicorn();
+    if (lowerKey === 'c') craftCampfire();
+    if (lowerKey === 'x') craftAxe();
+    if (lowerKey === 'p') craftPickaxe();
+    if (lowerKey === 'r') craftUnicornFeed();
 }
 
 function onKeyUp(e) {
@@ -595,6 +813,64 @@ function onKeyUp(e) {
     if (e.key === ' ') {
         controls.jump = false;
     }
+}
+
+function craftCampfire() {
+    const cost = BLOCK_COSTS.campfire;
+    if (!hasResources(cost)) {
+        showMessage(`Campfire needs ${formatCost(cost)}.`);
+        return;
+    }
+
+    player.selectedBlock = 'campfire';
+    showMessage('Campfire selected. Right click to place it where night can reach you.');
+    updateUI();
+}
+
+function craftAxe() {
+    if (player.hasAxe) {
+        showMessage('You already have an axe.');
+        return;
+    }
+
+    const cost = { wood: 2, stone: 1 };
+    if (!spendResources(cost)) {
+        showMessage(`Axe needs ${formatCost(cost)}.`);
+        return;
+    }
+
+    player.hasAxe = true;
+    showMessage('Axe crafted. Wood and leaves now harvest faster.');
+    updateUI();
+}
+
+function craftPickaxe() {
+    if (player.hasPickaxe) {
+        showMessage('You already have a pickaxe.');
+        return;
+    }
+
+    const cost = { wood: 2, stone: 3 };
+    if (!spendResources(cost)) {
+        showMessage(`Pickaxe needs ${formatCost(cost)}.`);
+        return;
+    }
+
+    player.hasPickaxe = true;
+    showMessage('Pickaxe crafted. Stone and crystals now yield more.');
+    updateUI();
+}
+
+function craftUnicornFeed() {
+    const cost = { apples: 2, crystals: 1 };
+    if (!spendResources(cost)) {
+        showMessage(`Unicorn feed needs ${formatCost(cost)}.`);
+        return;
+    }
+
+    player.unicornFeed++;
+    showMessage('Unicorn feed crafted. Press F near a unicorn.');
+    updateUI();
 }
 
 function onMouseMove(e) {
@@ -681,13 +957,35 @@ function removeBlock(x, y, z) {
 
     const blockType = chunk.blocks[blockKey];
     if (blockType && blockType !== 'air') {
-        // Add resources
-        if (blockType === 'wood') player.wood++;
-        if (blockType === 'stone') player.stone++;
+        if (blockType === 'wood') {
+            player.wood += player.hasAxe ? 2 : 1;
+            showMessage(player.hasAxe ? '+2 wood' : '+1 wood');
+        }
+        if (blockType === 'stone') {
+            player.stone += player.hasPickaxe ? 2 : 1;
+            showMessage(player.hasPickaxe ? '+2 stone' : '+1 stone');
+        }
+        if (blockType === 'leaves') {
+            const appleChance = player.hasAxe ? 0.45 : 0.25;
+            if (Math.random() < appleChance) {
+                player.apples++;
+                spawnFoodAt(x + 0.5, y + 0.8, z + 0.5, 15);
+                showMessage('+1 apple. Apples can be eaten or crafted into feed.');
+            }
+        }
+        if (blockType === 'crystal') {
+            player.crystals += player.hasPickaxe ? 2 : 1;
+            showMessage(player.hasPickaxe ? '+2 rainbow crystals' : '+1 rainbow crystal');
+        }
+        if (blockType === 'campfire') {
+            removeCampfireLight(x, y, z);
+            showMessage('Campfire removed.');
+        }
 
         chunk.blocks[blockKey] = 'air';
         updateChunkMesh(chunkX, chunkZ);
         updateAdjacentChunkMeshes(chunkX, chunkZ, localX, localZ);
+        scareNearbyUnicorns();
         updateUI();
     }
 }
@@ -703,10 +1001,44 @@ function placeBlock(x, y, z, blockType) {
     const blockKey = `${localX},${y},${localZ}`;
 
     if (chunk.blocks[blockKey] === 'air') {
+        const cost = BLOCK_COSTS[blockType] || {};
+        if (!spendResources(cost)) {
+            showMessage(`${BLOCK_TYPES[blockType].name} needs ${formatCost(cost)}.`);
+            return;
+        }
+
         chunk.blocks[blockKey] = blockType;
+        if (blockType === 'wood' || blockType === 'leaves') {
+            player.stableBlocksPlaced++;
+        }
+        if (blockType === 'campfire') {
+            addCampfireLight(x, y, z);
+            showMessage('Campfire placed. Stay nearby at night to keep warm.');
+        }
+
         updateChunkMesh(chunkX, chunkZ);
         updateAdjacentChunkMeshes(chunkX, chunkZ, localX, localZ);
+        updateUI();
     }
+}
+
+function addCampfireLight(x, y, z) {
+    const key = getBlockKey(x, y, z);
+    if (campfireLights[key]) return;
+
+    const light = new THREE.PointLight(0xff9d38, 1.4, CAMPFIRE_RADIUS * 2);
+    light.position.set(x + 0.5, y + 0.8, z + 0.5);
+    scene.add(light);
+    campfireLights[key] = light;
+}
+
+function removeCampfireLight(x, y, z) {
+    const key = getBlockKey(x, y, z);
+    const light = campfireLights[key];
+    if (!light) return;
+
+    scene.remove(light);
+    delete campfireLights[key];
 }
 
 function updateChunkMesh(chunkX, chunkZ) {
@@ -749,6 +1081,60 @@ function movePlayerToSurface() {
     camera.position.y = surfaceHeight + player.height;
     player.jumpVelocity = 0;
     player.onGround = true;
+}
+
+function isNearCampfire() {
+    return Object.values(campfireLights).some(light => {
+        const dx = light.position.x - camera.position.x;
+        const dz = light.position.z - camera.position.z;
+        return dx * dx + dz * dz <= CAMPFIRE_RADIUS * CAMPFIRE_RADIUS;
+    });
+}
+
+function isSheltered() {
+    const blockX = Math.floor(camera.position.x);
+    const blockZ = Math.floor(camera.position.z);
+    const headY = Math.floor(camera.position.y);
+
+    for (let y = headY + 1; y <= Math.min(WORLD_HEIGHT - 1, headY + SHELTER_CHECK_HEIGHT); y++) {
+        const block = getBlockTypeAt(blockX, y, blockZ);
+        if (block && block !== 'air' && block !== 'leaves') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function updateWorldTime(delta) {
+    const previousTime = timeOfDay;
+    timeOfDay += delta / DAY_LENGTH_SECONDS;
+
+    if (timeOfDay >= 1) {
+        timeOfDay -= 1;
+        dayCount++;
+        showMessage(`Day ${dayCount}. The world feels a little less forgiving.`);
+    }
+
+    if (previousTime < NIGHT_START && timeOfDay >= NIGHT_START) {
+        showMessage('Night falls. Find shelter or stand near a campfire.');
+    }
+
+    if (previousTime < NIGHT_END && timeOfDay >= NIGHT_END) {
+        showMessage('Morning light returns.');
+    }
+
+    const night = isNight();
+    const lightFactor = night ? 0.24 : 0.75 + Math.sin(timeOfDay * Math.PI) * 0.2;
+
+    if (ambientLight) ambientLight.intensity = night ? 0.22 : 0.55;
+    if (directionalLight) directionalLight.intensity = lightFactor;
+
+    if (scene) {
+        const sky = night ? new THREE.Color(0x101936) : new THREE.Color(0x87CEEB);
+        scene.background.lerp(sky, 0.02);
+        scene.fog.color.lerp(sky, 0.02);
+    }
 }
 
 function updatePlayer(delta = 0) {
@@ -798,12 +1184,33 @@ function updatePlayer(delta = 0) {
         player.onGround = true;
     }
 
+    const night = isNight();
+    const nearCampfire = isNearCampfire();
+    const sheltered = isSheltered();
+    const tamedSupport = Math.min(player.tamedUnicorns * 0.004 * frameFactor, 0.02 * frameFactor);
+
+    if (night && !nearCampfire && !sheltered) {
+        player.warmth -= 0.035 * frameFactor;
+        if (Date.now() - lastCampfireTip > 8000) {
+            showMessage('You are getting cold. Build cover or place a campfire.');
+            lastCampfireTip = Date.now();
+        }
+    } else {
+        player.warmth += (nearCampfire ? 0.08 : 0.025) * frameFactor;
+    }
+    player.warmth = Math.max(0, Math.min(100, player.warmth));
+
     // Hunger
-    player.hunger -= 0.01 * frameFactor;
+    player.hunger -= (0.01 + (player.warmth <= 0 ? 0.02 : 0)) * frameFactor;
+    player.hunger += tamedSupport;
     player.hunger = Math.max(0, player.hunger);
 
     if (player.hunger <= 0) {
-        gameOver();
+        gameOver('You starved!');
+    }
+
+    if (player.warmth <= 0) {
+        gameOver('You froze in the night.');
     }
 
     // Collect nearby items
@@ -812,6 +1219,7 @@ function updatePlayer(delta = 0) {
             const dist = camera.position.distanceTo(obj.position);
             if (dist < 2) {
                 player.hunger = Math.min(100, player.hunger + obj.userData.value);
+                showMessage(`+${obj.userData.value} hunger`);
                 scene.remove(obj);
             }
         }
@@ -823,6 +1231,15 @@ function updateUI() {
     document.getElementById('hungerValue').textContent = Math.floor(player.hunger);
     document.getElementById('woodCount').textContent = player.wood;
     document.getElementById('stoneCount').textContent = player.stone;
+    document.getElementById('appleCount').textContent = player.apples;
+    document.getElementById('feedCount').textContent = player.unicornFeed;
+    document.getElementById('crystalCount').textContent = player.crystals;
+    document.getElementById('warmthBar').style.width = player.warmth + '%';
+    document.getElementById('warmthValue').textContent = Math.floor(player.warmth);
+    document.getElementById('dayValue').textContent = dayCount;
+    document.getElementById('timeValue').textContent = getTimeLabel();
+    document.getElementById('toolStatus').textContent = getToolStatus();
+    document.getElementById('selectedBlock').textContent = BLOCK_TYPES[player.selectedBlock].name;
 
     const hungerBar = document.getElementById('hungerBar');
     if (player.hunger < 30) {
@@ -832,11 +1249,50 @@ function updateUI() {
     } else {
         hungerBar.style.background = 'linear-gradient(90deg, #f093fb 0%, #f5576c 100%)';
     }
+
+    const warmthBar = document.getElementById('warmthBar');
+    if (player.warmth < 30) {
+        warmthBar.style.background = 'linear-gradient(90deg, #68a4ff 0%, #a6d8ff 100%)';
+    } else {
+        warmthBar.style.background = 'linear-gradient(90deg, #ffd166 0%, #f8961e 100%)';
+    }
+
+    updateObjectivesUI();
 }
 
-function gameOver() {
+function getTimeLabel() {
+    if (isNight()) return 'Night';
+    if (timeOfDay < 0.35) return 'Morning';
+    if (timeOfDay < 0.58) return 'Midday';
+    return 'Evening';
+}
+
+function getToolStatus() {
+    const tools = [];
+    if (player.hasAxe) tools.push('Axe');
+    if (player.hasPickaxe) tools.push('Pickaxe');
+    return tools.length ? tools.join(' + ') : 'Hands';
+}
+
+function updateObjectivesUI() {
+    const container = document.getElementById('objectives');
+    if (!container) return;
+
+    container.innerHTML = '';
+    OBJECTIVES.forEach(objective => {
+        const item = document.createElement('div');
+        item.className = `objective${objective.complete() ? ' complete' : ''}`;
+        item.textContent = `${objective.complete() ? 'Done: ' : ''}${objective.label}`;
+        container.appendChild(item);
+    });
+}
+
+function gameOver(message = 'You starved!') {
+    if (gameEnded) return;
+    gameEnded = true;
     controls.locked = false;
     document.exitPointerLock();
+    document.getElementById('gameOverMessage').textContent = message;
     document.getElementById('gameOver').style.display = 'block';
 }
 
@@ -852,6 +1308,8 @@ function animate() {
 
     const delta = clock.getDelta();
 
+    elapsedSurvivalTime += delta;
+    updateWorldTime(delta);
     updatePlayer(delta);
     updateUnicorns(delta);
     updateUI();

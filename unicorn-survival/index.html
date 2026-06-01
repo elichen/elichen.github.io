@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Unicorn Survival 3D</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=gameplay2">
 </head>
 <body>
     <div class="game-container">
@@ -22,17 +22,38 @@
                     <div class="resources">
                         <span>Wood: <span id="woodCount">0</span></span>
                         <span>Stone: <span id="stoneCount">0</span></span>
+                        <span>Apples: <span id="appleCount">0</span></span>
+                        <span>Feed: <span id="feedCount">0</span></span>
+                        <span>Crystal: <span id="crystalCount">0</span></span>
                     </div>
                 </div>
                 <div class="stat">
                     <span class="stat-label">Selected:</span>
                     <span id="selectedBlock" class="selected-block">Grass</span>
                 </div>
+                <div class="stat">
+                    <span class="stat-label">Day:</span>
+                    <span id="dayValue" class="stat-value">1</span>
+                    <span id="timeValue" class="time-value">Morning</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Warmth:</span>
+                    <div class="bar-container small-bar">
+                        <div id="warmthBar" class="bar warmth-bar"></div>
+                    </div>
+                    <span id="warmthValue" class="stat-value">100</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Tools:</span>
+                    <span id="toolStatus" class="selected-block">Hands</span>
+                </div>
             </div>
             <div class="controls">
-                <div class="control-hint">WASD: Move | Mouse: Look | Left Click: Break Block | Right Click: Place Block | 1-5: Select Block | Space: Jump</div>
+                <div class="control-hint">WASD: Move | Mouse: Look | Left Click: Break | Right Click: Place | 1-6: Block | Space: Jump | F: Feed unicorn | C: Campfire | X: Axe | P: Pickaxe | R: Feed</div>
             </div>
+            <div id="objectives" class="objectives"></div>
         </div>
+        <div id="messageLog" class="message-log"></div>
         <div id="crosshair" class="crosshair"></div>
         <div id="gameOver" class="game-over" style="display: none;">
             <h1>Game Over</h1>
@@ -42,6 +63,6 @@
         <div id="clickPrompt" class="click-prompt">Click or press any key to lock the camera (Esc releases)</div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="game.js"></script>
+    <script src="game.js?v=gameplay2"></script>
 </body>
 </html>
