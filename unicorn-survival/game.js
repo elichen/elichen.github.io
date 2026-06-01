@@ -15,6 +15,9 @@ let player = {
 };
 let crosshairElement;
 let clickPromptElement;
+let suppressNextBlockAction = false;
+let lastGeneratedChunkX = null;
+let lastGeneratedChunkZ = null;
 
 const CHUNK_SIZE = 32;
 const BLOCK_SIZE = 1;
@@ -243,12 +246,27 @@ function setPointerLockState(isLocked) {
     }
 }
 
-function attemptPointerLock() {
+function attemptPointerLock(event) {
     if (!renderer || !renderer.domElement) return;
     if (document.pointerLockElement === renderer.domElement) return;
     if (typeof renderer.domElement.requestPointerLock !== 'function') return;
 
-    renderer.domElement.requestPointerLock();
+    if (event && (event.type === 'pointerdown' || event.type === 'touchstart')) {
+        suppressNextBlockAction = true;
+        window.setTimeout(() => {
+            suppressNextBlockAction = false;
+        }, 250);
+    }
+
+    const lockRequest = renderer.domElement.requestPointerLock();
+    if (lockRequest && typeof lockRequest.catch === 'function') {
+        lockRequest.catch(() => {
+            suppressNextBlockAction = false;
+            if (clickPromptElement && !controls.locked) {
+                clickPromptElement.textContent = 'Click inside the game window to lock the camera (Esc to release)';
+            }
+        });
+    }
 }
 
 function updateCameraOrientation() {
@@ -284,7 +302,7 @@ function init() {
     // Camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(CHUNK_SIZE / 2, WORLD_HEIGHT + 5, CHUNK_SIZE / 2);
-    player.yaw = 0;
+    player.yaw = Math.PI;
     player.pitch = 0;
     updateCameraOrientation();
 
@@ -324,13 +342,13 @@ function init() {
     scene.add(directionalLight);
 
     // Event listeners
-    document.addEventListener('click', onClick);
-    document.addEventListener('contextmenu', onRightClick);
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
     window.addEventListener('resize', onWindowResize);
 
     // Pointer lock helpers
+    renderer.domElement.addEventListener('click', onClick);
+    renderer.domElement.addEventListener('contextmenu', onRightClick);
     renderer.domElement.addEventListener('pointerdown', attemptPointerLock);
     renderer.domElement.addEventListener('touchstart', attemptPointerLock);
 
@@ -349,6 +367,7 @@ function init() {
 
     // Generate world
     generateWorld();
+    movePlayerToSurface();
 
     // Spawn food and resources
     spawnItems();
@@ -368,6 +387,9 @@ function generateWorld() {
             generateChunk(cx, cz);
         }
     }
+
+    lastGeneratedChunkX = centerChunkX;
+    lastGeneratedChunkZ = centerChunkZ;
 }
 
 function generateChunk(chunkX, chunkZ) {
@@ -510,8 +532,7 @@ function createChunkMesh(chunk, chunkX, chunkZ) {
     geometry.computeVertexNormals();
 
     const material = new THREE.MeshLambertMaterial({
-        vertexColors: true,
-        flatShading: true
+        vertexColors: true
     });
 
     const mesh = new THREE.Mesh(geometry, material);
@@ -550,13 +571,14 @@ function onKeyDown(e) {
     keys[lowerKey] = true;
 
     if (!controls.locked) {
-        const lockableKeys = ['w', 'a', 's', 'd', ' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
-        if (lockableKeys.includes(lowerKey)) {
+        const isSystemShortcut = e.metaKey || e.ctrlKey || e.altKey;
+        if (e.key !== 'Escape' && !isSystemShortcut) {
             attemptPointerLock();
         }
     }
 
     if (e.key === ' ') {
+        e.preventDefault();
         controls.jump = true;
     }
 
@@ -588,6 +610,11 @@ function onMouseMove(e) {
 }
 
 function onClick(e) {
+    if (suppressNextBlockAction) {
+        suppressNextBlockAction = false;
+        return;
+    }
+
     if (!controls.locked) return;
 
     // Break block
@@ -606,6 +633,11 @@ function onClick(e) {
 
 function onRightClick(e) {
     e.preventDefault();
+    if (suppressNextBlockAction) {
+        suppressNextBlockAction = false;
+        return;
+    }
+
     if (!controls.locked) return;
 
     // Place block
@@ -701,6 +733,24 @@ function updateAdjacentChunkMeshes(chunkX, chunkZ, localX, localZ) {
     if (localZ === CHUNK_SIZE - 1) updateChunkMesh(chunkX, chunkZ + 1);
 }
 
+function updateVisibleWorld() {
+    const centerChunkX = Math.floor(camera.position.x / CHUNK_SIZE);
+    const centerChunkZ = Math.floor(camera.position.z / CHUNK_SIZE);
+
+    if (centerChunkX !== lastGeneratedChunkX || centerChunkZ !== lastGeneratedChunkZ) {
+        generateWorld();
+    }
+}
+
+function movePlayerToSurface() {
+    if (!camera) return;
+
+    const surfaceHeight = getSurfaceHeightAt(camera.position.x, camera.position.z);
+    camera.position.y = surfaceHeight + player.height;
+    player.jumpVelocity = 0;
+    player.onGround = true;
+}
+
 function updatePlayer(delta = 0) {
     if (!controls.locked) return;
 
@@ -727,6 +777,7 @@ function updatePlayer(delta = 0) {
         velocity.normalize().multiplyScalar(player.speed * frameFactor);
         camera.position.x += velocity.x;
         camera.position.z += velocity.z;
+        updateVisibleWorld();
     }
 
     // Gravity and jumping
