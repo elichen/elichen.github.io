@@ -25,11 +25,15 @@
         #controls-hint.fade-out {
             opacity: 0;
         }
+        #telemetry {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <canvas id="canvas"></canvas>
     <div id="controls-hint">Drag to rotate • Scroll to zoom</div>
+    <div id="telemetry"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/geometries/ParametricGeometry.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
@@ -39,6 +43,11 @@
         const COXA_LENGTH = 0.03;
         const FEMUR_LENGTH = 0.06;
         const TIBIA_LENGTH = 0.09;
+        const TAU = Math.PI * 2;
+        const PATH_V_RATE = 0.3;
+        const SURFACE_DERIV_EPS = 1e-4;
+        const MAX_PROJECTION_STEP = 0.35;
+        const IK_MAX_REACH = FEMUR_LENGTH + TIBIA_LENGTH - 1e-4;
 
         // Scene setup
         const scene = new THREE.Scene();
@@ -73,9 +82,6 @@
         const kleinMesh = new THREE.Mesh(geometry, material);
         kleinMesh.receiveShadow = true;
         scene.add(kleinMesh);
-
-        // Raycaster for finding surface points
-        const raycaster = new THREE.Raycaster();
 
         scene.add(new THREE.AmbientLight(0x707070));
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -217,6 +223,7 @@
                     currentTarget: new THREE.Vector3(),
                     swingStartPos: new THREE.Vector3(),
                     initialized: false,
+                    inStancePrev: null,
                 });
             });
             return { antGroup, thorax, abdomen, head, legs };
@@ -236,20 +243,12 @@
             footMarkers.push(s);
         }
 
-        // State per leg (from sphere)
-        const state = legs.map((leg, i) => ({
-            planted: new THREE.Vector3(),
-            current: new THREE.Vector3(),
-            initialized: false,
-            inStancePrev: false,
-        }));
-
-        // Match sphere implementation timing
+        // Gait timing and workspace-sized step dimensions
         const bodySpeed = 0.04; // Same as sphere
-        const period = 2400; // Same as sphere (2.4 seconds)
-        const STEP_HEIGHT = 0.02; // Scaled down by half from sphere's 0.04
-        const STEP_LENGTH = 0.04; // Scaled down by half from sphere's 0.08
-        const epsilon = 0.0001;
+        const period = 1000;
+        const STEP_HEIGHT = 0.012;
+        const STEP_LENGTH = 0.025;
+        const DEBUG_WALK = new URLSearchParams(window.location.search).has('debug');
         // Calculate proper body clearance based on leg dimensions
         // For the scaled-down ant, we need much less clearance
         const FEMUR_ANGLE_NEUTRAL = -0.9; // Downward angle
@@ -261,22 +260,45 @@
         const CLEARANCE_FROM_LEGS = Math.abs(VERTICAL_REACH);
         // Body should be positioned so legs can comfortably reach the surface
         // Reduce from full clearance so legs are more extended (more realistic)
-        const BODY_OFFSET = CLEARANCE_FROM_LEGS * 0.75; // 75% clearance for natural stance
+        const BODY_OFFSET = CLEARANCE_FROM_LEGS * 0.62;
         const FOOT_SURFACE_OFFSET = 0.0; // Start with feet exactly on surface
 
-        // Debug: Log scaled dimensions
-        console.log('Scaled ant dimensions:');
-        console.log('  COXA_LENGTH:', COXA_LENGTH);
-        console.log('  FEMUR_LENGTH:', FEMUR_LENGTH);
-        console.log('  TIBIA_LENGTH:', TIBIA_LENGTH);
-        console.log('  Total reach:', COXA_LENGTH + FEMUR_LENGTH + TIBIA_LENGTH);
-        console.log('  Calculated BODY_OFFSET:', BODY_OFFSET);
-        const PHASE_BLEND_DURATION = 0.1;
+        if (DEBUG_WALK) {
+            console.log('Scaled ant dimensions:');
+            console.log('  COXA_LENGTH:', COXA_LENGTH);
+            console.log('  FEMUR_LENGTH:', FEMUR_LENGTH);
+            console.log('  TIBIA_LENGTH:', TIBIA_LENGTH);
+            console.log('  Total reach:', COXA_LENGTH + FEMUR_LENGTH + TIBIA_LENGTH);
+            console.log('  Calculated BODY_OFFSET:', BODY_OFFSET);
+        }
+        const telemetryEl = document.getElementById('telemetry');
+        const telemetry = window.__kleinTelemetry = {
+            frame: 0,
+            time: 0,
+            maxTargetError: 0,
+            maxStanceError: 0,
+            maxPlaneError: 0,
+            maxReachOvershoot: 0,
+            maxSwingClamp: 0,
+            averageTargetError: 0,
+            averageStanceError: 0,
+            unreachableLegs: 0,
+            legs: []
+        };
+        const telemetrySummary = window.__kleinTelemetrySummary = {
+            frames: 0,
+            worstTargetError: 0,
+            worstStanceError: 0,
+            worstPlaneError: 0,
+            worstReachOvershoot: 0,
+            worstSwingClamp: 0
+        };
 
         const _vec = {
             p: new THREE.Vector3(), p_du: new THREE.Vector3(), p_dv: new THREE.Vector3(),
             du: new THREE.Vector3(), dv: new THREE.Vector3(), N: new THREE.Vector3(), F: new THREE.Vector3(),
-            antOffsetPos: new THREE.Vector3(), lookAtTarget: new THREE.Vector3(),
+            antOffsetPos: new THREE.Vector3(),
+            bodyRight: new THREE.Vector3(), bodyUp: new THREE.Vector3(),
             footTargetSurface: new THREE.Vector3(), normalAtFootTarget: new THREE.Vector3(),
             correctedFootNormal: new THREE.Vector3(),
             swingStartWorld: new THREE.Vector3(),
@@ -289,46 +311,176 @@
             tempQuat: new THREE.Quaternion(),
             temp1: new THREE.Vector3(), temp2: new THREE.Vector3()
         };
+        const surfaceTmp = {
+            p: new THREE.Vector3(),
+            pUPlus: new THREE.Vector3(),
+            pUMinus: new THREE.Vector3(),
+            pVPlus: new THREE.Vector3(),
+            pVMinus: new THREE.Vector3(),
+            du: new THREE.Vector3(),
+            dv: new THREE.Vector3(),
+            offset: new THREE.Vector3()
+        };
 
         // Variables for logging
         let FRAME_NO = 0;
-        const LOG_WALK = true;
         const LOG_EVERY = 20; // Same as sphere
         let t0 = performance.now() / 1000; // Track actual time like sphere
         const tempMatrix = new THREE.Matrix4(); 
         const worldToLocalMatrix = new THREE.Matrix4();
         
+        const wrapAngle = (value) => ((value % TAU) + TAU) % TAU;
+
         const computeKleinBottlePoint = (u,v,target) => { 
-            kleinBottleParametric(u/(2*Math.PI),v/(2*Math.PI),target); 
+            kleinBottleParametric(u/TAU, wrapAngle(v)/TAU,target);
             return target; 
         };
-        
-        const computeSurfaceNormal = (u,v,target) => {
-            const un=u/(2*Math.PI), vn=v/(2*Math.PI), epsNorm=0.00001;
-            computeKleinBottlePoint(u,v,_vec.p);
-            computeKleinBottlePoint(u+epsNorm*(2*Math.PI),v,_vec.p_du);
-            computeKleinBottlePoint(u,v+epsNorm*(2*Math.PI),_vec.p_dv);
-            _vec.du.subVectors(_vec.p_du,_vec.p).normalize();
-            _vec.dv.subVectors(_vec.p_dv,_vec.p).normalize();
-            target.crossVectors(_vec.du,_vec.dv).normalize();
-            return target;
+
+        const computeSurfaceDerivatives = (u, v, pointOut, duOut, dvOut, normalOut) => {
+            computeKleinBottlePoint(u, v, pointOut);
+            computeKleinBottlePoint(u + SURFACE_DERIV_EPS, v, surfaceTmp.pUPlus);
+            computeKleinBottlePoint(u - SURFACE_DERIV_EPS, v, surfaceTmp.pUMinus);
+            computeKleinBottlePoint(u, v + SURFACE_DERIV_EPS, surfaceTmp.pVPlus);
+            computeKleinBottlePoint(u, v - SURFACE_DERIV_EPS, surfaceTmp.pVMinus);
+            duOut.subVectors(surfaceTmp.pUPlus, surfaceTmp.pUMinus).multiplyScalar(1 / (2 * SURFACE_DERIV_EPS));
+            dvOut.subVectors(surfaceTmp.pVPlus, surfaceTmp.pVMinus).multiplyScalar(1 / (2 * SURFACE_DERIV_EPS));
+            normalOut.crossVectors(duOut, dvOut).normalize();
+            return pointOut;
+        };
+
+        const solveTangentStep = (offset, du, dv) => {
+            const a = du.dot(du);
+            const b = du.dot(dv);
+            const c = dv.dot(dv);
+            const d = offset.dot(du);
+            const e = offset.dot(dv);
+            const det = a * c - b * b;
+            if (Math.abs(det) < 1e-10) return { u: 0, v: 0 };
+            return {
+                u: (d * c - e * b) / det,
+                v: (a * e - b * d) / det
+            };
+        };
+
+        const projectToKleinSurface = (targetWorld, uStart, vStart, pointOut, normalOut) => {
+            let u = uStart;
+            let v = vStart;
+
+            computeSurfaceDerivatives(u, v, surfaceTmp.p, surfaceTmp.du, surfaceTmp.dv, normalOut);
+            surfaceTmp.offset.subVectors(targetWorld, surfaceTmp.p);
+            let step = solveTangentStep(surfaceTmp.offset, surfaceTmp.du, surfaceTmp.dv);
+            u += THREE.MathUtils.clamp(step.u, -MAX_PROJECTION_STEP, MAX_PROJECTION_STEP);
+            v += THREE.MathUtils.clamp(step.v, -MAX_PROJECTION_STEP, MAX_PROJECTION_STEP);
+
+            for (let i = 0; i < 5; i++) {
+                computeSurfaceDerivatives(u, v, pointOut, surfaceTmp.du, surfaceTmp.dv, normalOut);
+                surfaceTmp.offset.subVectors(targetWorld, pointOut);
+                step = solveTangentStep(surfaceTmp.offset, surfaceTmp.du, surfaceTmp.dv);
+                const stepLength = Math.hypot(step.u, step.v);
+                if (stepLength > MAX_PROJECTION_STEP) {
+                    const scale = MAX_PROJECTION_STEP / stepLength;
+                    step.u *= scale;
+                    step.v *= scale;
+                }
+                u += step.u;
+                v += step.v;
+                if (Math.hypot(step.u, step.v) < 1e-5) break;
+            }
+
+            computeSurfaceDerivatives(u, v, pointOut, surfaceTmp.du, surfaceTmp.dv, normalOut);
+            if (normalOut.dot(_vec.N) < 0) normalOut.negate();
+            return { u, v };
+        };
+
+        const updateBodyPose = (u, v) => {
+            computeSurfaceDerivatives(u, v, _vec.p, _vec.du, _vec.dv, _vec.N);
+            _vec.F.copy(_vec.du).addScaledVector(_vec.dv, PATH_V_RATE);
+            _vec.F.addScaledVector(_vec.N, -_vec.F.dot(_vec.N)).normalize();
+            _vec.bodyRight.crossVectors(_vec.N, _vec.F).normalize();
+            _vec.bodyUp.crossVectors(_vec.F, _vec.bodyRight).normalize();
+
+            _vec.antOffsetPos.copy(_vec.p).addScaledVector(_vec.N, BODY_OFFSET);
+            antGroup.position.copy(_vec.antOffsetPos);
+            tempMatrix.makeBasis(_vec.bodyRight, _vec.bodyUp, _vec.F);
+            antGroup.quaternion.setFromRotationMatrix(tempMatrix);
+        };
+
+        const beginTelemetry = (frame, time) => {
+            telemetry.frame = frame;
+            telemetry.time = time;
+            telemetry.maxTargetError = 0;
+            telemetry.maxStanceError = 0;
+            telemetry.maxPlaneError = 0;
+            telemetry.maxReachOvershoot = 0;
+            telemetry.maxSwingClamp = 0;
+            telemetry.averageTargetError = 0;
+            telemetry.averageStanceError = 0;
+            telemetry.unreachableLegs = 0;
+            telemetry.legs.length = 0;
+        };
+
+        const recordLegTelemetry = (legData) => {
+            telemetry.legs.push(legData);
+            telemetry.maxTargetError = Math.max(telemetry.maxTargetError, legData.targetError);
+            telemetry.maxStanceError = Math.max(telemetry.maxStanceError, legData.stanceError);
+            telemetry.maxPlaneError = Math.max(telemetry.maxPlaneError, legData.planeError);
+            telemetry.maxReachOvershoot = Math.max(telemetry.maxReachOvershoot, legData.reachOvershoot);
+            telemetry.maxSwingClamp = Math.max(telemetry.maxSwingClamp, legData.swingClampDistance);
+            telemetry.averageTargetError += legData.targetError;
+            telemetry.averageStanceError += legData.stanceError;
+            if (legData.reachOvershoot > 1e-6) telemetry.unreachableLegs++;
+        };
+
+        const finishTelemetry = () => {
+            if (telemetry.legs.length) {
+                telemetry.averageTargetError /= telemetry.legs.length;
+                telemetry.averageStanceError /= telemetry.legs.length;
+            }
+
+            telemetrySummary.frames++;
+            telemetrySummary.worstTargetError = Math.max(telemetrySummary.worstTargetError, telemetry.maxTargetError);
+            telemetrySummary.worstStanceError = Math.max(telemetrySummary.worstStanceError, telemetry.maxStanceError);
+            telemetrySummary.worstPlaneError = Math.max(telemetrySummary.worstPlaneError, telemetry.maxPlaneError);
+            telemetrySummary.worstReachOvershoot = Math.max(telemetrySummary.worstReachOvershoot, telemetry.maxReachOvershoot);
+            telemetrySummary.worstSwingClamp = Math.max(telemetrySummary.worstSwingClamp, telemetry.maxSwingClamp);
+
+            if (FRAME_NO % 10 === 0) {
+                telemetryEl.dataset.frame = String(telemetry.frame);
+                telemetryEl.dataset.maxStanceError = String(telemetry.maxStanceError);
+                telemetryEl.dataset.maxTargetError = String(telemetry.maxTargetError);
+                telemetryEl.dataset.maxPlaneError = String(telemetry.maxPlaneError);
+                telemetryEl.dataset.maxReachOvershoot = String(telemetry.maxReachOvershoot);
+                telemetryEl.dataset.maxSwingClamp = String(telemetry.maxSwingClamp);
+                telemetryEl.dataset.unreachableLegs = String(telemetry.unreachableLegs);
+                telemetryEl.dataset.legs = JSON.stringify(telemetry.legs.map((leg) => ({
+                    legIndex: leg.legIndex,
+                    inStance: leg.inStance,
+                    targetError: leg.targetError,
+                    stanceError: leg.stanceError,
+                    planeError: leg.planeError,
+                    reach: leg.reach,
+                    reachOvershoot: leg.reachOvershoot,
+                    swingClampDistance: leg.swingClampDistance
+                })));
+                telemetryEl.textContent =
+                    `frame ${telemetry.frame}\n` +
+                    `stance err ${telemetry.maxStanceError.toExponential(2)}\n` +
+                    `target err ${telemetry.maxTargetError.toExponential(2)}\n` +
+                    `plane err  ${telemetry.maxPlaneError.toExponential(2)}\n` +
+                    `reach over ${telemetry.maxReachOvershoot.toExponential(2)}\n` +
+                    `swing clamp ${telemetry.maxSwingClamp.toExponential(2)}\n` +
+                    `unreach ${telemetry.unreachableLegs}/6`;
+                telemetryEl.style.color = telemetry.maxStanceError < 1e-3 && telemetry.maxTargetError < 1e-3
+                    ? '#d9ffe5'
+                    : '#fff0b3';
+            }
         };
 
         // Initialize ant position and compute home positions (like sphere implementation)
         // Start at initial parameters
         const u_init = 0;
         const v_init = 0;
-        computeKleinBottlePoint(u_init, v_init, _vec.p);
-        computeSurfaceNormal(u_init, v_init, _vec.N);
-        computeKleinBottlePoint(u_init + epsilon * (2*Math.PI), v_init, _vec.p_du);
-        _vec.F.subVectors(_vec.p_du, _vec.p).normalize().multiplyScalar(-1);
-
-        // Position ant
-        _vec.antOffsetPos.copy(_vec.p).addScaledVector(_vec.N, BODY_OFFSET);
-        antGroup.position.copy(_vec.antOffsetPos);
-        _vec.lookAtTarget.copy(_vec.antOffsetPos).add(_vec.F);
-        tempMatrix.lookAt(_vec.antOffsetPos, _vec.lookAtTarget, _vec.N);
-        antGroup.quaternion.setFromRotationMatrix(tempMatrix);
+        updateBodyPose(u_init, v_init);
 
         // Update matrices so FK works correctly
         antGroup.updateMatrixWorld(true);
@@ -348,10 +500,12 @@
             });
         })();
 
-        console.log('=== Home Positions (thorax space) ===');
-        home.forEach((h, i) => {
-            console.log(`Leg ${i}:`, h.clone());
-        });
+        if (DEBUG_WALK) {
+            console.log('=== Home Positions (thorax space) ===');
+            home.forEach((h, i) => {
+                console.log(`Leg ${i}:`, h.clone());
+            });
+        }
 
         function animate(time) {
             requestAnimationFrame(animate);
@@ -364,20 +518,10 @@
             // Move body along Klein bottle surface
             // Use time-based movement like sphere
             const pathSpeed = bodySpeed * 0.5; // Adjust for Klein bottle scale
-            const u_body = (t * pathSpeed) % (2 * Math.PI);
-            const v_body = (t * pathSpeed * 0.3) % (2 * Math.PI); // Slower v movement for interesting path
-            
-            computeKleinBottlePoint(u_body, v_body, _vec.p);
-            computeSurfaceNormal(u_body, v_body, _vec.N);
-            computeKleinBottlePoint(u_body + epsilon * (2*Math.PI), v_body, _vec.p_du);
-            _vec.F.subVectors(_vec.p_du, _vec.p).normalize().multiplyScalar(-1);
-
-            // Position ant at correct height above surface for legs to reach
-            _vec.antOffsetPos.copy(_vec.p).addScaledVector(_vec.N, BODY_OFFSET);
-            antGroup.position.copy(_vec.antOffsetPos);
-            _vec.lookAtTarget.copy(_vec.antOffsetPos).add(_vec.F);
-            tempMatrix.lookAt(_vec.antOffsetPos, _vec.lookAtTarget, _vec.N);
-            antGroup.quaternion.setFromRotationMatrix(tempMatrix);
+            const u_body = wrapAngle(t * pathSpeed);
+            const v_body = wrapAngle(t * pathSpeed * PATH_V_RATE);
+            updateBodyPose(u_body, v_body);
+            beginTelemetry(FRAME_NO, t);
             
             // No body animations - sphere implementation doesn't have these
 
@@ -398,73 +542,23 @@
                 _vec.targetInThorax.z += stepOffsetThorax;
 
                 // Transform to world space
-                _vec.targetWorld = _vec.targetInThorax.clone();
-                _vec.targetWorld.applyMatrix4(thorax.matrixWorld);
+                _vec.targetWorld.copy(_vec.targetInThorax).applyMatrix4(thorax.matrixWorld);
 
-                // Project target onto Klein bottle surface using tangent-space approximation
-                // This respects the IK-calculated foot target position
-                const eps_u = 0.01; // Parameter space step for numerical derivative
-                const eps_v = 0.01;
-                computeKleinBottlePoint(u_body, v_body, _vec.p); // Body position on surface
-                computeKleinBottlePoint(u_body + eps_u, v_body, _vec.p_du);
-                computeKleinBottlePoint(u_body, v_body + eps_v, _vec.p_dv);
-
-                // Tangent vectors: world space displacement per unit parameter change
-                _vec.du.subVectors(_vec.p_du, _vec.p); // du/dε_u
-                _vec.dv.subVectors(_vec.p_dv, _vec.p); // dv/dε_v
-
-                // World space offset from body to desired foot target
-                _vec.temp1.subVectors(_vec.targetWorld, _vec.p);
-
-                // Project onto tangent basis: find (α, β) such that target ≈ p + α·du + β·dv
-                // This gives α and β in units of the epsilon steps
-                const alpha = _vec.temp1.dot(_vec.du) / _vec.du.lengthSq();
-                const beta = _vec.temp1.dot(_vec.dv) / _vec.dv.lengthSq();
-
-                // Calculate foot position in parameter space
-                const u_foot = u_body + alpha * eps_u;
-                const v_foot = v_body + beta * eps_v;
-
-                // Debug on first frame
-                if (FRAME_NO === 1 && legIndex === 0) {
-                    console.log('=== Tangent Space Projection Debug (Leg 0) ===');
-                    console.log('Body (u,v):', u_body, v_body);
-                    console.log('Body surface pos:', _vec.p.clone());
-                    console.log('Target world pos:', _vec.targetWorld.clone());
-                    console.log('Offset (target - body):', _vec.temp1.clone());
-                    console.log('Tangent du:', _vec.du.clone(), 'length:', _vec.du.length());
-                    console.log('Tangent dv:', _vec.dv.clone(), 'length:', _vec.dv.length());
-                    console.log('Projection (alpha, beta):', alpha, beta);
-                    console.log('Foot (u,v):', u_foot, v_foot);
-                    console.log('Foot surface pos:', _vec.footTargetSurface.clone());
-                }
-
-                // Get actual surface point and normal
-                computeKleinBottlePoint(u_foot, v_foot, _vec.footTargetSurface);
-                computeSurfaceNormal(u_foot, v_foot, _vec.normalAtFootTarget);  
-
-                // Smooth normal vector handling
+                // Project the desired foot placement onto the parametric surface.
+                const projected = projectToKleinSurface(_vec.targetWorld, u_body, v_body, _vec.footTargetSurface, _vec.normalAtFootTarget);
                 _vec.correctedFootNormal.copy(_vec.normalAtFootTarget);
-                if (_vec.correctedFootNormal.dot(_vec.N) < 0) {
-                    _vec.correctedFootNormal.negate();
-                }
-                
-                const normalBlendFactor = 0.15;
-                if (leg.lastNormal) {
-                    _vec.correctedFootNormal.lerp(leg.lastNormal, 1 - normalBlendFactor);
-                }
-                leg.lastNormal = leg.lastNormal || new THREE.Vector3();
-                leg.lastNormal.copy(_vec.correctedFootNormal);
 
                 // Ensure foot is exactly on the surface
-                const actualFootPlantTarget = _vec.footTargetSurface.clone().addScaledVector(_vec.correctedFootNormal, FOOT_SURFACE_OFFSET);
+                _vec.temp1.copy(_vec.footTargetSurface).addScaledVector(_vec.correctedFootNormal, FOOT_SURFACE_OFFSET);
+                const actualFootPlantTarget = _vec.temp1;
 
-                const wasPlanted = leg.lastPhase < 0.5;
+                const wasPlanted = leg.inStancePrev === null ? inStance : leg.inStancePrev;
                 const isPlanted = phase < 0.5;
                 const justStartedSwing = wasPlanted && !isPlanted;
+                const justLanded = !wasPlanted && isPlanted;
                 
                 if (justStartedSwing) {
-                    leg.swingStartPos.copy(leg.currentTarget);
+                    leg.swingStartPos.copy(leg.plantedT);
                 }
 
                 if (!leg.initialized) {
@@ -474,6 +568,10 @@
                     leg.initialized = true;
                     
                     // Initialize leg angles for standing position - removed as sphere doesn't have this
+                }
+
+                if (justLanded) {
+                    leg.plantedT.copy(actualFootPlantTarget);
                 }
 
                 if (phase < 0.5) { 
@@ -489,21 +587,15 @@
                     
                     _vec.swingLerpBase.copy(leg.swingStartPos).lerp(actualFootPlantTarget, easedSwing);
                     _vec.finalFootTargetWorld.copy(_vec.swingLerpBase).addScaledVector(_vec.correctedFootNormal, liftHeight);
-                    
-                    if (swingNormalized >= 0.95) { 
-                        leg.plantedT.copy(actualFootPlantTarget); 
-                    }
                 }
                 
-                if (!leg.currentTarget.x && !leg.currentTarget.y && !leg.currentTarget.z) {
-                    leg.currentTarget.copy(_vec.finalFootTargetWorld);
-                }
-                leg.currentTarget.lerp(_vec.finalFootTargetWorld, 0.25);
+                leg.currentTarget.copy(_vec.finalFootTargetWorld);
 
                 // Place debug marker at current target
                 footMarkers[legIndex].position.copy(leg.currentTarget);
                 
                 leg.lastPhase = phase;
+                leg.inStancePrev = inStance;
                 
                 _vec.targetInThorax.copy(leg.currentTarget).applyMatrix4(worldToLocalMatrix);
                 _vec.targetRelToLegRoot.subVectors(_vec.targetInThorax, leg.legRoot.position);
@@ -511,17 +603,39 @@
                 // Solve yaw s.t. planted lies in coxa local XY plane (z≈0), then do IK in coxa local
                 // First pass: compute coxa local point and yaw correction to zero z
                 const computeWorldToCoxa = () => new THREE.Matrix4().copy(leg.coxaPivot.matrixWorld).invert();
-                let worldToCoxa = computeWorldToCoxa();
-                let pCoxa = leg.currentTarget.clone().applyMatrix4(worldToCoxa); // in coxa local
-                const dYaw = Math.atan2(pCoxa.z, pCoxa.x);
-                leg.legRoot.rotation.y -= dYaw; // rotate so z→0
-                leg.legRoot.updateMatrixWorld(true);
-                // Recompute with corrected yaw
+                let worldToCoxa;
+                let pCoxa;
+                for (let yawIter = 0; yawIter < 2; yawIter++) {
+                    worldToCoxa = computeWorldToCoxa();
+                    pCoxa = leg.currentTarget.clone().applyMatrix4(worldToCoxa); // in coxa local
+                    const dYaw = Math.atan2(pCoxa.z, pCoxa.x);
+                    leg.legRoot.rotation.y -= dYaw; // rotate so z -> 0
+                    leg.legRoot.updateMatrixWorld(true);
+                }
                 worldToCoxa = computeWorldToCoxa();
                 pCoxa = leg.currentTarget.clone().applyMatrix4(worldToCoxa);
                 // Planar IK in coxa local XY
-                const xLeg = pCoxa.x - COXA_LENGTH;
-                const yLeg = pCoxa.y; 
+                let xLeg = pCoxa.x - COXA_LENGTH;
+                let yLeg = pCoxa.y;
+                let reach = Math.hypot(xLeg, yLeg);
+                let swingClampDistance = 0;
+
+                if (!inStance && reach > IK_MAX_REACH) {
+                    _vec.temp2.copy(leg.currentTarget);
+                    const scale = IK_MAX_REACH / reach;
+                    pCoxa.x = COXA_LENGTH + xLeg * scale;
+                    pCoxa.y = yLeg * scale;
+                    pCoxa.z = 0;
+                    leg.currentTarget.copy(pCoxa);
+                    leg.coxaPivot.localToWorld(leg.currentTarget);
+                    swingClampDistance = _vec.temp2.distanceTo(leg.currentTarget);
+
+                    worldToCoxa = computeWorldToCoxa();
+                    pCoxa = leg.currentTarget.clone().applyMatrix4(worldToCoxa);
+                    xLeg = pCoxa.x - COXA_LENGTH;
+                    yLeg = pCoxa.y;
+                    reach = Math.hypot(xLeg, yLeg);
+                }
 
                 // IK solver in XY plane (after yaw unrotation and coxa splay removal)
                 function solvePlanarIK(x, y) {
@@ -534,38 +648,9 @@
                     return { femur, tibia: knee };
                 }
 
-                // If stance target is barely reachable, trigger swing early to avoid sliding
-                // inStance already declared above
-                if (inStance) {
-                    const L1 = FEMUR_LENGTH, L2 = TIBIA_LENGTH;
-                    const D = Math.hypot(xLeg, yLeg);
-                    const MAX_REACH = L1 + L2 - 1e-3;
-                    if (D > MAX_REACH * 0.985) {
-                        // Would trigger early swing, but keeping for now
-                    }
-                }
-
-                let femurAngle, tibiaAngle;
-                if (inStance) {
-                    // Exact IK in stance so the tibia tip touches ground
-                    const res = solvePlanarIK(xLeg, yLeg);
-                    femurAngle = THREE.MathUtils.clamp(res.femur, -1.6, 0.2);
-                    tibiaAngle = THREE.MathUtils.clamp(res.tibia, 0.0, 2.6);
-                } else {
-                    // During swing, keep tibia near neutral and use femur to lift/place for stability
-                    const TIBIA_NEUTRAL = 0.8;
-                    const L1 = FEMUR_LENGTH, L2 = TIBIA_LENGTH;
-                    const Dfixed = Math.sqrt(L1*L1 + L2*L2 + 2*L1*L2*Math.cos(TIBIA_NEUTRAL));
-                    const r = Math.hypot(xLeg, yLeg) || 1e-6;
-                    const scale = Dfixed / r;
-                    const xFixed = xLeg * scale;
-                    const yFixed = yLeg * scale;
-                    const phi = Math.atan2(yFixed, xFixed);
-                    const Aangle = Math.atan2(L2*Math.sin(TIBIA_NEUTRAL), L1 + L2*Math.cos(TIBIA_NEUTRAL));
-                    femurAngle = phi - Aangle;
-                    femurAngle = THREE.MathUtils.clamp(femurAngle, -1.6, 0.2);
-                    tibiaAngle = TIBIA_NEUTRAL;
-                }
+                const res = solvePlanarIK(xLeg, yLeg);
+                const femurAngle = res.femur;
+                const tibiaAngle = res.tibia;
 
                 // Apply rotations directly (sphere doesn't do smoothing here)
                 leg.femurPivot.rotation.z = femurAngle;
@@ -578,8 +663,37 @@
                 leg.tibiaPivot.localToWorld(tipWorld);
                 footMarkers[legIndex].position.copy(tipWorld);
 
+                const targetError = tipWorld.distanceTo(leg.currentTarget);
+                const stanceError = inStance ? tipWorld.distanceTo(leg.plantedT) : 0;
+                const planeError = Math.abs(pCoxa.z);
+                const rawReachOvershoot = Math.max(0, reach - IK_MAX_REACH);
+                const reachOvershoot = rawReachOvershoot < 1e-8 ? 0 : rawReachOvershoot;
+                recordLegTelemetry({
+                    legIndex,
+                    inStance,
+                    phase,
+                    targetError,
+                    stanceError,
+                    planeError,
+                    reach,
+                    reachOvershoot,
+                    swingClampDistance,
+                    projectedU: projected.u,
+                    projectedV: projected.v,
+                    planted: {
+                        x: leg.plantedT.x,
+                        y: leg.plantedT.y,
+                        z: leg.plantedT.z
+                    },
+                    tipWorld: {
+                        x: tipWorld.x,
+                        y: tipWorld.y,
+                        z: tipWorld.z
+                    }
+                });
+
                 // Log foot positions periodically
-                if (LOG_WALK && FRAME_NO === 1) {
+                if (DEBUG_WALK && FRAME_NO === 1) {
                     // Calculate actual foot tip position
                     leg.tibiaPivot.updateMatrixWorld(true);
                     const tipLocal = new THREE.Vector3(TIBIA_LENGTH, 0, 0); // X-axis aligned
@@ -597,7 +711,7 @@
             });
 
             // Log body distance on first frame
-            if (FRAME_NO === 1) {
+            if (DEBUG_WALK && FRAME_NO === 1) {
                 console.log('=== Body Position at frame 1 ===');
                 console.log('Body position:', antGroup.position.clone());
                 console.log('Surface point:', _vec.p.clone());
@@ -606,7 +720,7 @@
             }
 
             // Periodic detailed logging during stance
-            if (LOG_WALK && (FRAME_NO % LOG_EVERY === 0)) {
+            if (DEBUG_WALK && (FRAME_NO % LOG_EVERY === 0)) {
                 legs.forEach((leg, i) => {
                     const phase = ((t * 1000) / period + leg.phaseOffset) % 1;
                     if (phase < 0.5) { // Only log during stance
@@ -627,6 +741,8 @@
                     }
                 });
             }
+
+            finishTelemetry();
 
             renderer.render(scene, camera);
         }
