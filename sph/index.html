@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU SPH Fluid</title>
+    <meta name="description" content="A 2D SPH fluid running entirely on the GPU with WebGPU compute shaders.">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <canvas id="gpu"></canvas>
+
+    <div id="panel">
+        <div class="title">WEBGPU SPH FLUID</div>
+        <div class="row">
+            <label for="count">Particles</label>
+            <select id="count">
+                <option value="10000">10K</option>
+                <option value="20000">20K</option>
+                <option value="40000" selected>40K</option>
+                <option value="80000">80K</option>
+            </select>
+        </div>
+        <div class="row">
+            <label for="gravity">Gravity</label>
+            <input id="gravity" type="range" min="0" max="60" value="28">
+        </div>
+        <div class="row">
+            <label for="viscosity">Viscosity</label>
+            <input id="viscosity" type="range" min="0" max="4" step="0.05" value="1.1">
+        </div>
+        <div class="row">
+            <label for="stiffness">Stiffness</label>
+            <input id="stiffness" type="range" min="100" max="1600" step="10" value="560">
+        </div>
+        <div class="row">
+            <label for="tilt">Tilt</label>
+            <input id="tilt" type="range" min="-45" max="45" step="1" value="0">
+        </div>
+        <div class="row buttons">
+            <button id="pause">Pause</button>
+            <button id="reset">Reset</button>
+            <button id="addObstacle">Add obstacle</button>
+        </div>
+        <div class="hint">Drag to stir &middot; Shift-drag to pull &middot; Drag the discs &middot; Tilt to slosh</div>
+        <div class="stats"><span id="fps">--</span> fps &middot; <span id="pcount">--</span> particles</div>
+    </div>
+
+    <div id="unsupported" hidden>
+        <div class="box">
+            <p>This demo needs WebGPU &mdash; try Chrome or Edge on desktop.</p>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
