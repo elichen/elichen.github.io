@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rainbow Unicorn Tic-Tac-Toe</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="sky"></div>
+
+    <main>
+        <h1 id="title" aria-label="Rainbow Unicorn Tic-Tac-Toe"></h1>
+
+        <div id="status">Your turn, little unicorn! 🦄</div>
+
+        <div id="board" role="grid" aria-label="Tic-tac-toe board">
+            <button class="cell" data-i="0" aria-label="cell 1"></button>
+            <button class="cell" data-i="1" aria-label="cell 2"></button>
+            <button class="cell" data-i="2" aria-label="cell 3"></button>
+            <button class="cell" data-i="3" aria-label="cell 4"></button>
+            <button class="cell" data-i="4" aria-label="cell 5"></button>
+            <button class="cell" data-i="5" aria-label="cell 6"></button>
+            <button class="cell" data-i="6" aria-label="cell 7"></button>
+            <button class="cell" data-i="7" aria-label="cell 8"></button>
+            <button class="cell" data-i="8" aria-label="cell 9"></button>
+        </div>
+
+        <div id="controls">
+            <button id="mode-btn">Playing: You 🦄 vs Rainbow 🌈</button>
+            <button id="restart-btn">Play Again! ✨</button>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
