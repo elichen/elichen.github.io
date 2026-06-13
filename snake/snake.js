@@ -174,8 +174,8 @@ class SnakeGame {
         this._drawSnake();
     }
 
-    // Bake the dark board, glowing grid and vignette once into an offscreen
-    // canvas so every frame is a single drawImage instead of ~40 line strokes.
+    // Bake the white board and grid once into an offscreen canvas so every
+    // frame is a single drawImage instead of ~40 line strokes.
     _buildBackground() {
         const W = this.canvas.width, H = this.canvas.height, ts = this.tileSize;
         const off = document.createElement('canvas');
@@ -183,37 +183,25 @@ class SnakeGame {
         off.height = H;
         const x = off.getContext('2d');
 
-        const bg = x.createRadialGradient(W / 2, H * 0.42, 30, W / 2, H / 2, W * 0.78);
-        bg.addColorStop(0, '#102a20');
-        bg.addColorStop(1, '#04080a');
-        x.fillStyle = bg;
+        x.fillStyle = '#ffffff';
         x.fillRect(0, 0, W, H);
 
-        // A crisp coordinate lattice: visible minor cells, brighter every 5th
+        // A crisp coordinate lattice: visible minor cells, darker every 5th
         // line, so the board reads as an instrumented simulation grid.
-        x.lineWidth = 1;
         for (let i = 0; i <= this.gridSize; i++) {
             const major = (i % 5 === 0);
-            x.strokeStyle = major ? 'rgba(110, 240, 205, 0.34)' : 'rgba(100, 230, 195, 0.13)';
+            x.strokeStyle = major ? 'rgba(15, 23, 42, 0.18)' : 'rgba(15, 23, 42, 0.08)';
             x.lineWidth = major ? 1.25 : 1;
             x.beginPath(); x.moveTo(i * ts, 0); x.lineTo(i * ts, H); x.stroke();
             x.beginPath(); x.moveTo(0, i * ts); x.lineTo(W, i * ts); x.stroke();
         }
 
-        // Keep a gentle vignette for depth, but light enough that the grid
-        // stays readable all the way to the edges.
-        const vig = x.createRadialGradient(W / 2, H / 2, W * 0.46, W / 2, H / 2, W * 0.86);
-        vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        vig.addColorStop(1, 'rgba(0, 0, 0, 0.34)');
-        x.fillStyle = vig;
-        x.fillRect(0, 0, W, H);
-
         this.bg = off;
     }
 
-    // The snake is one rounded neon tube. Stacked additive strokes fake a glow
-    // localised to the body, which scales to a full board far better than a
-    // full-canvas shadowBlur would.
+    // The snake is one rounded tube: a darker outline, a solid green fill, and
+    // a glossy highlight spine. Plain source-over strokes read cleanly on white
+    // and scale to a full board without a full-canvas shadowBlur.
     _drawSnake() {
         const ctx = this.ctx, ts = this.tileSize, c = ts / 2;
         const path = new Path2D();
@@ -225,12 +213,9 @@ class SnakeGame {
         ctx.save();
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.strokeStyle = 'rgba(20, 150, 100, 0.35)'; ctx.lineWidth = ts * 0.86; ctx.stroke(path);
-        ctx.strokeStyle = 'rgba(29, 200, 140, 0.40)'; ctx.lineWidth = ts * 0.60; ctx.stroke(path);
-        ctx.strokeStyle = 'rgba(90, 255, 190, 0.55)'; ctx.lineWidth = ts * 0.42; ctx.stroke(path);
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.strokeStyle = 'rgba(216, 255, 238, 0.95)'; ctx.lineWidth = ts * 0.26; ctx.stroke(path);
+        ctx.strokeStyle = '#0c8a4d'; ctx.lineWidth = ts * 0.72; ctx.stroke(path); // outline
+        ctx.strokeStyle = '#19b46a'; ctx.lineWidth = ts * 0.58; ctx.stroke(path); // body
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.40)'; ctx.lineWidth = ts * 0.16; ctx.stroke(path); // gloss
         ctx.restore();
 
         this._drawHead();
@@ -242,48 +227,55 @@ class SnakeGame {
         const x = h.x * ts + c, y = h.y * ts + c;
 
         ctx.save();
-        ctx.shadowColor = '#7dffd0';
-        ctx.shadowBlur = ts * 0.8;
-        const g = ctx.createRadialGradient(x, y, 0, x, y, ts * 0.5);
-        g.addColorStop(0, 'rgba(240, 255, 250, 1)');
-        g.addColorStop(0.55, 'rgba(120, 255, 200, 0.95)');
-        g.addColorStop(1, 'rgba(29, 255, 160, 0.18)');
+        ctx.shadowColor = 'rgba(12, 100, 60, 0.30)';
+        ctx.shadowBlur = ts * 0.3;
+        ctx.shadowOffsetY = ts * 0.06;
+        const g = ctx.createRadialGradient(x - ts * 0.1, y - ts * 0.12, 0, x, y, ts * 0.5);
+        g.addColorStop(0, '#3ad98c');
+        g.addColorStop(1, '#12a85e');
         ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(x, y, ts * 0.42, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, ts * 0.46, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
 
-        // Eyes face the direction of travel.
+        // Eyes face the direction of travel: white sclera with a dark pupil.
         const d = this.direction;
         const perp = { x: -d.y, y: d.x };
-        const fwd = ts * 0.10, sep = ts * 0.17;
+        const fwd = ts * 0.08, sep = ts * 0.17;
         for (const side of [-1, 1]) {
             const ex = x + d.x * fwd + perp.x * sep * side;
             const ey = y + d.y * fwd + perp.y * sep * side;
-            ctx.fillStyle = '#06231a';
-            ctx.beginPath(); ctx.arc(ex, ey, ts * 0.075, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(ex, ey, ts * 0.11, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#0a3322';
+            ctx.beginPath(); ctx.arc(ex + d.x * ts * 0.035, ey + d.y * ts * 0.035, ts * 0.055, 0, Math.PI * 2); ctx.fill();
         }
     }
 
     _drawFood(food, pulse) {
         const ctx = this.ctx, ts = this.tileSize, c = ts / 2;
         const x = food.x * ts + c, y = food.y * ts + c;
-        const r = ts * (0.30 + 0.06 * pulse);
+        const r = ts * (0.30 + 0.05 * pulse);
 
         ctx.save();
-        ctx.shadowColor = '#ff2d55';
-        ctx.shadowBlur = ts * (0.55 + 0.55 * pulse);
-        const g = ctx.createRadialGradient(x - ts * 0.09, y - ts * 0.09, 0, x, y, r);
-        g.addColorStop(0, 'rgba(255, 238, 238, 1)');
-        g.addColorStop(0.35, 'rgba(255, 93, 115, 1)');
-        g.addColorStop(1, 'rgba(255, 45, 85, 0.85)');
+        ctx.shadowColor = 'rgba(200, 30, 45, 0.30)';
+        ctx.shadowBlur = ts * (0.25 + 0.2 * pulse);
+        ctx.shadowOffsetY = ts * 0.05;
+        const g = ctx.createRadialGradient(x - ts * 0.1, y - ts * 0.12, 0, x, y, r);
+        g.addColorStop(0, '#ff8a8a');
+        g.addColorStop(0.45, '#ef4444');
+        g.addColorStop(1, '#cc2222');
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
+
+        // A small specular highlight gives the orb some gloss.
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.35, r * 0.22, 0, Math.PI * 2); ctx.fill();
     }
 
-    // A glowing cyan comet wake behind the head: brightest and widest at the
-    // newest position, tapering and fading toward the oldest. Drawn additively
-    // so it reads as light over the board and the snake.
+    // An azure comet wake behind the head: brightest and widest at the newest
+    // position, tapering and fading toward the oldest. Plain source-over so it
+    // stays visible on the white board.
     drawActionTrail(headPositions) {
         if (!headPositions || headPositions.length < 2) return;
 
@@ -293,32 +285,31 @@ class SnakeGame {
         const py = (p) => p.y * ts + c;
 
         ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        // Streak: connect the recent positions with a tapering bright line.
+        // Streak: connect the recent positions with a tapering line.
         for (let i = 1; i < n; i++) {
             const t = i / (n - 1); // 0 = oldest, 1 = newest
             const a = headPositions[i - 1], b = headPositions[i];
             ctx.beginPath();
             ctx.moveTo(px(a), py(a));
             ctx.lineTo(px(b), py(b));
-            ctx.lineWidth = ts * (0.08 + 0.34 * t);
-            ctx.strokeStyle = `rgba(120, 240, 255, ${0.04 + 0.16 * t})`;
+            ctx.lineWidth = ts * (0.08 + 0.30 * t);
+            ctx.strokeStyle = `rgba(37, 130, 255, ${0.06 + 0.30 * t})`;
             ctx.stroke();
         }
 
-        // Comet glow blobs, growing toward the head.
+        // Soft comet blobs, growing toward the head.
         for (let i = 0; i < n; i++) {
             const t = i / (n - 1);
             const x = px(headPositions[i]), y = py(headPositions[i]);
-            const r = ts * (0.10 + 0.5 * t * t);
-            const core = 0.08 + 0.55 * t;
+            const r = ts * (0.10 + 0.42 * t * t);
+            const core = 0.10 + 0.5 * t;
             const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-            g.addColorStop(0, `rgba(235, 253, 255, ${core})`);
-            g.addColorStop(0.4, `rgba(56, 232, 255, ${core * 0.55})`);
-            g.addColorStop(1, 'rgba(40, 180, 255, 0)');
+            g.addColorStop(0, `rgba(80, 160, 255, ${core})`);
+            g.addColorStop(0.5, `rgba(37, 130, 255, ${core * 0.5})`);
+            g.addColorStop(1, 'rgba(37, 130, 255, 0)');
             ctx.fillStyle = g;
             ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
         }

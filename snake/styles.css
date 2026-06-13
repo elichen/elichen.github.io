@@ -39,13 +39,12 @@ h1 {
 }
 
 canvas {
-    background: #04080a;
-    border: 1px solid #0c2018;
+    background: #ffffff;
+    border: 1px solid #e3e6ea;
     border-radius: 12px;
     box-shadow:
-        0 0 0 1px rgba(40, 255, 170, 0.10),
-        0 24px 60px rgba(0, 0, 0, 0.35),
-        0 0 50px rgba(29, 255, 160, 0.10);
+        0 1px 2px rgba(0, 0, 0, 0.04),
+        0 18px 40px rgba(0, 0, 0, 0.06);
 }
 
 .stats {
@@ -160,7 +159,7 @@ canvas {
     transform: translateX(-50%);
     width: 600px;
     height: 600px;
-    background: rgba(4, 8, 10, 0.96);
+    background: rgba(255, 255, 255, 0.96);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -176,12 +175,11 @@ canvas {
 .loading-spinner {
     width: 40px;
     height: 40px;
-    border: 3px solid rgba(29, 255, 160, 0.15);
-    border-top-color: #1dffa0;
+    border: 3px solid rgba(15, 23, 42, 0.10);
+    border-top-color: #19b46a;
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin-bottom: 1.5em;
-    box-shadow: 0 0 18px rgba(29, 255, 160, 0.25);
 }
 
 @keyframes spin {
@@ -190,11 +188,11 @@ canvas {
 
 .loading-text {
     font-size: 1.1em;
-    color: #9affd8;
+    color: #475569;
 }
 
 .loading-subtext {
     font-size: 0.85em;
-    color: #4f8f78;
+    color: #94a3b8;
     margin-top: 0.5em;
 }
