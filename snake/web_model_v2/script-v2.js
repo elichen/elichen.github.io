@@ -4,6 +4,13 @@ let game;
 let maxScore = 0;
 let episodeCount = 1;
 let winCount = 0;
+const TRAIL_LEN = 9;         // head positions kept for the glowing comet wake
+let headTrail = [];
+
+function pushTrail(head) {
+    headTrail.push({ x: head.x, y: head.y });
+    if (headTrail.length > TRAIL_LEN) headTrail.shift();
+}
 const STEPS_PER_FRAME = 5;   // advance several steps per animation tick so wins are watchable
 const FRAME_MS = 16;
 const WIN_PAUSE_MS = 1500;   // hold the filled board briefly on a win
@@ -22,6 +29,7 @@ async function init() {
     try {
         await agent.load('web_model_v2/weights.bin');
         agent.reset(game);
+        headTrail = [{ ...game.snake[0] }];
         loadingOverlay.classList.add('hidden');
         setTimeout(loop, 200);
     } catch (error) {
@@ -48,6 +56,7 @@ function newEpisode() {
     game.reset();
     game.maxMovesWithoutFood = starvationLimit(game);
     agent.reset(game);
+    headTrail = [{ ...game.snake[0] }];
     refreshStats();
 }
 
@@ -59,14 +68,17 @@ function loop() {
             refreshStats();
             const pause = game.won ? WIN_PAUSE_MS : 250;
             game.draw();
+            game.drawActionTrail(headTrail);
             setTimeout(() => { newEpisode(); setTimeout(loop, FRAME_MS); }, pause);
             return;
         }
         game.maxMovesWithoutFood = starvationLimit(game);
         const action = agent.predictAction(game);
         game.step(action);
+        pushTrail(game.snake[0]);
     }
     refreshStats();
+    game.drawActionTrail(headTrail);
     setTimeout(loop, FRAME_MS);
 }
 
