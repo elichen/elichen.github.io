@@ -37,17 +37,22 @@ class SnakeGame {
         this.food = this.generateFood();
         this.score = 0;
         this.gameOver = false;
+        this.won = false;
+        this.collisionType = null;
         this.movesSinceLastFood = 0;
     }
 
     generateFood() {
+        // Collect empty cells; if none, the board is full (a win) -> no food.
+        const occupied = new Set(this.snake.map(s => s.y * this.gridSize + s.x));
+        if (occupied.size >= this.gridSize * this.gridSize) return null;
         let food;
         do {
             food = {
                 x: Math.floor(Math.random() * this.gridSize),
                 y: Math.floor(Math.random() * this.gridSize)
             };
-        } while (this.snake.some(segment => segment.x === food.x && segment.y === food.y));
+        } while (occupied.has(food.y * this.gridSize + food.x));
         return food;
     }
 
@@ -88,8 +93,15 @@ class SnakeGame {
         this.snake.unshift(head);
 
         // Check if food is eaten
-        if (head.x === this.food.x && head.y === this.food.y) {
+        if (this.food && head.x === this.food.x && head.y === this.food.y) {
             this.score++;
+            // Board full after growing = win (snake fills all gridSize^2 cells)
+            if (this.snake.length >= this.gridSize * this.gridSize) {
+                this.won = true;
+                this.gameOver = true;
+                this.food = null;
+                return true;
+            }
             this.food = this.generateFood();
             return true; // Food was eaten
         } else {
@@ -160,8 +172,10 @@ class SnakeGame {
         });
 
         // Draw food
-        this.ctx.fillStyle = 'red';
-        this.ctx.fillRect(this.food.x * this.tileSize, this.food.y * this.tileSize, this.tileSize, this.tileSize);
+        if (this.food) {
+            this.ctx.fillStyle = 'red';
+            this.ctx.fillRect(this.food.x * this.tileSize, this.food.y * this.tileSize, this.tileSize, this.tileSize);
+        }
 
         // Draw grid lines
         this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';

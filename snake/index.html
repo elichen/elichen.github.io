@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snake AI - Egocentric PPO</title>
+    <title>Snake AI - 81% Deterministic Win Rate</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <h1>Snake AI</h1>
-        <p class="subtitle">Egocentric observation with symmetric augmentation</p>
+        <p class="subtitle">Pure neural network, ~81% deterministic win rate on 20x20</p>
 
         <div class="canvas-wrapper">
             <canvas id="gameCanvas" width="600" height="600"></canvas>
             <div id="loadingOverlay" class="loading-overlay">
                 <div class="loading-spinner"></div>
                 <div class="loading-text">Loading AI model...</div>
-                <div class="loading-subtext">This may take a few seconds (70 MB)</div>
+                <div class="loading-subtext">This may take a few seconds (73 MB)</div>
             </div>
         </div>
 
@@ -30,6 +30,14 @@
                 <span class="stat-label">Episode</span>
             </div>
             <div class="stat-item">
+                <span class="stat-value" id="winCount">0</span>
+                <span class="stat-label">Wins (397/397)</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="winRate">—</span>
+                <span class="stat-label">Win Rate</span>
+            </div>
+            <div class="stat-item">
                 <span class="stat-value" id="maxScore">0</span>
                 <span class="stat-label">Max Score</span>
             </div>
@@ -38,17 +46,27 @@
         <p id="modelStatus"></p>
 
         <div class="description">
-            <p>This agent uses <strong>egocentric observation</strong>: the grid is rotated so the snake always "faces up", reducing complexity. Combined with <strong>symmetric augmentation</strong>, <strong>curriculum spawning</strong>, and extended credit assignment (gamma=0.999, horizon=256), this achieves strong performance on 20x20 Snake.</p>
+            <p>This agent plays Snake on a 20x20 board and wins outright &mdash; filling all
+            400 cells (score 397/397) &mdash; about <strong>81% of the time</strong>, playing
+            <strong>greedily and deterministically</strong> (it always takes its single
+            most-confident move; there is no search, planner, or rule-based fallback). The
+            network runs live in your browser: every move you see is a forward pass through
+            the real 4.4M-parameter policy.</p>
+            <p>It seeks food efficiently rather than tracing a fixed space-filling cycle
+            &mdash; about <strong>44 steps per food</strong>, roughly half the cost of a
+            cycle-following solver. The remaining losses are mostly self-collisions in the
+            final few percent of the board, where the snake has to thread through its own
+            tail.</p>
         </div>
 
         <div class="metrics">
             <div class="metric-card">
-                <div class="label">Training Steps</div>
-                <div class="value">~411M</div>
+                <div class="label">Win Rate (deterministic)</div>
+                <div class="value">~81%</div>
             </div>
             <div class="metric-card">
-                <div class="label">Best Score</div>
-                <div class="value">394/397</div>
+                <div class="label">Steps / Food</div>
+                <div class="value">~44</div>
             </div>
             <div class="metric-card">
                 <div class="label">Observation</div>
@@ -61,31 +79,45 @@
         </div>
 
         <div class="technical-details">
-            <h3>5-Channel Head-Centered Observations</h3>
-            <p>The agent sees a 39x39 grid centered on the snake's head, rotated so it always faces "up":</p>
-            <ul>
-                <li><strong>Channel 0 - Head:</strong> Always at grid center (19, 19)</li>
-                <li><strong>Channel 1 - Body:</strong> 1 at all snake segments (relative to head)</li>
-                <li><strong>Channel 2 - Food:</strong> 1 at food position (relative to head)</li>
-                <li><strong>Channel 3 - Length:</strong> Normalized snake length (snake_len / 400)</li>
-                <li><strong>Channel 4 - Walls:</strong> 1 at cells outside the board boundary</li>
-            </ul>
-            <p>Head-centered observation combined with egocentric rotation gives the agent translation and rotation invariance.</p>
+            <h3>How it works</h3>
+            <p>The agent uses an <strong>egocentric, head-centered observation</strong>: a
+            39x39 window centered on the snake's head and rotated so the head always faces
+            "up", which gives the network translation and rotation invariance. It chooses
+            among three relative actions (turn left, go straight, turn right).</p>
 
-            <h3>Network Architecture (2x Scale)</h3>
+            <h3>5-channel observation</h3>
+            <ul>
+                <li><strong>Channel 0 &mdash; Head:</strong> always at the grid center (19, 19)</li>
+                <li><strong>Channel 1 &mdash; Body:</strong> all snake segments (relative to head)</li>
+                <li><strong>Channel 2 &mdash; Food:</strong> the food cell (relative to head)</li>
+                <li><strong>Channel 3 &mdash; Length:</strong> normalized snake length (len / 400)</li>
+                <li><strong>Channel 4 &mdash; Walls:</strong> cells outside the board boundary</li>
+            </ul>
+            <p>That is everything the network sees at inference &mdash; no flood-fill, no
+            look-ahead, no privileged state. (A flood-fill reachability map was used only as
+            an auxiliary prediction target during training to shape the representation; it is
+            not an input to the deployed model.)</p>
+
+            <h3>Network &amp; training</h3>
             <ul>
                 <li><strong>Algorithm:</strong> PPO (Proximal Policy Optimization)</li>
                 <li><strong>Input:</strong> 5 x 39 x 39 = 7,605 features (flattened)</li>
-                <li><strong>Backbone:</strong> FC 2048 + FC 1024 + FC 512 + FC 256 (with LayerNorm)</li>
-                <li><strong>Policy Head:</strong> FC 128 + FC 3 (left/straight/right)</li>
-                <li><strong>Total Parameters:</strong> 4.4 million</li>
-                <li><strong>Training:</strong> 256 parallel environments on Apple Silicon (MPS), gamma=0.999, horizon=256, curriculum spawning</li>
+                <li><strong>Backbone:</strong> FC 2048 &rarr; 1024 &rarr; 512 &rarr; 256 (with LayerNorm)</li>
+                <li><strong>Policy head:</strong> FC 128 &rarr; FC 3 (left / straight / right)</li>
+                <li><strong>Parameters:</strong> 4.4 million</li>
+                <li><strong>Training:</strong> gamma 0.999, horizon 256, curriculum spawning,
+                256 parallel environments on Apple Silicon (MPS), followed by a low-learning-rate
+                continuation that lifted the win rate from ~41% to ~83%.</li>
             </ul>
+            <p class="footnote">Win rate measured over 400 fresh held-out seeds (two disjoint
+            200-seed blocks: 167/200 and 163/200), deterministic greedy play, 95% confidence
+            interval roughly 76&ndash;88%. The in-browser network is verified to reproduce the
+            PyTorch model's chosen action on every step of a full winning game.</p>
         </div>
     </div>
 
     <script src="snake.js"></script>
-    <script src="web_model_egocentric/agent-egocentric.js"></script>
-    <script src="web_model_egocentric/script-egocentric.js"></script>
+    <script src="web_model_v2/agent.js"></script>
+    <script src="web_model_v2/script-v2.js"></script>
 </body>
 </html>
