@@ -1,179 +1,991 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+/*
+ * Rainbow Unicorn Tic-Tac-Toe — "twilight realm" art direction.
+ *
+ * Color system: a deep dusk sky (indigo -> violet -> rose) lit from above,
+ * with warm aurora glows and a cool frosted-glass board sitting on top. The
+ * atmosphere (drifting stars + aurora) is painted on the <canvas>; the DOM
+ * stays calm so the marks read clearly against it.
+ */
+
+:root {
+  /* Sky */
+  --sky-top: #1a1136;
+  --sky-mid: #3a2070;
+  --sky-low: #7b3a8c;
+  --sky-glow: #ffb3d9;
+
+  /* Surfaces */
+  --glass: rgba(255, 255, 255, 0.10);
+  --glass-strong: rgba(255, 255, 255, 0.18);
+  --glass-border: rgba(255, 255, 255, 0.30);
+
+  /* Ink + accents */
+  --ink: #fdf4ff;
+  --ink-soft: rgba(253, 244, 255, 0.72);
+  --u-accent: #ffb3e6;   /* unicorn pink */
+  --r-accent: #8be9ff;   /* rainbow cyan */
+  --focus: #ffe27a;
+  --meadow-glow: rgba(73, 215, 186, 0.28);
+
+  --line: clamp(2.6rem, 9vw, 4.6rem);
+  --radius: 22px;
+  --shadow-soft: 0 10px 40px rgba(20, 6, 40, 0.45);
 }
 
-html, body {
-    height: 100%;
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* Visually hidden, but kept in the accessibility tree so aria-live regions
+   (e.g. the move log) still announce to screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
+
+html, body { height: 100%; }
 
 body {
-    font-family: "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive, sans-serif;
-    background: linear-gradient(160deg, #3b0a6b 0%, #7b2ff7 45%, #b362ff 75%, #ff9ff3 100%);
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    user-select: none;
-    -webkit-user-select: none;
+  /* System-font stack only — the app ships no web fonts so it stays a
+     self-contained static page with no network requests. Rounded humanist
+     faces ("Avenir Next", "Segoe UI Variable") lead so the storybook tone
+     survives across platforms; system-ui covers the rest. */
+  font-family: "Avenir Next", "Segoe UI Variable Text", "Segoe UI", system-ui,
+    "Helvetica Neue", Arial, sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(120% 80% at 50% -10%, var(--sky-glow) 0%, transparent 42%),
+    radial-gradient(90% 60% at 85% 10%, rgba(123, 160, 255, 0.35) 0%, transparent 55%),
+    linear-gradient(170deg, var(--sky-top) 0%, var(--sky-mid) 50%, var(--sky-low) 100%);
+  min-height: 100%;
+  overflow-x: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(16px, 4vw, 40px);
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-/* Flying creatures behind everything */
-#sky {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
+body::after {
+  content: "";
+  position: fixed;
+  inset: auto -10vw 0;
+  height: 26vh;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(70% 55% at 48% 100%, var(--meadow-glow), transparent 72%),
+    linear-gradient(180deg, transparent, rgba(14, 23, 52, 0.72));
 }
 
-.flyer {
-    position: absolute;
-    will-change: transform;
-    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+/* Painted backdrop (AI-generated PNG) sits beneath the live atmosphere canvas.
+   Hidden until the image loads — the body's CSS sky gradient is the permanent
+   fallback, so the scene is always painted even with no asset. */
+#backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-position: center top;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+#backdrop.ready { opacity: 1; }
+
+/* Atmosphere canvas behind everything */
+#atmosphere {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.scene-clouds {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+
+.scene-clouds.ready { opacity: 0.82; }
+
+.scene-clouds img {
+  position: absolute;
+  display: block;
+  width: min(34vw, 280px);
+  height: auto;
+  opacity: 0.62;
+  filter: drop-shadow(0 12px 24px rgba(18, 8, 46, 0.25));
+  -webkit-user-drag: none;
+}
+
+.scene-clouds img:first-child {
+  left: -42px;
+  top: clamp(72px, 14vh, 180px);
+  animation: cloud-drift-a 24s ease-in-out infinite;
+}
+
+.scene-clouds img:last-child {
+  right: -56px;
+  bottom: clamp(74px, 16vh, 180px);
+  width: min(38vw, 330px);
+  opacity: 0.46;
+  transform: scaleX(-1);
+  animation: cloud-drift-b 30s ease-in-out infinite;
+}
+
+@keyframes cloud-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(24px, -8px, 0); }
+}
+
+@keyframes cloud-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scaleX(-1); }
+  50%      { transform: translate3d(-28px, 10px, 0) scaleX(-1); }
 }
 
 main {
-    position: relative;
-    z-index: 1;
-    text-align: center;
-    padding: 16px;
+  position: relative;
+  z-index: 1;
+  width: min(520px, 100%);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 2.6vw, 22px);
 }
 
-/* Dancing rainbow title letters */
+/* --- Title --- */
 #title {
-    font-size: clamp(1.6rem, 5vw, 3rem);
-    margin-bottom: 12px;
-    letter-spacing: 2px;
+  font-size: clamp(1.7rem, 6vw, 2.8rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+  background: linear-gradient(100deg, #ff9ad1, #ffd58a, #8be9ff, #c4a8ff);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 2px 12px rgba(255, 150, 210, 0.4));
+  animation: title-shimmer 9s ease-in-out infinite;
 }
 
-#title span {
-    display: inline-block;
-    animation: letter-dance 0.45s ease-in-out infinite alternate;
-    text-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+.title-sub {
+  display: block;
+  font-size: 0.5em;
+  letter-spacing: 0.42em;
+  margin-top: 0.35em;
+  text-indent: 0.42em;
 }
 
-@keyframes letter-dance {
-    from { transform: translateY(-6px) rotate(-8deg) scale(1); }
-    to   { transform: translateY(6px) rotate(8deg) scale(1.15); }
+@keyframes title-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
 }
 
+/* --- Scoreboard --- */
+#scoreboard {
+  display: flex;
+  justify-content: center;
+  gap: clamp(8px, 3vw, 20px);
+}
+
+.score {
+  flex: 1;
+  max-width: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px 10px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.score-mark { width: 34px; height: 34px; }
+
+.score-name {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.score-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.25s cubic-bezier(0.2, 1.8, 0.4, 1);
+}
+
+.score-value.bump { transform: scale(1.4); }
+
+.score-tie { justify-content: flex-end; }
+.score-u .score-value { color: var(--u-accent); }
+.score-r .score-value { color: var(--r-accent); }
+
+#streak {
+  align-self: center;
+  color: rgba(253, 244, 255, 0.76);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-top: -8px;
+}
+
+/* All-time record vs Hard — rewards repeat visitors and reinforces that a
+   tie is the best you can wring out of a perfect player. */
+#record {
+  align-self: center;
+  margin-top: -10px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+#record .rec-num {
+  color: var(--focus);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+#record[hidden] { display: none; }
+
+/* One-time keyboard onboarding nudge. */
+.hint-keys {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+  max-width: 100%;
+  margin-top: -6px;
+  padding: 7px 8px 7px 14px;
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: hint-rise 0.5s ease both;
+}
+.hint-keys[hidden] { display: none; }
+
+.hint-keys kbd {
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #2a0f44;
+  background: linear-gradient(180deg, #fff6fc, #e9d6ff);
+  border-radius: 6px;
+  padding: 1px 6px;
+  min-width: 1.4em;
+  text-align: center;
+  box-shadow: 0 2px 0 rgba(20, 6, 40, 0.35);
+}
+
+.hint-dismiss {
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #2a0f44;
+  background: linear-gradient(120deg, #ffd58a, #ff9ad1);
+  border: none;
+  border-radius: 999px;
+  padding: 4px 12px;
+  margin-left: 3px;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(255, 154, 209, 0.4);
+  transition: transform 0.12s, filter 0.18s;
+}
+.hint-dismiss:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.hint-dismiss:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@keyframes hint-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Status --- */
 #status {
-    font-size: clamp(1.1rem, 3.5vw, 1.6rem);
-    color: #fff;
-    background: rgba(75, 0, 130, 0.55);
-    border: 3px solid #e6b3ff;
-    border-radius: 999px;
-    padding: 8px 24px;
-    display: inline-block;
-    margin-bottom: 16px;
-    animation: status-bounce 0.5s ease-in-out infinite alternate;
+  font-size: clamp(1rem, 3.4vw, 1.3rem);
+  font-weight: 600;
+  color: var(--ink);
+  min-height: 1.6em;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  align-self: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: color 0.2s;
 }
 
-@keyframes status-bounce {
-    from { transform: scale(1); }
-    to   { transform: scale(1.06); }
+#status.win { color: var(--focus); }
+#status.shake { animation: status-shake 0.35s ease; }
+
+@keyframes status-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
 }
 
+/* The win banner is 3:1, so the box is locked to that aspect (width tracks the
+   animated --ribbon-h) and background-size:cover fills it edge to edge. That
+   makes the painted scroll occupy the whole element, so the result text can be
+   positioned by percentage over the lavender open area and always land inside
+   it instead of floating beside a height-fit, narrower banner. */
+.win-ribbon {
+  --ribbon-h: clamp(64px, 15vw, 104px);
+  align-self: center;
+  position: relative;
+  width: calc(var(--ribbon-h) * 3);
+  max-width: 92vw;
+  height: 0;
+  margin: -6px 0 -10px;
+  pointer-events: none;
+  overflow: hidden;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  opacity: 0;
+  transform: translateY(8px) scale(0.92);
+  transition:
+    height 0.28s ease,
+    opacity 0.28s ease,
+    transform 0.42s cubic-bezier(0.18, 1.4, 0.4, 1);
+  filter:
+    drop-shadow(0 10px 22px rgba(18, 8, 46, 0.34))
+    drop-shadow(0 0 16px rgba(255, 226, 122, 0.24));
+}
+
+.win-ribbon.show {
+  height: var(--ribbon-h);
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* Result line painted into the scroll's open lavender center. The win-banner's
+   clear panel spans roughly the middle 60% width and 44% height of the 3:1 art,
+   so the text box sits inside that window and centers within it. Type scales
+   with the ribbon height and the ink is the same warm gold used elsewhere, with
+   a soft light halo so it reads on the lavender. */
+.win-ribbon-text {
+  position: absolute;
+  left: 21%;
+  right: 21%;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  font-size: clamp(0.92rem, calc(var(--ribbon-h) * 0.34), 1.7rem);
+  color: #b3338a;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85),
+    0 0 10px rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.3s ease 0.18s;
+}
+
+.win-ribbon.show.has-text .win-ribbon-text {
+  opacity: 1;
+}
+
+/* --- Board --- */
 #board {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    width: min(72vw, 60vh, 420px);
-    margin: 0 auto 18px;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(8px, 2.4vw, 14px);
+  width: min(86vw, 60vh, 420px);
+  margin: 0 auto;
+  padding: clamp(8px, 2.4vw, 14px);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: calc(var(--radius) + 8px);
+  box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: box-shadow 0.18s, transform 0.18s;
+}
+
+#board.thinking {
+  box-shadow:
+    var(--shadow-soft),
+    0 0 34px rgba(139, 233, 255, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+#board.pulse {
+  transform: scale(1.012);
+}
+
+/* While Rainbow ponders, a slow cool sheen drifts diagonally across the board
+   so the "thinking" beat is visible at a glance, not just in the status line.
+   Sits above tiles but below marks/beam; never intercepts pointer events. */
+#board::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  background: linear-gradient(
+    115deg,
+    transparent 36%,
+    rgba(139, 233, 255, 0.16) 48%,
+    rgba(196, 168, 255, 0.18) 52%,
+    transparent 64%
+  );
+  background-size: 280% 280%;
+  background-position: 120% 0%;
+}
+#board.thinking::before {
+  opacity: 1;
+  animation: ponder-sweep 1.5s ease-in-out infinite;
+}
+
+@keyframes ponder-sweep {
+  0%   { background-position: 130% 0%; }
+  100% { background-position: -30% 0%; }
+}
+
+/* Empty cells take a faint cool glimmer in turn while Rainbow thinks. The
+   stagger via :nth-child reads as Rainbow "looking around" the board. */
+#board.thinking .cell:not(.taken) {
+  animation: ponder-cell 1.5s ease-in-out infinite;
+}
+#board.thinking .cell:not(.taken):nth-child(3n+2) { animation-delay: 0.18s; }
+#board.thinking .cell:not(.taken):nth-child(3n)   { animation-delay: 0.36s; }
+#board.thinking .cell:not(.taken):nth-child(n+4)  { animation-delay: 0.24s; }
+#board.thinking .cell:not(.taken):nth-child(n+7)  { animation-delay: 0.46s; }
+
+@keyframes ponder-cell {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14),
+                         inset 0 0 22px rgba(12, 4, 32, 0.38); }
+  50%      { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.20),
+                         inset 0 0 22px rgba(12, 4, 32, 0.30),
+                         0 0 16px rgba(139, 233, 255, 0.30); }
+}
+
+/* "Rainbow is dreaming…" badge, parked just under the board. */
+.ponder {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 13px 5px 8px;
+  border-radius: 999px;
+  background: rgba(20, 10, 44, 0.62);
+  border: 1px solid rgba(139, 233, 255, 0.45);
+  box-shadow: 0 6px 18px rgba(12, 4, 32, 0.45),
+              0 0 18px rgba(139, 233, 255, 0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--ink);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, 6px) scale(0.94);
+  transition: opacity 0.28s ease, transform 0.28s cubic-bezier(0.18, 1.4, 0.4, 1);
+  pointer-events: none;
+}
+#board.thinking .ponder {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.ponder-mark {
+  width: 22px;
+  height: 20px;
+  filter: drop-shadow(0 1px 3px rgba(12, 4, 32, 0.5));
+  animation: ponder-bob 1.5s ease-in-out infinite;
+}
+
+@keyframes ponder-bob {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50%      { transform: translateY(-2px) rotate(3deg); }
+}
+
+.ponder-dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 1px;
+}
+.ponder-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--r-accent);
+  opacity: 0.4;
+  animation: ponder-dot 1.2s ease-in-out infinite;
+}
+.ponder-dots i:nth-child(2) { animation-delay: 0.18s; }
+.ponder-dots i:nth-child(3) { animation-delay: 0.36s; }
+
+@keyframes ponder-dot {
+  0%, 100% { opacity: 0.35; transform: translateY(0); }
+  50%      { opacity: 1;    transform: translateY(-3px); }
 }
 
 .cell {
-    aspect-ratio: 1;
-    font-size: clamp(2.2rem, 9vw, 4.5rem);
-    background: rgba(255, 255, 255, 0.22);
-    border: 4px solid #d9a7ff;
-    border-radius: 22px;
-    cursor: pointer;
-    transition: background 0.1s, transform 0.1s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-    padding: 0;
+  position: relative;
+  z-index: 1;
+  aspect-ratio: 1;
+  /* A cool, slightly dark frosted tile so both the near-white unicorn and the
+     bright rainbow keep contrast even where the cell sits over the sky-glow. */
+  background:
+    radial-gradient(120% 120% at 50% 35%, rgba(40, 18, 70, 0.30), rgba(20, 8, 44, 0.46));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius);
+  cursor: pointer;
+  padding: 12%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* inner vignette backplate that sits behind the mark for separation */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14),
+              inset 0 0 22px rgba(12, 4, 32, 0.38);
+  transition: background 0.18s, transform 0.12s, box-shadow 0.18s;
 }
 
-.cell:hover:not(.taken) {
-    background: rgba(255, 255, 255, 0.45);
-    transform: scale(1.08) rotate(-3deg);
+.cell:hover:not(.taken):not([aria-disabled="true"]) {
+  background:
+    radial-gradient(120% 120% at 50% 35%, rgba(64, 30, 104, 0.40), rgba(28, 12, 58, 0.52));
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18),
+              inset 0 0 22px rgba(12, 4, 32, 0.30),
+              0 8px 22px rgba(20, 6, 40, 0.35);
 }
 
-.cell.taken {
-    cursor: default;
+.cell:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px rgba(255, 226, 122, 0.25);
 }
 
-/* Placed pieces zoom in fast, then keep dancing fast */
-.cell .piece {
-    display: inline-block;
-    animation:
-        pop-in 0.25s cubic-bezier(0.2, 2.5, 0.4, 1),
-        piece-dance 0.35s ease-in-out 0.25s infinite alternate;
+.cell.taken { cursor: default; }
+.cell[aria-disabled="true"] { cursor: default; }
+
+/* Faint hint of the current player. A whisper of the next mark lives on every
+   empty cell while a human can play, so the board feels alive and guides young
+   players even on touch (where there is no hover). It brightens under the
+   pointer / keyboard cursor as a clear "you'd play here" cue. */
+.cell .ghost {
+  position: absolute;
+  inset: 14%;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+/* Always-on whisper: only while it is a human's move (board gets .invite). */
+#board.invite .cell:not(.taken):not([aria-disabled="true"]) .ghost {
+  opacity: 0.1;
+  animation: ghost-breathe 3.4s ease-in-out infinite;
+}
+/* Stronger cue under pointer / focus. */
+#board.invite .cell:hover:not(.taken):not([aria-disabled="true"]) .ghost,
+#board.invite .cell:focus-visible:not(.taken) .ghost {
+  opacity: 0.26;
+  animation: none;
+}
+
+@keyframes ghost-breathe {
+  0%, 100% { opacity: 0.07; }
+  50%      { opacity: 0.14; }
+}
+
+.cell .mark {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* PNG marks (when the AI-generated art is present) share the SVG's box but get
+   object-fit so a sprite that isn't a perfect square never distorts. */
+img.mark {
+  object-fit: contain;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+img.mark.ghost {
+  /* Match the SVG ghost's box exactly on every browser. An <img> is a replaced
+     element: with width/height:auto it falls back to the art's intrinsic size
+     (512px for the @2x sprite) and ignores the inset box, so it must get an
+     explicit size. 72% + 14% inset on each side keeps it centered in the cell
+     and matched to the placed mark's footprint. */
+  position: absolute;
+  inset: 14%;
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+}
+
+/* Small chrome icons (scoreboard chips, "dreaming" badge) when upgraded from
+   inline SVG to PNG — keep the same box and contain the art. */
+img.svg-icon {
+  display: block;
+  object-fit: contain;
+  -webkit-user-drag: none;
+}
+
+.cell .mark.placed {
+  animation: pop-in 0.42s cubic-bezier(0.18, 1.9, 0.4, 1) both;
+  transform-origin: center bottom;
+  /* Layered shadows act as a faint dark outline so the near-white unicorn and
+     the bright rainbow both clear contrast against the busiest sky region. */
+  filter:
+    drop-shadow(0 0 1px rgba(26, 10, 48, 0.9))
+    drop-shadow(0 0 2px rgba(26, 10, 48, 0.7))
+    drop-shadow(0 5px 12px rgba(12, 4, 32, 0.55));
+}
+
+/* A soft, mark-tinted backplate behind a placed piece lifts it off the tile. */
+.cell.taken::before {
+  content: "";
+  position: absolute;
+  inset: 16%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.12), transparent 70%);
+  opacity: 0.9;
+}
+
+.cell-ripple {
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  pointer-events: none;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  animation: cell-ripple 0.6s ease-out forwards;
+}
+
+.cell-ripple.u { box-shadow: 0 0 18px rgba(255, 179, 230, 0.65); }
+.cell-ripple.r { box-shadow: 0 0 18px rgba(139, 233, 255, 0.65); }
+
+@keyframes cell-ripple {
+  0% { transform: scale(0.45); opacity: 0.8; }
+  100% { transform: scale(1.9); opacity: 0; }
 }
 
 @keyframes pop-in {
-    from { transform: scale(0) rotate(-720deg); }
-    to   { transform: scale(1) rotate(0deg); }
+  0%   { transform: scale(0) rotate(-18deg); opacity: 0; }
+  60%  { opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
 }
 
-@keyframes piece-dance {
-    from { transform: translateY(-5px) rotate(-12deg) scale(1); }
-    to   { transform: translateY(5px) rotate(12deg) scale(1.12); }
-}
-
-/* Winning cells flash rainbow */
+/* Winning trio: a soft warm halo, a gentle pulse */
 .cell.winner {
-    animation: rainbow-flash 0.4s linear infinite;
-    border-color: #fff;
+  z-index: 2;
+  background: rgba(255, 226, 122, 0.18);
+  border-color: var(--focus);
+  box-shadow: 0 0 28px rgba(255, 226, 122, 0.55);
+  animation: winner-pulse 1.1s ease-in-out infinite;
 }
 
-@keyframes rainbow-flash {
-    0%   { background: #ff6b6b; }
-    20%  { background: #ffa94d; }
-    40%  { background: #ffe066; }
-    60%  { background: #69db7c; }
-    80%  { background: #74c0fc; }
-    100% { background: #d0a9ff; }
+.cell.winner::after {
+  content: "";
+  position: absolute;
+  inset: -8%;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    conic-gradient(from 90deg, transparent, rgba(255, 226, 122, 0.22), transparent 34%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.12), transparent 62%);
+  mix-blend-mode: screen;
+  animation: winner-sigil 2.6s linear infinite;
 }
 
+.win-beam {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  width: var(--beam-width, 0);
+  height: clamp(12px, 3.4vw, 18px);
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transform:
+    translate(var(--beam-x, 0), var(--beam-y, 0))
+    rotate(var(--beam-angle, 0deg))
+    translateY(-50%)
+    scaleX(0.2);
+  transform-origin: left center;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.78) 14%, rgba(255, 226, 122, 0.95) 48%, rgba(139, 233, 255, 0.84) 78%, transparent),
+    linear-gradient(90deg, #ff9ad1, #ffd58a, #8be9ff);
+  box-shadow:
+    0 0 18px rgba(255, 226, 122, 0.55),
+    0 0 34px rgba(139, 233, 255, 0.35);
+  filter: saturate(1.15);
+}
+
+.win-beam.show {
+  opacity: 1;
+  animation: beam-arrive 0.52s cubic-bezier(0.18, 1, 0.22, 1) forwards,
+             beam-breathe 1.8s ease-in-out 0.52s infinite;
+}
+
+@keyframes winner-pulse {
+  0%, 100% { box-shadow: 0 0 22px rgba(255, 226, 122, 0.45); }
+  50%      { box-shadow: 0 0 38px rgba(255, 226, 122, 0.75); }
+}
+
+@keyframes winner-sigil {
+  to { transform: rotate(1turn); }
+}
+
+@keyframes beam-arrive {
+  0% {
+    opacity: 0;
+    transform:
+      translate(var(--beam-x, 0), var(--beam-y, 0))
+      rotate(var(--beam-angle, 0deg))
+      translateY(-50%)
+      scaleX(0.2);
+  }
+  100% {
+    opacity: 1;
+    transform:
+      translate(var(--beam-x, 0), var(--beam-y, 0))
+      rotate(var(--beam-angle, 0deg))
+      translateY(-50%)
+      scaleX(1);
+  }
+}
+
+@keyframes beam-breathe {
+  0%, 100% { filter: saturate(1.15) brightness(1); }
+  50% { filter: saturate(1.35) brightness(1.16); }
+}
+
+.cell.dim .mark { opacity: 0.4; transition: opacity 0.4s; }
+
+/* --- Controls --- */
 #controls {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    flex-wrap: wrap;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(10px, 2.6vw, 18px);
 }
 
-#controls button {
-    font-family: inherit;
-    font-size: clamp(0.9rem, 2.8vw, 1.15rem);
-    color: #4b0082;
-    background: #ffe6ff;
-    border: 3px solid #b362ff;
-    border-radius: 999px;
-    padding: 10px 20px;
-    cursor: pointer;
-    box-shadow: 0 4px 0 #8a2be2;
-    transition: transform 0.1s, box-shadow 0.1s;
+.control-group {
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 
-#controls button:hover {
-    transform: translateY(-2px) scale(1.05);
+.control-group legend {
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
 }
 
-#controls button:active {
-    transform: translateY(2px);
-    box-shadow: 0 1px 0 #8a2be2;
+.segmented {
+  display: inline-flex;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 3px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
-/* Confetti pieces */
-.confetti {
-    position: fixed;
-    z-index: 2;
-    pointer-events: none;
-    will-change: transform;
-    font-size: 1.6rem;
+.seg {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1.1;
+  transition: background 0.18s, color 0.18s, transform 0.12s;
+}
+
+.seg:hover { color: var(--ink); }
+
+.seg[aria-checked="true"] {
+  color: #2a0f44;
+  background: linear-gradient(120deg, #ffd58a, #ff9ad1);
+  box-shadow: 0 4px 14px rgba(255, 154, 209, 0.4);
+}
+
+.seg:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Difficulty as an at-a-glance star rating: 1 = easy, 3 = unbeatable. */
+#difficulty-group .seg { padding: 5px 14px 6px; }
+
+.seg-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.seg-stars i {
+  width: 7px;
+  height: 7px;
+  background: currentColor;
+  opacity: 0.28;
+  /* a clean five-point star via clip-path */
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%,
+                     50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+
+.seg-stars i.on { opacity: 1; }
+
+/* Empty stars read brighter on the lit, selected pill. */
+.seg[aria-checked="true"] .seg-stars i { opacity: 0.35; }
+.seg[aria-checked="true"] .seg-stars i.on { opacity: 1; }
+
+.control-hint {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  min-height: 1em;
+}
+
+/* When playing 2 players, the difficulty group fades back */
+#controls.human #difficulty-group {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* --- Actions --- */
+#actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.action {
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #2a0f44;
+  background: linear-gradient(120deg, #fff0fa, #e9d6ff);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  padding: 11px 26px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(20, 6, 40, 0.35);
+  transition: transform 0.12s, box-shadow 0.12s, filter 0.18s;
+}
+
+.action:hover { transform: translateY(-2px); filter: brightness(1.05); }
+.action:active { transform: translateY(1px); box-shadow: 0 3px 10px rgba(20, 6, 40, 0.35); }
+
+.action:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.icon-action { min-width: 118px; }
+.mute-off { display: none; }
+#mute-btn[aria-pressed="true"] .mute-on { display: none; }
+#mute-btn[aria-pressed="true"] .mute-off { display: inline; }
+#mute-btn[aria-pressed="true"] {
+  background: var(--glass);
+  color: var(--ink-soft);
+  box-shadow: none;
+}
+
+/* --- Win celebration confetti (canvas-free DOM sprites) --- */
+.spark {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.spark.mote {
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 14px currentColor;
+}
+
+.spark.mote.u { color: #ffb3e6; }
+.spark.mote.r { color: #8be9ff; }
+
+/* When the painted mote.png is present, the sprite carries the bokeh sparkle, so
+   drop the solid CSS dot fill and let the image show. Keep a soft player-tinted
+   glow (currentColor via the .u / .r classes) so unicorn and rainbow motes still
+   read distinctly, and let it spill past the box without clipping the halo. */
+.spark.mote.png {
+  border-radius: 0;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  box-shadow: none;
+  filter: drop-shadow(0 0 7px currentColor);
+}
+
+/* --- Reduced motion: keep it calm but still legible --- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  #title { animation: none; }
+  .cell.winner { animation: none; }
+  .scene-clouds img { animation: none; }
+  /* Drop the moving "thinking" sheen + cell glimmer, but keep the static badge
+     so the AI's turn is still announced visually. */
+  #board.thinking::before { opacity: 0; }
+  #board.thinking .cell:not(.taken) { animation: none; }
+  #board.invite .cell:not(.taken):not([aria-disabled="true"]) .ghost {
+    animation: none;
+    opacity: 0.12;
+  }
 }

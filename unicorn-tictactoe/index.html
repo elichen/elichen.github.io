@@ -4,34 +4,203 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rainbow Unicorn Tic-Tac-Toe</title>
+    <meta name="description" content="A magical, unbeatable tic-tac-toe with hand-drawn unicorn and rainbow marks.">
     <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <div id="sky"></div>
+
+    <!-- Reusable SVG marks: a real unicorn and a real rainbow, drawn once and
+         referenced by <use> wherever a piece is placed. -->
+    <svg width="0" height="0" aria-hidden="true" style="position:absolute" focusable="false">
+      <defs>
+        <linearGradient id="mane-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%"  stop-color="#ff7eb3"/>
+          <stop offset="35%" stop-color="#ffb86c"/>
+          <stop offset="65%" stop-color="#7afcff"/>
+          <stop offset="100%" stop-color="#b39dff"/>
+        </linearGradient>
+        <linearGradient id="horn-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#fff2c4"/>
+          <stop offset="100%" stop-color="#ffcf5c"/>
+        </linearGradient>
+        <radialGradient id="cheek-grad" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%"  stop-color="#ff9ecb"/>
+          <stop offset="100%" stop-color="#ff9ecb" stop-opacity="0"/>
+        </radialGradient>
+
+        <!-- Unicorn head, facing slightly to the viewer's left. -->
+        <g id="mark-unicorn">
+          <!-- flowing mane -->
+          <path d="M58 18 C82 8 96 30 86 52 C104 50 110 78 90 86
+                   C104 96 92 120 74 112 C80 96 64 92 58 100 Z"
+                fill="url(#mane-grad)" opacity="0.95"/>
+          <!-- head -->
+          <path d="M44 26 C66 20 80 36 78 60 C77 76 70 90 54 96
+                   C40 101 26 92 22 76 C18 60 24 38 44 26 Z"
+                fill="#fffdfb" stroke="#e9d6ff" stroke-width="2"/>
+          <!-- snout shading -->
+          <path d="M22 76 C26 90 40 100 54 96 C46 92 38 84 34 74 Z"
+                fill="#f4e9ff" opacity="0.8"/>
+          <!-- ear -->
+          <path d="M62 24 C66 12 76 12 74 24 C72 32 64 34 62 24 Z" fill="#fffdfb" stroke="#e9d6ff" stroke-width="1.5"/>
+          <!-- horn -->
+          <path d="M52 18 L60 -8 L66 16 Z" fill="url(#horn-grad)" stroke="#e9a93c" stroke-width="1.5"/>
+          <path d="M54 12 L62 6 M53 18 L61 13 M56 4 L61 -1" stroke="#e9a93c" stroke-width="1.2" opacity="0.7"/>
+          <!-- eye -->
+          <ellipse cx="40" cy="56" rx="4.4" ry="5.2" fill="#3a2456"/>
+          <circle cx="41.6" cy="54" r="1.5" fill="#fff"/>
+          <!-- lashes -->
+          <path d="M44 50 l5 -2 M45 54 l5 0" stroke="#3a2456" stroke-width="1.4" stroke-linecap="round"/>
+          <!-- cheek blush -->
+          <circle cx="36" cy="72" r="7" fill="url(#cheek-grad)"/>
+          <!-- nostril -->
+          <ellipse cx="27" cy="80" rx="2" ry="1.4" fill="#d9b8e8"/>
+        </g>
+
+        <!-- A four-point sparkle star, used for confetti so the celebration
+             leans on original art instead of an OS emoji glyph. -->
+        <g id="mark-star">
+          <radialGradient id="star-grad" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0%"  stop-color="#fffefb"/>
+            <stop offset="45%" stop-color="#ffe9a8"/>
+            <stop offset="100%" stop-color="#ffb86c"/>
+          </radialGradient>
+          <path d="M50 6
+                   C54 34 66 46 94 50
+                   C66 54 54 66 50 94
+                   C46 66 34 54 6 50
+                   C34 46 46 34 50 6 Z"
+                fill="url(#star-grad)"/>
+          <circle cx="50" cy="50" r="6" fill="#fffdf6" opacity="0.92"/>
+        </g>
+
+        <!-- Rainbow arc with a small cloud at each foot. -->
+        <g id="mark-rainbow">
+          <g fill="none" stroke-linecap="round">
+            <path d="M14 86 A40 40 0 0 1 94 86" stroke="#ff6b6b" stroke-width="8"/>
+            <path d="M22 86 A32 32 0 0 1 86 86" stroke="#ffa94d" stroke-width="8"/>
+            <path d="M30 86 A24 24 0 0 1 78 86" stroke="#ffe066" stroke-width="8"/>
+            <path d="M38 86 A16 16 0 0 1 70 86" stroke="#69db7c" stroke-width="8"/>
+            <path d="M46 86 A8 8 0 0 1 62 86" stroke="#74c0fc" stroke-width="8"/>
+          </g>
+          <!-- clouds -->
+          <g fill="#ffffff">
+            <ellipse cx="14" cy="88" rx="14" ry="9"/>
+            <ellipse cx="24" cy="84" rx="10" ry="8"/>
+            <ellipse cx="94" cy="88" rx="14" ry="9"/>
+            <ellipse cx="84" cy="84" rx="10" ry="8"/>
+          </g>
+          <g fill="#eaf2ff" opacity="0.8">
+            <ellipse cx="10" cy="92" rx="9" ry="5"/>
+            <ellipse cx="98" cy="92" rx="9" ry="5"/>
+          </g>
+        </g>
+      </defs>
+    </svg>
+
+    <!-- Painted "magical realm" backdrop (AI-generated). Hidden until the PNG
+         loads; until then the CSS sky gradient + canvas atmosphere stand in, so
+         there is never a broken image. Decorative, so it stays out of a11y. -->
+    <div id="backdrop" aria-hidden="true"></div>
+    <canvas id="atmosphere" aria-hidden="true"></canvas>
 
     <main>
-        <h1 id="title" aria-label="Rainbow Unicorn Tic-Tac-Toe"></h1>
+        <header>
+            <h1 id="title">Rainbow Unicorn<span class="title-sub">Tic-Tac-Toe</span></h1>
+        </header>
 
-        <div id="status">Your turn, little unicorn! 🦄</div>
+        <div id="scoreboard" aria-label="Scores">
+            <div class="score score-u">
+                <svg class="svg-icon score-mark" data-mark="U" viewBox="0 0 100 100" aria-hidden="true"><use href="#mark-unicorn"/></svg>
+                <span class="score-name">Unicorn</span>
+                <span class="score-value" id="score-u">0</span>
+            </div>
+            <div class="score score-tie">
+                <span class="score-name">Ties</span>
+                <span class="score-value" id="score-tie">0</span>
+            </div>
+            <div class="score score-r">
+                <svg class="svg-icon score-mark" data-mark="R" viewBox="0 0 108 100" aria-hidden="true"><use href="#mark-rainbow"/></svg>
+                <span class="score-name">Rainbow</span>
+                <span class="score-value" id="score-r">0</span>
+            </div>
+        </div>
 
-        <div id="board" role="grid" aria-label="Tic-tac-toe board">
-            <button class="cell" data-i="0" aria-label="cell 1"></button>
-            <button class="cell" data-i="1" aria-label="cell 2"></button>
-            <button class="cell" data-i="2" aria-label="cell 3"></button>
-            <button class="cell" data-i="3" aria-label="cell 4"></button>
-            <button class="cell" data-i="4" aria-label="cell 5"></button>
-            <button class="cell" data-i="5" aria-label="cell 6"></button>
-            <button class="cell" data-i="6" aria-label="cell 7"></button>
-            <button class="cell" data-i="7" aria-label="cell 8"></button>
-            <button class="cell" data-i="8" aria-label="cell 9"></button>
+        <p id="streak" aria-label="Current streak">Round 1 · Streak 0</p>
+        <p id="record" aria-label="All-time record" hidden></p>
+
+        <p id="status" role="status" aria-live="polite">Your turn, little unicorn!</p>
+
+        <!-- Polite move log for screen readers: each placed mark is announced
+             here ("Unicorn, row 2, column 2") so non-sighted players hear the
+             move without re-navigating the board. Visually hidden by design. -->
+        <p id="move-log" class="sr-only" role="status" aria-live="polite"></p>
+
+        <p id="hint-keys" class="hint-keys" hidden>
+            <span aria-hidden="true">Tip:</span> use
+            <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> to move,
+            <kbd>Enter</kbd> to play.
+            <button type="button" id="hint-dismiss" class="hint-dismiss"
+                    aria-label="Dismiss keyboard tip">Got it</button>
+        </p>
+
+        <div id="board" role="grid" aria-label="Tic-tac-toe board, 3 by 3">
+            <button class="cell" data-i="0" role="gridcell" aria-label="row 1 column 1, empty"></button>
+            <button class="cell" data-i="1" role="gridcell" aria-label="row 1 column 2, empty"></button>
+            <button class="cell" data-i="2" role="gridcell" aria-label="row 1 column 3, empty"></button>
+            <button class="cell" data-i="3" role="gridcell" aria-label="row 2 column 1, empty"></button>
+            <button class="cell" data-i="4" role="gridcell" aria-label="row 2 column 2, empty"></button>
+            <button class="cell" data-i="5" role="gridcell" aria-label="row 2 column 3, empty"></button>
+            <button class="cell" data-i="6" role="gridcell" aria-label="row 3 column 1, empty"></button>
+            <button class="cell" data-i="7" role="gridcell" aria-label="row 3 column 2, empty"></button>
+            <button class="cell" data-i="8" role="gridcell" aria-label="row 3 column 3, empty"></button>
         </div>
 
         <div id="controls">
-            <button id="mode-btn">Playing: You 🦄 vs Rainbow 🌈</button>
-            <button id="restart-btn">Play Again! ✨</button>
+            <fieldset class="control-group" id="opponent-group">
+                <legend>Opponent</legend>
+                <div class="segmented" data-group="opponent" role="radiogroup" aria-label="Opponent">
+                    <button class="seg" data-opponent="cpu" role="radio" aria-checked="true" tabindex="0">Computer</button>
+                    <button class="seg" data-opponent="human" role="radio" aria-checked="false" tabindex="-1">2 Players</button>
+                </div>
+            </fieldset>
+
+            <fieldset class="control-group" id="difficulty-group">
+                <legend>Difficulty</legend>
+                <div class="segmented" data-group="difficulty" role="radiogroup" aria-label="Difficulty">
+                    <button class="seg" data-difficulty="easy" role="radio" aria-checked="false" tabindex="-1">
+                        <span class="seg-label">Easy</span>
+                        <span class="seg-stars" aria-hidden="true"><i class="on"></i><i></i><i></i></span>
+                    </button>
+                    <button class="seg" data-difficulty="medium" role="radio" aria-checked="false" tabindex="-1">
+                        <span class="seg-label">Medium</span>
+                        <span class="seg-stars" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i></span>
+                    </button>
+                    <button class="seg" data-difficulty="hard" role="radio" aria-checked="true" tabindex="0">
+                        <span class="seg-label">Hard</span>
+                        <span class="seg-stars" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i></span>
+                    </button>
+                </div>
+                <p class="control-hint" id="difficulty-hint">Hard never loses.</p>
+            </fieldset>
+
+            <fieldset class="control-group" id="first-group">
+                <legend>First move</legend>
+                <div class="segmented" data-group="first" role="radiogroup" aria-label="Who goes first">
+                    <button class="seg" data-first="U" role="radio" aria-checked="true" tabindex="0">Unicorn</button>
+                    <button class="seg" data-first="R" role="radio" aria-checked="false" tabindex="-1">Rainbow</button>
+                </div>
+            </fieldset>
+        </div>
+
+        <div id="actions">
+            <button id="restart-btn" class="action">New game</button>
+            <button id="mute-btn" class="action icon-action" aria-pressed="false" aria-label="Mute sound">
+                <span class="mute-on" aria-hidden="true">Sound on</span>
+                <span class="mute-off" aria-hidden="true">Muted</span>
+            </button>
         </div>
     </main>
 
+    <script src="engine.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
