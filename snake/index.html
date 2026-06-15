@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snake AI - 81% Deterministic Win Rate</title>
+    <title>Snake AI - 81% Win Rate</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <h1>Snake AI</h1>
-        <p class="subtitle">Pure neural network, ~81% deterministic win rate on 20x20</p>
+        <p class="subtitle">Pure neural network, ~81% win rate on 20x20</p>
 
         <div class="canvas-wrapper">
             <canvas id="gameCanvas" width="600" height="600"></canvas>
@@ -48,8 +48,8 @@
         <div class="description">
             <p>This agent plays Snake on a 20x20 board and wins outright &mdash; filling all
             400 cells (score 397/397) &mdash; about <strong>81% of the time</strong>, playing
-            <strong>greedily and deterministically</strong> (it always takes its single
-            most-confident move; there is no search, planner, or rule-based fallback). The
+            <strong>greedily</strong> (it always takes its single most-confident move; there
+            is no sampling, search, planner, or rule-based fallback). The
             network runs live in your browser: every move you see is a forward pass through
             the real 4.4M-parameter policy.</p>
             <p>It seeks food efficiently rather than tracing a fixed space-filling cycle
@@ -61,7 +61,7 @@
 
         <div class="metrics">
             <div class="metric-card">
-                <div class="label">Win Rate (deterministic)</div>
+                <div class="label">Win Rate (greedy)</div>
                 <div class="value">~81%</div>
             </div>
             <div class="metric-card">
@@ -110,7 +110,7 @@
                 continuation that lifted the win rate from ~41% to ~83%.</li>
             </ul>
             <p class="footnote">Win rate measured over 400 fresh held-out seeds (two disjoint
-            200-seed blocks: 167/200 and 163/200), deterministic greedy play, 95% confidence
+            200-seed blocks: 167/200 and 163/200), greedy (argmax) play, 95% confidence
             interval roughly 76&ndash;88%. The in-browser network is verified to reproduce the
             PyTorch model's chosen action on every step of a full winning game.</p>
         </div>
