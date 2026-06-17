@@ -6,3 +6,4 @@
 - [Intentional Retrieval](intentional_retrieval.html)
 - [Debugging with AI](debugging_with_ai.html)
 - [Software Engineering Is Now an Experimental Science](experimental_engineering.html)
+- [AI as Leverage](ai_as_leverage.html)
