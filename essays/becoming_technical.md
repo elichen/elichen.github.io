@@ -1,37 +1,35 @@
 # Becoming Technical
 
-At AI Fund, we've watched AI automate increasing amounts of office work. We've discovered a shift in what makes people valuable: everyone needs to become more technical.
+At AI Fund, we've watched AI automate more and more of the office work that used to fill people's days, and out of that we've noticed a shift in what actually makes someone valuable, which is that everyone now needs to become more technical.
 
-"Technical" doesn't mean learning Python or understanding databases anymore. It means developing fluency with frontier AI. The barrier to entry has never been lower.
+But "technical" doesn't mean what it used to. It no longer means learning Python or understanding how a database works. It means developing real fluency with frontier AI, and the strange thing is that the barrier to getting there has never been lower than it is right now.
 
-Across our portfolio companies, the people who thrive understand and use frontier AI. They know what LLMs can do. They understand context windows and hallucinations. They know mitigation techniques: grounding AI outputs, controlling error rates through frameworks and human-in-the-loop checkpoints.
+Across our portfolio companies, the people who are thriving are the ones who understand and actually use frontier AI. They know what LLMs can and can't do. They understand context windows and hallucinations. And they know the mitigation techniques, how to ground a model's outputs and how to control error rates through frameworks and human-in-the-loop checkpoints.
 
-The people staying relevant are overwhelmingly software engineers. Why? Engineers learn by building. They read papers and attend conferences, but most importantly, they build things.
+The people staying relevant are overwhelmingly software engineers, and it's worth asking why. I think it's because engineers learn by building. They read the papers and they go to the conferences, but more than anything they build things, and that's where the understanding actually comes from.
 
-Building matters here because the debate about AI is noisy. Some engineers say AI will achieve recursive self-improvement within months. Others dismiss LLMs as pattern matchers incapable of reasoning. You can't know the truth without getting your hands dirty. Reading hot takes won't give you intuition. Building will.
+Building matters here because the conversation around AI is so noisy. Some engineers will tell you AI is months away from recursive self-improvement, and others will tell you LLMs are just pattern matchers that can't really reason. You can't sort out who's right by reading hot takes, because hot takes don't give you intuition. You only get there by getting your hands dirty and seeing for yourself.
 
-AI is alien intelligence with jagged capabilities: superhuman in some dimensions, weak in others. Developing intuition for these capabilities takes practice. You need to understand context windows, token generation, where models excel and fail. Using AI well is a craft you build through practice.
+AI is a kind of alien intelligence with jagged capabilities, superhuman along some dimensions and surprisingly weak along others, and developing an intuition for that shape takes practice. You have to sit with context windows and token generation, with where the models shine and where they fall apart. Using AI well is a craft, and like any craft you build it through repetition.
 
-Start with AI-assisted coding tools. Install Cursor or Claude Code. Pick any project: automating a spreadsheet, building a web app. The project matters less than the building.
+A good place to start is with AI-assisted coding tools. Install Cursor or Claude Code, and pick any project at all, automating a spreadsheet, building a small web app. The specific project matters far less than the fact that you're building something.
 
-Create something that uses LLMs. A chatbot. A document summarizer. Get familiar with prompts, temperature settings, token limits. Learn what happens when you send text to an LLM. Understand tokenization, context windows, stateful versus stateless APIs. Skip the math, grasp the concepts.
+Then make something that actually uses an LLM, a chatbot, a document summarizer, anything. Get a feel for prompts, temperature, token limits. Watch what happens when you send text to a model, and let yourself learn tokenization, context windows, the difference between a stateful and a stateless API. You can skip the math and still grasp the concepts.
 
-When AI writes code for you, ask it to explain each part. Ask about alternatives. Treat it like a tireless teaching assistant.
+When the AI writes code for you, ask it to explain each part, and ask it about the alternatives it didn't choose. Treat it like a tireless teaching assistant that never gets impatient with you.
 
-This will feel uncomfortable. You'll feel slow, clumsy. That's learning.
+This will feel uncomfortable, and you'll feel slow and clumsy doing it. That feeling is what learning actually feels like.
 
-The barrier to becoming technical has collapsed. AI handles the programming languages and syntax now. What you need is curiosity and persistence.
+The barrier to becoming technical has basically collapsed, because AI now handles the programming languages and the syntax that used to take years to absorb. What's left, the part that's actually on you, is curiosity and persistence.
 
-A product manager can prototype features without engineering resources. A salesperson can automate their funnel. An operations manager can create productivity tools.
+And the reach of this is wide. A product manager can prototype features without waiting on engineering resources. A salesperson can automate their own funnel. An operations manager can build their own productivity tools.
 
-Technical fluency is becoming table stakes. The marketing manager who can't use AI for customer analysis will be outpaced. The financial analyst relying solely on Excel will fall behind. The HR leader who doesn't understand AI screening tools will lose ground.
+Technical fluency is quietly becoming table stakes. The marketing manager who can't use AI for customer analysis will get outpaced by the one who can. The financial analyst who lives only in Excel will fall behind. The HR leader who doesn't understand AI screening tools will lose ground without quite knowing why.
 
-Success means pairing your judgment with alien intelligence: using AI where it is strong and stepping in where it is weak.
+The real skill is pairing your own judgment with this alien intelligence, leaning on it where it's strong and stepping in where it's weak.
 
-If you're entering the workforce now, you have an advantage: you're starting fresh in an AI-native world. No pre-AI habits to unlearn. You can build the right intuitions from day one.
+And if you're just entering the workforce now, you actually have an advantage, because you're starting fresh in an AI-native world with no pre-AI habits to unlearn. You can build the right intuitions from day one.
 
-Start today. Open Claude or ChatGPT. Build something simple. A to-do list. A recipe organizer. Pay attention to where it excels and struggles. Build intuition through experience.
+So start today. Open Claude or ChatGPT and build something small, a to-do list, a recipe organizer, it doesn't matter what. Pay attention to where it excels and where it struggles, and let that experience become your intuition.
 
-Young professionals who develop these skills early will shape the future of work. Companies need people who understand how to use alien intelligence.
-
-It comes down to time and attention. While others debate whether AI matters, you can be mastering it.
+The young professionals who develop these skills early are the ones who will shape the future of work, because companies need people who understand how to direct alien intelligence. In the end it comes down to time and attention, and while everyone else is still debating whether AI matters, you can quietly be mastering it.
