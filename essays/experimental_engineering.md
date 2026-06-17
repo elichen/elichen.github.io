@@ -6,7 +6,7 @@ That cost just collapsed.
 
 I recently needed to extract images from PDFs. Before this shift, I would have researched libraries, read documentation and Stack Overflow threads, picked the most promising approach, implemented it, and discovered its limitations the hard way. Then I'd repeat the cycle with a second library. This process might take a full day, maybe two.
 
-Instead, I described the problem to an LLM and had it implement five different extraction methods simultaneously. Five working scripts, five sets of output. I looked at the results, not the code. One method handled embedded images well but missed vector graphics. Another captured everything but produced blurry output. A third nailed it. Total time from problem to validated solution: minutes. The code for the four failed approaches? Deleted without a second thought.
+Instead, I described the problem to an LLM and had it implement five different extraction methods simultaneously, producing five working scripts and five sets of output. I looked at the results, not the code. One method handled embedded images well but missed vector graphics. Another captured everything but produced blurry output. A third got it right. Total time from problem to validated solution: minutes. I deleted the code for the four failed approaches.
 
 I'm currently trying to train a neural network to play a perfect game of Snake using reinforcement learning. I'm experimenting with different input representations, neural architectures, reward functions, and RL algorithms. In the old world, each of these would be a significant commitment. You'd read papers, pick an approach, spend days implementing it, then discover it didn't converge. Before I had these tools, I spent two months just reproducing someone else's mechanistic interpretability visualization from scratch. Two months of setup before I could even begin to experiment with my own ideas.
 
@@ -18,7 +18,7 @@ How did engineering teams previously validate technical approaches? Design docum
 
 The instinct to plan carefully before writing code used to be a virtue. It was the correct adaptation to an environment where writing code was expensive. That environment no longer exists. Engineers who spend a week debating the right approach in a doc could have validated all the candidate approaches in an afternoon.
 
-This changes your relationship with code itself. Exploration code becomes disposable. When generation cost approaches zero, you generate a lot and keep very little. Write five implementations, keep one. Or keep none and try five more. The old instinct to carefully craft and preserve every line of code you write actively slows you down.
+This changes your relationship with code itself. Exploration code becomes disposable. When generation cost approaches zero, you generate a lot and keep very little. Write five implementations, keep one. Or keep none and try five more. The old instinct to carefully craft and preserve every line of code you write slows you down.
 
 Today, the binding constraint is token generation speed and the latency between the AI and your development environment. Faster inference and shorter round-trips mean more experiments per hour, which means you land on better solutions sooner.
 
