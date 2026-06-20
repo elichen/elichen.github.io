@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650;9..144,760&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=recommendation-lab">
-  <script src="app.js?v=recommendation-lab" defer></script>
+  <link rel="stylesheet" href="styles.css?v=movielens-lightgcn2">
+  <script src="app.js?v=movielens-lightgcn2" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -16,28 +16,28 @@
       <span class="brand-mark" aria-hidden="true"></span>
       <div>
         <p class="eyebrow">graph signal lab</p>
-        <h1>Recommendation GNN simulator</h1>
+        <h1>MovieLens GNN recommender</h1>
       </div>
     </div>
     <div class="topbar-meta">
-      <span>Predict: should this user get this item?</span>
-      <span>Static demo</span>
+      <span>Trained LightGCN</span>
+      <span>Browser-side inference</span>
     </div>
   </header>
 
   <main class="app-shell">
     <aside class="scenario-panel" aria-label="Recommendation scenarios">
       <div class="panel-heading">
-        <p class="eyebrow">levels</p>
-        <h2>Where graph context changes the answer</h2>
+        <p class="eyebrow">cases</p>
+        <h2>Real held-out MovieLens predictions</h2>
       </div>
       <div id="scenario-list" class="scenario-list"></div>
       <section class="lesson-box">
         <p class="eyebrow">mental model</p>
         <p>
-          A node-only model sees the user and item in isolation. A GNN lets nearby
-          saved items, similar users, and shared topics send evidence into the
-          recommendation.
+          The model was trained on MovieLens latest-small. Depth 0 uses learned
+          user and movie embeddings only; deeper settings run literal LightGCN
+          message passing over user-movie and movie-genre edges.
         </p>
       </section>
     </aside>

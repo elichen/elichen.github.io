@@ -640,6 +640,14 @@ h3 {
   background: #fff;
 }
 
+.compare-row.is-correct {
+  border-left: 4px solid rgba(0, 166, 118, 0.78);
+}
+
+.compare-row.is-wrong {
+  border-left: 4px solid rgba(219, 91, 72, 0.72);
+}
+
 .compare-depth,
 .compare-row strong {
   font-family: var(--mono);
@@ -709,6 +717,12 @@ h3 {
   color: var(--ink-soft);
   font-size: 14px;
   line-height: 1.5;
+}
+
+.source-note {
+  color: var(--ink-muted);
+  font-family: var(--mono);
+  font-size: 12px;
 }
 
 .message-item {
@@ -852,6 +866,11 @@ h3 {
     grid-template-columns: 280px minmax(0, 1fr);
   }
 
+  .scenario-panel {
+    position: static;
+    max-height: none;
+  }
+
   .decision-panel {
     grid-column: 1 / -1;
     position: static;
@@ -948,9 +967,9 @@ h3 {
     margin: 0;
     padding: 10px;
     gap: 10px;
-    width: var(--mobile-surface);
-    max-width: var(--mobile-surface);
-    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+    overflow: visible;
   }
 
   .scenario-list,
@@ -982,7 +1001,7 @@ h3 {
   .challenge-header,
   .target-card,
   .scenario-objective {
-    width: var(--mobile-inner);
+    width: 100%;
   }
 
   .graph-toolbar,
@@ -993,7 +1012,7 @@ h3 {
   .inspector-panel,
   .message-panel,
   .scenario-panel {
-    width: var(--mobile-surface);
+    width: 100%;
   }
 
   .control-group {
@@ -1003,8 +1022,8 @@ h3 {
 
   .segmented,
   .ghost-button {
-    width: var(--mobile-control);
-    max-width: var(--mobile-control);
+    width: 100%;
+    max-width: 100%;
   }
 
   .segmented button {
