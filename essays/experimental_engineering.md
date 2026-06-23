@@ -1,4 +1,4 @@
-# Software Engineering Is Now an Experimental Science
+# Experimental Engineering
 
 Software engineering used to be a discipline of careful planning. You studied the problem, debated the approaches in design reviews, wrote PRDs to assess feasibility, and only then committed to a path, because the cost of being wrong was weeks or months of wasted implementation. So we built up these elaborate processes to keep ourselves from taking a wrong turn, the architecture reviews, the proof-of-concept phases, the technical feasibility assessments, and all of it was really just risk mitigation for the high cost of writing code.
 
