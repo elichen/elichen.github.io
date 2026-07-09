@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#171813">
+  <meta name="description" content="Paint color examples and watch a tiny neural network learn a continuous field in your browser.">
+  <title>Dreamfield — a neural field atelier</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,300;6..72,500&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="model.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="back-link" href="../" aria-label="Back to Eli Chen's playground">
+      <span aria-hidden="true">&#8592;</span>
+      <span>Playground</span>
+    </a>
+
+    <div class="masthead" aria-label="Dreamfield">
+      <svg class="masthead-mark" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M4 30C10 6 18 35 24 12S35 22 36 5" />
+        <circle cx="4" cy="30" r="2.6" />
+        <circle cx="24" cy="12" r="2.6" />
+        <circle cx="36" cy="5" r="2.6" />
+      </svg>
+      <span>Dreamfield</span>
+    </div>
+
+    <div class="local-status" title="The neural network trains on this device. No painting or model data leaves your browser.">
+      <span class="status-light" aria-hidden="true"></span>
+      <span id="header-status">Learning locally</span>
+      <span class="status-detail">No cloud model</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <div class="intro-copy">
+        <p class="eyebrow">A live neural implicit canvas</p>
+        <h1 id="page-title">Paint a few truths.<br><em>Watch the network dream between.</em></h1>
+      </div>
+      <div class="intro-note">
+        <p>
+          Every dot you paint becomes training data. A tiny neural network learns
+          continuously, turning sparse examples into a field of predictions.
+        </p>
+        <div class="proof-strip" aria-label="Technical details">
+          <span>Real backpropagation</span>
+          <span>Adam optimizer</span>
+          <span id="parameter-badge">783 parameters</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="workbench" class="workbench" aria-label="Dreamfield neural network workbench">
+      <aside id="tool-panel" class="tool-panel" aria-labelledby="teach-heading">
+        <div class="panel-heading">
+          <span id="teach-number" class="panel-number">01</span>
+          <div>
+            <p class="eyebrow">Training examples</p>
+            <h2 id="teach-heading">Teach with color</h2>
+          </div>
+        </div>
+
+        <section class="control-section" aria-labelledby="color-heading">
+          <div class="control-title-row">
+            <h3 id="color-heading">Ink</h3>
+            <output id="color-readout" for="custom-color">Vermilion · #ff553e</output>
+          </div>
+          <div id="swatch-list" class="swatch-list" role="group" aria-label="Paint colors">
+            <button class="swatch" type="button" data-color="#ff553e" data-name="Vermilion" aria-label="Vermilion, #ff553e" aria-pressed="true"></button>
+            <button class="swatch" type="button" data-color="#f4eea9" data-name="Moon" aria-label="Moon, #f4eea9" aria-pressed="false"></button>
+            <button class="swatch" type="button" data-color="#2664ff" data-name="Cobalt" aria-label="Cobalt, #2664ff" aria-pressed="false"></button>
+            <button class="swatch" type="button" data-color="#13c4a3" data-name="Lagoon" aria-label="Lagoon, #13c4a3" aria-pressed="false"></button>
+            <button class="swatch" type="button" data-color="#d845ff" data-name="Orchid" aria-label="Orchid, #d845ff" aria-pressed="false"></button>
+            <button class="swatch" type="button" data-color="#161823" data-name="Midnight" aria-label="Midnight, #161823" aria-pressed="false"></button>
+            <label class="custom-swatch" aria-label="Choose a custom color">
+              <input id="custom-color" type="color" value="#ff553e">
+              <span aria-hidden="true">+</span>
+            </label>
+          </div>
+        </section>
+
+        <section class="control-section" aria-labelledby="brush-heading">
+          <div class="control-title-row">
+            <h3 id="brush-heading">Brush</h3>
+            <span class="microcopy">Sample radius</span>
+          </div>
+          <div class="segmented" role="group" aria-label="Brush size">
+            <button type="button" data-brush="fine" aria-pressed="false"><i class="brush-dot brush-dot-small" aria-hidden="true"></i>Fine</button>
+            <button class="is-active" type="button" data-brush="medium" aria-pressed="true"><i class="brush-dot brush-dot-medium" aria-hidden="true"></i>Medium</button>
+            <button type="button" data-brush="broad" aria-pressed="false"><i class="brush-dot brush-dot-large" aria-hidden="true"></i>Broad</button>
+          </div>
+        </section>
+
+        <section class="control-section" aria-labelledby="preset-heading">
+          <div class="control-title-row">
+            <h3 id="preset-heading">Starting studies</h3>
+            <span class="microcopy">Replace canvas</span>
+          </div>
+          <div id="preset-list" class="preset-list">
+            <button class="preset-button is-active" type="button" data-preset="night-garden" aria-pressed="true">
+              <span class="preset-art preset-night" aria-hidden="true"></span>
+              <span><strong>Night garden</strong><small>Cobalt · coral · moss</small></span>
+            </button>
+            <button class="preset-button" type="button" data-preset="tidepool" aria-pressed="false">
+              <span class="preset-art preset-tide" aria-hidden="true"></span>
+              <span><strong>Tidepool</strong><small>Lagoon · sand · ink</small></span>
+            </button>
+            <button class="preset-button" type="button" data-preset="solar-print" aria-pressed="false">
+              <span class="preset-art preset-solar" aria-hidden="true"></span>
+              <span><strong>Solar print</strong><small>Ember · acid · night</small></span>
+            </button>
+          </div>
+        </section>
+
+        <section class="control-section bias-section" aria-labelledby="bias-heading">
+          <div class="control-title-row">
+            <h3 id="bias-heading">Model bias</h3>
+            <span class="microcopy">Fourier scale</span>
+          </div>
+          <div class="segmented compact" role="group" aria-label="Model spatial detail">
+            <button type="button" data-detail="soft" aria-pressed="false">Soft</button>
+            <button class="is-active" type="button" data-detail="balanced" aria-pressed="true">Balanced</button>
+            <button type="button" data-detail="intricate" aria-pressed="false">Intricate</button>
+          </div>
+          <p class="help-copy">Higher frequencies let the same network bend more sharply between examples.</p>
+        </section>
+      </aside>
+
+      <section id="field-panel" class="field-panel" aria-labelledby="prediction-heading">
+        <div class="field-toolbar">
+          <div>
+            <p id="field-number" class="eyebrow">02 · Model prediction</p>
+            <h2 id="prediction-heading">The learned field</h2>
+          </div>
+          <div class="field-status" aria-label="Training status">
+            <span id="training-indicator" class="training-indicator" aria-hidden="true"></span>
+            <span id="training-label">Training</span>
+          </div>
+        </div>
+
+        <div class="field-frame">
+          <canvas
+            id="field-canvas"
+            tabindex="0"
+            aria-label="Interactive neural field. Paint color examples with a pointer, or use arrow keys to move the keyboard cursor and Space to stamp color."
+            aria-describedby="canvas-instructions canvas-legend"
+          ></canvas>
+          <div class="registration-mark mark-nw" aria-hidden="true"></div>
+          <div class="registration-mark mark-ne" aria-hidden="true"></div>
+          <div class="registration-mark mark-sw" aria-hidden="true"></div>
+          <div class="registration-mark mark-se" aria-hidden="true"></div>
+          <div id="first-use-hint" class="first-use-hint">
+            <span class="hint-arrow" aria-hidden="true">&#8599;</span>
+            <strong>Paint here</strong>
+            <span>The field learns while you draw.</span>
+          </div>
+          <div class="coordinate-readout" aria-hidden="true">
+            <span id="coordinate-x">x +0.00</span>
+            <span id="coordinate-y">y +0.00</span>
+          </div>
+        </div>
+
+        <p id="canvas-instructions" class="sr-only">
+          Pointer users can drag anywhere on the field. Keyboard users can focus the field,
+          move with arrow keys, and press Space or Enter to add the selected color.
+        </p>
+
+        <div class="field-actions">
+          <div class="action-group">
+            <button id="pause-button" class="action-button primary-action" type="button">
+              <span class="pause-icon" aria-hidden="true"></span>
+              <span>Pause learning</span>
+            </button>
+            <button id="undo-button" class="action-button" type="button">Undo stroke</button>
+            <button id="clear-button" class="action-button" type="button">Clear</button>
+          </div>
+          <div class="action-group secondary-actions">
+            <button id="examples-button" class="text-action" type="button">Hide examples</button>
+            <button id="reseed-button" class="text-action" type="button">New weights</button>
+            <button id="save-button" class="text-action" type="button">Save field</button>
+          </div>
+        </div>
+
+        <div id="canvas-legend" class="canvas-legend">
+          <span><i class="legend-example" aria-hidden="true"></i>Painted dots are examples</span>
+          <span><i class="legend-field" aria-hidden="true"></i>Everything between is a prediction</span>
+          <span class="keyboard-note">Keyboard: arrows + space</span>
+        </div>
+      </section>
+
+      <aside class="telemetry-panel" aria-labelledby="telemetry-heading">
+        <div class="panel-heading">
+          <span class="panel-number">03</span>
+          <div>
+            <p class="eyebrow">Live telemetry</p>
+            <h2 id="telemetry-heading">Inside the learner</h2>
+          </div>
+        </div>
+
+        <section class="loss-card" aria-labelledby="loss-heading">
+          <div class="loss-heading-row">
+            <div>
+              <p id="loss-heading" class="metric-label">Mean squared error</p>
+              <strong id="loss-value">0.0000</strong>
+            </div>
+            <span id="fit-badge" class="fit-badge">Settling</span>
+          </div>
+          <canvas id="loss-canvas" width="540" height="170" role="img" aria-label="Recent training loss chart"></canvas>
+          <div class="chart-axis" aria-hidden="true"><span>Earlier</span><span>Now</span></div>
+        </section>
+
+        <dl class="stat-grid">
+          <div><dt>Optimizer steps</dt><dd id="step-value">0</dd></div>
+          <div><dt>Examples</dt><dd id="sample-value">0</dd></div>
+          <div><dt>Parameters</dt><dd id="parameter-value">783</dd></div>
+          <div><dt>Render grid</dt><dd id="grid-value">180×112</dd></div>
+        </dl>
+
+        <section class="probe-card" aria-labelledby="probe-heading">
+          <div class="control-title-row">
+            <h3 id="probe-heading">Prediction probe</h3>
+            <span id="probe-position" class="microcopy">x 0.00 · y 0.00</span>
+          </div>
+          <div class="probe-comparison">
+            <div>
+              <span id="predicted-chip" class="color-chip predicted-chip" aria-hidden="true"></span>
+              <p>Network says</p>
+              <strong id="predicted-value">#000000</strong>
+            </div>
+            <span class="probe-arrow" aria-hidden="true">&#8596;</span>
+            <div>
+              <span id="example-chip" class="color-chip example-chip" aria-hidden="true"></span>
+              <p>Nearest example</p>
+              <strong id="example-value">#000000</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="architecture-card" aria-labelledby="architecture-heading">
+          <div class="control-title-row">
+            <h3 id="architecture-heading">Architecture</h3>
+            <span class="microcopy">Handmade matrix math</span>
+          </div>
+          <div class="network-diagram" aria-label="Two coordinates are Fourier encoded into fourteen features, passed through two layers of twenty neurons, and output as red green blue values">
+            <span><b>2</b><small>x · y</small></span>
+            <i aria-hidden="true"></i>
+            <span><b>14</b><small>Fourier</small></span>
+            <i aria-hidden="true"></i>
+            <span><b>20</b><small>tanh</small></span>
+            <i aria-hidden="true"></i>
+            <span><b>20</b><small>tanh</small></span>
+            <i aria-hidden="true"></i>
+            <span class="rgb-node"><b>3</b><small>RGB</small></span>
+          </div>
+          <p class="architecture-copy">
+            Coordinates become sine and cosine features. Backpropagation adjusts every
+            connection toward your colors; Adam keeps each adjustment stable.
+          </p>
+        </section>
+
+        <details class="method-note">
+          <summary>What makes this actual AI?</summary>
+          <p>
+            Nothing is pre-rendered or looked up. This page initializes a multilayer
+            perceptron with random weights, measures its color error, differentiates that
+            error through both hidden layers, and updates the weights in real time. It is
+            small enough to inspect, but it is the same learning loop used by much larger models.
+          </p>
+        </details>
+      </aside>
+    </section>
+
+    <footer class="method-footer">
+      <p><span>Dreamfield / study 001</span> A neural coordinate network, trained from scratch in your browser.</p>
+      <p>Paint is data. The gradient is the teacher.</p>
+    </footer>
+  </main>
+
+  <div id="live-region" class="sr-only" aria-live="polite"></div>
+</body>
+</html>
