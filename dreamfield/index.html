@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#171813">
-  <meta name="description" content="Paint color examples and watch a tiny neural network learn a continuous field in your browser.">
-  <title>Dreamfield — a neural field atelier</title>
+  <meta name="description" content="Draw a doodle and teach a tiny neural network to redraw it, live in your browser.">
+  <title>Dreamfield — Doodle Apprentice</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,300;6..72,500&amp;display=swap" rel="stylesheet">
@@ -20,7 +20,7 @@
       <span>Playground</span>
     </a>
 
-    <div class="masthead" aria-label="Dreamfield">
+    <div class="masthead" aria-label="Dreamfield Doodle Apprentice">
       <svg class="masthead-mark" viewBox="0 0 40 40" aria-hidden="true">
         <path d="M4 30C10 6 18 35 24 12S35 22 36 5" />
         <circle cx="4" cy="30" r="2.6" />
@@ -30,9 +30,9 @@
       <span>Dreamfield</span>
     </div>
 
-    <div class="local-status" title="The neural network trains on this device. No painting or model data leaves your browser.">
+    <div class="local-status" title="The neural network trains on this device. No drawing or model data leaves your browser.">
       <span class="status-light" aria-hidden="true"></span>
-      <span id="header-status">Learning locally</span>
+      <span id="header-status">Ready to learn</span>
       <span class="status-detail">No cloud model</span>
     </div>
   </header>
@@ -40,156 +40,241 @@
   <main>
     <section class="intro" aria-labelledby="page-title">
       <div class="intro-copy">
-        <p class="eyebrow">A live neural implicit canvas</p>
-        <h1 id="page-title">Paint a few truths.<br><em>Watch the network dream between.</em></h1>
+        <p class="eyebrow">A tiny neural network, taught by you</p>
+        <h1 id="page-title">Draw on the left.<br><em>Watch the AI redraw it.</em></h1>
       </div>
       <div class="intro-note">
         <p>
-          Every dot you paint becomes training data. A tiny neural network learns
-          continuously, turning sparse examples into a field of predictions.
+          Your ink and some sampled blank paper become training examples. A small
+          network learns <em>position → color</em>, then generates its own version from memory.
         </p>
-        <div class="proof-strip" aria-label="Technical details">
-          <span>Real backpropagation</span>
-          <span>Adam optimizer</span>
-          <span id="parameter-badge">783 parameters</span>
+        <div class="proof-strip" aria-label="How the experiment works">
+          <span>You doodle</span>
+          <span id="parameter-badge">1,431 parameters learn</span>
+          <span>AI redraws</span>
         </div>
+        <p class="truth-note">It will not tell you what you drew. It learns how to redraw the pattern.</p>
       </div>
     </section>
 
-    <section id="workbench" class="workbench" aria-label="Dreamfield neural network workbench">
+    <section id="workbench" class="workbench" aria-label="Doodle Apprentice neural network studio">
       <aside id="tool-panel" class="tool-panel" aria-labelledby="teach-heading">
         <div class="panel-heading">
           <span id="teach-number" class="panel-number">01</span>
           <div>
-            <p class="eyebrow">Training examples</p>
-            <h2 id="teach-heading">Teach with color</h2>
+            <p class="eyebrow">Your drawing tools</p>
+            <h2 id="teach-heading">Teach by doodling</h2>
           </div>
         </div>
 
+        <p class="tool-intro">Draw one big, simple symbol. A letter, face, heart, or star works beautifully.</p>
+
         <section class="control-section" aria-labelledby="color-heading">
           <div class="control-title-row">
-            <h3 id="color-heading">Ink</h3>
-            <output id="color-readout" for="custom-color">Vermilion · #ff553e</output>
+            <h3 id="color-heading">Doodle color</h3>
+            <output id="color-readout" for="custom-color">Midnight · #161823</output>
           </div>
-          <div id="swatch-list" class="swatch-list" role="group" aria-label="Paint colors">
-            <button class="swatch" type="button" data-color="#ff553e" data-name="Vermilion" aria-label="Vermilion, #ff553e" aria-pressed="true"></button>
-            <button class="swatch" type="button" data-color="#f4eea9" data-name="Moon" aria-label="Moon, #f4eea9" aria-pressed="false"></button>
+          <div id="swatch-list" class="swatch-list" role="group" aria-label="Doodle color">
+            <button class="swatch" type="button" data-color="#161823" data-name="Midnight" aria-label="Midnight, #161823" aria-pressed="true"></button>
             <button class="swatch" type="button" data-color="#2664ff" data-name="Cobalt" aria-label="Cobalt, #2664ff" aria-pressed="false"></button>
-            <button class="swatch" type="button" data-color="#13c4a3" data-name="Lagoon" aria-label="Lagoon, #13c4a3" aria-pressed="false"></button>
-            <button class="swatch" type="button" data-color="#d845ff" data-name="Orchid" aria-label="Orchid, #d845ff" aria-pressed="false"></button>
-            <button class="swatch" type="button" data-color="#161823" data-name="Midnight" aria-label="Midnight, #161823" aria-pressed="false"></button>
-            <label class="custom-swatch" aria-label="Choose a custom color">
-              <input id="custom-color" type="color" value="#ff553e">
-              <span aria-hidden="true">+</span>
+            <button class="swatch" type="button" data-color="#ff553e" data-name="Vermilion" aria-label="Vermilion, #ff553e" aria-pressed="false"></button>
+            <button class="swatch" type="button" data-color="#13a98e" data-name="Lagoon" aria-label="Lagoon, #13a98e" aria-pressed="false"></button>
+            <button class="swatch" type="button" data-color="#b632d5" data-name="Orchid" aria-label="Orchid, #b632d5" aria-pressed="false"></button>
+            <label class="custom-swatch">
+              <span class="sr-only">Choose a custom doodle color</span>
+              <input id="custom-color" type="color" value="#161823" aria-label="Custom doodle color">
+              <i aria-hidden="true">+</i>
             </label>
           </div>
         </section>
 
         <section class="control-section" aria-labelledby="brush-heading">
           <div class="control-title-row">
-            <h3 id="brush-heading">Brush</h3>
-            <span class="microcopy">Sample radius</span>
+            <h3 id="brush-heading">Brush size</h3>
+            <span class="microcopy">Bold works best</span>
           </div>
           <div class="segmented" role="group" aria-label="Brush size">
             <button type="button" data-brush="fine" aria-pressed="false"><i class="brush-dot brush-dot-small" aria-hidden="true"></i>Fine</button>
-            <button class="is-active" type="button" data-brush="medium" aria-pressed="true"><i class="brush-dot brush-dot-medium" aria-hidden="true"></i>Medium</button>
-            <button type="button" data-brush="broad" aria-pressed="false"><i class="brush-dot brush-dot-large" aria-hidden="true"></i>Broad</button>
+            <button type="button" data-brush="medium" aria-pressed="false"><i class="brush-dot brush-dot-medium" aria-hidden="true"></i>Medium</button>
+            <button class="is-active" type="button" data-brush="broad" aria-pressed="true"><i class="brush-dot brush-dot-large" aria-hidden="true"></i>Bold</button>
           </div>
         </section>
 
         <section class="control-section" aria-labelledby="preset-heading">
           <div class="control-title-row">
-            <h3 id="preset-heading">Starting studies</h3>
-            <span class="microcopy">Replace canvas</span>
+            <h3 id="preset-heading">Need an idea?</h3>
+            <span class="microcopy">Replaces yours</span>
           </div>
-          <div id="preset-list" class="preset-list">
-            <button class="preset-button is-active" type="button" data-preset="night-garden" aria-pressed="true">
-              <span class="preset-art preset-night" aria-hidden="true"></span>
-              <span><strong>Night garden</strong><small>Cobalt · coral · moss</small></span>
+          <div id="preset-list" class="preset-list preset-doodles">
+            <button class="preset-button" type="button" data-preset="heart" aria-label="Load Heart example; replaces the current doodle" aria-pressed="false">
+              <span class="preset-doodle preset-heart" aria-hidden="true">♥</span>
+              <span><strong>Heart</strong><small>One bold line</small></span>
             </button>
-            <button class="preset-button" type="button" data-preset="tidepool" aria-pressed="false">
-              <span class="preset-art preset-tide" aria-hidden="true"></span>
-              <span><strong>Tidepool</strong><small>Lagoon · sand · ink</small></span>
+            <button class="preset-button" type="button" data-preset="smiley" aria-label="Load Smiley example; replaces the current doodle" aria-pressed="false">
+              <span class="preset-doodle preset-smiley" aria-hidden="true">☺</span>
+              <span><strong>Smiley</strong><small>Four strokes</small></span>
             </button>
-            <button class="preset-button" type="button" data-preset="solar-print" aria-pressed="false">
-              <span class="preset-art preset-solar" aria-hidden="true"></span>
-              <span><strong>Solar print</strong><small>Ember · acid · night</small></span>
+            <button class="preset-button" type="button" data-preset="star" aria-label="Load Star example; replaces the current doodle" aria-pressed="false">
+              <span class="preset-doodle preset-star" aria-hidden="true">★</span>
+              <span><strong>Star</strong><small>A trickier shape</small></span>
             </button>
           </div>
         </section>
 
-        <section class="control-section bias-section" aria-labelledby="bias-heading">
-          <div class="control-title-row">
-            <h3 id="bias-heading">Model bias</h3>
-            <span class="microcopy">Fourier scale</span>
+        <details class="advanced-tools">
+          <summary>Show how it learns</summary>
+          <div class="advanced-tools-body">
+            <section class="control-section bias-section" aria-labelledby="bias-heading">
+              <div class="control-title-row">
+                <h3 id="bias-heading">Apprentice style</h3>
+                <span class="microcopy">Same tiny brain</span>
+              </div>
+              <div class="segmented compact" role="group" aria-label="Model spatial detail">
+                <button type="button" data-detail="soft" aria-pressed="false">Dreamy</button>
+                <button class="is-active" type="button" data-detail="balanced" aria-pressed="true">Faithful</button>
+                <button type="button" data-detail="intricate" aria-pressed="false">Wiggly</button>
+              </div>
+              <p class="help-copy">This changes the coordinate frequencies the network can use. It retrains from scratch.</p>
+            </section>
           </div>
-          <div class="segmented compact" role="group" aria-label="Model spatial detail">
-            <button type="button" data-detail="soft" aria-pressed="false">Soft</button>
-            <button class="is-active" type="button" data-detail="balanced" aria-pressed="true">Balanced</button>
-            <button type="button" data-detail="intricate" aria-pressed="false">Intricate</button>
-          </div>
-          <p class="help-copy">Higher frequencies let the same network bend more sharply between examples.</p>
-        </section>
+        </details>
       </aside>
 
       <section id="field-panel" class="field-panel" aria-labelledby="prediction-heading">
         <div class="field-toolbar">
           <div>
-            <p id="field-number" class="eyebrow">02 · Model prediction</p>
-            <h2 id="prediction-heading">The learned field</h2>
+            <p id="field-number" class="eyebrow">02 · The imitation game</p>
+            <h2 id="prediction-heading">You draw. It practices.</h2>
           </div>
-          <div class="field-status" aria-label="Training status">
+          <div class="field-status" role="status" aria-live="polite">
             <span id="training-indicator" class="training-indicator" aria-hidden="true"></span>
-            <span id="training-label">Training</span>
+            <span id="training-label">Waiting for a doodle</span>
           </div>
         </div>
 
-        <div class="field-frame">
-          <canvas
-            id="field-canvas"
-            tabindex="0"
-            aria-label="Interactive neural field. Paint color examples with a pointer, or use arrow keys to move the keyboard cursor and Space to stamp color."
-            aria-describedby="canvas-instructions canvas-legend"
-          ></canvas>
-          <div class="registration-mark mark-nw" aria-hidden="true"></div>
-          <div class="registration-mark mark-ne" aria-hidden="true"></div>
-          <div class="registration-mark mark-sw" aria-hidden="true"></div>
-          <div class="registration-mark mark-se" aria-hidden="true"></div>
-          <div id="first-use-hint" class="first-use-hint">
-            <span class="hint-arrow" aria-hidden="true">&#8599;</span>
-            <strong>Paint here</strong>
-            <span>The field learns while you draw.</span>
+        <p class="mobile-tool-note">
+          Ready with <strong id="mobile-tool-summary">Midnight · Bold</strong>
+          <a href="#tool-panel">Change tools &#8595;</a>
+        </p>
+
+        <ol class="learning-loop" aria-label="How the Doodle Apprentice works">
+          <li id="loop-examples" class="is-active" aria-current="step">
+            <span>1</span>
+            <div><strong>You sketch</strong><small>ink + blank paper</small></div>
+          </li>
+          <li class="loop-arrow" aria-hidden="true">&#8594;</li>
+          <li id="loop-learning">
+            <span>2</span>
+            <div><strong>It practices</strong><small id="loop-learning-copy">waiting for data</small></div>
+          </li>
+          <li class="loop-arrow" aria-hidden="true">&#8594;</li>
+          <li id="loop-prediction">
+            <span>3</span>
+            <div><strong>It redraws</strong><small>from learned parameters</small></div>
+          </li>
+        </ol>
+
+        <div id="lesson-card" class="lesson-card">
+          <span id="lesson-step">Your turn</span>
+          <strong id="lesson-title">Draw one big, simple shape.</strong>
+          <p id="lesson-copy">Try a letter, face, or heart. Thick strokes give this tiny apprentice the best chance.</p>
+        </div>
+
+        <div class="canvas-pair">
+          <section class="canvas-pane examples-pane" aria-labelledby="examples-pane-heading">
+            <div class="canvas-pane-heading">
+              <span class="pane-number">A</span>
+              <div>
+                <p>Training image · you</p>
+                <h3 id="examples-pane-heading">Your doodle</h3>
+              </div>
+              <output id="example-count-badge">0 strokes</output>
+            </div>
+            <div id="teaching-frame" class="teaching-frame">
+              <canvas
+                id="teaching-canvas"
+                tabindex="0"
+                aria-label="Your doodle canvas"
+                aria-describedby="canvas-instructions examples-caption"
+              ></canvas>
+              <div id="drawing-prompt" class="canvas-empty canvas-empty-dark" aria-hidden="true">
+                <span>Start here</span>
+                <strong>Draw one simple shape</strong>
+                <small>Bold strokes work best</small>
+              </div>
+              <div id="source-hidden" class="source-hidden" hidden>
+                <span>Memory test</span>
+                <strong>Your doodle is hidden.</strong>
+                <small>The redraw remains because it lives in the learned parameters.</small>
+              </div>
+              <div class="coordinate-readout" aria-hidden="true">
+                <span id="coordinate-x">x +0.00</span>
+                <span id="coordinate-y">y +0.00</span>
+              </div>
+            </div>
+            <p id="examples-caption" class="pane-caption"><i class="legend-example" aria-hidden="true"></i>These marks are the picture the network studies.</p>
+          </section>
+
+          <div class="causal-arrow" aria-hidden="true">
+            <span id="causal-arrow-label">teach</span>
+            <i>&#8594;</i>
           </div>
-          <div class="coordinate-readout" aria-hidden="true">
-            <span id="coordinate-x">x +0.00</span>
-            <span id="coordinate-y">y +0.00</span>
-          </div>
+
+          <section class="canvas-pane prediction-pane" aria-labelledby="prediction-pane-heading">
+            <div class="canvas-pane-heading">
+              <span class="pane-number">B</span>
+              <div>
+                <p>Model output · AI</p>
+                <h3 id="prediction-pane-heading">Apprentice redraw</h3>
+              </div>
+              <output id="prediction-count-badge">Waiting</output>
+            </div>
+            <div id="field-frame" class="field-frame prediction-frame">
+              <canvas
+                id="field-canvas"
+                role="img"
+                aria-label="No neural redraw yet. Add a stroke on the left to begin."
+                aria-hidden="true"
+                aria-describedby="prediction-caption"
+              ></canvas>
+              <div id="prediction-empty" class="canvas-empty prediction-empty">
+                <span>No redraw yet</span>
+                <strong>Add your first stroke on the left.</strong>
+                <small>The output stays blank until the network has something to learn.</small>
+              </div>
+              <div id="prediction-stamp" class="prediction-stamp" hidden>
+                <span>Generated from</span>
+                <strong id="prediction-stamp-value">1,431 learned numbers</strong>
+              </div>
+            </div>
+            <p id="prediction-caption" class="pane-caption"><i class="legend-field" aria-hidden="true"></i>The whole redraw comes from network predictions—not a copied canvas.</p>
+          </section>
         </div>
 
         <p id="canvas-instructions" class="sr-only">
-          Pointer users can drag anywhere on the field. Keyboard users can focus the field,
-          move with arrow keys, and press Space or Enter to add the selected color.
+          Choose a color and brush, then tap or drag on the doodle canvas. Arrow keys move the keyboard cursor.
+          Hold Shift to move faster. Press Space or Enter to draw.
         </p>
 
         <div class="field-actions">
           <div class="action-group">
-            <button id="pause-button" class="action-button primary-action" type="button">
+            <button id="pause-button" class="action-button primary-action" type="button" disabled>
               <span class="pause-icon" aria-hidden="true"></span>
               <span>Pause learning</span>
             </button>
-            <button id="undo-button" class="action-button" type="button">Undo stroke</button>
-            <button id="clear-button" class="action-button" type="button">Clear</button>
+            <button id="undo-button" class="action-button" type="button" disabled>Undo stroke</button>
+            <button id="clear-button" class="action-button" type="button" disabled>New doodle</button>
           </div>
           <div class="action-group secondary-actions">
-            <button id="examples-button" class="text-action" type="button">Hide examples</button>
-            <button id="reseed-button" class="text-action" type="button">New weights</button>
-            <button id="save-button" class="text-action" type="button">Save field</button>
+            <button id="hide-source-button" class="text-action" type="button" aria-pressed="false" disabled>Hide my doodle</button>
+            <button id="reseed-button" class="text-action" type="button" disabled>New apprentice</button>
+            <button id="save-button" class="text-action" type="button" disabled>Save AI redraw</button>
           </div>
         </div>
 
         <div id="canvas-legend" class="canvas-legend">
-          <span><i class="legend-example" aria-hidden="true"></i>Painted dots are examples</span>
-          <span><i class="legend-field" aria-hidden="true"></i>Everything between is a prediction</span>
+          <span><i class="legend-example" aria-hidden="true"></i>Left = your training image</span>
+          <span><i class="legend-field" aria-hidden="true"></i>Right = predictions from parameters</span>
           <span class="keyboard-note">Keyboard: arrows + space</span>
         </div>
       </section>
@@ -198,79 +283,83 @@
         <div class="panel-heading">
           <span class="panel-number">03</span>
           <div>
-            <p class="eyebrow">Live telemetry</p>
-            <h2 id="telemetry-heading">Inside the learner</h2>
+            <p class="eyebrow">Inside the tiny brain</p>
+            <h2 id="telemetry-heading">How close is the copy?</h2>
           </div>
         </div>
+
+        <p class="telemetry-explainer">
+          Backpropagation compares sampled pixels from your doodle with the redraw,
+          then nudges 1,431 learned parameters to make the next attempt closer.
+        </p>
 
         <section class="loss-card" aria-labelledby="loss-heading">
           <div class="loss-heading-row">
             <div>
-              <p id="loss-heading" class="metric-label">Mean squared error</p>
-              <strong id="loss-value">0.0000</strong>
+              <p id="loss-heading" class="metric-label">Copy error · lower is better</p>
+              <strong id="loss-value">—</strong>
             </div>
-            <span id="fit-badge" class="fit-badge">Settling</span>
+            <span id="fit-badge" class="fit-badge">No doodle</span>
           </div>
-          <canvas id="loss-canvas" width="540" height="170" role="img" aria-label="Recent training loss chart"></canvas>
+          <canvas id="loss-canvas" width="540" height="170" role="img" aria-label="Recent balanced training error chart"></canvas>
           <div class="chart-axis" aria-hidden="true"><span>Earlier</span><span>Now</span></div>
         </section>
 
         <dl class="stat-grid">
-          <div><dt>Optimizer steps</dt><dd id="step-value">0</dd></div>
-          <div><dt>Examples</dt><dd id="sample-value">0</dd></div>
-          <div><dt>Parameters</dt><dd id="parameter-value">783</dd></div>
-          <div><dt>Render grid</dt><dd id="grid-value">180×112</dd></div>
+          <div><dt>Practice steps</dt><dd id="step-value">0</dd></div>
+          <div><dt>Sampled pixels</dt><dd id="sample-value">0</dd></div>
+          <div><dt>Learned parameters</dt><dd id="parameter-value">1,431</dd></div>
+          <div><dt>Predicted grid points</dt><dd id="grid-value">—</dd></div>
         </dl>
 
         <section class="probe-card" aria-labelledby="probe-heading">
           <div class="control-title-row">
-            <h3 id="probe-heading">Prediction probe</h3>
+            <h3 id="probe-heading">Same spot, two answers</h3>
             <span id="probe-position" class="microcopy">x 0.00 · y 0.00</span>
           </div>
           <div class="probe-comparison">
             <div>
-              <span id="predicted-chip" class="color-chip predicted-chip" aria-hidden="true"></span>
-              <p>Network says</p>
-              <strong id="predicted-value">#000000</strong>
-            </div>
-            <span class="probe-arrow" aria-hidden="true">&#8596;</span>
-            <div>
               <span id="example-chip" class="color-chip example-chip" aria-hidden="true"></span>
-              <p>Nearest example</p>
-              <strong id="example-value">#000000</strong>
+              <p>Your doodle</p>
+              <strong id="example-value">PAPER</strong>
+            </div>
+            <span class="probe-arrow" aria-hidden="true">&#8594;</span>
+            <div>
+              <span id="predicted-chip" class="color-chip predicted-chip" aria-hidden="true"></span>
+              <p>Apprentice says</p>
+              <strong id="predicted-value">WAITING</strong>
             </div>
           </div>
         </section>
 
         <section class="architecture-card" aria-labelledby="architecture-heading">
           <div class="control-title-row">
-            <h3 id="architecture-heading">Architecture</h3>
-            <span class="microcopy">Handmade matrix math</span>
+            <h3 id="architecture-heading">What it learns</h3>
+            <span class="microcopy">Real matrix math</span>
           </div>
-          <div class="network-diagram" aria-label="Two coordinates are Fourier encoded into fourteen features, passed through two layers of twenty neurons, and output as red green blue values">
+          <div class="network-diagram" aria-label="Two coordinates are Fourier encoded into eighteen features, passed through two layers of twenty-eight neurons, and output as red green blue values">
             <span><b>2</b><small>x · y</small></span>
             <i aria-hidden="true"></i>
-            <span><b>14</b><small>Fourier</small></span>
+            <span><b>18</b><small>Fourier</small></span>
             <i aria-hidden="true"></i>
-            <span><b>20</b><small>tanh</small></span>
+            <span><b>28</b><small>tanh</small></span>
             <i aria-hidden="true"></i>
-            <span><b>20</b><small>tanh</small></span>
+            <span><b>28</b><small>tanh</small></span>
             <i aria-hidden="true"></i>
             <span class="rgb-node"><b>3</b><small>RGB</small></span>
           </div>
           <p class="architecture-copy">
-            Coordinates become sine and cosine features. Backpropagation adjusts every
-            connection toward your colors; Adam keeps each adjustment stable.
+            Each predicted grid point asks the same question: “At this x/y coordinate, what color belongs here?”
+            The answer comes only from the learned parameters.
           </p>
         </section>
 
         <details class="method-note">
-          <summary>What makes this actual AI?</summary>
+          <summary>Is this actually AI?</summary>
           <p>
-            Nothing is pre-rendered or looked up. This page initializes a multilayer
-            perceptron with random weights, measures its color error, differentiates that
-            error through both hidden layers, and updates the weights in real time. It is
-            small enough to inspect, but it is the same learning loop used by much larger models.
+            Yes—just deliberately tiny. The browser initializes a multilayer perceptron,
+            measures its pixel error, differentiates that error through two hidden layers,
+            and updates every parameter with Adam. There is no image API and no pre-trained model.
           </p>
         </details>
       </aside>
@@ -278,10 +367,10 @@
 
     <footer class="method-footer">
       <p><span>Dreamfield / study 001</span> A neural coordinate network, trained from scratch in your browser.</p>
-      <p>Paint is data. The gradient is the teacher.</p>
+      <p>Your doodle is the lesson. The parameters become the memory.</p>
     </footer>
   </main>
 
-  <div id="live-region" class="sr-only" aria-live="polite"></div>
+  <div id="live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>

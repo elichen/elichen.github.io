@@ -78,3 +78,39 @@ test("the network learns four distinct corner examples", () => {
     for (const value of values) assert.ok(Number.isFinite(value));
   }
 });
+
+test("the Doodle Apprentice separates bold ink from blank paper", () => {
+  const model = new DreamfieldMLP({ hiddenSize: 28, bands: 4, seed: 811, learningRate: 0.0065 });
+  const ink = [];
+  const paper = [];
+  const inkRgb = [0.086, 0.094, 0.137];
+  const paperRgb = [0.929, 0.906, 0.839];
+
+  for (let row = 0; row < 13; row += 1) {
+    const y = row / 12 * 2 - 1;
+    for (let column = 0; column < 17; column += 1) {
+      const x = column / 16 * 2 - 1;
+      const isCross = Math.abs(x) < 0.17 || Math.abs(y) < 0.2;
+      (isCross ? ink : paper).push(sample(model, x, y, isCross ? inkRgb : paperRgb));
+    }
+  }
+
+  for (let step = 0; step < 1500; step += 1) {
+    const batch = [];
+    for (let index = 0; index < 16; index += 1) {
+      batch.push(ink[(step * 7 + index * 3) % ink.length]);
+      batch.push(paper[(step * 11 + index * 5) % paper.length]);
+    }
+    model.trainBatch(batch);
+  }
+
+  const center = model.predict(0, 0);
+  const corner = model.predict(0.92, 0.92);
+  const centerBrightness = (center[0] + center[1] + center[2]) / 3;
+  const cornerBrightness = (corner[0] + corner[1] + corner[2]) / 3;
+
+  assert.equal(model.parameterCount, 1431);
+  assert.ok(centerBrightness < 0.25, `expected dark ink at center, got ${centerBrightness}`);
+  assert.ok(cornerBrightness > 0.75, `expected blank paper at corner, got ${cornerBrightness}`);
+  assert.ok(cornerBrightness - centerBrightness > 0.58);
+});
