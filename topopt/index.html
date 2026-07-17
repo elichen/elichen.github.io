@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Topology Optimizer — Structural Synthesis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="desk">
+    <div class="sheet">
+      <div class="sheet-inner">
+
+        <header class="masthead">
+          <div class="masthead-title">
+            <h1>Topology Optimizer</h1>
+            <span class="masthead-sub">Structural synthesis by compliance minimization</span>
+          </div>
+          <dl class="masthead-specs">
+            <div><dt>Method</dt><dd>SIMP · OC</dd></div>
+            <div><dt>Mesh</dt><dd id="spec-mesh">140 × 70</dd></div>
+            <div><dt>Sheet</dt><dd>01 / 01</dd></div>
+          </dl>
+        </header>
+
+        <div class="work">
+          <main class="stage" id="stage">
+            <canvas id="field" aria-label="Design domain — density field of the optimized structure"></canvas>
+            <div class="statusbar">
+              <span id="status-state">READY</span>
+              <span id="status-hint">Pick a problem, then run — or draw your own loads and pins.</span>
+            </div>
+          </main>
+
+          <aside class="panel">
+            <section class="block">
+              <h2 class="block-label">1 — Problem</h2>
+              <div class="preset-grid" role="group" aria-label="Preset problems">
+                <button class="preset" data-preset="cantilever" aria-pressed="true">
+                  <svg viewBox="0 0 44 26" aria-hidden="true">
+                    <rect x="4.5" y="2.5" width="36" height="21" class="ps-domain"/>
+                    <line x1="4.5" y1="2" x2="4.5" y2="24" class="ps-wall"/>
+                    <line x1="4.5" y1="4" x2="1" y2="7" class="ps-hatch"/>
+                    <line x1="4.5" y1="10" x2="1" y2="13" class="ps-hatch"/>
+                    <line x1="4.5" y1="16" x2="1" y2="19" class="ps-hatch"/>
+                    <line x1="40.5" y1="9" x2="40.5" y2="18" class="ps-force"/>
+                    <path d="M 40.5 21 L 38 16.5 L 43 16.5 Z" class="ps-head"/>
+                  </svg>
+                  <span>Cantilever</span>
+                </button>
+                <button class="preset" data-preset="bridge" aria-pressed="false">
+                  <svg viewBox="0 0 44 26" aria-hidden="true">
+                    <rect x="4.5" y="2.5" width="36" height="21" class="ps-domain"/>
+                    <path d="M 6.5 23.5 L 4 19 L 9 19 Z" class="ps-pin" transform="rotate(180 6.5 21.2)"/>
+                    <path d="M 38.5 23.5 L 36 19 L 41 19 Z" class="ps-pin" transform="rotate(180 38.5 21.2)"/>
+                    <line x1="22.5" y1="8" x2="22.5" y2="17" class="ps-force"/>
+                    <path d="M 22.5 20 L 20 15.5 L 25 15.5 Z" class="ps-head"/>
+                  </svg>
+                  <span>Bridge</span>
+                </button>
+                <button class="preset" data-preset="canopy" aria-pressed="false">
+                  <svg viewBox="0 0 44 26" aria-hidden="true">
+                    <rect x="4.5" y="2.5" width="36" height="21" class="ps-domain"/>
+                    <line x1="4" y1="2.5" x2="41" y2="2.5" class="ps-wall"/>
+                    <line x1="9" y1="2.5" x2="6" y2="0" class="ps-hatch"/>
+                    <line x1="18" y1="2.5" x2="15" y2="0" class="ps-hatch"/>
+                    <line x1="27" y1="2.5" x2="24" y2="0" class="ps-hatch"/>
+                    <line x1="36" y1="2.5" x2="33" y2="0" class="ps-hatch"/>
+                    <line x1="27" y1="12" x2="27" y2="19" class="ps-force"/>
+                    <path d="M 27 22 L 24.5 17.5 L 29.5 17.5 Z" class="ps-head"/>
+                  </svg>
+                  <span>Canopy</span>
+                </button>
+                <button class="preset" data-preset="table" aria-pressed="false">
+                  <svg viewBox="0 0 44 26" aria-hidden="true">
+                    <rect x="4.5" y="2.5" width="36" height="21" class="ps-domain"/>
+                    <line x1="13" y1="3" x2="13" y2="9" class="ps-force"/>
+                    <path d="M 13 12 L 10.8 8 L 15.2 8 Z" class="ps-head"/>
+                    <line x1="22.5" y1="3" x2="22.5" y2="9" class="ps-force"/>
+                    <path d="M 22.5 12 L 20.3 8 L 24.7 8 Z" class="ps-head"/>
+                    <line x1="32" y1="3" x2="32" y2="9" class="ps-force"/>
+                    <path d="M 32 12 L 29.8 8 L 34.2 8 Z" class="ps-head"/>
+                    <path d="M 7.5 23.5 L 5 19 L 10 19 Z" class="ps-pin" transform="rotate(180 7.5 21.2)"/>
+                    <path d="M 37.5 23.5 L 35 19 L 40 19 Z" class="ps-pin" transform="rotate(180 37.5 21.2)"/>
+                  </svg>
+                  <span>Table</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="block">
+              <h2 class="block-label">2 — Tools</h2>
+              <div class="tool-grid" role="group" aria-label="Drawing tools">
+                <button class="tool" data-tool="load" aria-pressed="false" title="Place a force — drag to aim">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><line x1="10" y1="3" x2="10" y2="13" class="ti-force"/><path d="M 10 17 L 6.8 11.5 L 13.2 11.5 Z" class="ti-head"/></svg>
+                  <span>Load</span>
+                </button>
+                <button class="tool" data-tool="pin" aria-pressed="false" title="Anchor the structure at a point">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M 10 4 L 4.5 13 L 15.5 13 Z" class="ti-line"/><line x1="3" y1="16" x2="17" y2="16" class="ti-line"/><line x1="5" y1="16" x2="3" y2="19" class="ti-line"/><line x1="9" y1="16" x2="7" y2="19" class="ti-line"/><line x1="13" y1="16" x2="11" y2="19" class="ti-line"/></svg>
+                  <span>Pin</span>
+                </button>
+                <button class="tool" data-tool="void" aria-pressed="false" title="Carve keep-out regions">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" class="ti-dash"/><line x1="6" y1="13" x2="13" y2="6" class="ti-line"/><line x1="8.5" y1="14.5" x2="14.7" y2="8.3" class="ti-line"/></svg>
+                  <span>Void</span>
+                </button>
+                <button class="tool" data-tool="erase" aria-pressed="false" title="Remove a load, pin, or void">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="4" width="12" height="12" class="ti-dash"/><line x1="7" y1="7" x2="13" y2="13" class="ti-line"/><line x1="13" y1="7" x2="7" y2="13" class="ti-line"/></svg>
+                  <span>Erase</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="block">
+              <h2 class="block-label">3 — Material &amp; Mesh</h2>
+              <div class="control-row">
+                <label for="volfrac">Volume V*</label>
+                <input type="range" id="volfrac" min="0.20" max="0.60" step="0.01" value="0.40">
+                <output id="volfrac-out" for="volfrac">0.40</output>
+              </div>
+              <div class="control-row">
+                <label for="rmin">Feature R<sub>min</sub></label>
+                <input type="range" id="rmin" min="1.5" max="5" step="0.25" value="2.25">
+                <output id="rmin-out" for="rmin">2.25</output>
+              </div>
+              <div class="control-row">
+                <span class="control-label" id="mesh-label">Mesh</span>
+                <div class="seg" role="group" aria-labelledby="mesh-label">
+                  <button data-mesh="48" aria-pressed="false">96×48</button>
+                  <button data-mesh="70" aria-pressed="true">140×70</button>
+                  <button data-mesh="90" aria-pressed="false">180×90</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="block block-run">
+              <h2 class="block-label">4 — Run</h2>
+              <button id="run" class="run-btn">Run optimization</button>
+              <div class="run-aux">
+                <button id="reset" title="Restart from a uniform gray field">Reset field</button>
+                <button id="clear" title="Blank sheet — remove all loads, pins, and voids">Clear sheet</button>
+              </div>
+            </section>
+
+            <section class="titleblock" aria-label="Title block — live optimization record">
+              <div class="tb-stats">
+                <div class="tb-cell"><span class="tb-k">Iter</span><span class="tb-v" id="tb-iter">000</span></div>
+                <div class="tb-cell"><span class="tb-k">Compliance</span><span class="tb-v" id="tb-c">—</span></div>
+                <div class="tb-cell"><span class="tb-k">Volume</span><span class="tb-v" id="tb-vol">—</span></div>
+                <div class="tb-cell"><span class="tb-k"><span class="no-caps">Δρ</span> max</span><span class="tb-v" id="tb-chg">—</span></div>
+              </div>
+              <div class="tb-spark">
+                <span class="tb-k">Compliance history <em id="spark-readout"></em></span>
+                <canvas id="spark" height="44" aria-label="Compliance convergence history"></canvas>
+              </div>
+              <div class="tb-credits">
+                <span>Drawn: optimality criteria</span>
+                <span>Checked: FEA · PCG</span>
+                <span>Scale 1:1</span>
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <footer class="margin-note">
+          <span>Material migrates to the load paths: each pass solves the elastic equilibrium, then the optimality-criteria update moves density where stiffness is cheapest.</span>
+          <span class="margin-cite">SIMP · Sigmund's 88-line method · runs entirely in your browser</span>
+        </footer>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="solver.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
