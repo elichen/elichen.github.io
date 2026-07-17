@@ -1,110 +1,116 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { NeuralArtGenome, ACTIVATIONS } = require("./model.js");
+const { DreamfieldMLP } = require("./model.js");
 
-function allParameters(genome) {
-  return Object.values(genome.params).flatMap((values) => Array.from(values));
+function sample(model, x, y, rgb) {
+  return { x, y, rgb, features: model.encode(x, y) };
 }
 
-function outputAt(genome, x, y) {
-  return Array.from(genome.forward(x, y, new Float32Array(4)));
-}
+test("Fourier encoder has the declared shape and known center values", () => {
+  const model = new DreamfieldMLP({ hiddenSize: 4, bands: 3, seed: 7 });
+  const encoded = model.encode(0, 0);
 
-test("the fixed CPPN topology contains exactly 256 neural parameters", () => {
-  const genome = NeuralArtGenome.random(17);
-  assert.equal(genome.parameterCount, 256);
-  assert.equal(genome.activations1.length, 12);
-  assert.equal(genome.activations2.length, 12);
-  assert.equal(ACTIVATIONS.length, 4);
+  assert.equal(model.inputSize, 14);
+  assert.equal(encoded.length, model.inputSize);
+  assert.deepEqual(Array.from(encoded), [0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]);
 });
+test("backpropagation agrees with finite differences", () => {
+  const model = new DreamfieldMLP({ hiddenSize: 5, bands: 2, seed: 23 });
+  const trainingSample = sample(model, 0.27, -0.41, [0.82, 0.13, 0.56]);
+  const batch = [trainingSample];
+  const checks = [
+    ["w3", 3],
+    ["b3", 0],
+    ["w2", 7],
+    ["w1", 11]
+  ];
 
-test("the same seed creates byte-identical genomes and outputs", () => {
-  const first = NeuralArtGenome.random(90210);
-  const second = NeuralArtGenome.random(90210);
+  const { gradients } = model.computeGradients(batch);
+  const epsilon = 1e-3;
 
-  assert.deepEqual(first.serialize(), second.serialize());
-  for (const [x, y] of [[0, 0], [-0.7, 0.2], [0.81, -0.63]]) {
-    assert.deepEqual(outputAt(first, x, y), outputAt(second, x, y));
+  for (const [name, index] of checks) {
+    const value = model.params[name][index];
+    model.params[name][index] = value + epsilon;
+    const positive = model.lossForBatch(batch);
+    model.params[name][index] = value - epsilon;
+    const negative = model.lossForBatch(batch);
+    model.params[name][index] = value;
+
+    const numerical = (positive - negative) / (2 * epsilon);
+    const analytical = gradients[name][index];
+    const scale = Math.max(1e-4, Math.abs(numerical), Math.abs(analytical));
+    assert.ok(
+      Math.abs(numerical - analytical) / scale < 0.025,
+      `${name}[${index}] numerical=${numerical} analytical=${analytical}`
+    );
   }
 });
 
-test("zero-strength mutation is an exact clone and never changes its parent", () => {
-  const parent = NeuralArtGenome.random(404);
-  const before = parent.serialize();
-  const child = parent.mutate({ seed: 405, strength: 0, generationBorn: 2 });
+test("Adam training overfits a single painted color", () => {
+  const model = new DreamfieldMLP({ hiddenSize: 10, bands: 2, seed: 101, learningRate: 0.008 });
+  const trainingSample = sample(model, -0.2, 0.35, [0.91, 0.12, 0.63]);
+  const initialLoss = model.lossForBatch([trainingSample]);
 
-  assert.deepEqual(parent.serialize(), before);
-  assert.deepEqual(allParameters(child), allParameters(parent));
-  assert.deepEqual(Array.from(child.activations1), Array.from(parent.activations1));
-  assert.deepEqual(child.style, parent.style);
-  assert.notEqual(child.seed, parent.seed);
+  for (let step = 0; step < 500; step += 1) model.trainBatch([trainingSample]);
+
+  const finalLoss = model.lossForBatch([trainingSample]);
+  const prediction = model.predict(trainingSample.x, trainingSample.y);
+  assert.ok(finalLoss < initialLoss * 0.001, `loss ${initialLoss} -> ${finalLoss}`);
+  prediction.forEach((value) => assert.ok(Number.isFinite(value)));
 });
 
-test("ordinary mutation changes genes without changing the parent", () => {
-  const parent = NeuralArtGenome.random(811);
-  const before = parent.serialize();
-  const child = parent.mutate({ seed: 812, strength: 1.1, generationBorn: 2 });
+test("the network learns four distinct corner examples", () => {
+  const model = new DreamfieldMLP({ hiddenSize: 20, bands: 3, seed: 304, learningRate: 0.007 });
+  const trainingSamples = [
+    sample(model, -1, -1, [0.92, 0.08, 0.12]),
+    sample(model, 1, -1, [0.08, 0.24, 0.94]),
+    sample(model, -1, 1, [0.06, 0.84, 0.42]),
+    sample(model, 1, 1, [0.94, 0.86, 0.12])
+  ];
 
-  assert.deepEqual(parent.serialize(), before);
-  assert.ok(child.differenceFrom(parent) > 0.001);
-  assert.equal(child.lineageId, parent.lineageId);
-  assert.equal(child.generationBorn, 2);
+  const initialLoss = model.lossForBatch(trainingSamples);
+  for (let step = 0; step < 1200; step += 1) model.trainBatch(trainingSamples);
+  const finalLoss = model.lossForBatch(trainingSamples);
+
+  assert.ok(finalLoss < 0.0002, `loss ${initialLoss} -> ${finalLoss}`);
+  assert.ok(model.step === 1200);
+  for (const values of Object.values(model.params)) {
+    for (const value of values) assert.ok(Number.isFinite(value));
+  }
 });
 
-test("crossover receives numerical contributions from both parents", () => {
-  const parentA = NeuralArtGenome.random(1201, { lineageId: "A" });
-  const parentB = NeuralArtGenome.random(2302, { lineageId: "B" });
-  const child = NeuralArtGenome.crossover(parentA, parentB, { seed: 3403, alpha: 0.5, generationBorn: 3 });
+test("the Doodle Apprentice separates bold ink from blank paper", () => {
+  const model = new DreamfieldMLP({ hiddenSize: 28, bands: 4, seed: 811, learningRate: 0.0065 });
+  const ink = [];
+  const paper = [];
+  const inkRgb = [0.086, 0.094, 0.137];
+  const paperRgb = [0.929, 0.906, 0.839];
 
-  assert.ok(child.differenceFrom(parentA) > 0.02);
-  assert.ok(child.differenceFrom(parentB) > 0.02);
-  assert.equal(child.lineageId, "A×B");
-  assert.equal(child.generationBorn, 3);
-
-  let mixedValues = 0;
-  for (const name of Object.keys(child.params)) {
-    for (let index = 0; index < child.params[name].length; index += 1) {
-      const value = child.params[name][index];
-      const minimum = Math.min(parentA.params[name][index], parentB.params[name][index]);
-      const maximum = Math.max(parentA.params[name][index], parentB.params[name][index]);
-      assert.ok(value >= minimum - 1e-6 && value <= maximum + 1e-6);
-      if (value > minimum + 1e-5 && value < maximum - 1e-5) mixedValues += 1;
+  for (let row = 0; row < 13; row += 1) {
+    const y = row / 12 * 2 - 1;
+    for (let column = 0; column < 17; column += 1) {
+      const x = column / 16 * 2 - 1;
+      const isCross = Math.abs(x) < 0.17 || Math.abs(y) < 0.2;
+      (isCross ? ink : paper).push(sample(model, x, y, isCross ? inkRgb : paperRgb));
     }
   }
-  assert.ok(mixedValues > 220, `expected broad crossover, got ${mixedValues} mixed values`);
-});
 
-test("serialization round-trips every gene and prediction", () => {
-  const original = NeuralArtGenome.random(777).mutate({ seed: 778, strength: 1.4 });
-  const restored = NeuralArtGenome.deserialize(JSON.parse(JSON.stringify(original.serialize())));
-
-  assert.deepEqual(restored.serialize(), original.serialize());
-  assert.deepEqual(outputAt(restored, 0.34, -0.72), outputAt(original, 0.34, -0.72));
-});
-
-test("bilateral symmetry produces matching predictions across the y axis", () => {
-  const genome = NeuralArtGenome.random(31337);
-  genome.style.rotation = 0;
-  genome.style.offsetX = 0;
-  genome.style.offsetY = 0;
-  genome.style.symmetry = 1;
-
-  for (const [x, y] of [[0.2, 0.1], [0.83, -0.66], [0.47, 0.92]]) {
-    const left = outputAt(genome, -x, y);
-    const right = outputAt(genome, x, y);
-    left.forEach((value, index) => assert.ok(Math.abs(value - right[index]) < 1e-6));
-  }
-});
-
-test("all activation mixtures stay finite and bounded across the canvas", () => {
-  const genome = NeuralArtGenome.random(5150).mutate({ seed: 5151, strength: 2.5 });
-  for (let row = 0; row <= 10; row += 1) {
-    for (let column = 0; column <= 10; column += 1) {
-      const output = genome.forward(column / 5 - 1, row / 5 - 1);
-      for (const value of output) {
-        assert.ok(Number.isFinite(value));
-        assert.ok(value >= -8 && value <= 8);
-      }
+  for (let step = 0; step < 1500; step += 1) {
+    const batch = [];
+    for (let index = 0; index < 16; index += 1) {
+      batch.push(ink[(step * 7 + index * 3) % ink.length]);
+      batch.push(paper[(step * 11 + index * 5) % paper.length]);
     }
+    model.trainBatch(batch);
   }
+
+  const center = model.predict(0, 0);
+  const corner = model.predict(0.92, 0.92);
+  const centerBrightness = (center[0] + center[1] + center[2]) / 3;
+  const cornerBrightness = (corner[0] + corner[1] + corner[2]) / 3;
+
+  assert.equal(model.parameterCount, 1431);
+  assert.ok(centerBrightness < 0.25, `expected dark ink at center, got ${centerBrightness}`);
+  assert.ok(cornerBrightness > 0.75, `expected blank paper at corner, got ${cornerBrightness}`);
+  assert.ok(cornerBrightness - centerBrightness > 0.58);
 });
