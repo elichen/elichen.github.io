@@ -28,6 +28,23 @@ function hash2(i, j, salt) {
     return h / 4294967296;
 }
 
+// Anomalies live ON the map: a deterministic lattice of regions, each of which
+// may contain a set-piece embedded in the maze. Walk far enough and you find them.
+// (Placement data lives here, before the maze generators that consult it.)
+
+const REGION = 32 * CELL;                     // 128m regions
+const anomalies = new Map();                  // "ri,rj" -> built instance
+const seenCaptions = new Set();
+
+const DOOR_H = [3.0, 2.7, 2.45, 2.2, 1.95, 1.7, 1.5, 1.3, 1.1, 0.9];
+const DOOR_W = [2.4, 2.2, 2.0, 1.8, 1.6, 1.4, 1.2, 1.05, 0.9, 0.75];
+
+const DECK = -6.5, WATER = -6.9, POOL_BOT = -7.7, POOL_CEIL = -1.6;
+const holeRect  = a => [a.ox + 6, a.oz + 3.2, a.ox + 7.6, a.oz + 4.8];
+const poolARect = a => [a.ox + 4, a.oz + 1, a.ox + 9, a.oz + 6];
+const poolBRect = a => [a.ox - 11, a.oz + 1, a.ox - 5, a.oz + 6];
+const kitchenRect = a => [a.ox, a.oz, a.ox + 10, a.oz + 8];
+
 // low-frequency "zone" noise: open halls vs denser office clusters
 function zone(i, j) {
     return hash2(Math.floor(i / 7), Math.floor(j / 7), 909);
@@ -40,12 +57,26 @@ function wallProb(i, j) {
     return WALL_P;
 }
 
-function wallEast(i, j)  { return hash2(i, j, 11) < wallProb(i, j); }
-function wallSouth(i, j) { return hash2(i, j, 23) < wallProb(i, j); }
+function wallEast(i, j) {
+    const cx = i * CELL, cz = j * CELL;
+    if (mazeSuppressed(cx + CELL - 0.5, cz - 0.5, cx + CELL + 0.5, cz + CELL + 0.5)) return false;
+    return hash2(i, j, 11) < wallProb(i, j);
+}
+function wallSouth(i, j) {
+    const cx = i * CELL, cz = j * CELL;
+    if (mazeSuppressed(cx - 0.5, cz + CELL - 0.5, cx + CELL + 0.5, cz + CELL + 0.5)) return false;
+    return hash2(i, j, 23) < wallProb(i, j);
+}
 function pillarAt(i, j) {
+    const cx = i * CELL + CELL / 2, cz = j * CELL + CELL / 2;
+    if (mazeSuppressed(cx - 0.6, cz - 0.6, cx + 0.6, cz + 0.6)) return false;
     return zone(i, j) < 0.30 && hash2(i, j, 37) < PILLAR_P;
 }
-function panelAt(i, j)   { return hash2(i, j, 53) < PANEL_P; }
+function panelAt(i, j) {
+    const cx = i * CELL, cz = j * CELL;
+    if (mazeSuppressed(cx, cz, cx + CELL, cz + CELL)) return false;
+    return hash2(i, j, 53) < PANEL_P;
+}
 
 // ---------------------------------------------------------------- textures
 
@@ -304,19 +335,15 @@ function buildChunk(ci, cj) {
     const x0 = ci * CHUNK * CELL, z0 = cj * CHUNK * CELL;
     const size = CHUNK * CELL;
 
-    // floor
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(size, size), carpetMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.set(x0 + size / 2, 0, z0 + size / 2);
-    floor.geometry.attributes.uv.array.forEach((v, k, arr) => arr[k] = v * (size / 2.2));
-    group.add(floor);
-
-    // ceiling
-    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(size, size), ceilMat);
-    ceil.rotation.x = Math.PI / 2;
-    ceil.position.set(x0 + size / 2, WALL_H, z0 + size / 2);
-    ceil.geometry.attributes.uv.array.forEach((v, k, arr) => arr[k] = v * (size / 2.4));
-    group.add(ceil);
+    // floor + ceiling, with cutouts where an anomaly provides its own
+    const chunkRect = [x0, z0, x0 + size, z0 + size];
+    const cut = floorCutFor(ci, cj);
+    const floorB = new MeshBuilder(), ceilB = new MeshBuilder();
+    for (const r of (cut ? rectSub(chunkRect, cut.rect) : [chunkRect]))
+        floorB.quadUp(r[0], r[1], r[2], r[3], 0, 2.2);
+    for (const r of (cut && cut.cutCeil ? rectSub(chunkRect, cut.rect) : [chunkRect]))
+        ceilB.quadDown(r[0], r[1], r[2], r[3], WALL_H, 2.4);
+    group.add(floorB.build(carpetMat), ceilB.build(ceilMat));
 
     const T = WALL_T / 2;
     for (let i = ci * CHUNK; i < (ci + 1) * CHUNK; i++) {
@@ -358,6 +385,27 @@ function updateChunks(px, pz) {
             chunks.delete(key);
         }
     }
+
+    // build/evict anomaly set-pieces by region
+    const pri = Math.floor(px / REGION), prj = Math.floor(pz / REGION);
+    for (let ri = pri - 1; ri <= pri + 1; ri++)
+        for (let rj = prj - 1; rj <= prj + 1; rj++) {
+            const a = anomalyOfRegion(ri, rj);
+            if (!a) continue;
+            const key = ri + ',' + rj;
+            if (!anomalies.has(key)) {
+                const inst = a.type === 'doors'
+                    ? buildDoorsLevel(a.ox, a.oz) : buildHouseholdLevel(a.ox, a.oz);
+                anomalies.set(key, Object.assign(inst, a));
+            }
+        }
+    for (const [key, inst] of anomalies) {
+        if (Math.abs(inst.ri - pri) > 2 || Math.abs(inst.rj - prj) > 2) {
+            scene.remove(inst.group);
+            inst.group.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+            anomalies.delete(key);
+        }
+    }
 }
 
 // ---------------------------------------------------------------- collision
@@ -378,12 +426,16 @@ function nearbyBoxes(px, pz) {
     return boxes;
 }
 
-// boxes for the active world (level0 is procedural, specials are static lists)
+// procedural maze boxes plus any embedded anomaly's colliders
 function worldBoxes(px, pz) {
-    if (world === 'level0') return nearbyBoxes(px, pz);
-    const out = [];
-    for (const b of currentLevel().colliders)
-        if (px > b[0] - 1 && px < b[2] + 1 && pz > b[1] - 1 && pz < b[3] + 1) out.push(b);
+    const out = nearbyBoxes(px, pz);
+    const a = anomalyAt(px, pz);
+    if (a) {
+        const inst = anomalies.get(a.ri + ',' + a.rj);
+        if (inst)
+            for (const b of inst.colliders)
+                if (px > b[0] - 1 && px < b[2] + 1 && pz > b[1] - 1 && pz < b[3] + 1) out.push(b);
+    }
     return out;
 }
 
@@ -667,7 +719,7 @@ function findEntitySpawn(minD, maxD) {
         const x = player.x + dx * d, z = player.z + dz * d;
         const i = Math.floor(x / CELL), j = Math.floor(z / CELL);
         const cx = i * CELL + CELL / 2, cz = j * CELL + CELL / 2;
-        if (pillarAt(i, j)) continue;
+        if (pillarAt(i, j) || anomalyAt(cx, cz)) continue;
         const dist = Math.hypot(cx - player.x, cz - player.z);
         if (dist < minD * 0.6) continue;
         if (lineOfSight(player.x, player.z, cx, cz)) {
@@ -685,15 +737,6 @@ function findEntitySpawn(minD, maxD) {
 
 function triggerEvent() {
     const elapsed = state.t;
-    // one-time scripted destinations: the shrinking doors, then the kitchen/pools
-    if (!state.doorsVisited && elapsed > 75) {
-        state.doorsVisited = true;
-        return noclipTo('doors');
-    }
-    if (!state.householdVisited && elapsed > 190) {
-        state.householdVisited = true;
-        return noclipTo('household');
-    }
     const roll = Math.random();
     const canSee = elapsed > 50;
     const canChase = state.sightings >= 2 && elapsed > 150;
@@ -749,13 +792,9 @@ function tapeDamage() {
     entity.visible = false;
     state.entityMode = 'none';
     // noclip: relocate far away
-    const ang = Math.random() * Math.PI * 2;
-    const d = 240 + Math.random() * 240;
-    let ni = Math.floor((player.x + Math.cos(ang) * d) / CELL);
-    let nj = Math.floor((player.z + Math.sin(ang) * d) / CELL);
-    if (pillarAt(ni, nj)) ni++;
-    player.x = ni * CELL + CELL / 2;
-    player.z = nj * CELL + CELL / 2;
+    [player.x, player.z] = pickOpenCell(player.x, player.z, 240, 480);
+    player.y = 0;
+    player.vy = 0;
     setTimeout(() => {
         staticCut.classList.remove('active');
         caption('…where am I now', 5000);
@@ -800,38 +839,76 @@ function updateEntity(dt) {
 // Set-piece scenes from the movie: the shrinking doors, the household kitchen,
 // and the Poolrooms below it (reached through the hole in the kitchen floor).
 
-let world = 'level0';
-const levels = {};          // name -> {group, colliders, lights, spawn, spawnYaw, caption}
+function anomalyOfRegion(ri, rj) {
+    let type;
+    if (ri === 0 && rj === 0) type = 'doors';           // guaranteed finds near spawn
+    else if (ri === 1 && rj === 0) type = 'household';
+    else {
+        const h = hash2(ri, rj, 777);
+        type = h < 0.25 ? 'doors' : h < 0.5 ? 'household' : null;
+    }
+    if (!type) return null;
+    return { type, ox: ri * REGION + REGION / 2, oz: rj * REGION + REGION / 2, ri, rj };
+}
 
-const DX = 20000, DZ = 20000;   // doors corridor origin
-const HX = 24000, HZ = 24000;   // household (kitchen + pools) origin
+// which anomaly's interactive footprint contains this point (if any)
+function anomalyAt(x, z) {
+    const a = anomalyOfRegion(Math.floor(x / REGION), Math.floor(z / REGION));
+    if (!a) return null;
+    const r = a.type === 'doors'
+        ? [a.ox - 2, a.oz - 3, a.ox + 47.5, a.oz + 3]
+        : [a.ox - 17, a.oz - 3, a.ox + 13, a.oz + 11];
+    return (x > r[0] && x < r[2] && z > r[1] && z < r[3]) ? a : null;
+}
 
-const DOOR_H = [3.0, 2.7, 2.45, 2.2, 1.95, 1.7, 1.5, 1.3, 1.1, 0.9];
-const DOOR_W = [2.4, 2.2, 2.0, 1.8, 1.6, 1.4, 1.2, 1.05, 0.9, 0.75];
+// should the procedural maze skip a wall/pillar/panel whose footprint is this rect?
+function mazeSuppressed(x0, z0, x1, z1) {
+    const a = anomalyOfRegion(Math.floor((x0 + x1) / 2 / REGION), Math.floor((z0 + z1) / 2 / REGION));
+    if (!a) return false;
+    const r = a.type === 'doors'
+        ? [a.ox - 4.5, a.oz - 4.5, a.ox + 49, a.oz + 4.5]
+        : [a.ox - 4.5, a.oz - 2, a.ox + 12, a.oz + 10];
+    return x1 > r[0] && x0 < r[2] && z1 > r[1] && z0 < r[3];
+}
 
-const DECK = -6.5, WATER = -6.9, POOL_BOT = -7.7, POOL_CEIL = -1.6;
-const HOLE = [HX + 6, HZ + 3.2, HX + 7.6, HZ + 4.8];          // hole in kitchen floor
-const POOL_A = [HX + 4, HZ + 1, HX + 9, HZ + 6];
-const POOL_B = [HX - 11, HZ + 1, HX - 5, HZ + 6];
+// carpet/ceiling cutout where an anomaly provides its own floors
+function floorCutFor(ci, cj) {
+    const cx = ci * CHUNK * CELL + 16, cz = cj * CHUNK * CELL + 16;
+    const a = anomalyOfRegion(Math.floor(cx / REGION), Math.floor(cz / REGION));
+    if (!a) return null;
+    return a.type === 'doors'
+        ? { rect: [a.ox - 0.4, a.oz - 1.8, a.ox + 46.3, a.oz + 1.8], cutCeil: true }
+        : { rect: [a.ox - 0.31, a.oz - 0.31, a.ox + 10.31, a.oz + 8.31], cutCeil: false };
+}
 
-function currentLevel() { return levels[world]; }
+// rectangle r minus rectangle c -> up to 4 rectangles
+function rectSub(r, c) {
+    const ix0 = Math.max(r[0], c[0]), iz0 = Math.max(r[1], c[1]);
+    const ix1 = Math.min(r[2], c[2]), iz1 = Math.min(r[3], c[3]);
+    if (ix0 >= ix1 || iz0 >= iz1) return [r];
+    const out = [];
+    if (iz0 > r[1]) out.push([r[0], r[1], r[2], iz0]);
+    if (iz1 < r[3]) out.push([r[0], iz1, r[2], r[3]]);
+    if (ix0 > r[0]) out.push([r[0], iz0, ix0, iz1]);
+    if (ix1 < r[2]) out.push([ix1, iz0, r[2], iz1]);
+    return out;
+}
 
-function buildDoorsLevel() {
+function buildDoorsLevel(ox, oz) {
+    const DX = ox, DZ = oz;
     const group = new THREE.Group();
     const colliders = [], lights = [];
     const walls = new MeshBuilder(), floors = new MeshBuilder(), ceils = new MeshBuilder();
     const frames = new MeshBuilder(), voids = new MeshBuilder(), panels = new MeshBuilder();
 
     const zl = DZ - 1.5, zr = DZ + 1.5;
-    // side walls + entrance cap
+    // side walls — the west end stays open to the maze
     walls.boxSides(DX - 0.4, 0, zl - 0.3, DX + 40.2, 3.3, zl, 2.2, WALL_H);
     walls.boxSides(DX - 0.4, 0, zr, DX + 40.2, 3.3, zr + 0.3, 2.2, WALL_H);
-    walls.boxSides(DX - 0.4, 0, zl, DX - 0.1, 3.3, zr, 2.2, WALL_H);
     colliders.push([DX - 0.5, zl - 0.4, DX + 40.3, zl, 0, 4],
-                   [DX - 0.5, zr, DX + 40.3, zr + 0.4, 0, 4],
-                   [DX - 0.5, zl, DX - 0.1, zr, 0, 4]);
+                   [DX - 0.5, zr, DX + 40.3, zr + 0.4, 0, 4]);
 
-    floors.quadUp(DX - 0.1, zl, DX + 40, zr, 0, 2.2);
+    floors.quadUp(DX - 0.4, zl, DX + 40, zr, 0, 2.2);
 
     for (let k = 0; k < 10; k++) {
         const xk = DX + 4 * (k + 1), h = DOOR_H[k], w = DOOR_W[k];
@@ -848,7 +925,7 @@ function buildDoorsLevel() {
         frames.boxSides(xk - 0.17, h, DZ - w / 2 - 0.09, xk + 0.17, h + 0.07, DZ + w / 2 + 0.09, 1, 3);
         // ceiling of the segment BEHIND this door steps down with it
         const ceilY = k === 0 ? 3.2 : Math.min(3.2, DOOR_H[k - 1] + 0.45);
-        ceils.quadDown(xk - 4, zl, xk, zr, ceilY, 2.4);
+        ceils.quadDown(k === 0 ? xk - 4.4 : xk - 4, zl, xk, zr, ceilY, 2.4);
         // sparse lights, thinning out toward the small end
         if (k % 3 === 0 && k < 7) {
             panels.quadDown(xk - 2.6, DZ - 0.4, xk - 1.4, DZ + 0.4, ceilY - 0.02);
@@ -869,14 +946,13 @@ function buildDoorsLevel() {
     group.add(walls.build(wallMat), floors.build(carpetMat), ceils.build(ceilMat),
               frames.build(woodMat), voids.build(voidMat), panels.build(panelMat));
     scene.add(group);
-    return {
-        group, colliders, lights,
-        spawn: [DX + 1.2, 0, DZ], spawnYaw: -Math.PI / 2,
-        caption: 'the doors keep getting smaller',
-    };
+    return { group, colliders, lights };
 }
 
-function buildHouseholdLevel() {
+function buildHouseholdLevel(ox, oz) {
+    const HX = ox, HZ = oz;
+    const a = { ox, oz };
+    const HOLE = holeRect(a), POOL_A = poolARect(a), POOL_B = poolBRect(a);
     const group = new THREE.Group();
     const colliders = [], lights = [];
     const walls = new MeshBuilder(), checker = new MeshBuilder(), ceil = new MeshBuilder();
@@ -884,16 +960,25 @@ function buildHouseholdLevel() {
     const wood = new MeshBuilder(), voids = new MeshBuilder();
     const panels = new MeshBuilder(), poolPanels = new MeshBuilder(), water = new MeshBuilder();
 
-    // ---- kitchen (y 0..2.7) ----
+    // ---- kitchen (y 0..2.7, walls up to maze ceiling) ----
     const kx0 = HX, kz0 = HZ, kx1 = HX + 10, kz1 = HZ + 8;
-    walls.boxSides(kx0 - 0.3, 0, kz0 - 0.3, kx1 + 0.3, 2.8, kz0, 2.2, WALL_H);
-    walls.boxSides(kx0 - 0.3, 0, kz1, kx1 + 0.3, 2.8, kz1 + 0.3, 2.2, WALL_H);
-    walls.boxSides(kx0 - 0.3, 0, kz0, kx0, 2.8, kz1, 2.2, WALL_H);
-    walls.boxSides(kx1, 0, kz0, kx1 + 0.3, 2.8, kz1, 2.2, WALL_H);
-    colliders.push([kx0 - 0.4, kz0 - 0.4, kx1 + 0.4, kz0, 0, 3],
-                   [kx0 - 0.4, kz1, kx1 + 0.4, kz1 + 0.4, 0, 3],
-                   [kx0 - 0.4, kz0, kx0, kz1, 0, 3],
-                   [kx1, kz0, kx1 + 0.4, kz1, 0, 3]);
+    walls.boxSides(kx0 - 0.3, 0, kz0 - 0.3, kx1 + 0.3, 3.3, kz0, 2.2, WALL_H);
+    walls.boxSides(kx0 - 0.3, 0, kz1, kx1 + 0.3, 3.3, kz1 + 0.3, 2.2, WALL_H);
+    walls.boxSides(kx1, 0, kz0, kx1 + 0.3, 3.3, kz1, 2.2, WALL_H);
+    colliders.push([kx0 - 0.4, kz0 - 0.4, kx1 + 0.4, kz0, 0, 3.4],
+                   [kx0 - 0.4, kz1, kx1 + 0.4, kz1 + 0.4, 0, 3.4],
+                   [kx1, kz0, kx1 + 0.4, kz1, 0, 3.4]);
+    // west wall with a domestic front door out to the maze
+    const dw0 = kz0 + 3.4, dw1 = kz0 + 4.5;
+    walls.boxSides(kx0 - 0.3, 0, kz0, kx0, 3.3, dw0, 2.2, WALL_H);
+    walls.boxSides(kx0 - 0.3, 0, dw1, kx0, 3.3, kz1, 2.2, WALL_H);
+    walls.boxSides(kx0 - 0.3, 2.05, dw0, kx0, 3.3, dw1, 2.2, WALL_H);
+    wood.boxSides(kx0 - 0.34, 0, dw0 - 0.09, kx0 + 0.04, 2.12, dw0 + 0.03, 1, 3);
+    wood.boxSides(kx0 - 0.34, 0, dw1 - 0.03, kx0 + 0.04, 2.12, dw1 + 0.09, 1, 3);
+    wood.boxSides(kx0 - 0.34, 2.05, dw0 - 0.09, kx0 + 0.04, 2.12, dw1 + 0.09, 1, 3);
+    colliders.push([kx0 - 0.4, kz0, kx0, dw0, 0, 3.4],
+                   [kx0 - 0.4, dw1, kx0, kz1, 0, 3.4],
+                   [kx0 - 0.4, dw0, kx0, dw1, 2.05, 3.4]);
     // checkered floor with the hole cut out
     checker.quadUp(kx0, kz0, kx1, HOLE[1], 0, 1.3);
     checker.quadUp(kx0, HOLE[3], kx1, kz1, 0, 1.3);
@@ -1006,17 +1091,7 @@ function buildHouseholdLevel() {
               wood.build(woodMat), voids.build(voidMat),
               panels.build(panelMat), poolPanels.build(poolPanelMat), waterMesh);
     scene.add(group);
-    return {
-        group, colliders, lights, waterMesh,
-        spawn: [HX + 1.6, 0, HZ + 6.5], spawnYaw: Math.atan2(-(HOLE[0] - HX - 1.6), -(HOLE[1] - HZ - 6.5)),
-        caption: '…someone’s kitchen?',
-    };
-}
-
-function ensureLevel(name) {
-    if (!levels[name])
-        levels[name] = name === 'doors' ? buildDoorsLevel() : buildHouseholdLevel();
-    return levels[name];
+    return { group, colliders, lights, waterMesh };
 }
 
 function inRect(x, z, r) { return x > r[0] && x < r[2] && z > r[1] && z < r[3]; }
@@ -1031,27 +1106,32 @@ function poolFloor(x, P, rampWest) {
 }
 
 function floorAt(x, z) {
-    if (world !== 'household') return 0;
-    if (inRect(x, z, POOL_A)) return poolFloor(x, POOL_A, true);
-    if (inRect(x, z, POOL_B)) return poolFloor(x, POOL_B, false);
-    if (inRect(x, z, HOLE)) return POOL_BOT;   // shaft drops into pool A
-    // stacked floors: kitchen above, pool deck below — disambiguate by player height
-    if (player.y > -1.2 && inRect(x, z, [HX, HZ, HX + 10, HZ + 8])) return 0;
+    const a = anomalyAt(x, z);
+    if (!a || a.type !== 'household') return 0;
+    if (inRect(x, z, holeRect(a))) return POOL_BOT;   // shaft drops into pool A
+    // stacked floors: maze/kitchen at ground level, pools only once you're below
+    if (player.y > -1.2) return 0;
+    const PA = poolARect(a), PB = poolBRect(a);
+    if (inRect(x, z, PA)) return poolFloor(x, PA, true);
+    if (inRect(x, z, PB)) return poolFloor(x, PB, false);
     return DECK;
 }
 
 function waterLevelAt(x, z) {
-    if (world !== 'household') return null;
-    if (inRect(x, z, POOL_A) || inRect(x, z, POOL_B) || inRect(x, z, HOLE)) return WATER;
+    const a = anomalyAt(x, z);
+    if (!a || a.type !== 'household') return null;
+    if (inRect(x, z, poolARect(a)) || inRect(x, z, poolBRect(a)) || inRect(x, z, holeRect(a)))
+        return WATER;
     return null;
 }
 
 // how high the camera may sit (crouching through the shrinking doors)
-function eyeCapAt(x) {
-    if (world !== 'doors') return 99;
+function eyeCapAt(x, z) {
+    const a = anomalyAt(x, z);
+    if (!a || a.type !== 'doors') return 99;
     let cap = 99;
     for (let k = 0; k < 10; k++) {
-        const xk = DX + 4 * (k + 1);
+        const xk = a.ox + 4 * (k + 1);
         cap = Math.min(cap, DOOR_H[k] - 0.18 + Math.max(0, Math.abs(x - xk) - 0.35) * 1.6);
         // stay under the stepped-down ceiling of the segment behind each door
         if (x > xk && x < xk + (k === 9 ? 0.25 : 4.05)) cap = Math.min(cap, DOOR_H[k] + 0.30);
@@ -1065,49 +1145,53 @@ const PROFILES = {
     household: { fog: [0x07110d, 9, 46], amb: 0.55, hemi: 0.30, hum: 0.28 },
 };
 
-function applyProfile() {
-    const p = PROFILES[world];
-    scene.fog.color.setHex(p.fog[0]);
-    scene.fog.near = p.fog[1];
-    scene.fog.far = p.fog[2];
-    scene.background.setHex(p.fog[0]);
+// find an open maze cell away from any anomaly footprint
+function pickOpenCell(cx, cz, minD, maxD) {
+    for (let att = 0; att < 40; att++) {
+        const ang = Math.random() * Math.PI * 2, d = minD + Math.random() * (maxD - minD);
+        const ni = Math.floor((cx + Math.cos(ang) * d) / CELL);
+        const nj = Math.floor((cz + Math.sin(ang) * d) / CELL);
+        const x = ni * CELL + CELL / 2, z = nj * CELL + CELL / 2;
+        if (pillarAt(ni, nj) || anomalyAt(x, z)) continue;
+        return [x, z];
+    }
+    return [cx + 200, cz];
 }
 
-function noclipTo(target) {
+// crawling out the far end of an anomaly noclips you elsewhere in the maze
+function noclipRelocate(text) {
     playStaticBurst(1.8);
     state.staticUntil = state.t + 1.8;
     staticCut.classList.add('active');
     setTimeout(() => staticCut.classList.remove('active'), 1800);
-    world = target;
-    if (target === 'level0') {
-        const ang = Math.random() * Math.PI * 2, d = 500 + Math.random() * 2000;
-        let ni = Math.floor(Math.cos(ang) * d / CELL), nj = Math.floor(Math.sin(ang) * d / CELL);
-        if (pillarAt(ni, nj)) ni++;
-        player.x = ni * CELL + CELL / 2;
-        player.z = nj * CELL + CELL / 2;
-        player.y = 0;
-        updateChunks(player.x, player.z);
-        caption('back in the yellow rooms', 5000);
-    } else {
-        const lv = ensureLevel(target);
-        [player.x, player.y, player.z] = lv.spawn;
-        player.yaw = lv.spawnYaw;
-        caption(lv.caption, 6000);
-    }
+    [player.x, player.z] = pickOpenCell(player.x, player.z, 300, 1500);
+    player.y = 0;
     player.vy = 0;
-    applyProfile();
+    updateChunks(player.x, player.z);
+    caption(text, 5000);
     state.nextEvent = state.t + 18 + Math.random() * 15;
 }
 
-// per-frame logic while inside a special level
-function updateSpecialWorld(dt) {
-    if (world === 'doors') {
-        if (player.x > DX + 44.5) noclipTo('level0');
-    } else if (world === 'household') {
-        if (player.x < HX - 14.6) noclipTo('level0');
-        // animated water
-        waterTex.offset.x = state.t * 0.014;
-        waterTex.offset.y = Math.sin(state.t * 0.35) * 0.05;
+// per-frame logic for embedded anomalies
+function updateAnomalies() {
+    waterTex.offset.x = state.t * 0.014;
+    waterTex.offset.y = Math.sin(state.t * 0.35) * 0.05;
+    const a = anomalyAt(player.x, player.z);
+    if (!a) return;
+    const key = a.ri + ',' + a.rj;
+    if (a.type === 'doors') {
+        if (player.x > a.ox + 44.5) return noclipRelocate('it spat you back out');
+        if (player.x > a.ox + 2 && !seenCaptions.has(key)) {
+            seenCaptions.add(key);
+            caption('the doors keep getting smaller', 5000);
+        }
+    } else {
+        if (player.x < a.ox - 14.6 && player.y < -3)
+            return noclipRelocate('back in the yellow rooms');
+        if (inRect(player.x, player.z, kitchenRect(a)) && !seenCaptions.has(key)) {
+            seenCaptions.add(key);
+            caption('…someone’s kitchen?', 5000);
+        }
         // cave drips down in the pools
         if (player.y < -3 && state.t > (state.nextDrip || 0)) {
             state.nextDrip = state.t + 1.2 + Math.random() * 4;
@@ -1169,16 +1253,24 @@ function updateVHS(t, frame) {
 
 let lightRepickAcc = 1;
 
+const profMix = { amb: 0.52, hemi: 0.35, hum: 1, near: 7, far: 34, color: new THREE.Color(0x0d0b03) };
+const tmpColor = new THREE.Color();
+
 function updateLights(dt) {
-    const prof = PROFILES[world];
-    // global factor: blackout beats flicker (Level 0 events only)
+    const here = anomalyAt(player.x, player.z);
+    const zone = here && here.type === 'doors' ? 'doors'
+               : here && here.type === 'household' && player.y < -1.5 ? 'household'
+               : 'level0';
+    const prof = PROFILES[zone];
+
+    // global factor: blackout beats flicker (maze events only)
     let f = 1;
-    if (world === 'level0' && state.t < state.blackoutUntil) {
+    if (zone === 'level0' && state.t < state.blackoutUntil) {
         f = 0.04;
-    } else if (world === 'level0' && state.flicker > 0) {
+    } else if (zone === 'level0' && state.flicker > 0) {
         state.flicker -= dt;
         f = Math.random() < 0.4 ? 0.15 + Math.random() * 0.3 : 1;
-    } else if (world === 'doors') {
+    } else if (zone === 'doors') {
         // the corridor's wiring is failing
         f = Math.random() < 0.05 ? 0.2 + Math.random() * 0.4 : 1;
     }
@@ -1186,40 +1278,51 @@ function updateLights(dt) {
     f *= 0.965 + 0.035 * Math.sin(state.t * 47) * Math.sin(state.t * 13.7);
     state.lightFactor = f;
 
-    ambient.intensity = prof.amb * f;
-    hemi.intensity = prof.hemi * f;
+    // crossfade ambience/fog toward the local profile
+    const k = Math.min(1, dt * 2.5);
+    profMix.amb += (prof.amb - profMix.amb) * k;
+    profMix.hemi += (prof.hemi - profMix.hemi) * k;
+    profMix.hum += (prof.hum - profMix.hum) * k;
+    profMix.near += (prof.fog[1] - profMix.near) * k;
+    profMix.far += (prof.fog[2] - profMix.far) * k;
+    profMix.color.lerp(tmpColor.setHex(prof.fog[0]), k);
+
+    ambient.intensity = profMix.amb * f;
+    hemi.intensity = profMix.hemi * f;
     panelMat.emissiveIntensity = Math.max(0.02, f);
-    if (world === 'level0') scene.fog.color.setHex(f < 0.3 ? 0x030302 : 0x0d0b03);
+    scene.fog.near = profMix.near;
+    scene.fog.far = profMix.far;
+    scene.fog.color.copy(profMix.color);
+    if (zone === 'level0' && f < 0.3) scene.fog.color.setHex(0x030302);
+    scene.background.copy(scene.fog.color);
 
     // hum follows the lights
     if (AC && humGain) {
-        const humOn = (f > 0.3 && state.t > state.humOffUntil ? 1 : 0.05) * prof.hum;
+        const humOn = (f > 0.3 && state.t > state.humOffUntil ? 1 : 0.05) * profMix.hum;
         humGain.gain.setTargetAtTime(humOn, AC.currentTime, 0.08);
     }
 
-    // repick nearest fixtures for the point-light pool
+    // repick nearest fixtures for the point-light pool (maze panels + anomaly lights)
     lightRepickAcc += dt;
     if (lightRepickAcc > 0.5) {
         lightRepickAcc = 0;
         const all = [];
-        if (world === 'level0') {
-            for (const ch of chunks.values())
-                for (const p of ch.panels) {
-                    const d = (p.x - player.x) ** 2 + (p.z - player.z) ** 2;
-                    if (d < 500) all.push([d, p, 0xffeeaa]);
-                }
-        } else {
-            for (const l of currentLevel().lights) {
-                const d = (l.pos.x - player.x) ** 2 + (l.pos.z - player.z) ** 2;
-                all.push([d, l.pos, l.color]);
+        for (const ch of chunks.values())
+            for (const p of ch.panels) {
+                const d = (p.x - player.x) ** 2 + (p.z - player.z) ** 2;
+                if (d < 500) all.push([d, p, 0xffeeaa]);
             }
-        }
+        for (const inst of anomalies.values())
+            for (const l of inst.lights) {
+                const d = (l.pos.x - player.x) ** 2 + (l.pos.z - player.z) ** 2;
+                if (d < 500) all.push([d, l.pos, l.color]);
+            }
         all.sort((a, b) => a[0] - b[0]);
-        for (let k = 0; k < LIGHT_POOL; k++) {
-            if (k < all.length) {
-                pointLights[k].position.copy(all[k][1]);
-                pointLights[k].color.setHex(all[k][2]);
-            } else pointLights[k].position.set(0, -100, 0);
+        for (let k2 = 0; k2 < LIGHT_POOL; k2++) {
+            if (k2 < all.length) {
+                pointLights[k2].position.copy(all[k2][1]);
+                pointLights[k2].color.setHex(all[k2][2]);
+            } else pointLights[k2].position.set(0, -100, 0);
         }
     }
     for (const l of pointLights)
@@ -1240,7 +1343,7 @@ function tick() {
         state.t += dt;
 
         // crouch: eye follows the local ceiling cap (shrinking doors)
-        const targetEye = Math.min(EYE, eyeCapAt(player.x));
+        const targetEye = Math.min(EYE, eyeCapAt(player.x, player.z));
         player.eye += (targetEye - player.eye) * Math.min(1, dt * 7);
 
         // movement
@@ -1295,16 +1398,16 @@ function tick() {
             }
         }
 
-        // scheduled events (Level 0 only)
-        if (world === 'level0' && state.t > state.nextEvent &&
-            state.entityMode === 'none' && state.staticUntil < state.t) {
+        // scheduled events (not while inside an anomaly)
+        if (state.t > state.nextEvent && state.entityMode === 'none' &&
+            state.staticUntil < state.t) {
             state.nextEvent = state.t + 20 + Math.random() * 22;
-            triggerEvent();
+            if (!anomalyAt(player.x, player.z)) triggerEvent();
         }
 
         updateEntity(dt);
-        if (world === 'level0') updateChunks(player.x, player.z);
-        else updateSpecialWorld(dt);
+        updateChunks(player.x, player.z);
+        updateAnomalies();
         updateLights(dt);
 
         // camera: position + handheld sway
@@ -1333,8 +1436,8 @@ function tick() {
 
 // debug/test hooks
 window.BACKROOMS = {
-    player, state, entity, startSighting, startChase, triggerEvent, tapeDamage, noclipTo,
-    get world() { return world; },
+    player, state, entity, startSighting, startChase, triggerEvent, tapeDamage,
+    anomalyAt, anomalyOfRegion, REGION,
     forceLock() { locked = true; started = true; startScreen.style.display = 'none'; },
 };
 
