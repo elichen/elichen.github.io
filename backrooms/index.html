@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Backrooms — Level 0</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="container">
+    <canvas id="scene"></canvas>
+
+    <!-- VHS overlay -->
+    <div id="vhs">
+        <canvas id="noise"></canvas>
+        <div id="scanlines"></div>
+        <div id="vignette"></div>
+        <div id="vhs-ui">
+            <div id="rec"><span id="rec-dot"></span>REC</div>
+            <div id="play-mode">SP</div>
+            <div id="timestamp">SEP.23 1996&nbsp;&nbsp;PM 1:57</div>
+            <div id="battery">▮▮▮▯</div>
+        </div>
+        <div id="tracking-bar"></div>
+    </div>
+
+    <!-- Static cut (tape damage) -->
+    <div id="static-cut">
+        <canvas id="static-canvas"></canvas>
+        <div id="static-text">TAPE DAMAGED</div>
+    </div>
+
+    <!-- Event captions -->
+    <div id="caption"></div>
+
+    <!-- Start screen -->
+    <div id="start-screen">
+        <div id="start-inner">
+            <h1>THE BACKROOMS</h1>
+            <p class="sub">LEVEL 0 — FOUND FOOTAGE</p>
+            <p class="desc">
+                You've noclipped out of reality into the endless yellow rooms.<br>
+                Approximately 600 million square miles of moist carpet,<br>
+                mono-yellow wallpaper, and the hum of fluorescent lights.<br><br>
+                God help you if it hears you.
+            </p>
+            <div class="controls">
+                <span><b>WASD</b> move</span>
+                <span><b>MOUSE</b> look</span>
+                <span><b>SHIFT</b> run</span>
+                <span><b>F</b> camcorder light</span>
+            </div>
+            <button id="enter-btn">▶ PLAY TAPE</button>
+            <p class="hint">headphones recommended</p>
+        </div>
+    </div>
+
+    <!-- Pause hint -->
+    <div id="paused-hint">SIGNAL LOST — click to resume</div>
+</div>
+<script type="module" src="main.js"></script>
+</body>
+</html>
