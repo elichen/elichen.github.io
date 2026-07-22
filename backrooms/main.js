@@ -1360,8 +1360,8 @@ function tick() {
         const ml = Math.hypot(mx, mz);
         if (ml > 0) { mx /= ml; mz /= ml; }
         const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
-        const wx = (mx * cos - mz * sin) * speed;
-        const wz = (-mx * sin - mz * cos) * speed;
+        const wx = (mx * cos + mz * sin) * speed;
+        const wz = (-mx * sin + mz * cos) * speed;
         let nx = player.x + wx * dt;
         let nz = player.z + wz * dt;
         // steps taller than knee height act as walls (pool edges)
