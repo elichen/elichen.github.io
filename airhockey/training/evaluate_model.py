@@ -11,6 +11,10 @@ class DoNothingAgent:
     def predict(self, obs, deterministic=False):
         return np.array([0.0, 0.0]), None
 
+def predict(agent, obs):
+    n = getattr(getattr(agent, 'observation_space', None), 'shape', (len(obs),))[0]
+    return agent.predict(obs[:n], deterministic=True)
+
 def evaluate_matchup(env, agent1, agent2, num_episodes=100, player1_name="Player1", player2_name="Player2"):
     wins = {1: 0, 2: 0, "timeout": 0}
     goals = {1: 0, 2: 0}
@@ -23,8 +27,8 @@ def evaluate_matchup(env, agent1, agent2, num_episodes=100, player1_name="Player
 
         while not done:
             # FIXED: Use proper method for getting observations
-            action1, _ = agent1.predict(env.get_observation_for_player(1), deterministic=True)
-            action2, _ = agent2.predict(env.get_observation_for_player(2), deterministic=True)
+            action1, _ = predict(agent1, env.get_observation_for_player(1))
+            action2, _ = predict(agent2, env.get_observation_for_player(2))
 
             # Combine actions for environment step
             combined_action = {'player1': action1, 'player2': action2}

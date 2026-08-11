@@ -1,0 +1,116 @@
+{
+  "selected": "models/psro_v2/main_02.zip",
+  "quick_selection": {
+    "models/psro_v2/main_01.zip": {
+      "wins": 55,
+      "losses": 57,
+      "draws": 38,
+      "score": 0.49333333333333335,
+      "payoff": -0.013333333333333334,
+      "score_ci95": [
+        0.42396765854976004,
+        0.5626990081169067
+      ],
+      "avg_length": 387.88666666666666
+    },
+    "models/psro_v2/exploiter_01.zip": {
+      "wins": 70,
+      "losses": 51,
+      "draws": 29,
+      "score": 0.5633333333333334,
+      "payoff": 0.12666666666666668,
+      "score_ci95": [
+        0.49194660970620324,
+        0.6347200569604634
+      ],
+      "avg_length": 314.5733333333333
+    },
+    "models/psro_v2/main_02.zip": {
+      "wins": 67,
+      "losses": 34,
+      "draws": 49,
+      "score": 0.61,
+      "payoff": 0.22,
+      "score_ci95": [
+        0.5465327345731626,
+        0.6734672654268373
+      ],
+      "avg_length": 466.82666666666665
+    },
+    "models/psro_v2/exploiter_02.zip": {
+      "wins": 56,
+      "losses": 55,
+      "draws": 39,
+      "score": 0.5033333333333333,
+      "payoff": 0.006666666666666667,
+      "score_ci95": [
+        0.434271872739895,
+        0.5723947939267716
+      ],
+      "avg_length": 383.2
+    }
+  },
+  "versus_incumbent": {
+    "wins": 136,
+    "losses": 73,
+    "draws": 91,
+    "score": 0.605,
+    "payoff": 0.21,
+    "score_ci95": [
+      0.5592171394154987,
+      0.6507828605845013
+    ],
+    "avg_length": 442.70666666666665
+  },
+  "candidate_versus_random": {
+    "wins": 44,
+    "losses": 0,
+    "draws": 56,
+    "score": 0.72,
+    "payoff": 0.44,
+    "score_ci95": [
+      0.6711090101461538,
+      0.7688909898538462
+    ],
+    "avg_length": 746.41
+  },
+  "incumbent_versus_random": {
+    "wins": 45,
+    "losses": 4,
+    "draws": 51,
+    "score": 0.705,
+    "payoff": 0.41,
+    "score_ci95": [
+      0.6491183827049077,
+      0.7608816172950922
+    ],
+    "avg_length": 687.56
+  },
+  "candidate_versus_scripted": {
+    "wins": 80,
+    "losses": 5,
+    "draws": 15,
+    "score": 0.875,
+    "payoff": 0.75,
+    "score_ci95": [
+      0.8221886337608995,
+      0.9278113662391005
+    ],
+    "avg_length": 398.36
+  },
+  "promotion_rule": "score > .52, 95% lower bound > .50, random score no more than .03 below incumbent",
+  "promoted": true,
+  "final_meta_strategy": [
+    2.0000000000000003e-06,
+    2.0000000000000003e-06,
+    2.0000000000000003e-06,
+    2.0000000000000003e-06,
+    2.0000000000000003e-06,
+    2.3418803418803422e-06,
+    2.512820512820514e-06,
+    3.0256410256410264e-06,
+    0.9999801196581197,
+    2.0000000000000003e-06
+  ],
+  "final_exploitability": 4.787037037037038e-06
+}

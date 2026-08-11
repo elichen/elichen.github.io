@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Air Hockey RL Agent</title>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
     <link rel="stylesheet" href="styles.css">
@@ -9,7 +10,7 @@
     <article>
         <div class="header">
             <h1>Air Hockey RL Agent</h1>
-            <p class="subtitle">Self-play reinforcement learning with puck-focused observations</p>
+            <p class="subtitle">Payoff-matrix PSRO + prioritized self-play policy</p>
         </div>
 
         <div class="game-container">
@@ -19,25 +20,26 @@
 
         <section>
             <h2>Training Methodology</h2>
-            <p>This agent was trained using <strong>Proximal Policy Optimization (PPO)</strong> with self-play over 10M timesteps. The key innovation: <em>removing opponent observations</em> to force puck engagement rather than defensive positioning.</p>
+            <p>The agent was initialized from the deterministic incumbent, then trained with PPO best responses against a payoff-matrix league. Prioritized fictitious self-play emphasizes both the approximate Nash mixture and difficult opponents, while dedicated exploiters expose weaknesses for later rounds.</p>
 
-            <h3>Observation Space (8 features)</h3>
+            <h3>Observation Space (12 features)</h3>
             <ul>
                 <li>Own paddle: position (x, y), velocity (dx, dy)</li>
                 <li>Puck: position (x, y), velocity (dx, dy)</li>
-                <li><strong>No opponent tracking</strong> - prevents defensive Nash equilibrium</li>
+                <li>Opponent paddle: position (x, y), velocity (dx, dy)</li>
             </ul>
 
             <h3>Results</h3>
             <ul>
-                <li><strong>54% win rate</strong> vs random opponent</li>
-                <li><strong>0.54 goals/game</strong> (2.25x baseline improvement)</li>
-                <li>Trained with 10 parallel environments, 20-opponent fictitious self-play pool</li>
+                <li><strong>136–73</strong> with 91 draws against the incumbent over 300 side-balanced games</li>
+                <li><strong>60.5% match score</strong>, with a 95% interval of 55.9–65.1%</li>
+                <li><strong>72.0%</strong> against random and <strong>87.5%</strong> against the scripted baseline</li>
+                <li>Human and AI paddles now use the same speed cap and movement smoothing</li>
             </ul>
 
             <h3>Code</h3>
             <p>
-                <a href="training/train_selfplay.py">Training Script</a> |
+                <a href="training/train_psro.py">Training Script</a> |
                 <a href="training/air_hockey_env.py">Environment</a> |
                 <a href="ppo_agent.js">Web Inference</a>
             </p>

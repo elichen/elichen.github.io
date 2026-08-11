@@ -21,9 +21,10 @@ class PPOAgent {
 
     getState(puck, playerPaddle, aiPaddle, isTopPlayer, canvasWidth, canvasHeight) {
         const ownPaddle = isTopPlayer ? aiPaddle : playerPaddle;
+        const opponentPaddle = isTopPlayer ? playerPaddle : aiPaddle;
         const maxSpeed = 25;
 
-        // Match Python environment's 8-feature observation space exactly
+        // Match Python's 12 features. Slicing keeps old 8-input models usable.
         if (isTopPlayer) {
             // Player 2 (top): flip perspective to match training
             const paddle_x = ownPaddle.x / canvasWidth;
@@ -34,8 +35,13 @@ class PPOAgent {
             const paddle_dy = Math.max(-1, Math.min(1, (ownPaddle.dy || 0) / maxSpeed)) * 0.5 + 0.5;
             const puck_dx = Math.max(-1, Math.min(1, puck.dx / maxSpeed)) * 0.5 + 0.5;
             const puck_dy = Math.max(-1, Math.min(1, puck.dy / maxSpeed)) * 0.5 + 0.5;
+            const opponent_x = opponentPaddle.x / canvasWidth;
+            const opponent_y = opponentPaddle.y / canvasHeight;
+            const opponent_dx = Math.max(-1, Math.min(1, (opponentPaddle.dx || 0) / maxSpeed)) * 0.5 + 0.5;
+            const opponent_dy = Math.max(-1, Math.min(1, (opponentPaddle.dy || 0) / maxSpeed)) * 0.5 + 0.5;
 
-            return [paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy];
+            return [paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy,
+                opponent_x, opponent_y, opponent_dx, opponent_dy].slice(0, this.stateSize);
         } else {
             // Player 1 (bottom): use coordinates as-is with flipped Y perspective
             const paddle_x = ownPaddle.x / canvasWidth;
@@ -46,8 +52,13 @@ class PPOAgent {
             const paddle_dy = Math.max(-1, Math.min(1, -(ownPaddle.dy || 0) / maxSpeed)) * 0.5 + 0.5;
             const puck_dx = Math.max(-1, Math.min(1, puck.dx / maxSpeed)) * 0.5 + 0.5;
             const puck_dy = Math.max(-1, Math.min(1, -puck.dy / maxSpeed)) * 0.5 + 0.5;
+            const opponent_x = opponentPaddle.x / canvasWidth;
+            const opponent_y = (canvasHeight - opponentPaddle.y) / canvasHeight;
+            const opponent_dx = Math.max(-1, Math.min(1, (opponentPaddle.dx || 0) / maxSpeed)) * 0.5 + 0.5;
+            const opponent_dy = Math.max(-1, Math.min(1, -(opponentPaddle.dy || 0) / maxSpeed)) * 0.5 + 0.5;
 
-            return [paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy];
+            return [paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy,
+                opponent_x, opponent_y, opponent_dx, opponent_dy].slice(0, this.stateSize);
         }
     }
 }

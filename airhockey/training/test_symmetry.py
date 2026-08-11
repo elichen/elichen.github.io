@@ -11,7 +11,7 @@ for i in range(20):
     obs = env.reset()[0]
     done = False
     while not done:
-        action1, _ = model.predict(env.get_observation_for_player(1), deterministic=True)
+        action1, _ = model.predict(env.get_observation_for_player(1)[:model.observation_space.shape[0]], deterministic=True)
         action2 = env.action_space.sample()
         obs, reward, terminated, truncated, info = env.step({'player1': action1, 'player2': action2})
         done = terminated or truncated
@@ -27,7 +27,7 @@ for i in range(20):
     done = False
     while not done:
         action1 = env.action_space.sample()
-        action2, _ = model.predict(env.get_observation_for_player(2), deterministic=True)
+        action2, _ = model.predict(env.get_observation_for_player(2)[:model.observation_space.shape[0]], deterministic=True)
         obs, reward, terminated, truncated, info = env.step({'player1': action1, 'player2': action2})
         done = terminated or truncated
     if info.get("goal_scored_by") == 2:

@@ -1,0 +1,22 @@
+{
+  "incumbent_1000_games": {
+    "wins": 230,
+    "losses": 229,
+    "timeouts": 541,
+    "decisive_win_rate": 0.5010893246,
+    "match_score": 0.5005
+  },
+  "random_200_games": {
+    "wins": 92,
+    "losses": 5,
+    "timeouts": 103,
+    "decisive_win_rate": 0.9484536082
+  },
+  "curriculum_200_games": {
+    "wins": 71,
+    "losses": 8,
+    "timeouts": 121,
+    "decisive_win_rate": 0.8987341772
+  },
+  "promoted": false
+}

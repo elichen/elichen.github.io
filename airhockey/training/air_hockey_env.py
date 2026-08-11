@@ -9,7 +9,7 @@ class AirHockeyEnv(gym.Env):
         super().__init__()
         self.width, self.height = 600, 800
         self.friction, self.max_speed, self.paddle_speed = 0.98, 25, 10
-        self.puck_radius, self.paddle_radius, self.goal_width = 15, 20, 200
+        self.puck_radius, self.paddle_radius, self.goal_width, self.goal_posts = 15, 20, 200, 20
 
         self.puck_pos = np.array([300.0, 400.0])
         self.puck_vel = np.array([0.0, 0.0])
@@ -19,40 +19,43 @@ class AirHockeyEnv(gym.Env):
         self.paddle2_vel = np.array([0.0, 0.0])
         self.frame_count = 0
         self.max_frames = 3000
-        # 8 features: paddle pos, puck pos, paddle vel, puck vel (all in player's half-rink coords 0-1)
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(8,), dtype=np.float32)
+        self.same_position_time = 0
+        self.last_puck_pos = self.puck_pos.copy()
+        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(12,), dtype=np.float32)
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
         self.render_mode = render_mode
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
 
-        # Much more diverse starting positions
-        # Puck can start anywhere in middle 60% of rink
-        self.puck_pos = np.array([
-            np.random.uniform(self.puck_radius + 50, self.width - self.puck_radius - 50),
-            np.random.uniform(self.height * 0.2, self.height * 0.8)
-        ])
-
-        # Random initial velocity (including stronger velocities)
-        self.puck_vel = np.random.uniform(-5, 5, size=2)
+        if self.np_random.random() < .25:
+            self.puck_pos = np.array([self.width / 2, self.np_random.choice([self.height / 4, self.height / 2, self.height * 3 / 4])])
+            self.puck_vel = np.zeros(2)
+        else:
+            self.puck_pos = np.array([
+                self.np_random.uniform(self.puck_radius + 50, self.width - self.puck_radius - 50),
+                self.np_random.uniform(self.height * 0.2, self.height * 0.8)
+            ])
+            self.puck_vel = self.np_random.uniform(-5, 5, size=2)
 
         # Paddles start in random defensive positions
         # P1 paddle: random position in defensive zone
         self.paddle1_pos = np.array([
-            np.random.uniform(self.paddle_radius + 50, self.width - self.paddle_radius - 50),
-            np.random.uniform(self.height * 0.65, self.height - 50.0)
+            self.np_random.uniform(self.paddle_radius + 50, self.width - self.paddle_radius - 50),
+            self.np_random.uniform(self.height * 0.65, self.height - 50.0)
         ])
         self.paddle1_vel = np.array([0.0, 0.0])
 
         # P2 paddle: random position in defensive zone
         self.paddle2_pos = np.array([
-            np.random.uniform(self.paddle_radius + 50, self.width - self.paddle_radius - 50),
-            np.random.uniform(50.0, self.height * 0.35)
+            self.np_random.uniform(self.paddle_radius + 50, self.width - self.paddle_radius - 50),
+            self.np_random.uniform(50.0, self.height * 0.35)
         ])
         self.paddle2_vel = np.array([0.0, 0.0])
 
         self.frame_count = 0
+        self.same_position_time = 0
+        self.last_puck_pos = self.puck_pos.copy()
         return self._get_observation(1), {}
 
     def step(self, action):
@@ -67,6 +70,10 @@ class AirHockeyEnv(gym.Env):
         self._move_paddle(2, action_p2)
         p1_hit, p2_hit = self._update_puck()
         goal_scored_by = self._check_goals()
+        unstuck = False
+        if not goal_scored_by and self._is_puck_stuck():
+            self._unstick_puck()
+            unstuck = True
 
         # Asymmetric rewards and stronger offensive incentives
         puck_speed = np.linalg.norm(self.puck_vel)
@@ -95,10 +102,12 @@ class AirHockeyEnv(gym.Env):
         terminated = (goal_scored_by > 0) or (self.frame_count >= self.max_frames)
         if self.frame_count >= self.max_frames:
             reward -= 0.5  # Penalty for timeout
-        return self._get_observation(1), reward, terminated, False, {"goal_scored_by": goal_scored_by}
+        return self._get_observation(1), reward, terminated, False, {
+            "goal_scored_by": goal_scored_by, "p1_hit": p1_hit, "p2_hit": p2_hit, "unstuck": unstuck
+        }
 
     def _get_observation(self, player):
-        # 8 features: all normalized to full rink 0-1 from player's perspective
+        # 12 features: own paddle, puck, and opponent paddle from the active player's perspective.
         if player == 1:
             # P1: bottom, 0=P1 goal (y=height), 1=P2 goal (y=0)
             paddle_x = self.paddle1_pos[0] / self.width
@@ -110,6 +119,10 @@ class AirHockeyEnv(gym.Env):
             paddle_dy = np.clip(-self.paddle1_vel[1] / self.max_speed, -1, 1) * 0.5 + 0.5
             puck_dx = np.clip(self.puck_vel[0] / self.max_speed, -1, 1) * 0.5 + 0.5
             puck_dy = np.clip(-self.puck_vel[1] / self.max_speed, -1, 1) * 0.5 + 0.5
+            opponent_x = self.paddle2_pos[0] / self.width
+            opponent_y = (self.height - self.paddle2_pos[1]) / self.height
+            opponent_dx = np.clip(self.paddle2_vel[0] / self.max_speed, -1, 1) * 0.5 + 0.5
+            opponent_dy = np.clip(-self.paddle2_vel[1] / self.max_speed, -1, 1) * 0.5 + 0.5
         else:
             # P2: top, 0=P2 goal (y=0), 1=P1 goal (y=height)
             paddle_x = self.paddle2_pos[0] / self.width
@@ -121,8 +134,13 @@ class AirHockeyEnv(gym.Env):
             paddle_dy = np.clip(self.paddle2_vel[1] / self.max_speed, -1, 1) * 0.5 + 0.5
             puck_dx = np.clip(self.puck_vel[0] / self.max_speed, -1, 1) * 0.5 + 0.5
             puck_dy = np.clip(self.puck_vel[1] / self.max_speed, -1, 1) * 0.5 + 0.5
+            opponent_x = self.paddle1_pos[0] / self.width
+            opponent_y = self.paddle1_pos[1] / self.height
+            opponent_dx = np.clip(self.paddle1_vel[0] / self.max_speed, -1, 1) * 0.5 + 0.5
+            opponent_dy = np.clip(self.paddle1_vel[1] / self.max_speed, -1, 1) * 0.5 + 0.5
 
-        return np.clip([paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy], 0, 1).astype(np.float32)
+        return np.clip([paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy,
+                        opponent_x, opponent_y, opponent_dx, opponent_dy], 0, 1).astype(np.float32)
 
     def get_observation_for_player(self, player):
         """Proper method for getting player observations (fixes evaluation bug)"""
@@ -144,14 +162,15 @@ class AirHockeyEnv(gym.Env):
         self.puck_pos += self.puck_vel
         self.puck_vel *= self.friction
 
-        # Wall collisions
-        if self.puck_pos[0] <= self.puck_radius or self.puck_pos[0] >= self.width - self.puck_radius:
-            self.puck_vel[0] *= -0.8
-            self.puck_pos[0] = np.clip(self.puck_pos[0], self.puck_radius, self.width - self.puck_radius)
-        if self.puck_pos[1] <= self.puck_radius or self.puck_pos[1] >= self.height - self.puck_radius:
-            if not self._in_goal():
-                self.puck_vel[1] *= -0.8
-                self.puck_pos[1] = np.clip(self.puck_pos[1], self.puck_radius, self.height - self.puck_radius)
+        if self.puck_pos[0] - self.puck_radius < 0:
+            self.puck_pos[0], self.puck_vel[0] = self.puck_radius, self.puck_vel[0] * -.8
+        if self.puck_pos[0] + self.puck_radius > self.width:
+            self.puck_pos[0], self.puck_vel[0] = self.width - self.puck_radius, self.puck_vel[0] * -.8
+        if not self._goal_side():
+            if self.puck_pos[1] - self.puck_radius < 0:
+                self.puck_pos[1], self.puck_vel[1] = self.puck_radius, self.puck_vel[1] * -.8
+            if self.puck_pos[1] + self.puck_radius > self.height:
+                self.puck_pos[1], self.puck_vel[1] = self.height - self.puck_radius, self.puck_vel[1] * -.8
 
         # Paddle collisions - track which paddle hit
         p1_hit = self._check_paddle_collision(self.paddle1_pos, self.paddle1_vel)
@@ -165,27 +184,52 @@ class AirHockeyEnv(gym.Env):
         return p1_hit, p2_hit
 
     def _check_paddle_collision(self, paddle_pos, paddle_vel):
-        dist = np.linalg.norm(self.puck_pos - paddle_pos)
-        if dist < self.puck_radius + self.paddle_radius and dist > 0:
-            normal = (self.puck_pos - paddle_pos) / dist
-            overlap = self.puck_radius + self.paddle_radius - dist
-            self.puck_pos += normal * overlap
-            relative_vel = self.puck_vel - paddle_vel
-            vel_along_normal = np.dot(relative_vel, normal)
-            if vel_along_normal < 0:
-                impulse = -2 * vel_along_normal * normal
-                self.puck_vel += impulse
-                self.puck_vel += paddle_vel * 0.3
+        delta = self.puck_pos - paddle_pos
+        dist = np.linalg.norm(delta)
+        if dist < self.puck_radius + self.paddle_radius:
+            angle = np.arctan2(delta[1], delta[0])
+            radius = self.puck_radius + self.paddle_radius
+            self.puck_pos = paddle_pos + np.array([np.cos(angle), np.sin(angle)]) * radius
+            self.puck_vel = paddle_vel * 1.8
+            speed = np.linalg.norm(self.puck_vel)
+            if 0 < speed < 5:
+                self.puck_vel *= 5 / speed
+            if speed > self.max_speed:
+                self.puck_vel *= self.max_speed / speed
             return True
         return False
 
     def _in_goal(self):
         goal_left, goal_right = (self.width - self.goal_width) / 2, (self.width + self.goal_width) / 2
-        return goal_left <= self.puck_pos[0] <= goal_right
+        return goal_left < self.puck_pos[0] < goal_right
+
+    def _goal_side(self):
+        if not self._in_goal():
+            return 0
+        if self.puck_pos[1] - self.puck_radius < self.goal_posts:
+            return 1
+        if self.puck_pos[1] + self.puck_radius > self.height - self.goal_posts:
+            return 2
+        return 0
 
     def _check_goals(self):
-        if self.puck_pos[1] <= 0 and self._in_goal():
-            return 1  # Player 1 scores
-        elif self.puck_pos[1] >= self.height and self._in_goal():
-            return 2  # Player 2 scores
-        return 0
+        return self._goal_side()
+
+    def _is_puck_stuck(self):
+        slow = np.all(np.abs(self.puck_vel) < .1)
+        near_wall = (self.puck_pos[0] - self.puck_radius < 10 or self.puck_pos[0] + self.puck_radius > self.width - 10 or
+                     self.puck_pos[1] - self.puck_radius < 10 or self.puck_pos[1] + self.puck_radius > self.height - 10)
+        if not near_wall:
+            return False
+        if np.linalg.norm(self.puck_pos - self.last_puck_pos) < 1:
+            self.same_position_time += 1
+        else:
+            self.same_position_time = 0
+            self.last_puck_pos = self.puck_pos.copy()
+        return slow or self.same_position_time > 30
+
+    def _unstick_puck(self):
+        self.puck_pos = self.np_random.uniform([self.puck_radius, self.puck_radius],
+                                               [self.width - self.puck_radius, self.height - self.puck_radius])
+        self.puck_vel = self.np_random.uniform(-2.5, 2.5, 2)
+        self.same_position_time = 0

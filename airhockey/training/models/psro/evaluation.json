@@ -1,0 +1,114 @@
+{
+  "selected": "models/psro/main_01.zip",
+  "quick_selection": {
+    "models/psro/main_01.zip": {
+      "wins": 21,
+      "losses": 13,
+      "draws": 6,
+      "score": 0.6,
+      "payoff": 0.2,
+      "score_ci95": [
+        0.4587669683439131,
+        0.7412330316560869
+      ],
+      "avg_length": 271.825
+    },
+    "models/psro/exploiter_01.zip": {
+      "wins": 19,
+      "losses": 18,
+      "draws": 3,
+      "score": 0.5125,
+      "payoff": 0.025,
+      "score_ci95": [
+        0.36162479685820825,
+        0.6633752031417917
+      ],
+      "avg_length": 188.75
+    },
+    "models/psro/main_02.zip": {
+      "wins": 19,
+      "losses": 18,
+      "draws": 3,
+      "score": 0.5125,
+      "payoff": 0.025,
+      "score_ci95": [
+        0.3616247968582082,
+        0.6633752031417917
+      ],
+      "avg_length": 193.0
+    },
+    "models/psro/exploiter_02.zip": {
+      "wins": 19,
+      "losses": 11,
+      "draws": 10,
+      "score": 0.6,
+      "payoff": 0.2,
+      "score_ci95": [
+        0.46777214692733937,
+        0.7322278530726606
+      ],
+      "avg_length": 363.95
+    }
+  },
+  "versus_incumbent": {
+    "wins": 74,
+    "losses": 87,
+    "draws": 39,
+    "score": 0.4675,
+    "payoff": -0.065,
+    "score_ci95": [
+      0.4053337328298591,
+      0.529666267170141
+    ],
+    "avg_length": 310.45
+  },
+  "candidate_versus_random": {
+    "wins": 32,
+    "losses": 3,
+    "draws": 45,
+    "score": 0.68125,
+    "payoff": 0.3625,
+    "score_ci95": [
+      0.6202486057951402,
+      0.7422513942048599
+    ],
+    "avg_length": 766.0
+  },
+  "incumbent_versus_random": {
+    "wins": 35,
+    "losses": 3,
+    "draws": 42,
+    "score": 0.7,
+    "payoff": 0.4,
+    "score_ci95": [
+      0.6381175062075333,
+      0.7618824937924666
+    ],
+    "avg_length": 717.9625
+  },
+  "candidate_versus_scripted": {
+    "wins": 64,
+    "losses": 9,
+    "draws": 7,
+    "score": 0.84375,
+    "payoff": 0.6875,
+    "score_ci95": [
+      0.7706256964763234,
+      0.9168743035236766
+    ],
+    "avg_length": 287.2875
+  },
+  "promotion_rule": "score > .52, 95% lower bound > .50, random score no more than .03 below incumbent",
+  "promoted": false,
+  "final_meta_strategy": [
+    4.239130434782608e-06,
+    2.5e-06,
+    4.239130434782608e-06,
+    3.3695652173913045e-06,
+    4.239130434782608e-06,
+    4.239130434782608e-06,
+    2.5e-06,
+    0.9999746739130435
+  ],
+  "final_exploitability": 2.948369565217391e-06
+}

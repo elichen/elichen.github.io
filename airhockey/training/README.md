@@ -1,5 +1,27 @@
 # Air Hockey PPO Training Pipeline
 
+## PSRO + PFSP league (current web policy)
+
+`train_psro.py` estimates a side-balanced empirical payoff matrix, solves an approximate zero-sum Nash mixture with regret matching, and trains both a main best response and a dedicated exploiter. PFSP matchmaking combines the equilibrium mixture with extra weight on opponents the current main policy struggles against. The environment exposes 12 features, including the opponent paddle, and mirrors the browser's collision, goal, wall, and stuck-puck physics.
+
+The deployed `models/psro_v2/main_02.zip` policy scored 136 wins, 73 losses, and 91 draws against the incumbent in an independent 300-game promotion audit (60.5% match score; 95% CI 55.9–65.1%).
+
+```bash
+cd training
+python train_psro.py
+```
+
+## DAgger + self-play experiment
+
+`train_dagger_selfplay.py` clones the incumbent's deterministic actions with DAgger, lowers PPO's initial action noise, then trains against the incumbent, a scripted policy, random play, and frozen policy snapshots. League snapshots are refreshed between subprocess rounds, avoiding the ineffective cross-process callback used by `train_selfplay.py`.
+
+```bash
+cd training
+python train_dagger_selfplay.py --teacher models/ppo_selfplay_final.zip
+```
+
+The retained experiment is in `models/dagger_selfplay/`. A 1,000-game, side-balanced audit finished 230-229 with 541 timeouts against the incumbent, so it was not promoted and was later superseded by the PSRO policy above.
+
 This directory contains the complete training pipeline for training a PPO (Proximal Policy Optimization) agent to play air hockey, then converting and deploying it to the web application.
 
 ## Overview

@@ -29,13 +29,14 @@ def export_to_onnx(model_path, output_path=None, obs_dim=None):
             features = self.policy.extract_features(obs, self.policy.features_extractor)
             latent_pi = self.policy.mlp_extractor.forward_actor(features)
             mean_actions = self.policy.action_net(latent_pi)
-            return torch.tanh(mean_actions)
+            return torch.clamp(mean_actions, -1, 1)
 
     wrapped_policy = PolicyWrapper(policy)
     wrapped_policy.eval()
 
     torch.onnx.export(wrapped_policy, dummy_input, output_path,
-                     export_params=True, opset_version=12, do_constant_folding=True,
+                     export_params=True, opset_version=18, do_constant_folding=True,
+                     external_data=False,
                      input_names=["observation"], output_names=["action"],
                      dynamic_axes={"observation": {0: "batch_size"}, "action": {0: "batch_size"}})
 

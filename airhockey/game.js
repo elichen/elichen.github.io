@@ -47,14 +47,14 @@ async function moveAI() {
     const result = await agent.act(state);
     moveAgentPaddle(aiPaddle, result.action, aiOnTop);
 
-    const prevX = playerPaddle.x, prevY = playerPaddle.y;
-    playerPaddle.x = Math.max(playerPaddle.radius, Math.min(env.canvas.width - playerPaddle.radius, mouseX));
-
     const minY = aiOnTop ? env.canvas.height/2 + playerPaddle.radius : playerPaddle.radius;
     const maxY = aiOnTop ? env.canvas.height - playerPaddle.radius : env.canvas.height/2 - playerPaddle.radius;
-    playerPaddle.y = Math.max(minY, Math.min(maxY, mouseY));
-    playerPaddle.dx = playerPaddle.x - prevX;
-    playerPaddle.dy = playerPaddle.y - prevY;
+    const targetX = Math.max(playerPaddle.radius, Math.min(env.canvas.width - playerPaddle.radius, mouseX));
+    const targetY = Math.max(minY, Math.min(maxY, mouseY));
+    moveAgentPaddle(playerPaddle, [
+        Math.max(-1, Math.min(1, (targetX - playerPaddle.x) / playerPaddle.speed)),
+        Math.max(-1, Math.min(1, (targetY - playerPaddle.y) / playerPaddle.speed)) * (aiOnTop ? 1 : -1)
+    ], !aiOnTop);
 
     env.update(mouseX, mouseY, false);
 }
@@ -67,7 +67,7 @@ async function gameLoop() {
 
 document.addEventListener('DOMContentLoaded', async () => {
     initializeGame();
-    agent = new PPOAgent(8, 2);  // 8 features matching training environment
-    await agent.loadONNXModel('model/ppo_selfplay_final.onnx');
+    agent = new PPOAgent(12, 2);
+    await agent.loadONNXModel('model/psro_main_02.onnx');
     gameLoop();
 });

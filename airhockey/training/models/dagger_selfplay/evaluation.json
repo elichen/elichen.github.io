@@ -1,0 +1,56 @@
+{
+  "teacher": {
+    "wins": 16,
+    "losses": 10,
+    "timeouts": 34,
+    "decisive_win_rate": 0.6153846153846154,
+    "p1": {
+      "p1": 9,
+      "p2": 6,
+      "timeout": 15,
+      "avg_length": 1572.1666666666667
+    },
+    "p2": {
+      "p1": 4,
+      "p2": 7,
+      "timeout": 19,
+      "avg_length": 1949.3333333333333
+    }
+  },
+  "scripted": {
+    "wins": 32,
+    "losses": 8,
+    "timeouts": 20,
+    "decisive_win_rate": 0.8,
+    "p1": {
+      "p1": 13,
+      "p2": 7,
+      "timeout": 10,
+      "avg_length": 1203.8333333333333
+    },
+    "p2": {
+      "p1": 1,
+      "p2": 19,
+      "timeout": 10,
+      "avg_length": 1203.0666666666666
+    }
+  },
+  "random": {
+    "wins": 35,
+    "losses": 1,
+    "timeouts": 24,
+    "decisive_win_rate": 0.9722222222222222,
+    "p1": {
+      "p1": 20,
+      "p2": 0,
+      "timeout": 10,
+      "avg_length": 1383.3
+    },
+    "p2": {
+      "p1": 1,
+      "p2": 15,
+      "timeout": 14,
+      "avg_length": 1580.3333333333333
+    }
+  }
+}
