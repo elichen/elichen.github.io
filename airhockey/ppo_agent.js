@@ -3,17 +3,55 @@ class PPOAgent {
         this.stateSize = stateSize;
         this.actionSize = actionSize;
         this.onnxSession = null;
+        this.league = [];
+        this.activePolicy = 0;
     }
 
     async loadONNXModel(modelPath) {
-        this.onnxSession = await ort.InferenceSession.create(modelPath);
+        await this.loadONNXLeague([{ path: modelPath, name: 'Policy', weight: 1 }]);
         return true;
     }
 
-    async act(state) {
+    async loadONNXLeague(models) {
+        this.league = await Promise.all(models.map(async model => ({
+            ...model,
+            weight: Math.max(0, Number(model.weight) || 0),
+            session: await ort.InferenceSession.create(model.path)
+        })));
+        if (!this.league.length || !this.league.some(model => model.weight > 0)) {
+            throw new Error('The policy league needs at least one positive-weight model.');
+        }
+        this.onnxSession = this.league[0].session;
+        this.activePolicy = this.samplePolicy();
+        return true;
+    }
+
+    get policyCount() {
+        return this.league.length;
+    }
+
+    samplePolicy(exclude = null) {
+        const eligible = this.league.map((model, index) => ({ model, index }))
+            .filter(({ index }) => index !== exclude || this.league.length === 1);
+        const total = eligible.reduce((sum, { model }) => sum + model.weight, 0);
+        if (total <= 0) return eligible[Math.floor(Math.random() * eligible.length)].index;
+        let draw = Math.random() * total;
+        for (const { model, index } of eligible) {
+            draw -= model.weight;
+            if (draw <= 0) return index;
+        }
+        return eligible[eligible.length - 1].index;
+    }
+
+    getPolicyName(index) {
+        return this.league[index]?.name || `Policy ${index + 1}`;
+    }
+
+    async act(state, policyIndex = this.activePolicy) {
         const inputTensor = new ort.Tensor('float32', new Float32Array(state), [1, this.stateSize]);
         const feeds = { observation: inputTensor };
-        const output = await this.onnxSession.run(feeds);
+        const session = this.league[policyIndex]?.session || this.onnxSession;
+        const output = await session.run(feeds);
         let action = Array.from(output.action.data);
         action = action.map(a => Math.max(-1, Math.min(1, a)));
         return { action: action, value: 0, logProb: 0 };

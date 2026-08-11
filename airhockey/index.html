@@ -4,23 +4,33 @@
     <meta charset="UTF-8">
     <title>Air Hockey RL Agent</title>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=league-3">
 </head>
 <body>
     <article>
         <div class="header">
             <h1>Air Hockey RL Agent</h1>
-            <p class="subtitle">Payoff-matrix PSRO + prioritized self-play policy</p>
+            <p class="subtitle">Payoff-matrix PSRO + sampled league self-play</p>
         </div>
 
         <div class="game-container">
             <canvas id="gameCanvas"></canvas>
-            <button id="swapBtn" onclick="swapAI()">Swap AI Position</button>
+            <div class="game-controls" aria-label="Game controls">
+                <button id="selfPlayBtn" class="mode-toggle" type="button" role="switch" aria-checked="false" onclick="toggleSelfPlay()">
+                    <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
+                    <span class="toggle-copy">
+                        <span class="control-label">Mode</span>
+                        <strong id="modeLabel">Human vs AI</strong>
+                    </span>
+                </button>
+                <button id="swapBtn" class="swap-button" type="button" onclick="swapAI()">Swap sides</button>
+            </div>
+            <p id="modeHint" class="mode-hint" aria-live="polite">Move your paddle with the pointer.</p>
         </div>
 
         <section>
             <h2>Training Methodology</h2>
-            <p>The agent was initialized from the deterministic incumbent, then trained with PPO best responses against a payoff-matrix league. Prioritized fictitious self-play emphasizes both the approximate Nash mixture and difficult opponents, while dedicated exploiters expose weaknesses for later rounds.</p>
+            <p>The agent was initialized from the deterministic incumbent, then trained from randomized sides with stochastic PPO best responses against a payoff-matrix league. Prioritized fictitious self-play emphasizes both the approximate Nash mixture and difficult opponents, while dedicated exploiters expose weaknesses for later rounds. The web opponent samples from three frozen league policies after each goal, and self-play assigns a different sampled policy to each side.</p>
 
             <h3>Observation Space (12 features)</h3>
             <ul>
@@ -31,23 +41,25 @@
 
             <h3>Results</h3>
             <ul>
-                <li><strong>136–73</strong> with 91 draws against the incumbent over 300 side-balanced games</li>
-                <li><strong>60.5% match score</strong>, with a 95% interval of 55.9–65.1%</li>
-                <li><strong>72.0%</strong> against random and <strong>87.5%</strong> against the scripted baseline</li>
-                <li>Human and AI paddles now use the same speed cap and movement smoothing</li>
+                <li><strong>72–28</strong> with 100 draws against the incumbent over 200 side-balanced games</li>
+                <li><strong>61.0% match score</strong>, with a 95% interval of 56.3–65.7%</li>
+                <li><strong>66.3%</strong> against random and <strong>40.6%</strong> against the scripted baseline, versus the incumbent's 63.1% and 25.0%</li>
+                <li><strong>16/24 bank shots saved</strong>, matching the incumbent while passing all six adversarial promotion gates</li>
+                <li>Wall-clipped paddle velocity, side-wall wedges, and scoreless self-play rounds now have explicit recovery behavior</li>
             </ul>
 
             <h3>Code</h3>
             <p>
                 <a href="training/train_psro.py">Training Script</a> |
                 <a href="training/air_hockey_env.py">Environment</a> |
+                <a href="training/evaluate_adversarial.py">Adversarial Evaluation</a> |
                 <a href="ppo_agent.js">Web Inference</a>
             </p>
         </section>
     </article>
 
-    <script src="environment.js"></script>
-    <script src="ppo_agent.js"></script>
-    <script src="game.js"></script>
+    <script src="environment.js?v=league-3"></script>
+    <script src="ppo_agent.js?v=league-3"></script>
+    <script src="game.js?v=league-3"></script>
 </body>
 </html>

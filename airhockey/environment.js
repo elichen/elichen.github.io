@@ -7,7 +7,7 @@ class AirHockeyEnvironment {
         this.canvas.width = 600;
         this.canvas.height = 800;
 
-        this.state = { playerScore: 0, aiScore: 0, stuckTime: 0, lastPuckPos: {x:0,y:0}, samePositionTime: 0 };
+        this.state = { playerScore: 0, aiScore: 0, lastPuckPos: {x:0,y:0}, samePositionTime: 0, sideWallTime: 0, roundFrames: 0 };
         this.playerPaddle = { x: canvas.width/2, y: canvas.height-50, radius: 20, color: '#3498db', speed: 10 };
         this.aiPaddle = { x: canvas.width/2, y: 50, radius: 20, color: '#2ecc71', speed: 10 };
         this.puck = { x: canvas.width/2, y: canvas.height/2, radius: 15, dx: 0, dy: 0, color: '#e74c3c', isStuck: false, stuckEffectSize: 0 };
@@ -45,12 +45,26 @@ class AirHockeyEnvironment {
         this.ctx.fillText(`${this.state.aiScore} - ${this.state.playerScore}`, this.canvas.width/2, this.canvas.height/2);
     }
 
-    resetPuck(scoredOnTop = null) {
+    resetPaddles() {
+        this.playerPaddle.x = this.canvas.width / 2;
+        this.playerPaddle.y = this.canvas.height - 50;
+        this.playerPaddle.dx = 0;
+        this.playerPaddle.dy = 0;
+        this.aiPaddle.x = this.canvas.width / 2;
+        this.aiPaddle.y = 50;
+        this.aiPaddle.dx = 0;
+        this.aiPaddle.dy = 0;
+    }
+
+    resetPuck(scoredOnTop = null, resetPlayers = false) {
+        if (resetPlayers) this.resetPaddles();
         this.puck.x = this.canvas.width/2;
         this.puck.dx = 0;
         this.puck.dy = 0;
         this.puck.y = scoredOnTop === true ? this.canvas.height/4 : scoredOnTop === false ? this.canvas.height*3/4 : this.canvas.height/2;
         this.state.samePositionTime = 0;
+        this.state.sideWallTime = 0;
+        this.state.roundFrames = 0;
         this.state.lastPuckPos = {x: this.puck.x, y: this.puck.y};
     }
 
@@ -98,11 +112,14 @@ class AirHockeyEnvironment {
 
     isPuckStuck() {
         const isSlowMoving = Math.abs(this.puck.dx) < 0.1 && Math.abs(this.puck.dy) < 0.1;
+        const inSideWallZone = this.puck.x < this.puck.radius + 60 ||
+                               this.puck.x > this.canvas.width - this.puck.radius - 60;
+        this.state.sideWallTime = inSideWallZone ? this.state.sideWallTime + 1 : 0;
         const nearWall = this.puck.x - this.puck.radius < 10 || this.puck.x + this.puck.radius > this.canvas.width - 10 ||
                         (this.puck.y - this.puck.radius < 10 && !this.isInGoal()) ||
                         (this.puck.y + this.puck.radius > this.canvas.height - 10 && !this.isInGoal());
 
-        if (!nearWall) return false;
+        if (!nearWall) return this.state.sideWallTime > 180;
 
         const distFromLast = Math.sqrt(Math.pow(this.puck.x - this.state.lastPuckPos.x, 2) + Math.pow(this.puck.y - this.state.lastPuckPos.y, 2));
         if (distFromLast < 1) {
@@ -111,27 +128,30 @@ class AirHockeyEnvironment {
             this.state.samePositionTime = 0;
             this.state.lastPuckPos = {x: this.puck.x, y: this.puck.y};
         }
-        return isSlowMoving || this.state.samePositionTime > 30;
+        return isSlowMoving || this.state.samePositionTime > 30 || this.state.sideWallTime > 180;
     }
 
     unstickPuck() {
-        this.puck.x = Math.random() * (this.canvas.width - 2*this.puck.radius) + this.puck.radius;
-        this.puck.y = Math.random() * (this.canvas.height - 2*this.puck.radius) + this.puck.radius;
+        this.puck.x = Math.random() * (this.canvas.width - 240) + 120;
+        this.puck.y = Math.random() * (this.canvas.height - 400) + 200;
         this.puck.dx = (Math.random() - 0.5) * 5;
         this.puck.dy = (Math.random() - 0.5) * 5;
         this.state.samePositionTime = 0;
+        this.state.sideWallTime = 0;
+        this.state.lastPuckPos = {x: this.puck.x, y: this.puck.y};
         this.puck.isStuck = true;
         this.puck.stuckEffectSize = 20;
     }
 
     reset() {
-        this.state = { playerScore: 0, aiScore: 0, stuckTime: 0, lastPuckPos: {x:0,y:0}, samePositionTime: 0 };
+        this.state = { playerScore: 0, aiScore: 0, lastPuckPos: {x:0,y:0}, samePositionTime: 0, sideWallTime: 0, roundFrames: 0 };
         this.playerPaddle = { x: this.canvas.width/2, y: this.canvas.height-50, radius: 20, color: '#3498db', speed: 10, dx: 0, dy: 0 };
         this.aiPaddle = { x: this.canvas.width/2, y: 50, radius: 20, color: '#2ecc71', speed: 10, dx: 0, dy: 0 };
         this.puck = { x: this.canvas.width/2, y: this.canvas.height/2, radius: 15, dx: 0, dy: 0, color: '#e74c3c', isStuck: false, stuckEffectSize: 0 };
     }
 
     update() {
+        this.state.roundFrames++;
         this.puck.x += this.puck.dx;
         this.puck.y += this.puck.dy;
         this.puck.dx *= friction;
@@ -144,12 +164,15 @@ class AirHockeyEnvironment {
         const goalHit = this.isInGoal();
         if (goalHit === 'top') {
             this.state.playerScore++;
-            this.resetPuck(true);
+            this.resetPuck(true, true);
         } else if (goalHit === 'bottom') {
             this.state.aiScore++;
-            this.resetPuck(false);
+            this.resetPuck(false, true);
         } else if (this.isPuckStuck()) {
             this.unstickPuck();
+        } else if (this.state.roundFrames >= 1200) {
+            this.resetPuck(null, true);
+            return 'timeout';
         }
         return goalHit;
     }

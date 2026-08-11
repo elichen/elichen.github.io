@@ -33,6 +33,30 @@ class PhysicsParityTest(unittest.TestCase):
         self.env._check_paddle_collision(self.env.paddle1_pos, np.array([20.0, 0.0]))
         np.testing.assert_allclose(self.env.puck_vel, [25.0, 0.0], atol=1e-8)
 
+    def test_clipped_paddle_reports_actual_displacement(self):
+        self.env.paddle1_pos = np.array([20.0, 420.0])
+        self.env.paddle1_vel = np.array([-10.0, -10.0])
+        self.env._move_paddle(1, np.array([-1.0, -1.0]))
+        np.testing.assert_allclose(self.env.paddle1_pos, [20.0, 420.0])
+        np.testing.assert_allclose(self.env.paddle1_vel, [0.0, 0.0])
+
+    def test_energetic_sidewall_cycle_is_unstuck(self):
+        self.env.puck_pos = np.array([60.0, 400.0])
+        self.env.puck_vel = np.array([8.0, 8.0])
+        for frame in range(180):
+            self.env.puck_pos[1] = 398.0 if frame % 2 else 402.0
+            self.assertFalse(self.env._is_puck_stuck())
+        self.assertTrue(self.env._is_puck_stuck())
+
+    def test_standard_serve_matches_browser_reset(self):
+        self.env.reset(seed=3, options={'standard_serve': True, 'serve_y': 200})
+        np.testing.assert_allclose(self.env.puck_pos, [300.0, 200.0])
+        np.testing.assert_allclose(self.env.puck_vel, [0.0, 0.0])
+        np.testing.assert_allclose(self.env.paddle1_pos, [300.0, 750.0])
+        np.testing.assert_allclose(self.env.paddle2_pos, [300.0, 50.0])
+        np.testing.assert_allclose(self.env.paddle1_vel, [0.0, 0.0])
+        np.testing.assert_allclose(self.env.paddle2_vel, [0.0, 0.0])
+
     def test_goal_thresholds_match_browser(self):
         self.env.puck_pos = np.array([300.0, 34.999])
         self.assertEqual(self.env._goal_side(), 1)

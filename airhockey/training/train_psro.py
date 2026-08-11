@@ -30,33 +30,40 @@ class PSROEnv(gym.Wrapper):
         self.weights = np.asarray(weights, dtype=np.float64)
         self.weights /= self.weights.sum()
         self.rng = np.random.default_rng(seed)
+        torch.manual_seed(seed)
         self.opponent = self.opponents[0]
+        self.learner_player = 1
         self.phi = 0.0
 
     def reset(self, seed=None, options=None):
         obs, info = self.env.reset(seed=seed, options=options)
         self.opponent = self.opponents[self.rng.choice(len(self.opponents), p=self.weights)]
+        self.learner_player = int(self.rng.integers(1, 3))
         self.phi = self._potential()
-        return obs, info
+        info['learner_player'] = self.learner_player
+        return self.env.get_observation_for_player(self.learner_player), info
 
     def _potential(self):
-        obs = self.env.get_observation_for_player(1)
+        obs = self.env.get_observation_for_player(self.learner_player)
         distance = np.linalg.norm(obs[2:4] - obs[0:2])
         return .20 * obs[3] + .05 * (1 - min(distance, math.sqrt(2)))
 
     def step(self, action):
-        opponent_obs = self.env.get_observation_for_player(2)
-        opponent_action, _ = policy_action(self.opponent, opponent_obs)
-        obs, _, terminated, truncated, info = self.env.step({
-            'player1': np.clip(action, -1, 1),
-            'player2': np.clip(opponent_action, -1, 1),
-        })
+        opponent_player = 3 - self.learner_player
+        opponent_obs = self.env.get_observation_for_player(opponent_player)
+        opponent_action, _ = policy_action(self.opponent, opponent_obs, deterministic=False)
+        actions = {
+            f'player{self.learner_player}': np.clip(action, -1, 1),
+            f'player{opponent_player}': np.clip(opponent_action, -1, 1),
+        }
+        _, _, terminated, truncated, info = self.env.step(actions)
         goal = info['goal_scored_by']
-        terminal_reward = 1.0 if goal == 1 else -1.0 if goal == 2 else 0.0
+        terminal_reward = 1.0 if goal == self.learner_player else -1.0 if goal else 0.0
         next_phi = 0.0 if terminated or truncated else self._potential()
         reward = terminal_reward + .995 * next_phi - self.phi
         self.phi = next_phi
-        return obs, reward, terminated, truncated, info
+        info['learner_player'] = self.learner_player
+        return self.env.get_observation_for_player(self.learner_player), float(reward), terminated, truncated, info
 
 
 def make_env(paths, weights, seed, max_frames):

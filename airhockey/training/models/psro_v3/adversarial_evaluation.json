@@ -1,0 +1,572 @@
+{
+  "models": [
+    "models/psro_v3/main_01.zip",
+    "models/psro_v3/main_02.zip",
+    "models/psro_v2/main_02.zip"
+  ],
+  "weights": [
+    0.75,
+    0.2,
+    0.05
+  ],
+  "versus_incumbent": {
+    "wins": 72,
+    "losses": 28,
+    "draws": 100,
+    "score": 0.61,
+    "payoff": 0.22,
+    "score_ci95": [
+      0.563315092342224,
+      0.656684907657776
+    ],
+    "avg_length": 702.81
+  },
+  "candidate_versus_random": {
+    "wins": 28,
+    "losses": 2,
+    "draws": 50,
+    "score": 0.6625,
+    "payoff": 0.325,
+    "score_ci95": [
+      0.6052742920920184,
+      0.7197257079079815
+    ],
+    "avg_length": 811.5375
+  },
+  "incumbent_versus_random": {
+    "wins": 27,
+    "losses": 6,
+    "draws": 47,
+    "score": 0.63125,
+    "payoff": 0.2625,
+    "score_ci95": [
+      0.5666198509139421,
+      0.6958801490860579
+    ],
+    "avg_length": 766.1
+  },
+  "candidate_versus_scripted": {
+    "wins": 21,
+    "losses": 36,
+    "draws": 23,
+    "score": 0.40625,
+    "payoff": -0.1875,
+    "score_ci95": [
+      0.3155061724036536,
+      0.4969938275963464
+    ],
+    "avg_length": 519.575
+  },
+  "incumbent_versus_scripted": {
+    "wins": 9,
+    "losses": 49,
+    "draws": 22,
+    "score": 0.25,
+    "payoff": -0.5,
+    "score_ci95": [
+      0.17400949426391926,
+      0.32599050573608074
+    ],
+    "avg_length": 631.0625
+  },
+  "self_play_liveness": {
+    "runs": [
+      {
+        "goals": 2,
+        "timeouts": 3,
+        "unsticks": 11,
+        "max_sidewall_frames": 180,
+        "longest_scoreless_frames": 1200
+      },
+      {
+        "goals": 1,
+        "timeouts": 4,
+        "unsticks": 8,
+        "max_sidewall_frames": 180,
+        "longest_scoreless_frames": 1200
+      },
+      {
+        "goals": 2,
+        "timeouts": 3,
+        "unsticks": 7,
+        "max_sidewall_frames": 180,
+        "longest_scoreless_frames": 1200
+      },
+      {
+        "goals": 1,
+        "timeouts": 3,
+        "unsticks": 10,
+        "max_sidewall_frames": 180,
+        "longest_scoreless_frames": 1200
+      },
+      {
+        "goals": 1,
+        "timeouts": 3,
+        "unsticks": 6,
+        "max_sidewall_frames": 180,
+        "longest_scoreless_frames": 1200
+      }
+    ],
+    "total_goals": 7,
+    "total_timeouts": 16,
+    "total_unsticks": 42,
+    "max_sidewall_frames": 180,
+    "max_scoreless_frames": 1200,
+    "passed": true
+  },
+  "candidate_bank_shots": {
+    "saved": 16,
+    "shots": 24,
+    "save_rate": 0.6666666666666666,
+    "details": [
+      {
+        "defender": 1,
+        "wall": "left",
+        "start_x": 240,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 22
+      },
+      {
+        "defender": 1,
+        "wall": "left",
+        "start_x": 240,
+        "target_x": 350,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 23
+      },
+      {
+        "defender": 1,
+        "wall": "left",
+        "start_x": 300,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 24
+      },
+      {
+        "defender": 1,
+        "wall": "left",
+        "start_x": 300,
+        "target_x": 350,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 24
+      },
+      {
+        "defender": 1,
+        "wall": "left",
+        "start_x": 360,
+        "target_x": 250,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 57
+      },
+      {
+        "defender": 1,
+        "wall": "left",
+        "start_x": 360,
+        "target_x": 350,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 25
+      },
+      {
+        "defender": 1,
+        "wall": "right",
+        "start_x": 240,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 26
+      },
+      {
+        "defender": 1,
+        "wall": "right",
+        "start_x": 240,
+        "target_x": 350,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 57
+      },
+      {
+        "defender": 1,
+        "wall": "right",
+        "start_x": 300,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 25
+      },
+      {
+        "defender": 1,
+        "wall": "right",
+        "start_x": 300,
+        "target_x": 350,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 52
+      },
+      {
+        "defender": 1,
+        "wall": "right",
+        "start_x": 360,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 24
+      },
+      {
+        "defender": 1,
+        "wall": "right",
+        "start_x": 360,
+        "target_x": 350,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 48
+      },
+      {
+        "defender": 2,
+        "wall": "left",
+        "start_x": 240,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 22
+      },
+      {
+        "defender": 2,
+        "wall": "left",
+        "start_x": 240,
+        "target_x": 350,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 23
+      },
+      {
+        "defender": 2,
+        "wall": "left",
+        "start_x": 300,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 24
+      },
+      {
+        "defender": 2,
+        "wall": "left",
+        "start_x": 300,
+        "target_x": 350,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 24
+      },
+      {
+        "defender": 2,
+        "wall": "left",
+        "start_x": 360,
+        "target_x": 250,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 57
+      },
+      {
+        "defender": 2,
+        "wall": "left",
+        "start_x": 360,
+        "target_x": 350,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 25
+      },
+      {
+        "defender": 2,
+        "wall": "right",
+        "start_x": 240,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 26
+      },
+      {
+        "defender": 2,
+        "wall": "right",
+        "start_x": 240,
+        "target_x": 350,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 57
+      },
+      {
+        "defender": 2,
+        "wall": "right",
+        "start_x": 300,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 25
+      },
+      {
+        "defender": 2,
+        "wall": "right",
+        "start_x": 300,
+        "target_x": 350,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 52
+      },
+      {
+        "defender": 2,
+        "wall": "right",
+        "start_x": 360,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 24
+      },
+      {
+        "defender": 2,
+        "wall": "right",
+        "start_x": 360,
+        "target_x": 350,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 48
+      }
+    ]
+  },
+  "incumbent_bank_shots": {
+    "saved": 16,
+    "shots": 24,
+    "save_rate": 0.6666666666666666,
+    "details": [
+      {
+        "defender": 1,
+        "wall": "left",
+        "start_x": 240,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 23
+      },
+      {
+        "defender": 1,
+        "wall": "left",
+        "start_x": 240,
+        "target_x": 350,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 24
+      },
+      {
+        "defender": 1,
+        "wall": "left",
+        "start_x": 300,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 24
+      },
+      {
+        "defender": 1,
+        "wall": "left",
+        "start_x": 300,
+        "target_x": 350,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 25
+      },
+      {
+        "defender": 1,
+        "wall": "left",
+        "start_x": 360,
+        "target_x": 250,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 57
+      },
+      {
+        "defender": 1,
+        "wall": "left",
+        "start_x": 360,
+        "target_x": 350,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 26
+      },
+      {
+        "defender": 1,
+        "wall": "right",
+        "start_x": 240,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 26
+      },
+      {
+        "defender": 1,
+        "wall": "right",
+        "start_x": 240,
+        "target_x": 350,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 57
+      },
+      {
+        "defender": 1,
+        "wall": "right",
+        "start_x": 300,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 25
+      },
+      {
+        "defender": 1,
+        "wall": "right",
+        "start_x": 300,
+        "target_x": 350,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 52
+      },
+      {
+        "defender": 1,
+        "wall": "right",
+        "start_x": 360,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 24
+      },
+      {
+        "defender": 1,
+        "wall": "right",
+        "start_x": 360,
+        "target_x": 350,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 48
+      },
+      {
+        "defender": 2,
+        "wall": "left",
+        "start_x": 240,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 23
+      },
+      {
+        "defender": 2,
+        "wall": "left",
+        "start_x": 240,
+        "target_x": 350,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 24
+      },
+      {
+        "defender": 2,
+        "wall": "left",
+        "start_x": 300,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 24
+      },
+      {
+        "defender": 2,
+        "wall": "left",
+        "start_x": 300,
+        "target_x": 350,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 25
+      },
+      {
+        "defender": 2,
+        "wall": "left",
+        "start_x": 360,
+        "target_x": 250,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 57
+      },
+      {
+        "defender": 2,
+        "wall": "left",
+        "start_x": 360,
+        "target_x": 350,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 26
+      },
+      {
+        "defender": 2,
+        "wall": "right",
+        "start_x": 240,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 26
+      },
+      {
+        "defender": 2,
+        "wall": "right",
+        "start_x": 240,
+        "target_x": 350,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 57
+      },
+      {
+        "defender": 2,
+        "wall": "right",
+        "start_x": 300,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 25
+      },
+      {
+        "defender": 2,
+        "wall": "right",
+        "start_x": 300,
+        "target_x": 350,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 52
+      },
+      {
+        "defender": 2,
+        "wall": "right",
+        "start_x": 360,
+        "target_x": 250,
+        "saved": true,
+        "outcome": "contact",
+        "frames": 24
+      },
+      {
+        "defender": 2,
+        "wall": "right",
+        "start_x": 360,
+        "target_x": 350,
+        "saved": false,
+        "outcome": "conceded",
+        "frames": 48
+      }
+    ]
+  },
+  "gates": {
+    "incumbent_lower_bound": true,
+    "random_regression": true,
+    "scripted_improvement": true,
+    "draw_rate": true,
+    "self_play_liveness": true,
+    "bank_shot_regression": true
+  },
+  "passed": true
+}

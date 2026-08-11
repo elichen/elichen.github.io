@@ -20,6 +20,7 @@ class AirHockeyEnv(gym.Env):
         self.frame_count = 0
         self.max_frames = 3000
         self.same_position_time = 0
+        self.side_wall_time = 0
         self.last_puck_pos = self.puck_pos.copy()
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(12,), dtype=np.float32)
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
@@ -27,34 +28,38 @@ class AirHockeyEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
+        options = options or {}
+        standard_serve = options.get('standard_serve')
+        if standard_serve is None:
+            standard_serve = self.np_random.random() < .5
 
-        if self.np_random.random() < .25:
-            self.puck_pos = np.array([self.width / 2, self.np_random.choice([self.height / 4, self.height / 2, self.height * 3 / 4])])
+        if standard_serve:
+            serve_y = options.get('serve_y', self.np_random.choice([self.height / 4, self.height / 2, self.height * 3 / 4]))
+            self.puck_pos = np.array([self.width / 2, serve_y], dtype=float)
             self.puck_vel = np.zeros(2)
+            self.paddle1_pos = np.array([self.width / 2, self.height - 50], dtype=float)
+            self.paddle2_pos = np.array([self.width / 2, 50], dtype=float)
         else:
             self.puck_pos = np.array([
                 self.np_random.uniform(self.puck_radius + 50, self.width - self.puck_radius - 50),
                 self.np_random.uniform(self.height * 0.2, self.height * 0.8)
             ])
             self.puck_vel = self.np_random.uniform(-5, 5, size=2)
+            self.paddle1_pos = np.array([
+                self.np_random.uniform(self.paddle_radius + 50, self.width - self.paddle_radius - 50),
+                self.np_random.uniform(self.height * 0.65, self.height - 50.0)
+            ])
+            self.paddle2_pos = np.array([
+                self.np_random.uniform(self.paddle_radius + 50, self.width - self.paddle_radius - 50),
+                self.np_random.uniform(50.0, self.height * 0.35)
+            ])
 
-        # Paddles start in random defensive positions
-        # P1 paddle: random position in defensive zone
-        self.paddle1_pos = np.array([
-            self.np_random.uniform(self.paddle_radius + 50, self.width - self.paddle_radius - 50),
-            self.np_random.uniform(self.height * 0.65, self.height - 50.0)
-        ])
         self.paddle1_vel = np.array([0.0, 0.0])
-
-        # P2 paddle: random position in defensive zone
-        self.paddle2_pos = np.array([
-            self.np_random.uniform(self.paddle_radius + 50, self.width - self.paddle_radius - 50),
-            self.np_random.uniform(50.0, self.height * 0.35)
-        ])
         self.paddle2_vel = np.array([0.0, 0.0])
 
         self.frame_count = 0
         self.same_position_time = 0
+        self.side_wall_time = 0
         self.last_puck_pos = self.puck_pos.copy()
         return self._get_observation(1), {}
 
@@ -152,11 +157,14 @@ class AirHockeyEnv(gym.Env):
         y_min = self.height/2 + self.paddle_radius if player == 1 else self.paddle_radius
         y_max = self.height - self.paddle_radius if player == 1 else self.height/2 - self.paddle_radius
 
-        dx, dy = action[0] * self.paddle_speed, action[1] * self.paddle_speed * (-1 if player == 2 else 1)
-        paddle_vel[0] = paddle_vel[0] * 0.6 + dx * 0.4
-        paddle_vel[1] = paddle_vel[1] * 0.6 + dy * 0.4
-        paddle_pos[0] = np.clip(paddle_pos[0] + paddle_vel[0], self.paddle_radius, self.width - self.paddle_radius)
-        paddle_pos[1] = np.clip(paddle_pos[1] + paddle_vel[1], y_min, y_max)
+        requested = np.array([action[0] * self.paddle_speed,
+                              action[1] * self.paddle_speed * (-1 if player == 2 else 1)])
+        smoothed = paddle_vel * .6 + requested * .4
+        previous = paddle_pos.copy()
+        paddle_pos[:] = np.clip(previous + smoothed,
+                                [self.paddle_radius, y_min],
+                                [self.width - self.paddle_radius, y_max])
+        paddle_vel[:] = paddle_pos - previous
 
     def _update_puck(self):
         self.puck_pos += self.puck_vel
@@ -217,19 +225,23 @@ class AirHockeyEnv(gym.Env):
 
     def _is_puck_stuck(self):
         slow = np.all(np.abs(self.puck_vel) < .1)
+        in_side_wall_zone = (self.puck_pos[0] < self.puck_radius + 60 or
+                             self.puck_pos[0] > self.width - self.puck_radius - 60)
+        self.side_wall_time = self.side_wall_time + 1 if in_side_wall_zone else 0
         near_wall = (self.puck_pos[0] - self.puck_radius < 10 or self.puck_pos[0] + self.puck_radius > self.width - 10 or
                      self.puck_pos[1] - self.puck_radius < 10 or self.puck_pos[1] + self.puck_radius > self.height - 10)
         if not near_wall:
-            return False
+            return self.side_wall_time > 180
         if np.linalg.norm(self.puck_pos - self.last_puck_pos) < 1:
             self.same_position_time += 1
         else:
             self.same_position_time = 0
             self.last_puck_pos = self.puck_pos.copy()
-        return slow or self.same_position_time > 30
+        return slow or self.same_position_time > 30 or self.side_wall_time > 180
 
     def _unstick_puck(self):
-        self.puck_pos = self.np_random.uniform([self.puck_radius, self.puck_radius],
-                                               [self.width - self.puck_radius, self.height - self.puck_radius])
+        self.puck_pos = self.np_random.uniform([120, 200], [self.width - 120, self.height - 200])
         self.puck_vel = self.np_random.uniform(-2.5, 2.5, 2)
         self.same_position_time = 0
+        self.side_wall_time = 0
+        self.last_puck_pos = self.puck_pos.copy()

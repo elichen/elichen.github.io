@@ -48,9 +48,9 @@ class RandomPolicy:
         return self.rng.uniform(-1, 1, 2).astype(np.float32), None
 
 
-def policy_action(policy, obs):
+def policy_action(policy, obs, deterministic=True):
     n = getattr(getattr(policy, 'observation_space', None), 'shape', (len(obs),))[0]
-    return policy.predict(obs[..., :n], deterministic=True)
+    return policy.predict(obs[..., :n], deterministic=deterministic)
 
 
 class LeagueEnv(gym.Wrapper):

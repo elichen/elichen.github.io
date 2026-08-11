@@ -2,14 +2,22 @@
 
 ## PSRO + PFSP league (current web policy)
 
-`train_psro.py` estimates a side-balanced empirical payoff matrix, solves an approximate zero-sum Nash mixture with regret matching, and trains both a main best response and a dedicated exploiter. PFSP matchmaking combines the equilibrium mixture with extra weight on opponents the current main policy struggles against. The environment exposes 12 features, including the opponent paddle, and mirrors the browser's collision, goal, wall, and stuck-puck physics.
+`train_psro.py` estimates a side-balanced empirical payoff matrix, solves an approximate zero-sum Nash mixture with regret matching, and trains both a main best response and a dedicated exploiter. PFSP matchmaking combines the equilibrium mixture with extra weight on opponents the current main policy struggles against. Training randomizes the learner's side and samples stochastic actions from frozen opponents. The environment exposes 12 features, including the opponent paddle, and mirrors the browser's collision, goal, wall, timeout, and stuck-puck physics.
 
-The deployed `models/psro_v2/main_02.zip` policy scored 136 wins, 73 losses, and 91 draws against the incumbent in an independent 300-game promotion audit (60.5% match score; 95% CI 55.9–65.1%).
+The web app deploys a frozen mixture of `psro_v3/main_01` (75%), `psro_v3/main_02` (20%), and the prior `psro_v2/main_02` incumbent (5%). In the independent promotion suite it scored 72 wins, 28 losses, and 100 draws against the incumbent (61.0% match score; 95% CI 56.3–65.7%). It also improved from 63.1% to 66.3% against random play and from 25.0% to 40.6% against the scripted baseline. It saved 16 of 24 controlled bank shots, equal to the incumbent, and passed all six adversarial gates.
 
 ```bash
 cd training
 python train_psro.py
 ```
+
+Run the reproducible promotion suite with:
+
+```bash
+python evaluate_adversarial.py
+```
+
+The suite checks the incumbent confidence bound, random and scripted baselines, draw rate, continuous self-play liveness, and controlled bank-shot defense. Long scoreless rounds reset after 1,200 simulation frames; this prevents a non-scoring cycle from masquerading as useful self-play.
 
 ## DAgger + self-play experiment
 
