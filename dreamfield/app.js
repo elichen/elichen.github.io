@@ -138,7 +138,7 @@
   const subjects = {
     bloom: {
       name: "Wildflower",
-      note: "A built-in five-petal construction the apprentice has never seen in your lesson.",
+      note: "A fresh five-petal sketch, drawn with your learned marks.",
       paths() {
         const petals = Array.from({ length: 76 }, (_, index) => {
           const angle = -Math.PI / 2 + index / 76 * Math.PI * 2;
@@ -156,7 +156,7 @@
     },
     bird: {
       name: "Small bird",
-      note: "An unseen bird scaffold: body, wing, beak, eye, and two legs.",
+      note: "A fresh little bird, drawn with your learned marks.",
       paths() {
         return [
           { points: ellipse(-0.03, 0.03, 0.48, 0.3, 64, -0.18), closed: true },
@@ -170,7 +170,7 @@
     },
     sail: {
       name: "Moon boat",
-      note: "A new little seascape assembled from geometric guide strokes.",
+      note: "A fresh moonlit boat, drawn with your learned marks.",
       paths() {
         return [
           { points: polyline([{ x: -0.58, y: 0.25 }, { x: 0.56, y: 0.25 }, { x: 0.35, y: 0.52 }, { x: -0.36, y: 0.52 }, { x: -0.58, y: 0.25 }], 16), closed: true },
@@ -468,29 +468,29 @@
   function updateLessonCard() {
     const count = state.strokes.length;
     if (!count && !state.currentStroke) {
-      elements.lessonStep.textContent = "Warm-up 0 / 3";
-      elements.lessonTitle.textContent = "Give it a few gestures, not a picture to copy.";
-      elements.lessonCopy.textContent = "Try one long curve, one sharp turn, and one closed loop. Your marks become style examples.";
+      elements.lessonStep.textContent = "0 of 3 strokes";
+      elements.lessonTitle.textContent = "Start with a curve, a corner, or a loop.";
+      elements.lessonCopy.textContent = "Three different gestures give it a good feel for your hand.";
     } else if (state.currentStroke) {
-      elements.lessonStep.textContent = "Reading your hand";
-      elements.lessonTitle.textContent = "This gesture is becoming local style data.";
-      elements.lessonCopy.textContent = "The apprentice separates the smooth path you meant from the tiny deviations that make the mark yours.";
+      elements.lessonStep.textContent = "Drawing";
+      elements.lessonTitle.textContent = "It’s watching how you move.";
+      elements.lessonCopy.textContent = "Release to add this stroke.";
     } else if (count < 3) {
-      elements.lessonStep.textContent = `Warm-up ${count} / 3`;
-      elements.lessonTitle.textContent = count === 1 ? "It can draw now. Two more marks make the style richer." : "One more different gesture will round out the lesson.";
-      elements.lessonCopy.textContent = "Notice the right side is already a different subject—only the stroke behavior transfers.";
+      elements.lessonStep.textContent = `${count} of 3 strokes`;
+      elements.lessonTitle.textContent = count === 1 ? "It can draw now. Add two more for character." : "One more different gesture will do it.";
+      elements.lessonCopy.textContent = "The apprentice is already responding on the right.";
     } else if (state.paused) {
-      elements.lessonStep.textContent = "Practice paused";
-      elements.lessonTitle.textContent = "The current style model is frozen.";
-      elements.lessonCopy.textContent = "Variations still use its learned numbers. Resume to keep refining the fit.";
+      elements.lessonStep.textContent = "Paused";
+      elements.lessonTitle.textContent = "Your current style is frozen.";
+      elements.lessonCopy.textContent = "Resume whenever you want it to keep learning.";
     } else if (!state.isSettled) {
-      elements.lessonStep.textContent = `${count} style lessons · practicing`;
-      elements.lessonTitle.textContent = "The apprentice is tuning its hand.";
-      elements.lessonCopy.textContent = "Backpropagation compares predicted micro-offsets, brush width, and color with your sampled strokes.";
+      elements.lessonStep.textContent = `${count} strokes · learning`;
+      elements.lessonTitle.textContent = "The apprentice is catching your style.";
+      elements.lessonCopy.textContent = "You can keep drawing while it practices.";
     } else {
-      elements.lessonStep.textContent = `${count} style lessons · caught`;
-      elements.lessonTitle.textContent = "Now ask for another subject or variation.";
-      elements.lessonCopy.textContent = "The subject scaffold stays separate. Only the learned mark-making is reused.";
+      elements.lessonStep.textContent = `${count} strokes · ready`;
+      elements.lessonTitle.textContent = "Your handprint is ready to play with.";
+      elements.lessonCopy.textContent = "Try another subject or make a new variation.";
     }
   }
 
