@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#171813">
-  <meta name="description" content="Draw a doodle and teach a tiny neural network to redraw it, live in your browser.">
-  <title>Dreamfield — Doodle Apprentice</title>
+  <meta name="description" content="Teach a tiny neural network your stroke style, then watch it make a completely new drawing in your hand—live in the browser.">
+  <title>Dreamfield — The Stroke Apprentice</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,300;6..72,500&amp;display=swap" rel="stylesheet">
@@ -20,69 +20,75 @@
       <span>Playground</span>
     </a>
 
-    <div class="masthead" aria-label="Dreamfield Doodle Apprentice">
-      <svg class="masthead-mark" viewBox="0 0 40 40" aria-hidden="true">
-        <path d="M4 30C10 6 18 35 24 12S35 22 36 5" />
-        <circle cx="4" cy="30" r="2.6" />
-        <circle cx="24" cy="12" r="2.6" />
-        <circle cx="36" cy="5" r="2.6" />
+    <div class="masthead" aria-label="Dreamfield Stroke Apprentice">
+      <svg class="masthead-mark" viewBox="0 0 42 42" aria-hidden="true">
+        <path d="M4 29C9 7 17 35 23 13S34 24 38 6" />
+        <path class="ghost-path" d="M5 35C12 17 17 38 27 20S35 29 39 17" />
       </svg>
       <span>Dreamfield</span>
     </div>
 
-    <div class="local-status" title="The neural network trains on this device. No drawing or model data leaves your browser.">
+    <div class="local-status" title="Training and generation happen on this device. No drawing or model data leaves your browser.">
       <span class="status-light" aria-hidden="true"></span>
-      <span id="header-status">Ready to learn</span>
-      <span class="status-detail">No cloud model</span>
+      <span id="header-status">Ready for a lesson</span>
+      <span class="status-detail">Local only</span>
     </div>
   </header>
 
   <main>
     <section class="intro" aria-labelledby="page-title">
       <div class="intro-copy">
-        <p class="eyebrow">A tiny neural network, taught by you</p>
-        <h1 id="page-title">Draw on the left.<br><em>Watch the AI redraw it.</em></h1>
+        <p class="eyebrow">The stroke apprentice · study 002</p>
+        <h1 id="page-title">Teach it your hand.<br><em>It draws the next thing.</em></h1>
       </div>
       <div class="intro-note">
         <p>
-          Your ink and some sampled blank paper become training examples. A small
-          network learns <em>position → color</em>, then generates its own version from memory.
+          Make a few gestures. A tiny neural network studies your wobble, turns,
+          taper, brush weight, and color—then uses that style to draw a subject you never drew.
         </p>
         <div class="proof-strip" aria-label="How the experiment works">
-          <span>You doodle</span>
-          <span id="parameter-badge">1,431 parameters learn</span>
-          <span>AI redraws</span>
+          <span>Your gestures</span>
+          <span id="parameter-badge">690 parameters learn your hand</span>
+          <span>A new drawing</span>
         </div>
-        <p class="truth-note">It will not tell you what you drew. It learns how to redraw the pattern.</p>
+        <p class="truth-note"><strong>The composition is separate.</strong> Your lesson supplies mark-making, not an image to memorize.</p>
       </div>
     </section>
 
-    <section id="workbench" class="workbench" aria-label="Doodle Apprentice neural network studio">
-      <aside id="tool-panel" class="tool-panel" aria-labelledby="teach-heading">
+    <section class="premise-strip" aria-label="The apprenticeship pipeline">
+      <div><b>01</b><span><strong>You demonstrate</strong><small>curves · corners · loops</small></span></div>
+      <i aria-hidden="true">&#8594;</i>
+      <div><b>02</b><span><strong>The network abstracts</strong><small>residual · width · RGB</small></span></div>
+      <i aria-hidden="true">&#8594;</i>
+      <div><b>03</b><span><strong>It improvises</strong><small>new scaffold · your hand</small></span></div>
+    </section>
+
+    <section class="workbench" aria-label="Stroke Apprentice neural network studio">
+      <aside class="tool-panel" aria-labelledby="tools-heading">
         <div class="panel-heading">
-          <span id="teach-number" class="panel-number">01</span>
+          <span class="panel-number">01</span>
           <div>
-            <p class="eyebrow">Your drawing tools</p>
-            <h2 id="teach-heading">Teach by doodling</h2>
+            <p class="eyebrow">Set up your hand</p>
+            <h2 id="tools-heading">Ink cabinet</h2>
           </div>
         </div>
 
-        <p class="tool-intro">Draw one big, simple symbol. A letter, face, heart, or star works beautifully.</p>
+        <p class="tool-intro">Use the tools you naturally reach for. Brush and palette are part of the lesson.</p>
 
         <section class="control-section" aria-labelledby="color-heading">
           <div class="control-title-row">
-            <h3 id="color-heading">Doodle color</h3>
-            <output id="color-readout" for="custom-color">Midnight · #161823</output>
+            <h3 id="color-heading">Ink</h3>
+            <output id="color-readout" for="custom-color">Graphite · #171813</output>
           </div>
-          <div id="swatch-list" class="swatch-list" role="group" aria-label="Doodle color">
-            <button class="swatch" type="button" data-color="#161823" data-name="Midnight" aria-label="Midnight, #161823" aria-pressed="true"></button>
-            <button class="swatch" type="button" data-color="#2664ff" data-name="Cobalt" aria-label="Cobalt, #2664ff" aria-pressed="false"></button>
-            <button class="swatch" type="button" data-color="#ff553e" data-name="Vermilion" aria-label="Vermilion, #ff553e" aria-pressed="false"></button>
-            <button class="swatch" type="button" data-color="#13a98e" data-name="Lagoon" aria-label="Lagoon, #13a98e" aria-pressed="false"></button>
-            <button class="swatch" type="button" data-color="#b632d5" data-name="Orchid" aria-label="Orchid, #b632d5" aria-pressed="false"></button>
+          <div class="swatch-list" role="group" aria-label="Drawing color">
+            <button class="swatch graphite" type="button" data-color="#171813" data-name="Graphite" aria-label="Graphite, #171813" aria-pressed="true"></button>
+            <button class="swatch cobalt" type="button" data-color="#2664ff" data-name="Cobalt" aria-label="Cobalt, #2664ff" aria-pressed="false"></button>
+            <button class="swatch vermilion" type="button" data-color="#ff5b45" data-name="Vermilion" aria-label="Vermilion, #ff5b45" aria-pressed="false"></button>
+            <button class="swatch lagoon" type="button" data-color="#0c9b83" data-name="Lagoon" aria-label="Lagoon, #0c9b83" aria-pressed="false"></button>
+            <button class="swatch ochre" type="button" data-color="#d69712" data-name="Ochre" aria-label="Ochre, #d69712" aria-pressed="false"></button>
             <label class="custom-swatch">
-              <span class="sr-only">Choose a custom doodle color</span>
-              <input id="custom-color" type="color" value="#161823" aria-label="Custom doodle color">
+              <span class="sr-only">Choose a custom color</span>
+              <input id="custom-color" type="color" value="#171813" aria-label="Custom drawing color">
               <i aria-hidden="true">+</i>
             </label>
           </div>
@@ -90,192 +96,157 @@
 
         <section class="control-section" aria-labelledby="brush-heading">
           <div class="control-title-row">
-            <h3 id="brush-heading">Brush size</h3>
-            <span class="microcopy">Bold works best</span>
+            <h3 id="brush-heading">Tool</h3>
+            <span class="microcopy">Width is learned</span>
           </div>
-          <div class="segmented" role="group" aria-label="Brush size">
-            <button type="button" data-brush="fine" aria-pressed="false"><i class="brush-dot brush-dot-small" aria-hidden="true"></i>Fine</button>
-            <button type="button" data-brush="medium" aria-pressed="false"><i class="brush-dot brush-dot-medium" aria-hidden="true"></i>Medium</button>
-            <button class="is-active" type="button" data-brush="broad" aria-pressed="true"><i class="brush-dot brush-dot-large" aria-hidden="true"></i>Bold</button>
+          <div class="segmented" role="group" aria-label="Brush style">
+            <button type="button" data-brush="fine" aria-pressed="false"><i class="brush-line thin" aria-hidden="true"></i>Pencil</button>
+            <button class="is-active" type="button" data-brush="medium" aria-pressed="true"><i class="brush-line medium" aria-hidden="true"></i>Crayon</button>
+            <button type="button" data-brush="broad" aria-pressed="false"><i class="brush-line thick" aria-hidden="true"></i>Marker</button>
           </div>
         </section>
 
-        <section class="control-section" aria-labelledby="preset-heading">
+        <section class="control-section gesture-guide" aria-labelledby="gesture-heading">
           <div class="control-title-row">
-            <h3 id="preset-heading">Need an idea?</h3>
-            <span class="microcopy">Replaces yours</span>
+            <h3 id="gesture-heading">A good warm-up</h3>
+            <span class="microcopy">Aim for 3+</span>
           </div>
-          <div id="preset-list" class="preset-list preset-doodles">
-            <button class="preset-button" type="button" data-preset="heart" aria-label="Load Heart example; replaces the current doodle" aria-pressed="false">
-              <span class="preset-doodle preset-heart" aria-hidden="true">♥</span>
-              <span><strong>Heart</strong><small>One bold line</small></span>
-            </button>
-            <button class="preset-button" type="button" data-preset="smiley" aria-label="Load Smiley example; replaces the current doodle" aria-pressed="false">
-              <span class="preset-doodle preset-smiley" aria-hidden="true">☺</span>
-              <span><strong>Smiley</strong><small>Four strokes</small></span>
-            </button>
-            <button class="preset-button" type="button" data-preset="star" aria-label="Load Star example; replaces the current doodle" aria-pressed="false">
-              <span class="preset-doodle preset-star" aria-hidden="true">★</span>
-              <span><strong>Star</strong><small>A trickier shape</small></span>
-            </button>
-          </div>
+          <ol>
+            <li><span class="gesture-mark curve-mark" aria-hidden="true"></span><p><strong>A long curve</strong><small>reveals smoothness + wobble</small></p></li>
+            <li><span class="gesture-mark corner-mark" aria-hidden="true"></span><p><strong>A sharp turn</strong><small>reveals corner habits</small></p></li>
+            <li><span class="gesture-mark loop-mark" aria-hidden="true"></span><p><strong>A closed loop</strong><small>reveals joins + taper</small></p></li>
+          </ol>
         </section>
 
-        <details class="advanced-tools">
-          <summary>Show how it learns</summary>
-          <div class="advanced-tools-body">
-            <section class="control-section bias-section" aria-labelledby="bias-heading">
-              <div class="control-title-row">
-                <h3 id="bias-heading">Apprentice style</h3>
-                <span class="microcopy">Same tiny brain</span>
-              </div>
-              <div class="segmented compact" role="group" aria-label="Model spatial detail">
-                <button type="button" data-detail="soft" aria-pressed="false">Dreamy</button>
-                <button class="is-active" type="button" data-detail="balanced" aria-pressed="true">Faithful</button>
-                <button type="button" data-detail="intricate" aria-pressed="false">Wiggly</button>
-              </div>
-              <p class="help-copy">This changes the coordinate frequencies the network can use. It retrains from scratch.</p>
-            </section>
+        <details class="demo-tools">
+          <summary>No stylus? Borrow a demo hand</summary>
+          <div>
+            <button type="button" data-demo="quiet">Quiet pencil</button>
+            <button type="button" data-demo="restless">Restless marker</button>
           </div>
+          <p>Loads three source gestures so you can inspect the experiment immediately.</p>
         </details>
       </aside>
 
-      <section id="field-panel" class="field-panel" aria-labelledby="prediction-heading">
-        <div class="field-toolbar">
+      <section class="studio-panel" aria-labelledby="studio-heading">
+        <div class="studio-toolbar">
           <div>
-            <p id="field-number" class="eyebrow">02 · The imitation game</p>
-            <h2 id="prediction-heading">You draw. It practices.</h2>
+            <p class="eyebrow">02 · Live apprenticeship</p>
+            <h2 id="studio-heading">Same hand. Different drawing.</h2>
           </div>
           <div class="field-status" role="status" aria-live="polite">
-            <span id="training-indicator" class="training-indicator" aria-hidden="true"></span>
-            <span id="training-label">Waiting for a doodle</span>
+            <span class="training-indicator" aria-hidden="true"></span>
+            <span id="training-label">Waiting for your hand</span>
           </div>
         </div>
 
         <p class="mobile-tool-note">
-          Ready with <strong id="mobile-tool-summary">Midnight · Bold</strong>
-          <a href="#tool-panel">Change tools &#8595;</a>
+          Ready with <strong id="mobile-tool-summary">Graphite · Crayon</strong>
+          <a href="#tools-heading">Change tools &#8595;</a>
         </p>
 
-        <ol class="learning-loop" aria-label="How the Doodle Apprentice works">
-          <li id="loop-examples" class="is-active" aria-current="step">
-            <span>1</span>
-            <div><strong>You sketch</strong><small>ink + blank paper</small></div>
-          </li>
-          <li class="loop-arrow" aria-hidden="true">&#8594;</li>
-          <li id="loop-learning">
-            <span>2</span>
-            <div><strong>It practices</strong><small id="loop-learning-copy">waiting for data</small></div>
-          </li>
-          <li class="loop-arrow" aria-hidden="true">&#8594;</li>
-          <li id="loop-prediction">
-            <span>3</span>
-            <div><strong>It redraws</strong><small>from learned parameters</small></div>
-          </li>
-        </ol>
-
-        <div id="lesson-card" class="lesson-card">
-          <span id="lesson-step">Your turn</span>
-          <strong id="lesson-title">Draw one big, simple shape.</strong>
-          <p id="lesson-copy">Try a letter, face, or heart. Thick strokes give this tiny apprentice the best chance.</p>
+        <div class="lesson-card">
+          <span id="lesson-step">Warm-up 0 / 3</span>
+          <strong id="lesson-title">Give it a few gestures, not a picture to copy.</strong>
+          <p id="lesson-copy">Try one long curve, one sharp turn, and one closed loop. Your marks become style examples.</p>
         </div>
 
         <div class="canvas-pair">
-          <section class="canvas-pane examples-pane" aria-labelledby="examples-pane-heading">
+          <section class="canvas-pane teaching-pane" aria-labelledby="teaching-heading">
             <div class="canvas-pane-heading">
-              <span class="pane-number">A</span>
+              <span class="pane-letter">A</span>
               <div>
-                <p>Training image · you</p>
-                <h3 id="examples-pane-heading">Your doodle</h3>
+                <p>Style examples · yours</p>
+                <h3 id="teaching-heading">Your warm-up sheet</h3>
               </div>
-              <output id="example-count-badge">0 strokes</output>
+              <output id="example-count-badge">0 lessons</output>
             </div>
-            <div id="teaching-frame" class="teaching-frame">
+            <div id="teaching-frame" class="canvas-frame teaching-frame">
               <canvas
                 id="teaching-canvas"
                 tabindex="0"
-                aria-label="Your doodle canvas"
-                aria-describedby="canvas-instructions examples-caption"
+                aria-label="Style lesson canvas. Draw several different gestures."
+                aria-describedby="canvas-instructions teaching-caption"
               ></canvas>
               <div id="drawing-prompt" class="canvas-empty canvas-empty-dark" aria-hidden="true">
-                <span>Start here</span>
-                <strong>Draw one simple shape</strong>
-                <small>Bold strokes work best</small>
+                <span>Start anywhere</span>
+                <strong>Leave a few gestures.</strong>
+                <small>Not one finished picture.</small>
               </div>
-              <div id="source-hidden" class="source-hidden" hidden>
-                <span>Memory test</span>
-                <strong>Your doodle is hidden.</strong>
-                <small>The redraw remains because it lives in the learned parameters.</small>
-              </div>
-              <div class="coordinate-readout" aria-hidden="true">
-                <span id="coordinate-x">x +0.00</span>
-                <span id="coordinate-y">y +0.00</span>
-              </div>
+              <div class="sheet-label" aria-hidden="true">STROKE STUDIES / YOU</div>
             </div>
-            <p id="examples-caption" class="pane-caption"><i class="legend-example" aria-hidden="true"></i>These marks are the picture the network studies.</p>
+            <p id="teaching-caption" class="pane-caption"><i class="legend-source" aria-hidden="true"></i>Only local stroke behavior becomes training data.</p>
           </section>
 
-          <div class="causal-arrow" aria-hidden="true">
-            <span id="causal-arrow-label">teach</span>
+          <div class="transfer-arrow" aria-hidden="true">
+            <span>style only</span>
             <i>&#8594;</i>
           </div>
 
-          <section class="canvas-pane prediction-pane" aria-labelledby="prediction-pane-heading">
+          <section class="canvas-pane result-pane" aria-labelledby="result-heading">
             <div class="canvas-pane-heading">
-              <span class="pane-number">B</span>
+              <span class="pane-letter">B</span>
               <div>
-                <p>Model output · AI</p>
-                <h3 id="prediction-pane-heading">Apprentice redraw</h3>
+                <p>Fresh composition · apprentice</p>
+                <h3 id="result-heading"><span id="subject-name">Wildflower</span>, in your hand</h3>
               </div>
               <output id="prediction-count-badge">Waiting</output>
             </div>
-            <div id="field-frame" class="field-frame prediction-frame">
+            <div id="field-frame" class="canvas-frame field-frame">
               <canvas
                 id="field-canvas"
                 role="img"
-                aria-label="No neural redraw yet. Add a stroke on the left to begin."
-                aria-hidden="true"
-                aria-describedby="prediction-caption"
+                aria-label="No apprentice drawing yet. Add a style lesson on the left to begin."
+                aria-describedby="result-caption"
               ></canvas>
               <div id="prediction-empty" class="canvas-empty prediction-empty">
-                <span>No redraw yet</span>
-                <strong>Add your first stroke on the left.</strong>
-                <small>The output stays blank until the network has something to learn.</small>
+                <span>No style yet</span>
+                <strong>The subject is waiting.</strong>
+                <small>One gesture is enough to begin.</small>
               </div>
-              <div id="prediction-stamp" class="prediction-stamp" hidden>
-                <span>Generated from</span>
-                <strong id="prediction-stamp-value">1,431 learned numbers</strong>
-              </div>
+              <div class="variation-stamp" aria-hidden="true"><span>Generated live</span><strong id="variation-value">Variation 1</strong></div>
             </div>
-            <p id="prediction-caption" class="pane-caption"><i class="legend-field" aria-hidden="true"></i>The whole redraw comes from network predictions—not a copied canvas.</p>
+            <p id="result-caption" class="pane-caption"><i class="legend-output" aria-hidden="true"></i><span id="subject-note">A built-in five-petal construction the apprentice has never seen in your lesson.</span></p>
           </section>
         </div>
 
         <p id="canvas-instructions" class="sr-only">
-          Choose a color and brush, then tap or drag on the doodle canvas. Arrow keys move the keyboard cursor.
-          Hold Shift to move faster. Press Space or Enter to draw.
+          Choose an ink and tool, then tap or drag on the warm-up canvas. Draw several different gestures to teach a richer style.
+          Arrow keys move the keyboard cursor. Hold Shift to move faster. Press Space or Enter to place a mark.
         </p>
+
+        <section class="prompt-rack" aria-labelledby="prompt-heading">
+          <div>
+            <p class="eyebrow">Content comes from here</p>
+            <h3 id="prompt-heading">Give the apprentice a new subject</h3>
+          </div>
+          <div class="subject-buttons" role="group" aria-label="Apprentice drawing subject">
+            <button class="is-active" type="button" data-subject="bloom" aria-pressed="true"><span aria-hidden="true">✿</span><b>Wildflower</b></button>
+            <button type="button" data-subject="bird" aria-pressed="false"><span aria-hidden="true">⌁</span><b>Small bird</b></button>
+            <button type="button" data-subject="sail" aria-pressed="false"><span aria-hidden="true">◒</span><b>Moon boat</b></button>
+          </div>
+        </section>
 
         <div class="field-actions">
           <div class="action-group">
-            <button id="pause-button" class="action-button primary-action" type="button" disabled>
+            <button id="pause-button" class="action-button" type="button" disabled>
               <span class="pause-icon" aria-hidden="true"></span>
-              <span>Pause learning</span>
+              <span>Pause practice</span>
             </button>
-            <button id="undo-button" class="action-button" type="button" disabled>Undo stroke</button>
-            <button id="clear-button" class="action-button" type="button" disabled>New doodle</button>
+            <button id="undo-button" class="action-button" type="button" disabled>Undo lesson</button>
+            <button id="clear-button" class="action-button" type="button" disabled>Clear sheet</button>
           </div>
-          <div class="action-group secondary-actions">
-            <button id="hide-source-button" class="text-action" type="button" aria-pressed="false" disabled>Hide my doodle</button>
+          <div class="action-group output-actions">
+            <button id="variation-button" class="action-button primary-action" type="button" disabled>New variation <span aria-hidden="true">↻</span></button>
             <button id="reseed-button" class="text-action" type="button" disabled>New apprentice</button>
-            <button id="save-button" class="text-action" type="button" disabled>Save AI redraw</button>
+            <button id="save-button" class="text-action" type="button" disabled>Save drawing</button>
           </div>
         </div>
 
-        <div id="canvas-legend" class="canvas-legend">
-          <span><i class="legend-example" aria-hidden="true"></i>Left = your training image</span>
-          <span><i class="legend-field" aria-hidden="true"></i>Right = predictions from parameters</span>
-          <span class="keyboard-note">Keyboard: arrows + space</span>
+        <div class="truth-banner">
+          <strong>What transfers?</strong>
+          <span>Small deviations from a smoothed path, turn response, taper, width, and RGB.</span>
+          <b>Never the layout of your doodle.</b>
         </div>
       </section>
 
@@ -284,90 +255,82 @@
           <span class="panel-number">03</span>
           <div>
             <p class="eyebrow">Inside the tiny brain</p>
-            <h2 id="telemetry-heading">How close is the copy?</h2>
+            <h2 id="telemetry-heading">The handprint</h2>
           </div>
         </div>
 
         <p class="telemetry-explainer">
-          Backpropagation compares sampled pixels from your doodle with the redraw,
-          then nudges 1,431 learned parameters to make the next attempt closer.
+          Every sampled point asks: given this path direction, curvature, progress, and grain,
+          how would <em>you</em> place and paint the mark?
         </p>
+
+        <section class="fingerprint-card" aria-labelledby="fingerprint-heading">
+          <div class="control-title-row">
+            <h3 id="fingerprint-heading">Observed style</h3>
+            <span class="microcopy">From source geometry</span>
+          </div>
+          <dl class="style-meters">
+            <div><dt>Wobble</dt><dd id="wobble-value">—</dd><i id="wobble-bar" style="--level:0%"></i></div>
+            <div><dt>Turns</dt><dd id="curve-value">—</dd><i id="curve-bar" style="--level:0%"></i></div>
+            <div><dt>Weight</dt><dd id="brush-value">—</dd><i id="brush-bar" style="--level:0%"></i></div>
+          </dl>
+          <div class="palette-row">
+            <span>Palette</span>
+            <div id="learned-palette" class="learned-palette"><span class="palette-empty">Waiting for ink</span></div>
+          </div>
+        </section>
 
         <section class="loss-card" aria-labelledby="loss-heading">
           <div class="loss-heading-row">
             <div>
-              <p id="loss-heading" class="metric-label">Copy error · lower is better</p>
+              <p id="loss-heading" class="metric-label">Style error · lower is better</p>
               <strong id="loss-value">—</strong>
             </div>
-            <span id="fit-badge" class="fit-badge">No doodle</span>
+            <span id="fit-badge" class="fit-badge">No style yet</span>
           </div>
-          <canvas id="loss-canvas" width="540" height="170" role="img" aria-label="Recent balanced training error chart"></canvas>
+          <canvas id="loss-canvas" width="540" height="170" role="img" aria-label="Recent neural network style error chart"></canvas>
           <div class="chart-axis" aria-hidden="true"><span>Earlier</span><span>Now</span></div>
         </section>
 
         <dl class="stat-grid">
           <div><dt>Practice steps</dt><dd id="step-value">0</dd></div>
-          <div><dt>Sampled pixels</dt><dd id="sample-value">0</dd></div>
-          <div><dt>Learned parameters</dt><dd id="parameter-value">1,431</dd></div>
-          <div><dt>Predicted grid points</dt><dd id="grid-value">—</dd></div>
+          <div><dt>Style samples</dt><dd id="sample-value">0</dd></div>
+          <div><dt>Learned parameters</dt><dd id="parameter-value">690</dd></div>
+          <div><dt>Generated points</dt><dd id="generated-value">0</dd></div>
         </dl>
-
-        <section class="probe-card" aria-labelledby="probe-heading">
-          <div class="control-title-row">
-            <h3 id="probe-heading">Same spot, two answers</h3>
-            <span id="probe-position" class="microcopy">x 0.00 · y 0.00</span>
-          </div>
-          <div class="probe-comparison">
-            <div>
-              <span id="example-chip" class="color-chip example-chip" aria-hidden="true"></span>
-              <p>Your doodle</p>
-              <strong id="example-value">PAPER</strong>
-            </div>
-            <span class="probe-arrow" aria-hidden="true">&#8594;</span>
-            <div>
-              <span id="predicted-chip" class="color-chip predicted-chip" aria-hidden="true"></span>
-              <p>Apprentice says</p>
-              <strong id="predicted-value">WAITING</strong>
-            </div>
-          </div>
-        </section>
 
         <section class="architecture-card" aria-labelledby="architecture-heading">
           <div class="control-title-row">
-            <h3 id="architecture-heading">What it learns</h3>
-            <span class="microcopy">Real matrix math</span>
+            <h3 id="architecture-heading">What the network predicts</h3>
+            <span class="microcopy">From scratch</span>
           </div>
-          <div class="network-diagram" aria-label="Two coordinates are Fourier encoded into eighteen features, passed through two layers of twenty-eight neurons, and output as red green blue values">
-            <span><b>2</b><small>x · y</small></span>
+          <div class="network-diagram" aria-label="Twelve style inputs pass through two layers of eighteen neurons and produce six style outputs">
+            <span><b>12</b><small>path cues</small></span>
             <i aria-hidden="true"></i>
-            <span><b>18</b><small>Fourier</small></span>
+            <span><b>18</b><small>tanh</small></span>
             <i aria-hidden="true"></i>
-            <span><b>28</b><small>tanh</small></span>
+            <span><b>18</b><small>tanh</small></span>
             <i aria-hidden="true"></i>
-            <span><b>28</b><small>tanh</small></span>
-            <i aria-hidden="true"></i>
-            <span class="rgb-node"><b>3</b><small>RGB</small></span>
+            <span class="output-node"><b>6</b><small>mark traits</small></span>
           </div>
-          <p class="architecture-copy">
-            Each predicted grid point asks the same question: “At this x/y coordinate, what color belongs here?”
-            The answer comes only from the learned parameters.
-          </p>
+          <div class="output-key">
+            <span>normal drift</span><span>along drift</span><span>width</span><span>R</span><span>G</span><span>B</span>
+          </div>
         </section>
 
         <details class="method-note">
-          <summary>Is this actually AI?</summary>
+          <summary>Is it really learning style?</summary>
           <p>
-            Yes—just deliberately tiny. The browser initializes a multilayer perceptron,
-            measures its pixel error, differentiates that error through two hidden layers,
-            and updates every parameter with Adam. There is no image API and no pre-trained model.
+            Yes, within a deliberately small definition. Each source stroke is resampled and smoothed into an estimated intended path.
+            The network learns the remaining local deviations plus width and color. At generation time it receives only a different subject scaffold and fresh noise—not your source coordinates or pixels.
           </p>
         </details>
       </aside>
     </section>
 
     <footer class="method-footer">
-      <p><span>Dreamfield / study 001</span> A neural coordinate network, trained from scratch in your browser.</p>
-      <p>Your doodle is the lesson. The parameters become the memory.</p>
+      <p><span>Dreamfield / study 002</span> A 690-parameter style MLP, differentiated and trained live in vanilla JavaScript.</p>
+      <p>No pretrained weights, ML libraries, canvas-pixel targets, image models, or external APIs.</p>
     </footer>
   </main>
 
