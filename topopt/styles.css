@@ -226,11 +226,45 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .ps-wall { stroke: currentColor; stroke-width: 1.6; }
 .ps-hatch { stroke: currentColor; stroke-width: 0.8; }
 .ps-pin { fill: currentColor; }
+.ps-object { fill: none; stroke: var(--blue); stroke-width: 0.9; }
 .ps-force { stroke: var(--red); stroke-width: 1.4; }
 .ps-head { fill: var(--red); }
 
 .preset[aria-pressed="true"] .ps-force { stroke: #e2664a; }
 .preset[aria-pressed="true"] .ps-head { fill: #e2664a; }
+.preset[aria-pressed="true"] .ps-object { stroke: #8fb9e8; }
+
+.problem-note {
+  border-left: 3px solid var(--blue);
+  background: rgba(43, 90, 166, 0.055);
+  margin-top: 10px;
+  padding: 8px 9px 9px 10px;
+}
+
+.problem-kicker {
+  display: block;
+  color: var(--blue);
+  font-size: 8px;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.problem-note strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.problem-note p {
+  color: var(--ink-soft);
+  font-size: 9.5px;
+  line-height: 1.4;
+  margin-top: 4px;
+}
 
 /* tools */
 

@@ -31,7 +31,7 @@
             <canvas id="field" aria-label="Design domain — density field of the optimized structure"></canvas>
             <div class="statusbar">
               <span id="status-state">READY</span>
-              <span id="status-hint">Pick a problem, then run — or draw your own loads and pins.</span>
+              <span id="status-hint">Choose an everyday object, then watch material grow along its load paths.</span>
             </div>
           </main>
 
@@ -39,55 +39,67 @@
             <section class="block">
               <h2 class="block-label">1 — Problem</h2>
               <div class="preset-grid" role="group" aria-label="Preset problems">
-                <button class="preset" data-preset="cantilever" aria-pressed="true">
+                <button class="preset" data-preset="bookshelf" aria-pressed="true">
+                  <svg viewBox="0 0 44 26" aria-hidden="true">
+                    <rect x="5" y="8" width="35" height="15.5" class="ps-domain"/>
+                    <line x1="5" y1="7" x2="41" y2="7" class="ps-object"/>
+                    <rect x="9" y="1.5" width="5" height="5.5" class="ps-object"/>
+                    <rect x="15" y="0.5" width="6" height="6.5" class="ps-object"/>
+                    <path d="M23 1 L29 2 L28 7 L22 7 Z" class="ps-object"/>
+                    <line x1="5" y1="7" x2="5" y2="24" class="ps-wall"/>
+                    <line x1="5" y1="10" x2="1.5" y2="13" class="ps-hatch"/>
+                    <line x1="5" y1="17" x2="1.5" y2="20" class="ps-hatch"/>
+                    <line x1="25" y1="8" x2="25" y2="15" class="ps-force"/>
+                    <path d="M25 18 L22.5 13.5 L27.5 13.5 Z" class="ps-head"/>
+                  </svg>
+                  <span>Bookshelf</span>
+                </button>
+                <button class="preset" data-preset="phone" aria-pressed="false">
+                  <svg viewBox="0 0 44 26" aria-hidden="true">
+                    <rect x="4.5" y="2.5" width="36" height="21" class="ps-domain"/>
+                    <g transform="rotate(-20 25 10)">
+                      <rect x="21" y="0.5" width="8" height="17" rx="1" class="ps-object"/>
+                      <circle cx="25" cy="15.6" r="0.7" class="ps-object"/>
+                    </g>
+                    <path d="M 12 23.5 L 9.5 19 L 14.5 19 Z" class="ps-pin" transform="rotate(180 12 21.2)"/>
+                    <path d="M 34 23.5 L 31.5 19 L 36.5 19 Z" class="ps-pin" transform="rotate(180 34 21.2)"/>
+                    <line x1="27" y1="13" x2="29" y2="19" class="ps-force"/>
+                    <path d="M30 22 L26.2 18.5 L31 17 Z" class="ps-head"/>
+                  </svg>
+                  <span>Phone holder</span>
+                </button>
+                <button class="preset" data-preset="laptop" aria-pressed="false">
+                  <svg viewBox="0 0 44 26" aria-hidden="true">
+                    <rect x="4.5" y="2.5" width="36" height="21" class="ps-domain"/>
+                    <path d="M10 9 L34 5 L38 6 L11 11 Z" class="ps-object"/>
+                    <path d="M34 5 L37 0.5 L40 1.5 L38 6" class="ps-object"/>
+                    <line x1="17" y1="9" x2="17" y2="16" class="ps-force"/>
+                    <path d="M17 19 L14.5 14.5 L19.5 14.5 Z" class="ps-head"/>
+                    <line x1="30" y1="7" x2="30" y2="14" class="ps-force"/>
+                    <path d="M30 17 L27.5 12.5 L32.5 12.5 Z" class="ps-head"/>
+                    <path d="M 8 23.5 L 5.5 19 L 10.5 19 Z" class="ps-pin" transform="rotate(180 8 21.2)"/>
+                    <path d="M 37 23.5 L 34.5 19 L 39.5 19 Z" class="ps-pin" transform="rotate(180 37 21.2)"/>
+                  </svg>
+                  <span>Laptop stand</span>
+                </button>
+                <button class="preset" data-preset="hook" aria-pressed="false">
                   <svg viewBox="0 0 44 26" aria-hidden="true">
                     <rect x="4.5" y="2.5" width="36" height="21" class="ps-domain"/>
                     <line x1="4.5" y1="2" x2="4.5" y2="24" class="ps-wall"/>
-                    <line x1="4.5" y1="4" x2="1" y2="7" class="ps-hatch"/>
-                    <line x1="4.5" y1="10" x2="1" y2="13" class="ps-hatch"/>
-                    <line x1="4.5" y1="16" x2="1" y2="19" class="ps-hatch"/>
-                    <line x1="40.5" y1="9" x2="40.5" y2="18" class="ps-force"/>
-                    <path d="M 40.5 21 L 38 16.5 L 43 16.5 Z" class="ps-head"/>
+                    <line x1="4.5" y1="5" x2="1" y2="8" class="ps-hatch"/>
+                    <line x1="4.5" y1="12" x2="1" y2="15" class="ps-hatch"/>
+                    <line x1="4.5" y1="19" x2="1" y2="22" class="ps-hatch"/>
+                    <path d="M25 16 C25 10 36 10 36 16 L36 23 L22 23 L22 18" class="ps-object"/>
+                    <line x1="30" y1="13" x2="30" y2="19" class="ps-force"/>
+                    <path d="M30 22 L27.5 17.5 L32.5 17.5 Z" class="ps-head"/>
                   </svg>
-                  <span>Cantilever</span>
+                  <span>Wall hook</span>
                 </button>
-                <button class="preset" data-preset="bridge" aria-pressed="false">
-                  <svg viewBox="0 0 44 26" aria-hidden="true">
-                    <rect x="4.5" y="2.5" width="36" height="21" class="ps-domain"/>
-                    <path d="M 6.5 23.5 L 4 19 L 9 19 Z" class="ps-pin" transform="rotate(180 6.5 21.2)"/>
-                    <path d="M 38.5 23.5 L 36 19 L 41 19 Z" class="ps-pin" transform="rotate(180 38.5 21.2)"/>
-                    <line x1="22.5" y1="8" x2="22.5" y2="17" class="ps-force"/>
-                    <path d="M 22.5 20 L 20 15.5 L 25 15.5 Z" class="ps-head"/>
-                  </svg>
-                  <span>Bridge</span>
-                </button>
-                <button class="preset" data-preset="canopy" aria-pressed="false">
-                  <svg viewBox="0 0 44 26" aria-hidden="true">
-                    <rect x="4.5" y="2.5" width="36" height="21" class="ps-domain"/>
-                    <line x1="4" y1="2.5" x2="41" y2="2.5" class="ps-wall"/>
-                    <line x1="9" y1="2.5" x2="6" y2="0" class="ps-hatch"/>
-                    <line x1="18" y1="2.5" x2="15" y2="0" class="ps-hatch"/>
-                    <line x1="27" y1="2.5" x2="24" y2="0" class="ps-hatch"/>
-                    <line x1="36" y1="2.5" x2="33" y2="0" class="ps-hatch"/>
-                    <line x1="27" y1="12" x2="27" y2="19" class="ps-force"/>
-                    <path d="M 27 22 L 24.5 17.5 L 29.5 17.5 Z" class="ps-head"/>
-                  </svg>
-                  <span>Canopy</span>
-                </button>
-                <button class="preset" data-preset="table" aria-pressed="false">
-                  <svg viewBox="0 0 44 26" aria-hidden="true">
-                    <rect x="4.5" y="2.5" width="36" height="21" class="ps-domain"/>
-                    <line x1="13" y1="3" x2="13" y2="9" class="ps-force"/>
-                    <path d="M 13 12 L 10.8 8 L 15.2 8 Z" class="ps-head"/>
-                    <line x1="22.5" y1="3" x2="22.5" y2="9" class="ps-force"/>
-                    <path d="M 22.5 12 L 20.3 8 L 24.7 8 Z" class="ps-head"/>
-                    <line x1="32" y1="3" x2="32" y2="9" class="ps-force"/>
-                    <path d="M 32 12 L 29.8 8 L 34.2 8 Z" class="ps-head"/>
-                    <path d="M 7.5 23.5 L 5 19 L 10 19 Z" class="ps-pin" transform="rotate(180 7.5 21.2)"/>
-                    <path d="M 37.5 23.5 L 35 19 L 40 19 Z" class="ps-pin" transform="rotate(180 37.5 21.2)"/>
-                  </svg>
-                  <span>Table</span>
-                </button>
+              </div>
+              <div class="problem-note" id="problem-note" aria-live="polite">
+                <span class="problem-kicker" id="problem-kicker">Everyday brief 01</span>
+                <strong id="problem-name">Wall-mounted bookshelf</strong>
+                <p id="problem-desc">Find the lightest bracket layout that carries a row of books back to the wall.</p>
               </div>
             </section>
 
@@ -116,9 +128,9 @@
             <section class="block">
               <h2 class="block-label">3 — Material &amp; Mesh</h2>
               <div class="control-row">
-                <label for="volfrac">Volume V*</label>
-                <input type="range" id="volfrac" min="0.20" max="0.60" step="0.01" value="0.40">
-                <output id="volfrac-out" for="volfrac">0.40</output>
+                <label for="volfrac">Material budget</label>
+                <input type="range" id="volfrac" min="0.20" max="0.60" step="0.01" value="0.36">
+                <output id="volfrac-out" for="volfrac">36%</output>
               </div>
               <div class="control-row">
                 <label for="rmin">Feature R<sub>min</sub></label>
@@ -165,7 +177,7 @@
         </div>
 
         <footer class="margin-note">
-          <span>Material migrates to the load paths: each pass solves the elastic equilibrium, then the optimality-criteria update moves density where stiffness is cheapest.</span>
+          <span>The dark shape is the structure being designed. Red arrows are everyday loads; black walls and pins show where the object touches the room or desk.</span>
           <span class="margin-cite">SIMP · Sigmund's 88-line method · runs entirely in your browser</span>
         </footer>
 

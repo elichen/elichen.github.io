@@ -14,35 +14,60 @@ const ARROW_LEN = 34;
 const VOID_BRUSH = 0.035; // radius as a fraction of domain width
 
 const PRESETS = {
-  cantilever: {
+  bookshelf: {
+    kicker: "Everyday brief 01",
+    title: "Wall-mounted bookshelf",
+    description: "Find the lightest bracket layout that carries a row of books back to the wall.",
+    material: 0.36,
     walls: ["left"],
     pins: [],
-    loads: [{ x: 1, y: 0.55, dx: 0, dy: 1 }],
-    voids: [],
-  },
-  bridge: {
-    walls: [],
-    pins: [{ x: 0.015, y: 1 }, { x: 0.985, y: 1 }],
-    loads: [{ x: 0.5, y: 1, dx: 0, dy: 1 }],
-    voids: [],
-  },
-  canopy: {
-    walls: ["top"],
-    pins: [],
-    loads: [{ x: 0.62, y: 0.82, dx: 0, dy: 1 }],
-    voids: [],
-  },
-  table: {
-    walls: [],
-    pins: [{ x: 0.06, y: 1 }, { x: 0.94, y: 1 }],
     loads: [
-      { x: 0.2, y: 0, dx: 0, dy: 1 },
-      { x: 0.35, y: 0, dx: 0, dy: 1 },
-      { x: 0.5, y: 0, dx: 0, dy: 1 },
-      { x: 0.65, y: 0, dx: 0, dy: 1 },
-      { x: 0.8, y: 0, dx: 0, dy: 1 },
+      { x: 0.28, y: 0.035, dx: 0, dy: 1 },
+      { x: 0.48, y: 0.035, dx: 0, dy: 1 },
+      { x: 0.68, y: 0.035, dx: 0, dy: 1 },
+      { x: 0.88, y: 0.035, dx: 0, dy: 1 },
     ],
     voids: [],
+  },
+  phone: {
+    kicker: "Everyday brief 02",
+    title: "Desktop phone holder",
+    description: "Shape a stable cradle on two desk feet, with clearance for a charging cable.",
+    material: 0.22,
+    walls: [],
+    pins: [{ x: 0.28, y: 0.985 }, { x: 0.78, y: 0.985 }],
+    loads: [
+      { x: 0.57, y: 0.30, dx: 0.18, dy: 1 },
+      { x: 0.66, y: 0.42, dx: 0.08, dy: 1 },
+    ],
+    voids: [{ x: 0.54, y: 0.67, r: 0.13 }],
+  },
+  laptop: {
+    kicker: "Everyday brief 03",
+    title: "Raised laptop stand",
+    description: "Support a laptop on two desk feet while keeping the center open for airflow.",
+    material: 0.34,
+    walls: [],
+    pins: [{ x: 0.10, y: 0.985 }, { x: 0.90, y: 0.985 }],
+    loads: [
+      { x: 0.30, y: 0.30, dx: 0, dy: 1 },
+      { x: 0.50, y: 0.22, dx: 0, dy: 1 },
+      { x: 0.70, y: 0.14, dx: 0, dy: 1 },
+    ],
+    voids: [
+      { x: 0.42, y: 0.62, r: 0.085 },
+      { x: 0.58, y: 0.58, r: 0.085 },
+    ],
+  },
+  hook: {
+    kicker: "Everyday brief 04",
+    title: "Wall-mounted bag hook",
+    description: "Grow a compact hook support that transfers the weight of a loaded bag into the wall.",
+    material: 0.28,
+    walls: ["left"],
+    pins: [],
+    loads: [{ x: 0.70, y: 0.60, dx: 0, dy: 1 }],
+    voids: [{ x: 0.66, y: 0.43, r: 0.07 }],
   },
 };
 
@@ -72,15 +97,16 @@ class App {
     this.els = {};
     for (const id of ["run", "reset", "clear", "volfrac", "rmin", "spec-mesh",
       "volfrac-out", "rmin-out", "tb-iter", "tb-c", "tb-vol", "tb-chg",
-      "status-state", "status-hint", "spark-readout"]) {
+      "status-state", "status-hint", "spark-readout", "problem-kicker",
+      "problem-name", "problem-desc"]) {
       this.els[id] = document.getElementById(id);
     }
 
-    this.state = structuredClone(PRESETS.cantilever);
-    this.presetName = "cantilever";
+    this.state = structuredClone(PRESETS.bookshelf);
+    this.presetName = "bookshelf";
     this.tool = "load";
     this.nely = 70;
-    this.volfrac = 0.4;
+    this.volfrac = PRESETS.bookshelf.material;
     this.rminBase = 2.25;
     this.history = [];
     this.running = false;
@@ -93,6 +119,7 @@ class App {
     this.bindPointer();
     this.bindSpark();
     this.setTool("load");
+    this.updateProblemBrief();
 
     new ResizeObserver(() => this.resize()).observe(this.canvas);
     this.resize();
@@ -238,7 +265,7 @@ class App {
     });
     this.els.volfrac.addEventListener("input", () => {
       this.volfrac = parseFloat(this.els.volfrac.value);
-      this.els["volfrac-out"].textContent = this.volfrac.toFixed(2);
+      this.els["volfrac-out"].textContent = `${Math.round(this.volfrac * 100)}%`;
       this.solver.volfrac = this.volfrac;
     });
     this.els.rmin.addEventListener("change", () => {
@@ -282,8 +309,13 @@ class App {
   setPreset(name) {
     this.state = structuredClone(PRESETS[name]);
     this.presetName = name;
+    this.volfrac = PRESETS[name].material;
+    this.solver.volfrac = this.volfrac;
+    this.els.volfrac.value = this.volfrac.toFixed(2);
+    this.els["volfrac-out"].textContent = `${Math.round(this.volfrac * 100)}%`;
     document.querySelectorAll(".preset").forEach((b) =>
       b.setAttribute("aria-pressed", b.dataset.preset === name ? "true" : "false"));
+    this.updateProblemBrief();
     this.pause("READY");
     this.rebuildBCs();
     this.solver.resetDesign();
@@ -297,6 +329,16 @@ class App {
   markCustom() {
     this.presetName = null;
     document.querySelectorAll(".preset").forEach((b) => b.setAttribute("aria-pressed", "false"));
+    this.updateProblemBrief();
+  }
+
+  updateProblemBrief() {
+    const preset = this.presetName ? PRESETS[this.presetName] : null;
+    this.els["problem-kicker"].textContent = preset ? preset.kicker : "Your own brief";
+    this.els["problem-name"].textContent = preset ? preset.title : "Custom object";
+    this.els["problem-desc"].textContent = preset
+      ? preset.description
+      : "Edit the supports, forces, and keep-out zones to test your own household object.";
   }
 
   setTool(tool) {
@@ -500,6 +542,9 @@ class App {
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(this.off, ox, oy, w, h);
 
+    // A faint, non-structural object sketch makes each load case readable at a glance.
+    this.drawScene(ctx);
+
     // construction outline of the design envelope
     ctx.strokeStyle = "rgba(32, 38, 45, 0.3)";
     ctx.lineWidth = 1;
@@ -524,6 +569,66 @@ class App {
       this.drawArrow(ctx, lx, ly, dx / mag, dy / mag, true);
       ctx.globalAlpha = 1;
     }
+  }
+
+  drawScene(ctx) {
+    if (!this.presetName) return;
+    const { ox, oy, w, h } = this.layout;
+    const X = (v) => ox + v * w;
+    const Y = (v) => oy + v * h;
+    ctx.save();
+    ctx.strokeStyle = "rgba(43, 90, 166, 0.58)";
+    ctx.fillStyle = "rgba(43, 90, 166, 0.045)";
+    ctx.lineWidth = 1.25;
+    ctx.lineJoin = "round";
+
+    if (this.presetName === "bookshelf") {
+      ctx.fillRect(X(0.02), Y(-0.015), w * 0.96, Math.max(8, h * 0.065));
+      ctx.strokeRect(X(0.02), Y(-0.015), w * 0.96, Math.max(8, h * 0.065));
+      const books = [
+        [0.12, 0.09, 0.13], [0.22, 0.075, 0.17], [0.305, 0.11, 0.12],
+        [0.41, 0.08, 0.16], [0.50, 0.10, 0.14], [0.61, 0.075, 0.17],
+      ];
+      for (const [x, bw, bh] of books) {
+        ctx.strokeRect(X(x), Y(-bh), w * bw, h * bh);
+      }
+    } else if (this.presetName === "phone") {
+      ctx.translate(X(0.57), Y(0.30));
+      ctx.rotate(-0.35);
+      const pw = Math.max(20, h * 0.12), ph = h * 0.72;
+      ctx.fillRect(-pw / 2, -ph, pw, ph);
+      ctx.strokeRect(-pw / 2, -ph, pw, ph);
+      ctx.beginPath();
+      ctx.arc(0, -ph + 6, 1.4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-pw * 0.16, -5); ctx.lineTo(pw * 0.16, -5);
+      ctx.stroke();
+    } else if (this.presetName === "laptop") {
+      ctx.beginPath();
+      ctx.moveTo(X(0.22), Y(0.31));
+      ctx.lineTo(X(0.78), Y(0.08));
+      ctx.lineTo(X(0.83), Y(0.10));
+      ctx.lineTo(X(0.25), Y(0.35));
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(X(0.78), Y(0.08));
+      ctx.lineTo(X(0.86), Y(-0.43));
+      ctx.lineTo(X(0.91), Y(-0.42));
+      ctx.lineTo(X(0.83), Y(0.10));
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    } else if (this.presetName === "hook") {
+      ctx.beginPath();
+      ctx.moveTo(X(0.60), Y(0.61));
+      ctx.bezierCurveTo(X(0.60), Y(0.40), X(0.80), Y(0.40), X(0.80), Y(0.61));
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.roundRect(X(0.57), Y(0.59), w * 0.27, h * 0.33, 5);
+      ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   drawVoids(ctx) {
