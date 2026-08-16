@@ -25,11 +25,11 @@
             label: "Dramatic Chipmunk YouTube footage pre-transcoded into animated ASCII characters"
         },
         {
-            id: "chocolate-rain",
-            title: "CHOCOLATE RAIN",
-            ascii: "ascii/chocolate-rain.ascv",
-            accent: "#e8b768",
-            label: "Chocolate Rain YouTube footage pre-transcoded into animated ASCII characters"
+            id: "star-wars-kid",
+            title: "STAR WARS KID",
+            ascii: "ascii/star-wars-kid.ascv",
+            accent: "#b8d7ff",
+            label: "Star Wars Kid footage pre-transcoded into animated ASCII characters"
         },
         {
             id: "sneezing-panda",
