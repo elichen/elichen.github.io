@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Transcode a video into LO-FI LOL's compact, delta-coded ASCII frame format."""
+"""Transcode a video into the app's compact, delta-coded ASCII frame format."""
 
 from __future__ import annotations
 
