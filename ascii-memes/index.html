@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A tiny interactive museum of classic internet video memes, reconstructed frame by frame in ASCII.">
+    <meta name="theme-color" content="#050706">
+    <title>LO-FI LOL — The ASCII Meme Archive</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Azeret+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <main class="page-shell">
+        <section class="archive-layout" aria-label="ASCII meme player and video archive">
+                <article class="player-panel">
+                    <div class="screen-frame">
+                        <div class="ascii-stage" id="ascii-stage" role="img" aria-label="Nyan Cat video transcoded into ASCII characters">
+                            <canvas id="ascii-canvas" aria-hidden="true"></canvas>
+                        </div>
+                        <div class="scanlines" aria-hidden="true"></div>
+                    </div>
+                </article>
+
+                <aside class="reel-panel" aria-labelledby="reel-heading">
+                    <div class="reel-heading-row">
+                        <h1 id="reel-heading">tapes</h1>
+                    </div>
+                    <div class="reel-list" id="reel-list"></div>
+                </aside>
+        </section>
+    </main>
+    <script src="app.js"></script>
+</body>
+</html>
