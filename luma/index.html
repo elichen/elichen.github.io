@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#efede6" />
+    <meta
+      name="description"
+      content="A little playground for light. Arrange prisms, mirrors, and lenses to bend beams into something beautiful."
+    />
+    <title>Luma — A playground for light</title>
+    <link rel="icon" type="image/svg+xml" href="icon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <svg
+      class="icon-library"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <symbol id="i-source" viewBox="0 0 32 32">
+        <path d="M3 11h12v10H3zM15 16h14M23 7l-4 5M23 25l-4-5" />
+      </symbol>
+      <symbol id="i-prism" viewBox="0 0 32 32">
+        <path d="M16 4 29 27H3zM1 17h9m13 2 8 3m-7-7 7 1" />
+      </symbol>
+      <symbol id="i-mirror" viewBox="0 0 32 32">
+        <path d="m8 27 16-22M10 29l-5-2m9-4-5-2m9-4-5-2m9-4-5-2m9-4-5-2" />
+      </symbol>
+      <symbol id="i-lens" viewBox="0 0 32 32">
+        <path d="M16 3c-10 8-10 18 0 26 10-8 10-18 0-26ZM1 16h30" />
+      </symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24">
+        <path d="M5 12h14m-6-6 6 6-6 6" />
+      </symbol>
+      <symbol id="i-export" viewBox="0 0 24 24">
+        <path d="M12 3v12m-4-8 4-4 4 4M5 14v6h14v-6" />
+      </symbol>
+      <symbol id="i-undo" viewBox="0 0 24 24">
+        <path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12" />
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24">
+        <path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7" />
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24">
+        <path d="M9 9h11v11H9zM15 9V4H4v11h5" />
+      </symbol>
+      <symbol id="i-reset" viewBox="0 0 24 24">
+        <path d="M4 10a8 8 0 1 1 1 8M4 3v7h7" />
+      </symbol>
+    </svg>
+    <header class="header">
+      <a class="wordmark" href="./" aria-label="Luma home"
+        ><span class="brand-mark" aria-hidden="true">✳</span>luma<span
+          class="wordmark-dot"
+          >.</span
+        ></a
+      >
+      <span class="header-description">A PLAYGROUND FOR LIGHT</span>
+      <div class="header-actions">
+        <button id="about-button" class="text-button">
+          Field notes <span>↗</span></button
+        ><button id="export-button" class="export-button">
+          <svg><use href="#i-export" /></svg><span>Save image</span>
+        </button>
+      </div>
+    </header>
+    <main class="workspace">
+      <aside class="sidebar" aria-label="Optical controls">
+        <div class="intro">
+          <span class="eyebrow"
+            ><span class="tiny-star">✳</span> AN EXERCISE IN CURIOSITY</span
+          >
+          <h1>Make light<br /><em>misbehave.</em></h1>
+          <p>
+            A beam, a prism, a little possibility.<br />See where your curiosity
+            takes you.
+          </p>
+        </div>
+        <section class="tool-section">
+          <div class="section-heading">
+            <h2>The workbench</h2>
+            <span>01—04</span>
+          </div>
+          <div class="tool-grid">
+            <button class="tool" data-add="source" title="Add light source (1)">
+              <svg><use href="#i-source" /></svg><span>Light source</span
+              ><span class="tool-plus">+</span>
+            </button>
+            <button class="tool" data-add="prism" title="Add prism (2)">
+              <svg><use href="#i-prism" /></svg><span>Prism</span
+              ><span class="tool-plus">+</span>
+            </button>
+            <button class="tool" data-add="mirror" title="Add mirror (3)">
+              <svg><use href="#i-mirror" /></svg><span>Mirror</span
+              ><span class="tool-plus">+</span>
+            </button>
+            <button class="tool" data-add="lens" title="Add lens (4)">
+              <svg><use href="#i-lens" /></svg><span>Lens</span
+              ><span class="tool-plus">+</span>
+            </button>
+          </div>
+          <p class="tool-hint">Add an object. Drag it into the light.</p>
+        </section>
+        <section class="inspector" aria-label="Selected object">
+          <div class="section-heading">
+            <h2>Fine tuning</h2>
+            <span id="selected-number">02</span>
+          </div>
+          <div id="inspector-content"></div>
+        </section>
+        <div class="sidebar-footer">
+          <span class="live-dot"></span
+          ><span>ALL THE MAGIC HAPPENS RIGHT HERE.</span>
+        </div>
+      </aside>
+      <section class="studio" aria-label="Light playground">
+        <div class="stage" id="stage">
+          <canvas
+            id="canvas"
+            tabindex="0"
+            aria-label="Interactive optical scene. Select an object using the Objects menu, then use arrow keys to move it and Q or E to rotate it."
+            >Your browser needs Canvas support to display this optical
+            playground.</canvas
+          >
+          <div class="stage-heading">
+            <div>
+              <span class="eyebrow">THE OPTICAL SANDBOX</span>
+              <h2 id="scene-name">Prism study<span> / 01</span></h2>
+            </div>
+            <span class="live-label"><span class="live-dot"></span>LIVE</span>
+          </div>
+          <div class="stage-toolbar">
+            <button
+              id="undo-button"
+              class="icon-button"
+              aria-label="Undo"
+              title="Undo (⌘Z)"
+              disabled
+            >
+              <svg><use href="#i-undo" /></svg></button
+            ><button
+              id="redo-button"
+              class="icon-button redo"
+              aria-label="Redo"
+              title="Redo (⌘⇧Z)"
+              disabled
+            >
+              <svg><use href="#i-undo" /></svg></button
+            ><span class="toolbar-divider"></span
+            ><button
+              id="grid-button"
+              class="icon-button grid-button"
+              aria-label="Toggle grid"
+              title="Toggle grid (G)"
+              aria-pressed="true"
+            >
+              ⊞</button
+            ><button
+              id="reset-button"
+              class="icon-button"
+              aria-label="Reset scene"
+              title="Reset scene"
+            >
+              <svg><use href="#i-reset" /></svg>
+            </button>
+          </div>
+          <div class="stage-bottom">
+            <span id="stage-hint"
+              >DRAG TO MOVE <span>·</span> Q / E TO ROTATE</span
+            ><label class="object-picker-label"
+              ><span>OBJECTS</span
+              ><select id="object-picker" aria-label="Select an object"></select
+            ></label>
+          </div>
+          <div id="toast" role="status" aria-live="polite"></div>
+        </div>
+        <div class="scene-strip">
+          <div class="scene-strip-title">
+            <span class="eyebrow">A PLACE TO START</span>
+            <p>Follow the light.</p>
+          </div>
+          <div class="presets" aria-label="Starting scenes">
+            <button
+              class="preset active"
+              data-preset="prism"
+              aria-pressed="true"
+            >
+              <span class="preset-number">01</span
+              ><span
+                ><strong>Prism study</strong
+                ><small>Find the hidden spectrum</small></span
+              ><svg><use href="#i-arrow" /></svg>
+            </button>
+            <button class="preset" data-preset="mirrors" aria-pressed="false">
+              <span class="preset-number">02</span
+              ><span
+                ><strong>Around the bend</strong
+                ><small>Take the scenic route</small></span
+              ><svg><use href="#i-arrow" /></svg>
+            </button>
+            <button class="preset" data-preset="focus" aria-pressed="false">
+              <span class="preset-number">03</span
+              ><span
+                ><strong>A point of focus</strong
+                ><small>Bring it all together</small></span
+              ><svg><use href="#i-arrow" /></svg>
+            </button>
+            <button class="preset" data-preset="split" aria-pressed="false">
+              <span class="preset-number">04</span
+              ><span
+                ><strong>Chromatic crossing</strong
+                ><small>A beautiful entanglement</small></span
+              ><svg><use href="#i-arrow" /></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer class="page-footer">
+      <span>SMALL EXPERIMENTS. BRIGHT IDEAS.</span
+      ><span
+        >Made with curiosity <span class="footer-star">✳</span>
+        <a href="../">More experiments ↗</a></span
+      >
+    </footer>
+    <dialog id="notes-dialog">
+      <form method="dialog">
+        <button class="close-button" aria-label="Close field notes">×</button>
+      </form>
+      <span class="eyebrow">LUMA / FIELD NOTES</span>
+      <h2>A little light<br />goes a <em>long way.</em></h2>
+      <p>
+        This is a small, hands-on playground for geometric optics. Set something
+        in the path of a beam and see what happens.
+      </p>
+      <dl>
+        <dt>01 / Find your light</dt>
+        <dd>
+          Add a source and choose white light or a single color. A wider beam
+          makes a lens’s focus easier to see.
+        </dd>
+        <dt>02 / Change its path</dt>
+        <dd>
+          Mirrors reflect. Prisms refract, separating wavelengths. Lenses bring
+          parallel rays to a focus. Drag any object, or select it in the Objects
+          menu.
+        </dd>
+        <dt>03 / Make it yours</dt>
+        <dd>
+          Adjust the controls, duplicate objects, or start from a new scene.
+          Your work is saved automatically in this browser. Save image exports
+          the light as a PNG.
+        </dd>
+      </dl>
+      <div class="notes-science">
+        <strong>A note on the physics</strong>
+        <p>
+          Prisms follow Snell’s law, including total internal reflection, with
+          an illustrative Cauchy dispersion model. Lenses use the ideal
+          thin-lens approximation. Colors and glow are artistic; diffraction,
+          partial reflections, and interference are not simulated. Overlapping
+          prisms are treated as one material at each point.
+        </p>
+        <a
+          href="https://openstax.org/books/university-physics-volume-3/pages/1-3-refraction"
+          target="_blank"
+          rel="noreferrer"
+          >Explore the science at OpenStax ↗</a
+        >
+      </div>
+      <div class="shortcuts">
+        <span><kbd>1</kbd>–<kbd>4</kbd> Add objects</span
+        ><span><kbd>↑ ↓ ← →</kbd> Move</span
+        ><span><kbd>Q</kbd> <kbd>E</kbd> Rotate</span
+        ><span><kbd>⌫</kbd> Delete</span><span><kbd>⌘/Ctrl Z</kbd> Undo</span
+        ><span><kbd>G</kbd> Grid</span>
+      </div>
+    </dialog>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
