@@ -55,11 +55,12 @@ function mergeStatic(group) {
   return merged;
 }
 export function makeWorld(scene) {
+  seed = 1909;
   const skyUniforms = {
-    top: { value: new THREE.Color("#96d4e8") },
-    bottom: { value: new THREE.Color("#e4efdf") },
+    top: { value: new THREE.Color("#258dca") },
+    bottom: { value: new THREE.Color("#a9d8ef") },
     sunColor: { value: new THREE.Color("#fff5cf") },
-    sunDir: { value: new THREE.Vector3(-0.74, 0.025, -1).normalize() },
+    sunDir: { value: new THREE.Vector3(-0.74, 0.11, -1).normalize() },
     night: { value: 0 },
     time: { value: 0 },
   };
@@ -70,28 +71,103 @@ export function makeWorld(scene) {
       depthWrite: false,
       uniforms: skyUniforms,
       vertexShader: `varying vec3 vDir;void main(){vDir=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-      fragmentShader:
-        `varying vec3 vDir;uniform vec3 top,bottom,sunColor,sunDir;uniform float night,time;float hash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}void main(){vec3 d=normalize(vDir);float h=pow(max(d.y+.08,0.),.55);vec3 col=mix(bottom,top,clamp(h,0.,1.));float s=max(dot(d,sunDir),0.);col+=sunColor*pow(s,20.)*.13;col=mix(col,sunColor,smoothstep(.9984,.9990,s));vec3 cell=floor(d*310.);float star=step(.997,hash(cell))*pow(max(0.,1.-length(fract(d*310.)-.5)*2.),3.);col+=star*night*2.5*(.65+.35*sin(time+hash(cell)*30.));gl_FragColor=vec4(col,1.);#include <tonemapping_fragment>\n#include <colorspace_fragment>}`.replace(
-          ";#include",
-          ";\n#include",
-        ),
+      fragmentShader: `
+        varying vec3 vDir;
+        uniform vec3 top, bottom, sunColor, sunDir;
+        uniform float night, time;
+        float hash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+        void main() {
+          vec3 d = normalize(vDir);
+          float height = pow(max(d.y + .055, 0.), .54);
+          vec3 col = mix(bottom, top, clamp(height, 0., 1.));
+          float sun = max(dot(d, sunDir), 0.);
+          col += sunColor * (pow(sun, 12.) * .09 + pow(sun, 90.) * .085) * mix(1., .18, night);
+          float disc = smoothstep(.99930, .99946, sun);
+          vec3 moonShadow = normalize(sunDir + vec3(.018, .009, .001));
+          float crescent = 1. - smoothstep(.99932, .99948, dot(d, moonShadow));
+          col = mix(col, sunColor * 1.15, disc * mix(1., crescent, night));
+          // A few long brushstrokes of cirrus soften the otherwise perfect dome.
+          vec2 q = d.xz / max(d.y + .22, .08);
+          float wisps = sin(q.x * 2.2 + q.y * 1.8 + sin(q.y * 1.7) * 1.8);
+          wisps *= sin(q.x * .85 - q.y * .4);
+          float veil = pow(max(wisps, 0.), 7.) * smoothstep(.08, .32, d.y);
+          col = mix(col, bottom, veil * .17 * (1. - night));
+          vec3 cell = floor(d * 380.);
+          float star = step(.9963, hash(cell)) * pow(max(0., 1. - length(fract(d * 380.) - .5) * 2.), 3.);
+          col += star * night * 3.2 * (.72 + .28 * sin(time * .7 + hash(cell) * 30.));
+          // The faint, angled band makes the night sky feel deep without a texture.
+          float galaxy = pow(max(0., 1. - abs(d.x * .52 + d.y * .65 + d.z * .2 - .18) * 6.), 3.);
+          col += vec3(.038, .042, .072) * galaxy * night * smoothstep(0., .3, d.y);
+          gl_FragColor = vec4(col, 1.);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
     }),
   );
   sky.renderOrder = -10;
   scene.add(sky);
   const seaUniforms = {
     time: { value: 0 },
-    water: { value: new THREE.Color("#6fbec5") },
-    horizon: { value: new THREE.Color("#dcebdc") },
-    shine: { value: new THREE.Color("#d3efdc") },
+    water: { value: new THREE.Color("#42acbc") },
+    horizon: { value: new THREE.Color("#a9d8ef") },
+    shine: { value: new THREE.Color("#daf7ed") },
     night: { value: 0 },
+    sunDir: skyUniforms.sunDir,
+    skyTop: skyUniforms.top,
+    sunColor: skyUniforms.sunColor,
+    shores: { value: [
+      new THREE.Vector4(-4, -12, 8.8, .25),
+      new THREE.Vector4(-40, 8, 7.15, .38),
+      new THREE.Vector4(-19, 29, 5.9, .3),
+      new THREE.Vector4(33, -32, 4.6, .24),
+    ] },
   };
   const sea = new THREE.Mesh(
     new THREE.PlaneGeometry(1200, 1200, 1, 1),
     new THREE.ShaderMaterial({
       uniforms: seaUniforms,
       vertexShader: `varying vec3 vWorld;void main(){vec4 w=modelMatrix*vec4(position,1.);vWorld=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
-      fragmentShader: `varying vec3 vWorld;uniform float time,night;uniform vec3 water,horizon,shine;void main(){vec2 p=vWorld.xz;float wave=sin(p.y*2.6+sin(p.x*.38+time*.2)*.7+time*.8);float mask=pow(max(0.,sin(p.x*.62+sin(p.y*.24))),6.);float ripple=smoothstep(.94,1.,wave)*mask*.17;float gleam=pow(max(0.,sin(p.x*.21+p.y*.41+time*.22)*sin(p.y*3.4+time*.6)),22.)*.065;vec3 col=mix(water,shine,ripple+gleam);float dist=length(cameraPosition.xz-p);col=mix(col,horizon,smoothstep(65.,260.,dist));gl_FragColor=vec4(col,1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>}`,
+      fragmentShader: `
+        varying vec3 vWorld;
+        uniform float time, night;
+        uniform vec3 water, horizon, shine, sunDir, skyTop, sunColor;
+        uniform vec4 shores[4];
+        void main() {
+          vec2 p = vWorld.xz;
+          vec3 eye = normalize(cameraPosition - vWorld);
+          float swell = sin(p.x * .22 + p.y * .17 + time * .33);
+          float smallWave = sin(p.y * 2.6 + sin(p.x * .38 + time * .2) * .7 + time * .8);
+          vec3 normal = normalize(vec3(
+            cos(p.x * .22 + p.y * .17 + time * .33) * .065 + cos(p.x * .68 + time * .4) * .025,
+            1., cos(p.y * .54 + time * .55) * .055 + smallWave * .02));
+          float fresnel = pow(1. - max(dot(eye, normal), 0.), 3.);
+          vec3 col = mix(water * (.97 + swell * .025), horizon, fresnel * .38);
+          float ripple = smoothstep(.89, 1., smallWave) * pow(max(0., sin(p.x * .62 + sin(p.y * .24))), 8.);
+          col = mix(col, shine, ripple * .12);
+          vec3 halfVector = normalize(eye + sunDir);
+          float specular = pow(max(dot(normal, halfVector), 0.), 150.);
+          col += shine * specular * .14;
+          // Turquoise lagoons and delicate broken surf share one ocean draw call.
+          for (int i = 0; i < 4; i++) {
+            vec2 delta = p - shores[i].xy;
+            float angle = atan(delta.y, delta.x);
+            float shore = length(delta) - shores[i].z - sin(angle * 7.) * shores[i].w;
+            float shallow = (1. - smoothstep(0., 4.2, shore)) * smoothstep(-1.3, .15, shore);
+            col = mix(col, water * vec3(.86, 1.19, 1.13), shallow * .57);
+            float wash = sin(shore * 4.8 - time * .62 + sin(angle * 5.) * .22);
+            float foam = smoothstep(.89, .98, wash) * (1. - smoothstep(.4, 2.4, shore));
+            foam *= smoothstep(-.2, .3, shore) * (.57 + .43 * sin(angle * 13. + time * .16));
+            col = mix(col, shine, max(0., foam) * .48);
+          }
+          float dist = length(cameraPosition.xz - p);
+          vec3 horizonColor = mix(horizon, skyTop, pow(max(.055 - eye.y, 0.), .54));
+          float sun = max(dot(-eye, sunDir), 0.);
+          horizonColor += sunColor * (pow(sun, 12.) * .09 + pow(sun, 90.) * .085) * mix(1., .18, night);
+          col = mix(col, horizonColor, smoothstep(85., 310., dist));
+          gl_FragColor = vec4(col, 1.);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
     }),
   );
   sea.rotation.x = -Math.PI / 2;
@@ -102,13 +178,13 @@ export function makeWorld(scene) {
   diorama.position.set(-4, -2.014, -12);
   scene.add(diorama);
   const staticRoot = new THREE.Group();
-  const sand = material("#e7d2a5", { roughness: 1 }),
-    grass = material("#a3c983", { roughness: 1 }),
+  const sand = material("#efd7a4", { roughness: 1 }),
+    grass = material("#91ba65", { roughness: 1 }),
     rock = material("#b1b4a0", { roughness: 1 }),
     trunk = material("#957b55", { roughness: 1 }),
-    leaf = material("#72a979", { roughness: 0.85 }),
-    leafLight = material("#8bb880", { roughness: 1 }),
-    darkLeaf = material("#518b73", { roughness: 1 });
+    leaf = material("#62945b", { roughness: 0.85 }),
+    leafLight = material("#91b76d", { roughness: 1 }),
+    darkLeaf = material("#397b6b", { roughness: 1 });
   const wall = material("#fff1d3", { roughness: 0.9 }),
     peach = material("#eed3b5", { roughness: 1 }),
     roof = material("#ce786b", { roughness: 0.8 }),
@@ -412,30 +488,183 @@ export function makeWorld(scene) {
   lamp.position.copy(beacon.position);
   diorama.add(lamp);
 
-  // Soft shoreline foam follows the irregular island edge.
-  const foamMat = new THREE.MeshBasicMaterial({
-    color: "#e4f4e5",
-    transparent: true,
-    opacity: 0.48,
-    depthWrite: false,
+  // Two neighboring islands turn the flight course into a place to explore.
+  // Their buildings are baked by material; only the windmill sails move.
+  const remoteRoot = new THREE.Group();
+  const blossom = material("#eab6c2", { roughness: 1 });
+  const blossomLight = material("#f9d8d4", { roughness: 1 });
+  const lavender = material("#a89ac7", { roughness: 1 });
+  const gardenGlow = material("#ffecb1", {
+    roughness: .8, emissive: "#ffcb75", emissiveIntensity: 0,
   });
-  const foams = [];
-  for (let k = 0; k < 3; k++) {
-    const pts = [];
-    for (let i = 0; i < 160; i++) {
-      const a = (i / 160) * Math.PI * 2,
-        r = 14.5 + k * 0.7 + 0.3 * Math.sin(a * 7);
-      pts.push([Math.cos(a) * r, -5.25, Math.sin(a) * r * 0.975]);
+  function littleIsland(x, z, radius, rise) {
+    const g = new THREE.Group();
+    g.position.set(x, -5.3, z);
+    remoteRoot.add(g);
+    const height = (px, pz) => .18 + rise * Math.pow(Math.max(0, 1 - Math.pow(Math.hypot(px, pz) / radius, 2)), 1.2)
+      + Math.sin(px * .7) * Math.cos(pz * .52) * .16;
+    ball(g, rock, 0, -.4, 0, radius * .96, .85, radius * .95, true);
+    for (const [size, mat, offset] of [[radius, sand, 0], [radius * .89, grass, .045]]) {
+      const vertices = [], indices = [], segments = 72, rows = 18;
+      for (let j = 0; j <= rows; j++) for (let i = 0; i <= segments; i++) {
+        const angle = i / segments * Math.PI * 2;
+        const r = j / rows * size * (1 + .026 * Math.sin(angle * 7) + .012 * Math.cos(angle * 11));
+        const px = Math.cos(angle) * r, pz = Math.sin(angle) * r;
+        vertices.push(px, height(px, pz) + offset, pz);
+      }
+      for (let j = 0; j < rows; j++) for (let i = 0; i < segments; i++) {
+        const a = j * (segments + 1) + i;
+        indices.push(a, a + 1, a + segments + 1, a + 1, a + segments + 2, a + segments + 1);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+      g.add(new THREE.Mesh(geometry, mat));
     }
-    const m = tube(diorama, pts, 0.035 + k * 0.006, foamMat, true);
-    m.castShadow = false;
-    foams.push(m);
+    return { root: g, height };
   }
+  const windmillIsle = littleIsland(-40, 8, 7.15, 4.1);
+  const mill = new THREE.Group();
+  mill.position.y = windmillIsle.height(0, 0);
+  windmillIsle.root.add(mill);
+  cylinder(mill, wall, .62, .94, 3.4, 0, 1.7, 0, 24);
+  cylinder(mill, blueRoof, 0, 1.04, 1.05, 0, 3.93, 0, 24);
+  box(mill, wood, 0, .49, .86, .4, .95, .06);
+  for (const side of [-1, 1]) {
+    box(mill, cream, side * .52, 1.39, .62, .27, .43, .08);
+    box(mill, windowMat, side * .52, 1.39, .67, .2, .33, .045);
+  }
+  const millRotor = new THREE.Group();
+  millRotor.position.set(-40, -5.3 + mill.position.y + 2.8, 9.04);
+  scene.add(millRotor);
+  const sailRoot = new THREE.Group();
+  ball(sailRoot, wood, 0, 0, 0, .22, .22, .16, true);
+  for (let i = 0; i < 4; i++) {
+    const blade = new THREE.Group();
+    blade.rotation.z = i * Math.PI / 2;
+    sailRoot.add(blade);
+    box(blade, wood, 0, 1.05, 0, .075, 2.25, .065);
+    box(blade, cream, .22, 1.28, -.018, .52, 1.5, .055);
+    for (let j = 0; j < 5; j++) box(blade, wood, .23, .65 + j * .31, .022, .54, .04, .04);
+  }
+  millRotor.add(mergeStatic(sailRoot));
+  // Curving wheat rows give the little mill an unmistakable silhouette from above.
+  const wheat = material("#e5be64", { roughness: 1 });
+  for (let row = 0; row < 6; row++) for (let i = 0; i < 15; i++) {
+    const x = -4.5 + i * .26, z = -.8 + row * .49, y = windmillIsle.height(x, z);
+    cylinder(windmillIsle.root, wheat, .065, .018, .32, x, y + .16, z, 5);
+  }
+  for (let i = 0; i < 11; i++) {
+    const angle = i / 11 * Math.PI * 2, x = Math.cos(angle) * 5.2, z = Math.sin(angle) * 5.2;
+    if (z > .5 && x < -1) continue;
+    const y = windmillIsle.height(x, z);
+    cylinder(windmillIsle.root, trunk, .08, .13, 1.1, x, y + .55, z, 7);
+    ball(windmillIsle.root, i % 3 ? leaf : leafLight, x, y + 1.4, z, .62, .9, .64, true);
+  }
+  const gardenIsle = littleIsland(-19, 29, 5.9, 2.8);
+  // A stone moon gate and a cherry grove are the reward at the southern turn.
+  const gate = new THREE.Group();
+  gate.position.set(0, gardenIsle.height(0, 0), 0);
+  gate.rotation.y = -.4;
+  gardenIsle.root.add(gate);
+  const moonGate = new THREE.Mesh(new THREE.TorusGeometry(1.52, .19, 8, 56), cream);
+  moonGate.position.y = 1.58;
+  gate.add(moonGate);
+  box(gate, rock, 0, .09, 0, 3.65, .18, .88);
+  for (const x of [-1.9, 1.9]) {
+    box(gate, rock, x, .17, 0, .5, .35, .5);
+    cylinder(gate, cream, .18, .26, .53, x, .62, 0, 6);
+    ball(gate, gardenGlow, x, .97, 0, .19, .19, .19, true);
+    cylinder(gate, blueRoof, .03, .33, .23, x, 1.21, 0, 6);
+  }
+  for (let i = 0; i < 9; i++) {
+    const angle = i / 9 * Math.PI * 2, x = Math.cos(angle) * 3.6, z = Math.sin(angle) * 3.6;
+    if (z > 1 && Math.abs(x) < 2) continue;
+    const y = gardenIsle.height(x, z), size = .85 + (i % 3) * .13;
+    cylinder(gardenIsle.root, trunk, .07, .15, 1.55 * size, x, y + .7 * size, z, 7);
+    for (const [dx, dy, dz, r] of [[0, 1.95, 0, .95], [-.65, 1.57, .08, .65], [.62, 1.6, -.05, .67]])
+      ball(gardenIsle.root, i % 2 ? blossom : blossomLight, x + dx * size, y + dy * size, z + dz * size, r * size, r * .69 * size, r * .85 * size, true);
+  }
+  for (let i = 0; i < 12; i++) {
+    const z = 1 + i * .3, x = Math.sin(z * .7) * .3;
+    ball(gardenIsle.root, cream, x, gardenIsle.height(x, z) + .06, z, .27, .055, .19, true);
+  }
+  for (let i = 0; i < 55; i++) {
+    const angle = range(0, Math.PI * 2), r = range(2.7, 5), x = Math.cos(angle) * r, z = Math.sin(angle) * r;
+    ball(gardenIsle.root, i % 3 ? lavender : gardenGlow, x, gardenIsle.height(x, z) + .12, z, .09, .13, .09, true);
+  }
+  // Sea stacks and a quiet third island pull the eye out toward the horizon.
+  const stackIsle = littleIsland(33, -32, 4.6, 1.2);
+  for (const [x, z, h, radius] of [[-.8, -.6, 5, 1.25], [1.3, .7, 3.8, .93], [-2.2, .3, 2.4, .7]]) {
+    const y = stackIsle.height(x, z);
+    cylinder(stackIsle.root, rock, radius * .57, radius, h, x, y + h * .5, z, 7);
+    ball(stackIsle.root, grass, x, y + h, z, radius * .62, .18, radius * .61, true);
+  }
+  const distantMat = new THREE.MeshBasicMaterial({ color: "#83b5cb", fog: true });
+  for (const [x, z, sx, height, sz] of [[-92, -108, 19, 13, 11], [-67, -117, 16, 8, 10], [28, -138, 25, 16, 12], [55, -126, 19, 11, 13], [94, -96, 23, 12, 14], [-118, 47, 19, 9, 14], [81, 104, 23, 11, 14]]) {
+    ball(remoteRoot, distantMat, x, -5.3 - height * .28, z, sx, height, sz, true);
+    ball(remoteRoot, distantMat, x + sx * .68, -5.3 - height * .15, z + 2, sx * .58, height * .61, sz * .7, true);
+  }
+  scene.add(mergeStatic(remoteRoot));
+
+  // Stitched hot-air balloons drift over the course: one material per envelope.
+  const balloons = [];
+  function hotAirBalloon(x, y, z, scale, colors) {
+    const root = new THREE.Group();
+    root.position.set(x, y, z);
+    root.scale.setScalar(scale);
+    scene.add(root);
+    const construction = new THREE.Group(), vertices = [], colorData = [], indices = [];
+    const palette = colors.map((c) => new THREE.Color(c));
+    const columns = 48, rows = 24;
+    for (let j = 0; j <= rows; j++) for (let i = 0; i <= columns; i++) {
+      const v = j / rows, theta = v * Math.PI, angle = i / columns * Math.PI * 2;
+      const radius = Math.sin(theta) * (1.8 + .48 * Math.cos(theta));
+      vertices.push(Math.cos(angle) * radius, 3.65 + Math.cos(theta) * 2.35, Math.sin(angle) * radius);
+      const color = palette[Math.floor((i % columns) / 4) % palette.length];
+      colorData.push(color.r, color.g, color.b);
+    }
+    for (let j = 0; j < rows; j++) for (let i = 0; i < columns; i++) {
+      const a = j * (columns + 1) + i;
+      indices.push(a, a + 1, a + columns + 1, a + 1, a + columns + 2, a + columns + 1);
+    }
+    const envelopeGeo = new THREE.BufferGeometry();
+    envelopeGeo.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    envelopeGeo.setAttribute("color", new THREE.Float32BufferAttribute(colorData, 3));
+    envelopeGeo.setIndex(indices);
+    envelopeGeo.computeVertexNormals();
+    const envelope = new THREE.Mesh(envelopeGeo, material("#ffffff", { roughness: .85, vertexColors: true }));
+    envelope.castShadow = true;
+    root.add(envelope);
+    box(construction, wood, 0, .22, 0, .76, .53, .61);
+    box(construction, cream, 0, .49, 0, .8, .085, .64);
+    for (const px of [-.31, .31]) for (const pz of [-.24, .24]) {
+      const rope = cylinder(construction, wood, .016, .016, 1.21, px, 1.08, pz, 5);
+      rope.rotation.z = -px * .2;
+    }
+    cylinder(construction, wood, .35, .29, .15, 0, 1.46, 0, 16);
+    root.add(mergeStatic(construction));
+    balloons.push({ root, x, y, z });
+  }
+  hotAirBalloon(21, 11, 36, 1.2, ["#efab73", "#fff0cf", "#de7d75", "#fff0cf"]);
+  hotAirBalloon(-62, 8, -50, 1.45, ["#70b9c2", "#fff0cf", "#72a7c4", "#fff0cf"]);
+  hotAirBalloon(45, 23, -59, 1.25, ["#ceb0d8", "#fff0cf", "#ecbd85", "#fff0cf"]);
+
+  const landmarks = [
+    { id: "village", name: "Himitsu Village", position: new THREE.Vector3(-4, 1, -12), radius: 19, description: "Little red roofs, a seaside lighthouse, and a familiar pink door." },
+    { id: "windmill", name: "Windmill Cay", position: new THREE.Vector3(-40, 4, 8), radius: 19, description: "Follow the turning sails above fields of golden wheat." },
+    { id: "garden", name: "Moonflower Garden", position: new THREE.Vector3(-19, 1, 29), radius: 19, description: "A round moon gate rests among the cherry blossoms." },
+    { id: "balloons", name: "Balloon Crossing", position: new THREE.Vector3(12, 16, 29), radius: 20, description: "Striped balloons carry quiet wishes on the ocean breeze." },
+  ];
+
   // Clouds are instanced: hundreds of soft lobes in a single draw call.
   const cloudMat = material("#fff9eb", {
     roughness: 1,
     transparent: true,
     depthWrite: false,
+    emissive: "#bad9ef",
+    emissiveIntensity: 0.12,
   });
   cloudMat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
@@ -614,25 +843,32 @@ export function makeWorld(scene) {
       depthWrite: false,
     }),
   );
+  motes.material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace("#include <alphatest_fragment>", `
+      float moteRadius = length(gl_PointCoord - .5);
+      diffuseColor.a *= 1. - smoothstep(.15, .5, moteRadius);
+      #include <alphatest_fragment>
+    `);
+  };
   scene.add(motes);
   const palettes = {
     day: {
-      top: "#96d4e8",
-      bottom: "#e4efdf",
-      water: "#70bdc4",
-      shine: "#d3efdc",
+      top: "#258dca",
+      bottom: "#a9d8ef",
+      water: "#42acbc",
+      shine: "#daf7ed",
       sun: "#fff5cf",
       cloud: "#fff9eb",
-      fog: "#d6e9e3",
+      fog: "#aed5e9",
       light: "#fff3d5",
       hemi: "#b6e0ef",
-      ground: "#8a9a7a",
+      ground: "#8da7b3",
       night: 0,
     },
     sunset: {
-      top: "#c1b4ce",
+      top: "#8c98ce",
       bottom: "#f6d3ab",
-      water: "#b1b2b9",
+      water: "#7fa5b8",
       shine: "#ffdfb1",
       sun: "#ffdb9c",
       cloud: "#ffe6c7",
@@ -644,7 +880,7 @@ export function makeWorld(scene) {
     },
     night: {
       top: "#10253f",
-      bottom: "#48677d",
+      bottom: "#3b597b",
       water: "#294e69",
       shine: "#93c9cb",
       sun: "#e5f1d5",
@@ -656,21 +892,29 @@ export function makeWorld(scene) {
       night: 1,
     },
   };
+  const paletteColors = Object.fromEntries(Object.entries(palettes).map(([name, palette]) => [
+    name, Object.fromEntries(Object.entries(palette).filter(([key]) => key !== "night").map(([key, color]) => [key, new THREE.Color(color)])),
+  ]));
   let current = "day";
   let cloudTick = 0;
   return {
     groundHeight,
+    landmarks,
     flightFloor(x, z) {
-      return (
-        -1.8 +
+      const mainFloor = -1.8 +
         5.6 *
           (1 -
             THREE.MathUtils.smoothstep(
               Math.hypot(x - diorama.position.x, z - diorama.position.z),
               9,
               14,
-            ))
-      );
+            ));
+      let floor = mainFloor;
+      for (const [cx, cz, radius, height] of [[-40, 8, 7.2, 6.1], [-19, 29, 5.9, 3.8], [33, -32, 4.6, 4.4]]) {
+        const distance = Math.hypot(x - cx, z - cz);
+        floor = Math.max(floor, -1.8 + (height + 1.8) * (1 - THREE.MathUtils.smoothstep(distance, radius * .72, radius + 3)));
+      }
+      return floor;
     },
     get fadedClouds() {
       let count = 0;
@@ -682,10 +926,10 @@ export function makeWorld(scene) {
     sea,
     island,
     setMood(name) {
-      current = name;
+      if (palettes[name]) current = name;
     },
     update(time, dt, camera, lights, subject) {
-      const p = palettes[current],
+      const p = palettes[current], colors = paletteColors[current],
         a = 1 - Math.exp(-dt * 1.5);
       windowMat.emissive.set("#ffd38c");
       windowMat.emissiveIntensity = THREE.MathUtils.lerp(
@@ -701,24 +945,27 @@ export function makeWorld(scene) {
       );
       lamp.intensity = THREE.MathUtils.lerp(lamp.intensity, p.night ? 7 : 0, a);
       for (const key of ["top", "bottom"])
-        skyUniforms[key].value.lerp(new THREE.Color(p[key]), a);
-      skyUniforms.sunColor.value.lerp(new THREE.Color(p.sun), a);
+        skyUniforms[key].value.lerp(colors[key], a);
+      skyUniforms.sunColor.value.lerp(colors.sun, a);
       skyUniforms.night.value = THREE.MathUtils.lerp(
         skyUniforms.night.value,
         p.night,
         a,
       );
+      distantMat.color.copy(skyUniforms.bottom.value).multiplyScalar(THREE.MathUtils.lerp(.72, .38, skyUniforms.night.value));
       skyUniforms.time.value = time;
       sky.position.copy(camera.position);
       seaUniforms.time.value = time;
-      seaUniforms.water.value.lerp(new THREE.Color(p.water), a);
-      seaUniforms.horizon.value.lerp(new THREE.Color(p.bottom), a);
-      seaUniforms.shine.value.lerp(new THREE.Color(p.shine), a);
-      cloudMat.color.lerp(new THREE.Color(p.cloud), a);
-      scene.fog.color.lerp(new THREE.Color(p.fog), a);
-      lights.sun.color.lerp(new THREE.Color(p.light), a);
-      lights.hemi.color.lerp(new THREE.Color(p.hemi), a);
-      lights.hemi.groundColor.lerp(new THREE.Color(p.ground), a);
+      seaUniforms.night.value = skyUniforms.night.value;
+      cloudMat.emissiveIntensity = THREE.MathUtils.lerp(cloudMat.emissiveIntensity, p.night ? .035 : .12, a);
+      seaUniforms.water.value.lerp(colors.water, a);
+      seaUniforms.horizon.value.lerp(colors.bottom, a);
+      seaUniforms.shine.value.lerp(colors.shine, a);
+      cloudMat.color.lerp(colors.cloud, a);
+      scene.fog.color.lerp(colors.fog, a);
+      lights.sun.color.lerp(colors.light, a);
+      lights.hemi.color.lerp(colors.hemi, a);
+      lights.hemi.groundColor.lerp(colors.ground, a);
       lights.sun.intensity = THREE.MathUtils.lerp(
         lights.sun.intensity,
         p.night ? 1.3 : 2.5,
@@ -729,12 +976,14 @@ export function makeWorld(scene) {
         p.night ? 1.65 : 2.2,
         a,
       );
+      millRotor.rotation.z = time * .21;
+      balloons.forEach((b, i) => {
+        b.root.position.set(b.x + Math.sin(time * .055 + i * 2) * .8, b.y + Math.sin(time * .23 + i * 1.8) * .35, b.z);
+        b.root.rotation.z = Math.sin(time * .19 + i) * .025;
+      });
+      gardenGlow.emissiveIntensity = THREE.MathUtils.lerp(gardenGlow.emissiveIntensity, p.night ? 1.8 : 0, a);
       boat.rotation.z = Math.sin(time * 0.8) * 0.065;
       boat.position.y = -5.05 + Math.sin(time * 0.9) * 0.075;
-      foams.forEach((f, i) => {
-        const s = 1 + Math.sin(time * 0.6 + i) * 0.012;
-        f.scale.set(s, 1, s);
-      });
       if (++cloudTick % 3 === 0) moveClouds(time, dt * 3, camera, subject);
       birds.forEach((b, i) => {
         const angle = b.angle + time * b.speed;

@@ -1,11 +1,13 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400,20,1;0,9..144,500,20,1;0,9..144,600,20,1;1,9..144,400,20,1&display=swap");
 :root {
   --ink: #173f4d;
-  --muted: #345963;
-  --paper: #fffdf5;
-  --blue: #087dad;
-  --line: rgba(32, 80, 92, 0.15);
-  --glass: rgba(255, 255, 250, 0.62);
+  --muted: #42616a;
+  --paper: #fffaf0;
+  --blue: #087fad;
+  --brass: #af8133;
+  --line: rgba(32, 80, 92, 0.17);
+  --glass: rgba(255, 252, 242, 0.76);
+  --display: "Fraunces", Georgia, serif;
 }
 * {
   box-sizing: border-box;
@@ -29,7 +31,8 @@ button {
 }
 button:focus-visible,
 a:focus-visible,
-canvas:focus-visible {
+canvas:focus-visible,
+input:focus-visible {
   outline: 3px solid #e5a32e;
   outline-offset: 5px;
 }
@@ -55,6 +58,7 @@ a {
 .ui {
   transition:
     opacity 0.5s,
+    visibility 0.5s,
     transform 0.6s;
 }
 .topbar {
@@ -72,7 +76,7 @@ a {
   gap: 12px;
   text-decoration: none;
   align-items: center;
-  font-family: Manrope, sans-serif;
+  font-family: "DM Sans", sans-serif;
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 2.2px;
@@ -91,6 +95,7 @@ a {
   border: 1px solid var(--line);
   border-radius: 50%;
   padding: 6px;
+  background: #fffaf025;
 }
 .brand-icon svg {
   width: 100%;
@@ -145,10 +150,10 @@ svg {
 }
 .intro {
   position: absolute;
-  top: 29%;
+  top: 28.5%;
   left: 7%;
   pointer-events: none;
-  max-width: 520px;
+  max-width: 550px;
 }
 .intro button {
   pointer-events: auto;
@@ -168,15 +173,16 @@ svg {
   opacity: 0.4;
 }
 h1 {
-  font-family: Manrope, sans-serif;
-  font-size: clamp(44px, 5vw, 76px);
-  font-weight: 500;
-  letter-spacing: -4px;
-  line-height: 1.12;
-  margin: 24px 0;
+  font-family: var(--display);
+  font-size: clamp(48px, 5.5vw, 80px);
+  font-weight: 400;
+  letter-spacing: -3.2px;
+  line-height: 1.02;
+  margin: 27px 0 24px;
+  text-wrap: balance;
 }
 h1 em {
-  font-style: normal;
+  font-style: italic;
   color: var(--blue);
 }
 .intro-copy {
@@ -192,11 +198,11 @@ h1 em {
   gap: 30px;
   color: #fffdf7;
   background: var(--ink);
-  border-radius: 40px;
+  border-radius: 7px;
   font-size: 13px;
   font-weight: 600;
   padding: 17px 25px;
-  box-shadow: 0 7px 20px #173f4d16;
+  box-shadow: 0 4px 0 #102f3b18, 0 8px 22px #173f4d16;
   transition:
     transform 0.2s,
     background 0.2s,
@@ -209,6 +215,28 @@ h1 em {
 }
 .primary-button svg {
   width: 19px;
+}
+.intro-actions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.scenic-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 0;
+  background: transparent;
+  font-size: 11px;
+  border-bottom: 1px solid #173f4d36;
+  transition: color 0.2s, border-color 0.2s;
+}
+.scenic-button:hover {
+  color: var(--blue);
+  border-color: currentColor;
+}
+.scenic-button svg {
+  width: 22px;
 }
 .intro-note {
   margin-top: 20px;
@@ -269,6 +297,11 @@ h1 em {
   justify-content: space-between;
   align-items: end;
   gap: 20px;
+  pointer-events: none;
+}
+.scene-picker,
+.view-controls {
+  pointer-events: auto;
 }
 .control-caption {
   font-size: 8px;
@@ -281,14 +314,14 @@ h1 em {
 .scene-options {
   display: flex;
   gap: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 28px;
+  border: 1px solid rgba(255, 253, 245, 0.75);
+  border-radius: 12px;
   padding: 5px;
   background: var(--glass);
   backdrop-filter: blur(18px);
 }
 .scene-option {
-  border-radius: 24px;
+  border-radius: 8px;
   padding: 10px 15px;
   display: flex;
   align-items: center;
@@ -315,13 +348,13 @@ h1 em {
   padding: 5px;
   background: var(--glass);
   backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 30px;
+  border: 1px solid rgba(255, 253, 245, 0.75);
+  border-radius: 12px;
   gap: 3px;
 }
 .mode-button {
   background: transparent;
-  border-radius: 30px;
+  border-radius: 8px;
   padding: 11px 17px;
   font-size: 11px;
   display: flex;
@@ -368,24 +401,27 @@ h1 em {
   left: 44px;
   background: var(--glass);
   backdrop-filter: blur(18px);
-  border: 1px solid #ffffff50;
-  border-radius: 22px;
-  padding: 25px;
+  border: 1px solid #fffdf5a0;
+  border-radius: 5px 18px 18px 18px;
+  box-shadow: 0 8px 30px #173f4d08;
+  padding: 24px;
   width: 280px;
 }
 .flight-hud h2 {
-  font-family: Manrope, sans-serif;
-  font-size: 17px;
-  font-weight: 600;
+  font-family: var(--display);
+  font-size: 23px;
+  font-weight: 400;
   letter-spacing: -0.6px;
-  margin: 14px 0 25px;
+  line-height: 1.15;
+  margin: 14px 0 24px;
 }
 .flight-stats {
   display: flex;
   justify-content: space-between;
 }
 .flight-stats strong {
-  font-family: Manrope, sans-serif;
+  font-family: var(--display);
+  font-variant-numeric: tabular-nums;
   font-weight: 500;
   font-size: 27px;
   letter-spacing: -1px;
@@ -412,7 +448,7 @@ h1 em {
 .course-progress span {
   height: 100%;
   width: 0;
-  background: #dba83b;
+  background: linear-gradient(90deg, #bc8737, #ebc769);
   display: block;
   transition: width 0.5s;
 }
@@ -431,9 +467,139 @@ h1 em {
 .text-button:hover {
   color: var(--blue);
 }
+.sky-chart {
+  position: fixed;
+  z-index: 2;
+  right: 44px;
+  bottom: 143px;
+  width: 218px;
+  padding: 14px;
+  background: var(--glass);
+  backdrop-filter: blur(18px);
+  border: 1px solid #fffdf5a0;
+  border-radius: 16px 5px 16px 16px;
+  box-shadow: 0 8px 30px #173f4d08;
+  transition: opacity 0.5s, visibility 0.5s;
+}
+.chart-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 6px;
+  padding: 1px 0 11px;
+  background: transparent;
+  text-align: left;
+}
+.chart-toggle small {
+  display: block;
+  font-size: 6px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+.chart-toggle > span {
+  min-width: 0;
+}
+#chart-region {
+  display: block;
+  font: 19px var(--display);
+  letter-spacing: -0.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chart-toggle svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  transition: transform 0.25s;
+}
+#chart-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  opacity: 0.95;
+}
+.chart-key,
+.chart-discoveries {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.chart-key {
+  font-size: 5px;
+  letter-spacing: 0.6px;
+  margin: 9px 0 15px;
+  color: var(--muted);
+}
+.chart-key i {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  background: var(--blue);
+  border-radius: 50%;
+  margin-right: 3px;
+}
+.chart-discoveries {
+  font-size: 6px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+}
+.chart-discoveries strong {
+  font: 16px var(--display);
+  letter-spacing: 1px;
+  color: var(--brass);
+}
+.sky-chart.is-collapsed .chart-content {
+  display: none;
+}
+.sky-chart.is-collapsed .chart-toggle {
+  padding-bottom: 1px;
+}
+.sky-chart.is-collapsed .chart-toggle svg {
+  transform: rotate(180deg);
+}
+.focus-return {
+  position: fixed;
+  z-index: 12;
+  right: max(28px, env(safe-area-inset-right));
+  bottom: max(25px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  border: 1px solid #ffffff60;
+  border-radius: 9px;
+  padding: 11px 14px;
+  font-size: 10px;
+  box-shadow: 0 4px 20px #173f4d12;
+}
+.focus-return svg {
+  width: 15px;
+  height: 15px;
+}
+.focus-return kbd {
+  font-size: 8px;
+  opacity: 0.65;
+}
+body.focus-mode .ui {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+body.focus-mode .ui button,
+body.focus-mode .ui a,
+body.focus-mode .ui input {
+  pointer-events: none;
+}
 body.flying .intro,
 body.flying .gadget-label {
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   transform: translateY(-10px);
 }
@@ -489,8 +655,10 @@ dialog {
   padding: 38px;
   background: #fffdf5;
   color: #173f4d;
-  border-radius: 25px;
-  width: min(450px, calc(100% - 30px));
+  border-radius: 6px 24px 24px 24px;
+  width: min(490px, calc(100% - 30px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
   box-shadow: 0 20px 100px #1337463a;
 }
 dialog::backdrop {
@@ -498,9 +666,10 @@ dialog::backdrop {
   backdrop-filter: blur(8px);
 }
 dialog h2 {
-  font-family: Manrope, sans-serif;
-  font-size: 36px;
-  letter-spacing: -1.7px;
+  font-family: var(--display);
+  font-size: 42px;
+  line-height: 1.04;
+  letter-spacing: -1.4px;
   font-weight: 500;
   margin: 20px 0 12px;
 }
@@ -561,10 +730,9 @@ dialog .primary-button {
   height: 120px;
   border: 1px solid #d6ad4c;
   border-radius: 50%;
-  margin: 24px auto 5px;
-  font:
-    32px Manrope,
-    sans-serif;
+  margin: 24px auto;
+  box-shadow: inset 0 0 0 5px #fffdf5, inset 0 0 0 6px #d6ad4c6b;
+  font: 36px var(--display);
   color: #aa7d26;
   transform: rotate(-8deg);
 }
@@ -574,6 +742,30 @@ dialog .primary-button {
     sans-serif;
   letter-spacing: 1.5px;
   margin-top: 7px;
+}
+.trip-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 17px 0;
+  margin: 0 0 6px;
+  border-top: 1px solid #af81332e;
+  border-bottom: 1px solid #af81332e;
+}
+.trip-stats > div + div {
+  border-left: 1px solid #af81332e;
+}
+.trip-stats strong {
+  display: block;
+  font: 22px var(--display);
+  font-variant-numeric: tabular-nums;
+}
+.trip-stats span {
+  display: block;
+  font-size: 6px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  margin-top: 7px;
+  color: #557982;
 }
 #keep-flying {
   display: block;
@@ -597,8 +789,8 @@ dialog .primary-button {
   visibility: hidden;
 }
 #loading p {
-  font-family: Manrope, sans-serif;
-  font-size: 20px;
+  font-family: var(--display);
+  font-size: 25px;
   letter-spacing: -0.5px;
   text-align: center;
 }
@@ -677,6 +869,7 @@ body.night {
   --ink: #ecf0e6;
   --muted: #d7e5e5;
   --blue: #94ddeb;
+  --brass: #e9c574;
   --line: #d9f2f025;
   --glass: rgba(29, 53, 73, 0.65);
   --paper: #35536a;
@@ -759,6 +952,9 @@ body.night dialog .primary-button {
   body.flying .touch-flight {
     display: flex;
   }
+  body.autopiloting .touch-flight {
+    display: none;
+  }
   #flight-tip {
     display: none;
   }
@@ -775,8 +971,8 @@ body.night dialog .primary-button {
     top: 27%;
   }
   h1 {
-    font-size: 52px;
-    letter-spacing: -3px;
+    font-size: 57px;
+    letter-spacing: -2.4px;
   }
   .gadget-label {
     right: 5%;
@@ -796,6 +992,11 @@ body.night dialog .primary-button {
   .bottom-bar {
     left: 28px;
     right: 28px;
+  }
+  .sky-chart {
+    right: 28px;
+    width: 194px;
+    padding: 12px;
   }
   .footer {
     left: 30px;
@@ -846,9 +1047,9 @@ body.night dialog .primary-button {
     gap: 9px;
   }
   h1 {
-    font-size: 42px;
-    line-height: 1.08;
-    letter-spacing: -2.3px;
+    font-size: 47px;
+    line-height: 1.02;
+    letter-spacing: -1.9px;
     margin: 16px 0 14px;
   }
   .intro-copy {
@@ -866,6 +1067,17 @@ body.night dialog .primary-button {
     padding: 12px 19px;
     gap: 20px;
     font-size: 11px;
+  }
+  .intro-actions {
+    gap: 17px;
+  }
+  .scenic-button {
+    font-size: 9px;
+    gap: 5px;
+    padding: 9px 0;
+  }
+  .scenic-button svg {
+    width: 17px;
   }
   .intro-note {
     display: none;
@@ -898,12 +1110,12 @@ body.night dialog .primary-button {
     padding: 3px;
   }
   .mode-button {
-    padding: 8px 16px;
+    padding: 8px 13px;
     font-size: 10px;
   }
   .view-controls .icon-button {
     width: 30px;
-    height: 30px;
+    height: 32px;
   }
   .footer {
     bottom: 20px;
@@ -924,10 +1136,10 @@ body.night dialog .primary-button {
     right: 20px;
     width: auto;
     padding: 17px 20px;
-    border-radius: 18px;
+    border-radius: 5px 16px 16px 16px;
   }
   .flight-hud h2 {
-    font-size: 14px;
+    font-size: 21px;
     margin: 10px 0 16px;
   }
   .flight-stats {
@@ -952,6 +1164,46 @@ body.night dialog .primary-button {
   .touch-flight {
     bottom: 160px;
   }
+  .sky-chart {
+    right: 20px;
+    bottom: 306px;
+    width: 148px;
+    padding: 10px 12px;
+    border-radius: 13px 4px 13px 13px;
+  }
+  .chart-toggle {
+    padding-bottom: 6px;
+  }
+  .chart-toggle small {
+    font-size: 5px;
+    letter-spacing: 0.9px;
+  }
+  #chart-region {
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .chart-key {
+    font-size: 4px;
+    letter-spacing: 0.2px;
+    margin: 5px 0 8px;
+  }
+  .chart-discoveries {
+    font-size: 5px;
+    letter-spacing: 1px;
+  }
+  .chart-discoveries strong {
+    font-size: 14px;
+  }
+  .sky-chart:not(.is-collapsed) {
+    bottom: 287px;
+  }
+  body.autopiloting .sky-chart {
+    bottom: 174px;
+  }
+  .focus-return {
+    right: 18px;
+    bottom: max(20px, env(safe-area-inset-bottom));
+  }
   #toast {
     top: 78px;
     font-size: 10px;
@@ -967,15 +1219,30 @@ body.night dialog .primary-button {
     gap: 14px 7px;
   }
   dialog h2 {
-    font-size: 32px;
+    font-size: 37px;
+  }
+  .trip-stats strong {
+    font-size: 20px;
+  }
+  .trip-stats span {
+    font-size: 5px;
+    letter-spacing: 0.6px;
   }
   body.flying .bottom-bar {
     flex-direction: row;
     align-items: end;
   }
+  body.flying .view-controls .mode-button {
+    font-size: 0;
+    gap: 0;
+    padding: 9px 11px;
+  }
+  body.flying .view-controls .divider {
+    margin: 0 3px;
+  }
   body.flying .scene-options {
     flex-direction: column;
-    border-radius: 20px;
+    border-radius: 11px;
   }
   body.flying .scene-option {
     padding: 7px 10px;
@@ -990,13 +1257,26 @@ body.night dialog .primary-button {
   }
   .intro {
     top: 24%;
+    max-width: 430px;
   }
   h1 {
-    font-size: 44px;
-    margin: 16px 0;
+    font-size: 45px;
+    margin: 14px 0;
   }
   .intro-copy {
-    margin-bottom: 18px;
+    margin-bottom: 14px;
+    font-size: 11px;
+  }
+  .intro .primary-button {
+    padding: 12px 19px;
+    gap: 22px;
+  }
+  .intro-actions {
+    gap: 19px;
+  }
+  .scenic-button {
+    font-size: 10px;
+    padding: 10px 0;
   }
   .intro-note {
     display: none;
@@ -1008,19 +1288,162 @@ body.night dialog .primary-button {
     bottom: 18px;
   }
   .flight-hud {
-    top: 88px;
-    padding: 18px;
+    top: 86px;
+    bottom: 111px;
+    width: 258px;
+    padding: 15px 18px;
+    overflow-y: auto;
+    scrollbar-width: thin;
   }
   .flight-hud h2 {
+    font-size: 21px;
     margin: 10px 0 15px;
   }
   #flight-tip {
-    margin: 10px 0 0;
+    display: none;
+  }
+  .sky-chart {
+    bottom: 109px;
+    width: 164px;
+    padding: 10px 12px;
+  }
+  #chart-region {
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .chart-key {
+    display: none;
+  }
+  .chart-discoveries {
+    margin-top: 8px;
   }
   .touch-flight {
     bottom: 100px;
     left: auto;
     width: 220px;
+  }
+}
+@media (max-height: 440px) and (min-width: 701px) {
+  .intro {
+    top: 84px;
+  }
+  .intro-copy {
+    max-width: 320px;
+    line-height: 1.5;
+    font-size: 10.5px;
+  }
+  .intro-copy br {
+    display: none;
+  }
+  .intro h1 {
+    font-size: 38px;
+    margin: 10px 0;
+  }
+  .control-caption {
+    display: none;
+  }
+  .gadget-label {
+    display: none;
+  }
+  .flight-hud {
+    display: flex;
+    flex-direction: column;
+  }
+  .flight-hud h2 {
+    display: none;
+  }
+  .flight-hud .flight-stats {
+    margin-top: 12px;
+  }
+  .flight-hud .flight-stats strong {
+    font-size: 24px;
+  }
+  .flight-hud .course-progress {
+    min-height: 3px;
+    margin-top: 12px;
+  }
+  .flight-hud .autopilot-button,
+  .flight-hud .auto-camera-controls {
+    order: 1;
+    flex-shrink: 0;
+  }
+  .flight-hud .cruise-control {
+    order: 2;
+  }
+  .flight-hud #reset-flight {
+    order: 3;
+    text-align: left;
+  }
+  .touch-flight {
+    bottom: 107px;
+    right: 224px;
+    width: 180px;
+  }
+  .joystick {
+    width: 96px;
+    height: 96px;
+  }
+  .joystick > div {
+    left: 26px;
+    top: 26px;
+  }
+  .altitude-buttons button {
+    width: 42px;
+    height: 42px;
+  }
+  .flight-hud {
+    bottom: auto;
+    max-height: calc(100dvh - 197px);
+    padding: 13px 18px;
+  }
+  .flight-hud .eyebrow {
+    font-size: 7px;
+  }
+  .flight-hud .flight-stats {
+    margin-top: 10px;
+  }
+  .flight-hud .flight-stats strong {
+    font-size: 22px;
+  }
+  .flight-hud .course-progress {
+    margin-top: 10px;
+  }
+  .flight-hud .autopilot-button {
+    margin-top: 10px;
+    padding: 6px 9px;
+    font-size: 9px;
+  }
+  .flight-hud .autopilot-button small,
+  body.autopiloting .flight-hud .cruise-control {
+    display: none;
+  }
+  .flight-hud .cruise-control {
+    margin: 7px 0 0;
+  }
+  .flight-hud .cruise-control label {
+    font-size: 6px;
+  }
+  .flight-hud .speed-controls {
+    margin-top: 5px;
+  }
+  .flight-hud .speed-controls button {
+    width: 23px;
+    height: 23px;
+  }
+  .flight-hud .speed-controls .hover-button {
+    width: auto;
+  }
+  .flight-hud .auto-camera-controls {
+    margin-top: 6px;
+  }
+  .flight-hud .auto-camera-controls button {
+    padding: 4px 10px;
+  }
+  .flight-hud #reset-flight {
+    position: absolute;
+    right: 17px;
+    top: 8px;
+    font-size: 7px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1086,8 +1509,8 @@ body.night .autopilot-button {
     top: 92px;
   }
   .intro h1 {
-    font-size: 34px;
-    letter-spacing: -1.8px;
+    font-size: 39px;
+    letter-spacing: -1.5px;
     margin: 12px 0;
   }
   .intro-copy {
@@ -1147,6 +1570,32 @@ body.night .autopilot-button {
   }
   body.flying .touch-flight {
     bottom: 143px;
+  }
+  .sky-chart {
+    bottom: 257px;
+  }
+  .sky-chart:not(.is-collapsed) {
+    left: 53%;
+    right: auto;
+    transform: translateX(-50%);
+    bottom: 143px;
+    width: 132px;
+    padding: 9px 10px;
+  }
+  .sky-chart:not(.is-collapsed) #chart-region {
+    font-size: 12.5px;
+  }
+  body.autopiloting .sky-chart {
+    bottom: 146px;
+  }
+  body.autopiloting .sky-chart:not(.is-collapsed) {
+    left: auto;
+    right: 20px;
+    transform: none;
+    width: 148px;
+  }
+  body.autopiloting .sky-chart:not(.is-collapsed) #chart-region {
+    font-size: 14px;
   }
 }
 
@@ -1292,10 +1741,6 @@ body.flying #world {
   letter-spacing: 1px;
   color: var(--ink);
   white-space: nowrap;
-}
-dialog {
-  max-height: calc(100dvh - 32px);
-  overflow: auto;
 }
 @media (max-width: 700px) {
   .cruise-control {

@@ -17,4 +17,4 @@ The references show different flight attitudes, rather than one fixed pose. The 
 
 Scenic mode adapts that approach into a 16-second shot cycle: follow, ease into a front three-quarter view, hold, and return. The orbit angle and distance change smoothly instead of moving straight through the character. Follow mode stays behind Doraemon; taking manual control returns to that view automatically.
 
-Nearby clouds fade per instance when they overlap Doraemon or the camera’s line of sight. This keeps the face and copter visible during a pass. Reduced-motion mode holds a front three-quarter angle instead of repeatedly orbiting.
+Nearby clouds fade per instance when they overlap Doraemon or the camera’s line of sight. Nearby golden rings also fade as the camera approaches the face view. This keeps the face and copter visible during a pass. Reduced-motion mode holds a front three-quarter angle instead of repeatedly orbiting.

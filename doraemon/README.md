@@ -1,6 +1,6 @@
 # Pocket Skies
 
-A small Three.js sky adventure featuring a procedurally modeled Doraemon and his bamboo copter. Open `index.html` through a local HTTP server, or visit `/doraemon/` on the site. No build step is required.
+A storybook Three.js sky adventure featuring a procedurally modeled Doraemon, his bamboo copter, and a miniature archipelago. Open `index.html` through a local HTTP server, or visit `/doraemon/` on the site. No build step is required.
 
 ```sh
 # From the repository root
@@ -15,16 +15,18 @@ python3 -m http.server 8765
 - Select **Let’s fly** to take control. With only a mouse, hold the left button and drag sideways to turn or up/down to climb/descend. Release to hold course. Use the wheel, speed slider, or + / − buttons to change speed; **Hover** brings you to a stop.
 - Keyboard controls also work: W/S or up/down changes speed, A/D or left/right turns, Space rises, and Shift descends.
 - On touch screens, use the joystick and altitude buttons.
-- **Let Doraemon guide** follows the eight-ring course automatically. **Scenic** periodically swings around to show his face; **Follow** stays behind him. Mouse, keyboard, or touch flight input returns control to you and smoothly restores the follow camera.
-- Escape returns to orbit. The flight resumes from its previous position when you select Fly again.
-- The camera button or P downloads a PNG postcard. Sound is opt-in and synthesized in the browser.
+- **Take the scenic route** starts a guided flight directly from the introduction. In flight, **Let Doraemon guide** follows the eight-ring course automatically. **Scenic** periodically swings around to show his face; **Follow** stays behind him. After the course, **Keep wandering** continues a guided circuit. Choose **Take the controls**, or use mouse or keyboard flight input, to fly yourself. Touch controls appear when flying manually.
+- The flight chart shows your position, trail, remaining rings, and four places to discover: Himitsu Village, Windmill Cay, Moonflower Garden, and Balloon Crossing. Tap its header to fold it away. The completed course adds time, distance, and discoveries to your flight journal.
+- The frame button or **H** hides the interface for an unobstructed view. **Show controls** or Escape restores it. Otherwise, Escape returns to orbit. Your flight resumes from its previous position when you select Fly again.
+- The camera button or **P** downloads a framed PNG postcard with the sky mood, location, and a travel stamp. Sound is opt-in and synthesized in the browser.
 
 ## Implementation
 
-- `model.js`: reference-grounded proportions and face, a neck-pivot flight rig with trailing feet and an upright head, modeled bamboo airfoils, rotor afterimages, blinking, and greetings. See [REFERENCES.md](REFERENCES.md) for the visual sources.
-- `world.js`: miniature island, houses, lighthouse, trees, sailboat, hidden Anywhere Door, sky/water shaders, instanced clouds, and birds. Static scenery is batched by material.
+- `model.js`: reference-grounded proportions and face, a neck-pivot flight rig with trailing feet and an upright head, modeled bamboo airfoils, rotor afterimages, a sculpted smile, curved eyes, one-eye winks, responsive gaze, and greetings. See [REFERENCES.md](REFERENCES.md) for the visual sources.
+- `world.js`: an island village, turning windmill, cherry grove and moon gate, balloons, distant islands, sailboat, and hidden Anywhere Door. Procedural sky and water include moonlight, stars, reflections, shallows, and moving surf. Static scenery is batched by material; clouds are instanced.
 - `main.js`: rendering, camera modes, flight physics, ring course, guided flight, audio, touch input, and UI.
-- `styles.css`: responsive interface and reduced-motion handling.
-- `vendor/`: pinned Three.js 0.180.0 and OrbitControls, with the upstream MIT license. The app’s rendering dependencies are local; Google Fonts is optional and falls back to sans-serif.
+- `journey.js`: live canvas flight chart, discovery tracking, travel statistics, tapered hand trails, and printable postcard composition.
+- `styles.css`: a responsive travel-journal interface and reduced-motion handling.
+- `vendor/`: pinned Three.js 0.180.0 and OrbitControls, with the upstream MIT license. The app’s rendering dependencies are local; Google Fonts is optional, with local serif and sans-serif fallbacks.
 
 WebGL 2 is required. A lost graphics context shows a recovery screen. Animation and audio pause in a hidden tab, flight pauses while a dialog is open, and pixel density is reduced automatically on slower devices.

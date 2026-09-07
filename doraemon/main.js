@@ -2,13 +2,19 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/OrbitControls.js";
 import { makeDoraemon, material } from "./model.js";
 import { makeWorld } from "./world.js";
+import { makeJourney, formatFlightTime, composePostcard } from "./journey.js";
 
 const $ = (id) => document.getElementById(id);
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const clamp = THREE.MathUtils.clamp;
 const damp = (a, b, rate, dt) =>
   THREE.MathUtils.lerp(a, b, 1 - Math.exp(-rate * dt));
-let renderer, scene, camera, controls, doraemon, world, lights;
+let renderer, scene, camera, controls, doraemon, world, lights, journey;
+let focused = false, patrolIndex = 0, hudClock = 0;
+let completionTimer = null;
+const flightGaze = { x: 0, y: 0 };
+const cameraLocal = new THREE.Vector3();
+const sunlightOffset = new THREE.Vector3(-14, 24, 12);
 let autopilot = false;
 let cameraStyle = "cinematic",
   cinemaTime = 0,
@@ -119,6 +125,25 @@ function homeCamera() {
   controls.update();
   controls.enableDamping = damping;
 }
+function setFocus(next) {
+  focused = next;
+  document.body.classList.toggle("focus-mode", next);
+  $("leave-focus").hidden = !next;
+  setPressed($("focus-mode"), next);
+  document.querySelectorAll(".ui").forEach((el) => {
+    if (el.id !== "leave-focus") el.inert = next;
+  });
+  $("world").focus({ preventScroll: true });
+}
+function startTour() {
+  setMode("fly");
+  autopilot = true;
+  cinemaTime = 0;
+  lastFrontCycle = -1;
+  releaseMouse();
+  updateAutopilot();
+  toast("A little island, a windmill, a garden in the sea. Let’s go.");
+}
 function setMode(next) {
   if (mode === next) return;
   keys.clear();
@@ -128,6 +153,7 @@ function setMode(next) {
   mode = next;
   document.body.classList.toggle("flying", mode === "fly");
   $("flight-hud").hidden = mode !== "fly";
+  $("sky-chart").hidden = mode !== "fly";
   $("gadget-label").hidden = mode !== "orbit";
   $("touch-flight").hidden = mode !== "fly";
   $("ring-guide").hidden = mode !== "fly" || ringIndex >= 8;
@@ -160,7 +186,9 @@ function setMode(next) {
   }
 }
 function resetFlight() {
+  clearTimeout(completionTimer);
   flightStarted = true;
+  patrolIndex = 0;
   position.set(0, 5.5, 23);
   heading = Math.PI;
   speed = 0;
@@ -189,6 +217,7 @@ function resetFlight() {
   camera.position.set(0, 10.5, 37);
   controls.target.copy(position).add(new THREE.Vector3(0, 2, 0));
   resetTrail();
+  journey?.reset(position);
 }
 function setMood(next) {
   mood = next;
@@ -322,19 +351,20 @@ function updateAutopilot() {
     "<span>" +
     (autopilot ? "✧" : "⌁") +
     "</span> " +
-    (autopilot ? "Guided flight on" : "Let Doraemon guide") +
+    (autopilot ? "Take the controls" : "Let Doraemon guide") +
     "<small>" +
-    (autopilot ? "Take the controls anytime" : "Sit back & follow the breeze") +
+    (autopilot ? "Doraemon is guiding" : "Sit back & follow the breeze") +
     "</small>";
 }
 
 function createRings() {
-  const ringGeometry = new THREE.TorusGeometry(2.3, 0.078, 12, 80);
+  const ringGeometry = new THREE.TorusGeometry(2.3, 0.062, 12, 80);
   const ringMat = material("#ffcb60", {
     metalness: 0.58,
     roughness: 0.25,
     emissive: "#e6a831",
-    emissiveIntensity: 0.23,
+    emissiveIntensity: 0.42,
+    transparent: true,
   });
   const innerMat = new THREE.MeshBasicMaterial({
     color: "#ffedb4",
@@ -351,15 +381,15 @@ function createRings() {
       new THREE.Vector3(0, 0, 1),
       temp.normalize(),
     );
-    g.add(new THREE.Mesh(ringGeometry, ringMat));
+    g.add(new THREE.Mesh(ringGeometry, ringMat.clone()));
     const halo = new THREE.Mesh(
-      new THREE.TorusGeometry(2.3, 0.19, 8, 80),
-      innerMat,
+      new THREE.TorusGeometry(2.3, 0.13, 8, 80),
+      innerMat.clone(),
     );
     g.add(halo);
     for (let j = 0; j < 4; j++) {
       const a = (j * Math.PI) / 2;
-      const bead = new THREE.Mesh(new THREE.OctahedronGeometry(0.13), ringMat);
+      const bead = new THREE.Mesh(new THREE.OctahedronGeometry(0.105), g.children[0].material);
       bead.position.set(Math.cos(a) * 2.3, Math.sin(a) * 2.3, 0);
       g.add(bead);
     }
@@ -395,10 +425,13 @@ function resetTrail() {
   p.needsUpdate = true;
 }
 function celebrate(p) {
-  const count = 60,
+  const count = reduced ? 18 : 72,
     coords = new Float32Array(count * 3),
-    velocities = [];
+    velocities = [],
+    colors = new Float32Array(count * 3);
+  const palette = ["#fff5cf", "#ffcb60", "#b4eced", "#fff9ec"].map((c) => new THREE.Color(c));
   for (let i = 0; i < count; i++) {
+    palette[i % palette.length].toArray(colors, i * 3);
     coords.set([p.x, p.y, p.z], i * 3);
     velocities.push(
       new THREE.Vector3(
@@ -410,16 +443,24 @@ function celebrate(p) {
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(coords, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   const particles = new THREE.Points(
     geo,
     new THREE.PointsMaterial({
-      color: "#ffe3a0",
+      color: "#ffffff",
+      vertexColors: true,
       size: 0.13,
       transparent: true,
       opacity: 1,
       depthWrite: false,
     }),
   );
+  particles.material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <opaque_fragment>",
+      "float sparkle = 1. - smoothstep(.16, .5, length(gl_PointCoord - .5)); diffuseColor.a *= sparkle;\n#include <opaque_fragment>",
+    );
+  };
   scene.add(particles);
   bursts.push({ mesh: particles, velocities, life: 1.8 });
 }
@@ -447,12 +488,18 @@ function collectRing() {
   else {
     $("ring-guide").hidden = true;
     toast("All eight! You’re officially a sky explorer.");
-    setTimeout(() => {
+    patrolIndex = 0;
+    completionTimer = setTimeout(() => {
       if (mode === "fly" && ringIndex === 8) {
         keys.clear();
         releaseMouse();
         releaseJoystick();
         touch.rise = 0;
+        const trip = journey.stats;
+        $("trip-time").textContent = formatFlightTime(trip.elapsed);
+        $("trip-distance").textContent = `${(trip.distance / 1000).toFixed(2)} km`;
+        $("trip-discoveries").textContent = `${trip.discovered} / ${trip.total}`;
+        if (focused) setFocus(false);
         $("complete").showModal();
       }
     }, 1000);
@@ -474,8 +521,8 @@ function updateFlight(dt) {
     (keys.has("ShiftLeft") || keys.has("ShiftRight") ? 1 : 0) +
     touch.rise -
     mouseFlight.y;
-  if (autopilot && ringIndex < 8) {
-    const goal = ringPositions[ringIndex],
+  if (autopilot) {
+    const goal = ringPositions[ringIndex < 8 ? ringIndex : patrolIndex],
       dx = goal.x - position.x,
       dz = goal.z - position.z;
     const desiredHeading = Math.atan2(dx, dz),
@@ -486,6 +533,7 @@ function updateFlight(dt) {
     steering = clamp(error * 2.3, -1, 1);
     lift = clamp((goal.y - 1.3 - position.y) * 1.1, -1, 1);
     targetSpeed = clamp(8 - Math.abs(error) * 5, 2.5, 8);
+    if (ringIndex >= 8 && Math.hypot(dx, dz) < 3) patrolIndex = (patrolIndex + 1) % ringPositions.length;
   } else targetSpeed = clamp(targetSpeed + throttle * dt * 6, 0, 13);
   steering = clamp(steering, -1, 1);
   lift = clamp(lift, -1, 1);
@@ -514,15 +562,24 @@ function updateFlight(dt) {
   center.y += 1.3;
   if (ringIndex < 8 && center.distanceTo(ringPositions[ringIndex]) < 2.55)
     collectRing();
-  $("altitude-value").innerHTML =
-    Math.round((position.y + 5.3) * 3) + "<span>m</span>";
-  $("speed-value").innerHTML = Math.round(speed * 10.8) + "<span>km/h</span>";
-  $("flight-speed").value = targetSpeed;
-  $("throttle-output").value = Math.round(targetSpeed * 10.8) + " km/h";
-  $("flight-speed").setAttribute(
-    "aria-valuetext",
-    Math.round(targetSpeed * 10.8) + " kilometers per hour",
-  );
+  const discovery = journey.update(position, heading, dt, ringIndex);
+  if (discovery && flightTime > 2) {
+    toast(`Discovered · ${discovery.name}. ${discovery.description}`);
+    sound.chime(4);
+  }
+  hudClock += dt;
+  if (hudClock > 0.1) {
+    hudClock = 0;
+    $("altitude-value").innerHTML =
+      Math.round((position.y + 5.3) * 3) + "<span>m</span>";
+    $("speed-value").innerHTML = Math.round(speed * 10.8) + "<span>km/h</span>";
+    $("flight-speed").value = targetSpeed;
+    $("throttle-output").value = Math.round(targetSpeed * 10.8) + " km/h";
+    $("flight-speed").setAttribute(
+      "aria-valuetext",
+      Math.round(targetSpeed * 10.8) + " kilometers per hour",
+    );
+  }
   if (ringIndex < 8) {
     projected.copy(ringPositions[ringIndex]);
     projected.project(camera);
@@ -594,7 +651,7 @@ function updateFlightCamera(dt) {
     (1 - Math.exp(-dt * 4));
   const faceAmount = THREE.MathUtils.smoothstep(Math.abs(cameraArc), 0.6, 2.3);
   const radius =
-    THREE.MathUtils.lerp(15.5, 12.8, faceAmount) *
+    THREE.MathUtils.lerp(15.5 + speed * 0.13, 13.4, faceAmount) *
     (innerWidth < 701 ? (innerHeight < 700 ? 1.6 : 1.2) : 1);
   const elevation = THREE.MathUtils.lerp(6.3, 3.3, faceAmount);
   const angle = cameraHeading + Math.PI + cameraArc;
@@ -613,6 +670,9 @@ function updateFlightCamera(dt) {
   );
   controls.target.lerp(target, 1 - Math.exp(-dt * 5));
   camera.lookAt(controls.target);
+  const targetFov = THREE.MathUtils.lerp(47 + speed * 0.55, 44, faceAmount);
+  camera.fov = damp(camera.fov, targetFov, 2, dt);
+  camera.updateProjectionMatrix();
 }
 function takeManualControl() {
   if (autopilot) {
@@ -645,22 +705,24 @@ async function takePhoto() {
   photoBusy = true;
   $("photo").disabled = true;
   try {
-    renderer.render(scene, camera);
-    const out = document.createElement("canvas");
-    out.width = renderer.domElement.width;
-    out.height = renderer.domElement.height;
-    const ctx = out.getContext("2d");
-    ctx.drawImage(renderer.domElement, 0, 0);
-    const scale = out.width / 1440;
-    ctx.fillStyle = mood === "night" ? "#edf2e7" : "#173f4d";
-    ctx.font = `600 ${Math.max(12, 17 * scale)}px sans-serif`;
-    ctx.fillText("POCKET SKIES", out.width * 0.04, out.height * 0.91);
-    ctx.font = `${Math.max(9, 11 * scale)}px sans-serif`;
-    ctx.fillText(
-      "A little friend. A big blue sky.",
-      out.width * 0.04,
-      out.height * 0.945,
-    );
+    const photoCamera = camera.clone();
+    photoCamera.clearViewOffset();
+    const originalRatio = renderer.getPixelRatio();
+    let out;
+    try {
+      renderer.setPixelRatio(Math.min(2, 2400 / innerWidth));
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.render(scene, photoCamera);
+      out = composePostcard(renderer.domElement, {
+        mood,
+        region: mode === "fly" ? journey.stats.region : "Home waters",
+        distance: mode === "fly" ? journey.stats.distance : 0,
+      });
+    } finally {
+      renderer.setPixelRatio(originalRatio);
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.render(scene, camera);
+    }
     const blob = await new Promise((resolve) =>
       out.toBlob(resolve, "image/png"),
     );
@@ -686,7 +748,21 @@ function releaseJoystick() {
   $("joystick-knob").style.transform = "";
 }
 function bindUI() {
-  $("start-flight").addEventListener("click", () => setMode("fly"));
+  $("start-flight").addEventListener("click", () => {
+    autopilot = false;
+    updateAutopilot();
+    setMode("fly");
+  });
+  $("start-tour").addEventListener("click", startTour);
+  $("focus-mode").addEventListener("click", () => setFocus(!focused));
+  $("leave-focus").addEventListener("click", () => setFocus(false));
+  const chartCollapsed = innerWidth < 701 || innerHeight < 560;
+  $("sky-chart").classList.toggle("is-collapsed", chartCollapsed);
+  $("chart-toggle").setAttribute("aria-expanded", String(!chartCollapsed));
+  $("chart-toggle").addEventListener("click", () => {
+    const collapsed = $("sky-chart").classList.toggle("is-collapsed");
+    $("chart-toggle").setAttribute("aria-expanded", String(!collapsed));
+  });
   $("fly-mode").addEventListener("click", () => setMode("fly"));
   $("orbit-mode").addEventListener("click", () => setMode("orbit"));
   $("autopilot").addEventListener("click", () => {
@@ -781,7 +857,7 @@ function bindUI() {
     )
       return;
     if (e.code === "Escape") {
-      setMode("orbit");
+      if (focused) setFocus(false); else setMode("orbit");
       return;
     }
     if (e.target instanceof HTMLInputElement) return;
@@ -789,6 +865,10 @@ function bindUI() {
       e.target instanceof HTMLElement &&
       ["BUTTON", "A", "INPUT"].includes(e.target.tagName);
     if (isButton && (e.code === "Space" || e.code === "Enter")) return;
+    if (e.code === "KeyH" && !e.repeat) {
+      setFocus(!focused);
+      return;
+    }
     if (e.code === "KeyP" && !e.repeat) {
       takePhoto();
       return;
@@ -876,8 +956,15 @@ function bindUI() {
       b.addEventListener(name, () => (touch.rise = 0));
   }
   let wasNarrow = innerWidth < 701;
+  let wasCompactChart = innerWidth < 701 || innerHeight < 560;
   addEventListener("resize", () => {
     const narrow = innerWidth < 701;
+    const compactChart = narrow || innerHeight < 560;
+    if (compactChart && !wasCompactChart) {
+      $("sky-chart").classList.add("is-collapsed");
+      $("chart-toggle").setAttribute("aria-expanded", "false");
+    }
+    wasCompactChart = compactChart;
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
@@ -1002,22 +1089,40 @@ function animate(now) {
       $("gadget-label").style.opacity = interacted ? "0" : "1";
     }
   }
+  if (mode === "fly") {
+    cameraLocal.copy(camera.position);
+    doraemon.root.worldToLocal(cameraLocal);
+    const front = THREE.MathUtils.smoothstep(cameraLocal.z, 0, 6);
+    flightGaze.x = clamp(cameraLocal.x / 12, -1, 1) * front;
+    flightGaze.y = clamp((cameraLocal.y - 3) / 10, -1, 1) * front;
+  }
   doraemon.update(time, dt, {
     speed: mode === "fly" ? speed : 0,
     flying: mode === "fly",
     reduced,
-    gaze,
+    gaze: mode === "fly" ? flightGaze : gaze,
   });
+  journey.updateWake(dt, doraemon, speed, mode === "fly", camera);
   world.update(time, dt, camera, lights, doraemon.root.position);
   sound.update();
   trail.visible = mode === "fly";
-  rings.forEach((r) => {
-    if (r.userData.passed && r.visible) {
-      r.scale.multiplyScalar(1 + dt * 2.7);
-      if (r.scale.x > 1.6) r.visible = false;
-    } else if (r.visible) {
-      r.children[1].material.opacity = 0.19 + Math.sin(time * 2) * 0.08;
-      r.children.slice(2).forEach((bead, j) => (bead.rotation.z = time + j));
+  rings.forEach((r, i) => {
+    if (!r.visible) return;
+    if (r.userData.passed) {
+      r.scale.multiplyScalar(1 + dt * 2.3);
+      const fade = Math.max(0, (1.7 - r.scale.x) / 0.7);
+      r.children[0].material.opacity = fade;
+      r.children[1].material.opacity = fade * 0.3;
+      if (r.scale.x > 1.7) r.visible = false;
+    } else {
+      // Keep a foreground ring from obscuring Doraemon during a face shot.
+      const cameraDistance = camera.position.distanceTo(r.position);
+      const faceView = autopilot ? THREE.MathUtils.smoothstep(Math.abs(cameraArc), 0.6, 1.9) : 0;
+      const foreground = THREE.MathUtils.lerp(1, THREE.MathUtils.smoothstep(cameraDistance, 14, 24), faceView);
+      const active = i === ringIndex;
+      r.children[0].material.opacity = (active ? 1 : 0.4) * foreground;
+      r.children[1].material.opacity = (active ? 0.2 + Math.sin(time * 2.8) * 0.08 : 0.035) * foreground;
+      r.children.slice(2).forEach((bead, j) => { bead.rotation.z = time * 0.7 + j; });
     }
   });
   for (let i = bursts.length - 1; i >= 0; i--) {
@@ -1046,7 +1151,7 @@ function animate(now) {
   // Keep the detailed model's shadow centered even when flying out to sea.
   lights.sun.position
     .copy(doraemon.root.position)
-    .add(new THREE.Vector3(-14, 24, 12));
+    .add(sunlightOffset);
   lights.sun.target.position.copy(doraemon.root.position);
   renderer.render(scene, camera);
   if (!qualityAdjusted && time > 3) {
@@ -1124,6 +1229,8 @@ async function init() {
     controls.addEventListener("start", () => (interacted = true));
     homeCamera();
     createRings();
+    journey = makeJourney(scene, world.landmarks || [], ringPositions, reduced);
+    journey.reset(position);
     bindUI();
     try {
       const saved = localStorage.getItem("pocket-skies-mood");
@@ -1149,6 +1256,9 @@ async function init() {
           mode,
           mood,
           autopilot,
+          focused,
+          journey: journey.stats,
+          patrolIndex,
           cameraStyle,
           cameraArc,
           cinemaTime,

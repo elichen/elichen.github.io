@@ -69,15 +69,23 @@ export function box(parent, mat, x, y, z, sx, sy, sz) {
 }
 export function makeDoraemon() {
   const root = new THREE.Group();
-  const blue = material("#009cdb", { roughness: 0.48 });
-  const white = material("#fffef6", { roughness: 0.52 });
+  const porcelain = (color, roughness, clearcoat) =>
+    new THREE.MeshPhysicalMaterial({
+      color,
+      roughness,
+      metalness: 0,
+      clearcoat,
+      clearcoatRoughness: 0.32,
+    });
+  const blue = porcelain("#009edc", 0.4, 0.28);
+  const white = porcelain("#fffdf3", 0.46, 0.13);
   const ink = material("#182b32", { roughness: 0.8 });
-  const red = material("#e93236", { roughness: 0.3 });
-  const gold = material("#f2c13d", { metalness: 0.36, roughness: 0.3 });
+  const red = porcelain("#ee303d", 0.26, 0.42);
+  const gold = material("#f2c13d", { metalness: 0.52, roughness: 0.25 });
   const bamboo = material("#f1cb76", { roughness: 0.46 });
   const bambooEdge = material("#bd933f", { roughness: 0.5 });
-  const mouthMat = material("#7e1e22", { roughness: 0.95 });
-  const tongueMat = material("#ee6562", { roughness: 0.8 });
+  const mouthMat = material("#ffffff", { roughness: 0.94, vertexColors: true });
+  const tongueMat = porcelain("#ef8373", 0.62, 0.08);
 
   // The neck is the suspension point. The body trails behind it in forward
   // flight, while the head and Take-copter stay upright (see REFERENCES.md).
@@ -97,7 +105,7 @@ export function makeDoraemon() {
   // A short, broad torso, with two tiny leg stubs rather than a tall pear shape.
   ball(torso, blue, 0, 0.02, 0, 1.17, 1.04, 0.96);
   ball(torso, white, 0, -0.04, 0.8, 0.86, 0.77, 0.245);
-  ball(head, blue, 0, 1.99, 0, 1.63, 1.55, 1.43);
+  const skull = ball(head, blue, 0, 1.99, 0, 1.63, 1.55, 1.43);
 
   const faceZ = (x, y, lift = 0.03) =>
     1.43 *
@@ -105,57 +113,117 @@ export function makeDoraemon() {
         Math.max(0.012, 1 - (x / 1.63) ** 2 - ((y - 1.99) / 1.55) ** 2),
       ) +
     lift;
-  // A conforming white mask gives one continuous round face, without the
-  // intersecting cheek spheres and deep seams of the first version.
-  function ellipsePatch(parent, mat, cx, cy, rx, ry, lift) {
-    const vertices = [],
-      indices = [],
-      segments = 80,
-      rings = 18;
-    for (let j = 0; j <= rings; j++)
-      for (let i = 0; i <= segments; i++) {
-        const a = (i / segments) * Math.PI * 2,
-          r = j / rings;
-        const x = cx + Math.cos(a) * rx * r,
-          y = cy + Math.sin(a) * ry * r;
-        vertices.push(x, y, faceZ(x, y, lift));
-      }
-    for (let j = 0; j < rings; j++)
-      for (let i = 0; i < segments; i++) {
-        const a = j * (segments + 1) + i;
-        indices.push(
-          a,
-          a + segments + 1,
-          a + 1,
-          a + 1,
-          a + segments + 1,
-          a + segments + 2,
-        );
-      }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.receiveShadow = true;
-    parent.add(mesh);
-    return mesh;
+  // A real aperture and a gently recessed interior give the smile volume.
+  // The lower curve is a broad bowl, like the 3D flight reference, rather
+  // than a pointed wedge. The white face stays one continuous surface.
+  const mouthHalf = 1.025;
+  const mouthTop = (x) =>
+    1.84 - 0.052 * Math.cos((x / mouthHalf) * Math.PI * 0.5);
+  const mouthBottom = (x) =>
+    1.84 -
+    0.81 * Math.pow(Math.max(0, Math.cos((x / mouthHalf) * Math.PI * 0.5)), 0.67);
+  const maskShape = new THREE.Shape();
+  maskShape.absellipse(0, 1.76, 1.415, 1.245, 0, Math.PI * 2, false, 0);
+  const mouthHole = new THREE.Path();
+  mouthHole.moveTo(-mouthHalf, mouthTop(-mouthHalf));
+  for (let i = 1; i <= 64; i++) {
+    const x = -mouthHalf + (i / 64) * mouthHalf * 2;
+    mouthHole.lineTo(x, mouthTop(x));
   }
-  ellipsePatch(head, white, 0, 1.76, 1.415, 1.245, 0.025);
+  for (let i = 63; i >= 0; i--) {
+    const x = -mouthHalf + (i / 64) * mouthHalf * 2;
+    mouthHole.lineTo(x, mouthBottom(x));
+  }
+  mouthHole.closePath();
+  maskShape.holes.push(mouthHole);
 
-  // The familiar broad, almost level upper lip and round open smile.
+  // Subdivide in the face plane before projecting, so the aperture and
+  // silhouette remain smooth even in a close three-quarter camera view.
+  const flatMask = new THREE.ShapeGeometry(maskShape, 48);
+  const maskPositions = flatMask.getAttribute("position");
+  const maskVertices = [];
+  const projectTriangle = (a, b, c, depth = 0) => {
+    const ab = a.distanceToSquared(b),
+      bc = b.distanceToSquared(c),
+      ca = c.distanceToSquared(a);
+    if (depth < 11 && Math.max(ab, bc, ca) > 0.01) {
+      if (ab >= bc && ab >= ca) {
+        const mid = a.clone().add(b).multiplyScalar(0.5);
+        projectTriangle(a, mid, c, depth + 1);
+        projectTriangle(mid, b, c, depth + 1);
+      } else if (bc >= ca) {
+        const mid = b.clone().add(c).multiplyScalar(0.5);
+        projectTriangle(a, b, mid, depth + 1);
+        projectTriangle(a, mid, c, depth + 1);
+      } else {
+        const mid = c.clone().add(a).multiplyScalar(0.5);
+        projectTriangle(a, b, mid, depth + 1);
+        projectTriangle(mid, b, c, depth + 1);
+      }
+      return;
+    }
+    for (const p of [a, b, c])
+      maskVertices.push(p.x, p.y, faceZ(p.x, p.y, 0.036));
+  };
+  for (let i = 0; i < flatMask.index.count; i += 3) {
+    const points = [0, 1, 2].map((j) =>
+      new THREE.Vector3().fromBufferAttribute(maskPositions, flatMask.index.getX(i + j)),
+    );
+    projectTriangle(...points);
+  }
+  flatMask.dispose();
+  const maskGeo = new THREE.BufferGeometry();
+  maskGeo.setAttribute("position", new THREE.Float32BufferAttribute(maskVertices, 3));
+  const maskNormals = [];
+  for (let i = 0; i < maskVertices.length; i += 3) {
+    const normal = new THREE.Vector3(
+      maskVertices[i] / 1.63 ** 2,
+      (maskVertices[i + 1] - 1.99) / 1.55 ** 2,
+      (maskVertices[i + 2] - 0.036) / 1.43 ** 2,
+    ).normalize();
+    maskNormals.push(normal.x, normal.y, normal.z);
+  }
+  maskGeo.setAttribute("normal", new THREE.Float32BufferAttribute(maskNormals, 3));
+  const faceMask = new THREE.Mesh(maskGeo, white);
+  faceMask.receiveShadow = true;
+  head.add(faceMask);
+
+  // Carve the hidden blue shell behind the mouth. Its generous margin is
+  // covered by the white mask; the mouth surface closes the actual opening.
+  skull.geometry = skull.geometry.clone();
+  const skullPoints = skull.geometry.getAttribute("position");
+  const skullIndices = [];
+  for (let i = 0; i < skull.geometry.index.count; i += 3) {
+    const ids = [0, 1, 2].map((j) => skull.geometry.index.getX(i + j));
+    const p = new THREE.Vector3();
+    for (const id of ids)
+      p.add(new THREE.Vector3().fromBufferAttribute(skullPoints, id));
+    p.multiplyScalar(1 / 3).multiply(skull.scale).add(skull.position);
+    const edgeX = THREE.MathUtils.clamp(p.x, -mouthHalf, mouthHalf);
+    const inMouth = p.z > 0 && Math.abs(p.x) < mouthHalf + 0.17 &&
+      p.y < mouthTop(edgeX) + 0.16 && p.y > mouthBottom(edgeX) - 0.17;
+    if (!inMouth) skullIndices.push(...ids);
+  }
+  skull.geometry.setIndex(skullIndices);
+
   const vertices = [],
+    colors = [],
     indices = [],
     columns = 64,
     rows = 22;
+  const darkMouth = new THREE.Color("#4d151e");
+  const warmMouth = new THREE.Color("#a3423c");
   for (let j = 0; j <= rows; j++)
     for (let i = 0; i <= columns; i++) {
       const t = i / columns,
-        x = (t - 0.5) * 2.11;
-      const top = 1.82 - 0.035 * Math.sin(t * Math.PI);
-      const bottom = 1.82 - 0.96 * Math.sin(t * Math.PI);
+        x = (t - 0.5) * mouthHalf * 2;
+      const top = mouthTop(x);
+      const bottom = mouthBottom(x);
       const y = THREE.MathUtils.lerp(top, bottom, j / rows);
-      vertices.push(x, y, faceZ(x, y, 0.049));
+      const depth = Math.sin(t * Math.PI) * Math.sin((j / rows) * Math.PI) * 0.18;
+      vertices.push(x, y, faceZ(x, y, 0.03 - depth));
+      const color = darkMouth.clone().lerp(warmMouth, Math.pow(j / rows, 1.5));
+      colors.push(color.r, color.g, color.b);
     }
   for (let j = 0; j < rows; j++)
     for (let i = 0; i < columns; i++) {
@@ -174,53 +242,118 @@ export function makeDoraemon() {
     "position",
     new THREE.Float32BufferAttribute(vertices, 3),
   );
+  smileGeo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
   smileGeo.setIndex(indices);
   smileGeo.computeVertexNormals();
   head.add(new THREE.Mesh(smileGeo, mouthMat));
-  ellipsePatch(head, tongueMat, 0, 1.066, 0.49, 0.19, 0.066);
+
+  // The tongue ends on the lower smile curve; it cannot spill onto the chin.
+  const tonguePositions = [], tongueIndices = [];
+  const tongueHalf = 0.52;
+  for (let j = 0; j <= 10; j++)
+    for (let i = 0; i <= 40; i++) {
+      const x = (i / 40 - 0.5) * tongueHalf * 2;
+      const bottom = mouthBottom(x) + 0.018;
+      const top = mouthBottom(tongueHalf) + 0.018 +
+        Math.cos((x / tongueHalf) * Math.PI * 0.5) * 0.12;
+      const y = THREE.MathUtils.lerp(top, bottom, j / 10);
+      const bulge = Math.sin((i / 40) * Math.PI) * Math.sin((j / 10) * Math.PI) * 0.042;
+      tonguePositions.push(x, y, faceZ(x, y, 0.052 + bulge));
+    }
+  for (let j = 0; j < 10; j++)
+    for (let i = 0; i < 40; i++) {
+      const a = j * 41 + i;
+      tongueIndices.push(a, a + 41, a + 1, a + 1, a + 41, a + 42);
+    }
+  const tongueGeo = new THREE.BufferGeometry();
+  tongueGeo.setAttribute("position", new THREE.Float32BufferAttribute(tonguePositions, 3));
+  tongueGeo.setIndex(tongueIndices);
+  tongueGeo.computeVertexNormals();
+  head.add(new THREE.Mesh(tongueGeo, tongueMat));
   for (const lower of [false, true]) {
     const points = [];
-    for (let i = 0; i <= 40; i++) {
-      const t = i / 40,
-        x = (t - 0.5) * 2.11;
-      const y = 1.82 - (lower ? 0.96 : 0.035) * Math.sin(t * Math.PI);
-      points.push([x, y, faceZ(x, y, 0.068)]);
+    for (let i = 0; i <= 64; i++) {
+      const x = (i / 64 - 0.5) * mouthHalf * 2;
+      const y = lower ? mouthBottom(x) : mouthTop(x);
+      points.push([x, y, faceZ(x, y, 0.045)]);
     }
-    tube(head, points, 0.014, ink);
+    tube(head, points, lower ? 0.025 : 0.037, white);
   }
   tube(
     head,
     [
       [0, 2.53, faceZ(0, 2.53, 0.054)],
       [0, 2.15, faceZ(0, 2.15, 0.054)],
-      [0, 1.785, faceZ(0, 1.785, 0.067)],
+      [0, mouthTop(0) + 0.026, faceZ(0, mouthTop(0), 0.065)],
     ],
     0.018,
     ink,
   );
 
-  // Touching oval eyes, smaller pupils, and restrained outlines.
+  // Neighboring oval eyes follow the head's curvature. Morphing the caps
+  // along that same surface keeps a blink from collapsing into floating discs.
   const eyes = [],
     pupils = [];
+  const eyeZ = (x, y, cx, cy, lift = 0.05) => {
+    const radial = ((x - cx) / 0.333) ** 2 + ((y - cy) / 0.395) ** 2;
+    return faceZ(x, y, lift + Math.max(0, 1 - radial) * 0.068);
+  };
   for (const side of [-1, 1]) {
     const eye = new THREE.Group();
-    eye.position.set(side * 0.316, 2.93, 1.115);
+    const cx = side * 0.325, cy = 2.91;
+    eye.position.set(cx, cy, 0);
     head.add(eye);
-    eyes.push(eye);
-    ball(eye, ink, 0, 0, 0, 0.327, 0.447, 0.117);
-    ball(eye, white, 0, 0, 0.012, 0.319, 0.439, 0.12);
+    const eyeSurfaces = [];
+    for (const outline of [true, false]) {
+      const eyePositions = [], closedPositions = [], eyeIndices = [];
+      const rx = outline ? 0.337 : 0.330;
+      const ry = outline ? 0.398 : 0.391;
+      const lift = outline ? 0.047 : 0.054;
+      for (let j = 0; j <= 12; j++)
+        for (let i = 0; i <= 64; i++) {
+          const angle = (i / 64) * Math.PI * 2, r = j / 12;
+          const x = Math.cos(angle) * rx * r;
+          const y = Math.sin(angle) * ry * r;
+          eyePositions.push(x, y, eyeZ(cx + x, cy + y, cx, cy, lift));
+          closedPositions.push(x, y * 0.055,
+            eyeZ(cx + x, cy + y * 0.055, cx, cy, lift));
+        }
+      for (let j = 0; j < 12; j++)
+        for (let i = 0; i < 64; i++) {
+          const a = j * 65 + i;
+          eyeIndices.push(a, a + 65, a + 1, a + 1, a + 65, a + 66);
+        }
+      const eyeGeo = new THREE.BufferGeometry();
+      eyeGeo.setAttribute("position", new THREE.Float32BufferAttribute(eyePositions, 3));
+      eyeGeo.setIndex(eyeIndices);
+      eyeGeo.computeVertexNormals();
+      eyeGeo.morphAttributes.position = [new THREE.Float32BufferAttribute(closedPositions, 3)];
+      const surface = new THREE.Mesh(eyeGeo, outline ? ink : white);
+      eye.add(surface);
+      eyeSurfaces.push(surface);
+    }
     const pupil = ball(
       eye,
       ink,
       -side * 0.064,
-      -0.088,
-      0.126,
+      -0.12,
+      eyeZ(cx - side * 0.064, cy - 0.12, cx, cy) + 0.009,
       0.074,
-      0.112,
-      0.021,
+      0.105,
+      0.024,
     );
+    pupil.userData.eyeCenter = { x: cx, y: cy };
     pupils.push(pupil);
     ball(pupil, white, -0.2, 0.32, 0.83, 0.23, 0.19, 0.22);
+    const lidPoints = [];
+    for (let i = 0; i <= 24; i++) {
+      const x = (i / 24 - 0.5) * 0.52;
+      const y = -0.065 + Math.sin((i / 24) * Math.PI) * 0.075;
+      lidPoints.push([x, y, eyeZ(cx + x, cy + y, cx, cy, 0.078)]);
+    }
+    const closedLid = tube(eye, lidPoints, 0.018, ink);
+    closedLid.visible = false;
+    eyes.push({ surfaces: eyeSurfaces, closedLid, pupil });
     eye.traverse((part) => {
       if (part.isMesh) {
         part.castShadow = false;
@@ -232,7 +365,7 @@ export function makeDoraemon() {
       for (let j = 0; j <= 14; j++) {
         const t = j / 14,
           x = side * (0.53 + t * 0.74);
-        const y = 2.3 + (i - 1) * (0.15 + t * 0.15);
+        const y = 2.27 + (i - 1) * (0.15 + t * 0.15);
         points.push([x, y, faceZ(x, y, 0.057)]);
       }
       tube(head, points, 0.016, ink);
@@ -326,17 +459,20 @@ export function makeDoraemon() {
     stub.receiveShadow = false;
     ball(leg, white, 0, -0.36, 0.16, 0.51, 0.25, 0.61);
   }
+  const tail = new THREE.Group();
+  tail.position.set(0, -0.38, -0.86);
+  torso.add(tail);
   tube(
-    torso,
+    tail,
     [
-      [0, -0.38, -0.86],
-      [0, -0.37, -1.12],
-      [0, -0.28, -1.22],
+      [0, 0, 0],
+      [0, 0.01, -0.26],
+      [0, 0.1, -0.36],
     ],
     0.05,
     red,
   );
-  const tailAnchor = ball(torso, red, 0, -0.25, -1.25, 0.205);
+  const tailAnchor = ball(tail, red, 0, 0.13, -0.39, 0.205);
 
   const copter = new THREE.Group();
   copter.position.set(0, 3.52, 0);
@@ -410,10 +546,17 @@ export function makeDoraemon() {
 
   let elapsed = 0,
     blinkAt = 2.8,
+    winkAt = -10,
+    waveStarted = -10,
     waveUntil = 0,
-    posePitch = 0;
+    posePitch = 0,
+    previousSpeed = 0,
+    bellPitch = 0,
+    bellVelocity = 0;
+  const pupilNormal = new THREE.Vector3();
+  const pupilFront = new THREE.Vector3(0, 0, 1);
   const wink = () => {
-    blinkAt = elapsed + 0.01;
+    winkAt = elapsed + 0.01;
   };
   return {
     root,
@@ -430,8 +573,9 @@ export function makeDoraemon() {
       };
     },
     greet() {
+      waveStarted = elapsed;
       waveUntil = elapsed + 2.6;
-      blinkAt = elapsed + 0.25;
+      winkAt = elapsed + 0.28;
     },
     update(
       time,
@@ -446,13 +590,30 @@ export function makeDoraemon() {
       elapsed = time;
       const glide = flying ? THREE.MathUtils.smoothstep(speed, 0.7, 10) : 0;
       const blend = 1 - Math.exp(-dt * 4);
+      const lookX = THREE.MathUtils.clamp(gaze.x || 0, -1, 1);
+      const lookY = THREE.MathUtils.clamp(gaze.y || 0, -1, 1);
+      const greeting = THREE.MathUtils.smoothstep(time - waveStarted, 0, 0.28) *
+        THREE.MathUtils.smoothstep(waveUntil - time, 0, 0.5);
       posePitch = THREE.MathUtils.lerp(posePitch, glide * 0.9, blend);
       flightRig.rotation.x = posePitch;
       headPivot.rotation.x = -posePitch * 0.98;
-      headPivot.rotation.z = reduced ? 0 : Math.sin(time * 0.73) * 0.018;
+      headPivot.rotation.y = THREE.MathUtils.lerp(headPivot.rotation.y, lookX * 0.07, blend);
+      headPivot.rotation.z = reduced ? 0 :
+        Math.sin(time * 0.73) * 0.015 + greeting * 0.045;
+      torso.scale.x = torso.scale.z = reduced ? 1 : 1 + Math.sin(time * 1.35) * 0.003;
       rotor.rotation.y += dt * (reduced ? 9 : 24 + speed * 1.4);
       blurMat.opacity = flying ? 0.08 : 0.035;
-      bell.rotation.x = Math.sin(time * 2.2) * 0.07;
+      ghostMaterial.opacity = flying ? 0.11 : 0.065;
+      const acceleration = dt > 0 ? (speed - previousSpeed) / dt : 0;
+      previousSpeed = speed;
+      const bellTarget = reduced ? 0 : THREE.MathUtils.clamp(acceleration * -0.018, -0.2, 0.2) +
+        Math.sin(time * 2.2) * 0.045;
+      bellVelocity += ((bellTarget - bellPitch) * 32 - bellVelocity * 7) * dt;
+      bellPitch += bellVelocity * dt;
+      bell.rotation.x = bellPitch;
+      bell.rotation.z = reduced ? 0 : -root.rotation.z * 0.35;
+      tail.rotation.y = reduced ? 0 : Math.sin(time * 1.7) * (0.09 + glide * 0.04);
+      tail.rotation.x = reduced ? 0 : Math.sin(time * 2.3) * 0.06;
       arms.forEach((arm, i) => {
         const side = i === 0 ? -1 : 1;
         arm.rotation.z =
@@ -470,28 +631,43 @@ export function makeDoraemon() {
           -0.73 +
           (flying && !reduced ? Math.sin(time * 1.8 + i * 0.9) * 0.035 : 0);
       });
-      if (time > blinkAt + 0.17) blinkAt = time + 3.3 + Math.random() * 3;
-      const blink =
-        time >= blinkAt
-          ? Math.max(0.08, Math.abs(((time - blinkAt) / 0.17) * 2 - 1))
-          : 1;
-      eyes.forEach((eye) => (eye.scale.y = blink));
+      if (time > blinkAt + 0.22) blinkAt = time + 3.3 + Math.random() * 3;
+      const blinkAmount = (start, duration) => {
+        const phase = (time - start) / duration;
+        return phase >= 0 && phase <= 1 ? Math.sin(phase * Math.PI) ** 1.2 : 0;
+      };
+      const blink = blinkAmount(blinkAt, 0.22);
+      const winking = blinkAmount(winkAt, 0.42);
+      eyes.forEach((eye, i) => {
+        const closure = Math.max(blink, i === 1 ? winking : 0);
+        eye.surfaces.forEach((surface) => {
+          surface.morphTargetInfluences[0] = closure * 0.16;
+        });
+        eye.closedLid.visible = closure >= 0.68;
+        eye.pupil.visible = closure < 0.68;
+        eye.pupil.scale.y = 0.105 * (1 - closure * 0.85);
+      });
       pupils.forEach((p, i) => {
         p.position.x = THREE.MathUtils.lerp(
           p.position.x,
-          (i === 0 ? 1 : -1) * 0.064 + (flying ? 0 : gaze.x * 0.032),
+          (i === 0 ? 1 : -1) * 0.064 + lookX * 0.085,
           blend,
         );
         p.position.y = THREE.MathUtils.lerp(
           p.position.y,
-          -0.088 + (flying ? 0 : gaze.y * 0.035),
+          -0.12 + lookY * 0.075,
           blend,
         );
+        const center = p.userData.eyeCenter;
+        const px = center.x + p.position.x, py = center.y + p.position.y;
+        p.position.z = eyeZ(px, py, center.x, center.y) + 0.009;
+        pupilNormal.set(px / 1.63 ** 2, (py - 1.99) / 1.55 ** 2,
+          faceZ(px, py, 0) / 1.43 ** 2).normalize();
+        p.quaternion.setFromUnitVectors(pupilFront, pupilNormal);
       });
       if (time < waveUntil) {
-        const envelope = Math.min(1, (waveUntil - time) * 3);
-        arms[0].rotation.z -= envelope * (0.72 + Math.sin(time * 12) * 0.18);
-        arms[0].rotation.x -= envelope * 0.16;
+        arms[0].rotation.z -= greeting * (0.78 + (reduced ? 0 : Math.sin(time * 11) * 0.17));
+        arms[0].rotation.x -= greeting * 0.16;
       }
     },
   };

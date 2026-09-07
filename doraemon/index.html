@@ -11,7 +11,7 @@
       name="description"
       content="A little blue friend. An impossibly small helicopter. An entire sky to explore. Fly with Doraemon in an interactive Three.js miniature world."
     />
-    <title>Doraemon · A little sky adventure</title>
+    <title>Pocket Skies · A Doraemon adventure</title>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='34' r='28' fill='%23049ed2'/%3E%3Cellipse cx='32' cy='39' rx='23' ry='20' fill='white'/%3E%3Ccircle cx='32' cy='31' r='6' fill='%23e84843'/%3E%3Cpath d='M12 5h40M32 5v9' stroke='%23e6b744' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E"
@@ -95,10 +95,16 @@
         Some adventures start with a tiny propeller. <br />Take a breath. Leave
         the ground behind.
       </p>
-      <button id="start-flight" class="primary-button">
-        Let’s fly
-        <svg viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6" /></svg>
-      </button>
+      <div class="intro-actions">
+        <button id="start-flight" class="primary-button">
+          Let’s fly
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" /></svg>
+        </button>
+        <button id="start-tour" class="scenic-button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 16c3-8 6 8 9 0s6-8 9-8M17 5l4 3-3 4" /></svg>
+          Take the scenic route
+        </button>
+      </div>
       <div class="intro-note">
         <span class="key-mini">↔</span> Drag to look around
         <span class="dot">·</span> Scroll to get closer
@@ -192,6 +198,21 @@
       <i></i><b></b><span>STEER / CLIMB</span>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
+    <aside class="ui sky-chart" id="sky-chart" aria-label="Flight chart" hidden>
+      <button id="chart-toggle" class="chart-toggle" aria-expanded="true" aria-controls="chart-content" title="Expand or fold the sky chart">
+        <span><small>THE LITTLE ARCHIPELAGO</small><span id="chart-region">Home waters</span></span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 14 5-5 5 5" /></svg>
+      </button>
+      <div id="chart-content" class="chart-content">
+        <canvas id="chart-canvas" width="360" height="300" role="img" aria-label="A map of the islands, golden ring route, and your current position"></canvas>
+        <div class="chart-key"><span><i></i> YOU ARE HERE</span><span>✧ &nbsp; SKY RINGS</span></div>
+        <div class="chart-discoveries"><span>DISCOVERIES</span><strong id="discovery-count">0 / 4</strong></div>
+      </div>
+    </aside>
+    <button id="leave-focus" class="focus-return" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6" /></svg>
+      Show controls <kbd>H</kbd>
+    </button>
     <div class="ui bottom-bar">
       <div class="scene-picker" role="group" aria-label="Time of day">
         <span class="control-caption">SKY MOOD</span>
@@ -239,6 +260,15 @@
             <circle cx="12" cy="12" r="4" />
           </svg></button
         ><button
+          id="focus-mode"
+          class="icon-button"
+          aria-label="Hide interface"
+          aria-pressed="false"
+          title="Hide interface (H)"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6" /></svg>
+        </button
+        ><button
           id="reset-view"
           class="icon-button"
           aria-label="Reset view"
@@ -279,6 +309,10 @@
         off and collect all eight golden sky rings.
       </p>
       <dl>
+        <dt>The scenic route</dt>
+        <dd>A guided journey through all eight rings. Choose Scenic for changing views, or Follow to stay behind Doraemon.</dd>
+        <dt>Your sky chart</dt>
+        <dd>Follow your route and find four island discoveries. Tap the chart’s heading to fold it away.</dd>
         <dt>Look around</dt>
         <dd>Drag · pinch or scroll to zoom</dd>
         <dt>Mouse-only flight</dt>
@@ -301,6 +335,8 @@
         <dd><kbd>Space</kbd> / <kbd>Shift</kbd></dd>
         <dt>Save a postcard</dt>
         <dd><kbd>P</kbd> or the camera button</dd>
+        <dt>A sky without edges</dt>
+        <dd><kbd>H</kbd> hides the controls. Press again, or choose Show controls, to bring them back.</dd>
         <dt>Back to orbit</dt>
         <dd><kbd>Esc</kbd> or Orbit</dd>
       </dl>
@@ -314,12 +350,17 @@
       <button class="close-dialog icon-button" aria-label="Close celebration">
         ×
       </button>
-      <div class="eyebrow">EIGHT LITTLE MOMENTS OF MAGIC</div>
-      <h2>Sky’s the limit.</h2>
+      <div class="eyebrow">A PAGE FOR YOUR TRAVEL JOURNAL</div>
+      <h2>Oh, the places<br />we’ve flown.</h2>
       <p>
         You found every ring. Doraemon thinks that calls for a dorayaki break.
       </p>
       <div class="completion-stamp">8 / 8<span>SKY EXPLORER</span></div>
+      <div class="trip-stats" aria-label="Your flight journal">
+        <div><strong id="trip-time">0:00</strong><span>TIME IN THE SKY</span></div>
+        <div><strong id="trip-distance">0 m</strong><span>DISTANCE FLOWN</span></div>
+        <div><strong id="trip-discoveries">0 / 4</strong><span>DISCOVERIES</span></div>
+      </div>
       <button id="play-again" class="primary-button">
         One more adventure ↗</button
       ><button id="keep-flying" class="text-button">Keep wandering</button>
