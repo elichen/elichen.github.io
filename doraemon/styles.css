@@ -1,0 +1,1376 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
+:root {
+  --ink: #173f4d;
+  --muted: #345963;
+  --paper: #fffdf5;
+  --blue: #087dad;
+  --line: rgba(32, 80, 92, 0.15);
+  --glass: rgba(255, 255, 250, 0.62);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #c6e5e9;
+  color: var(--ink);
+  font-family: "DM Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+button:focus-visible,
+a:focus-visible,
+canvas:focus-visible {
+  outline: 3px solid #e5a32e;
+  outline-offset: 5px;
+}
+button {
+  border: 0;
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+a {
+  color: inherit;
+}
+#world {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  outline: none;
+}
+.ui {
+  transition:
+    opacity 0.5s,
+    transform 0.6s;
+}
+.topbar {
+  position: fixed;
+  z-index: 3;
+  top: 34px;
+  left: 44px;
+  right: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  display: flex;
+  gap: 12px;
+  text-decoration: none;
+  align-items: center;
+  font-family: Manrope, sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 2.2px;
+}
+.brand small {
+  display: block;
+  font-size: 8px;
+  letter-spacing: 2px;
+  font-weight: 600;
+  margin-top: 5px;
+}
+.brand-icon {
+  display: block;
+  width: 43px;
+  height: 43px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  padding: 6px;
+}
+.brand-icon svg {
+  width: 100%;
+}
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.live-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  margin-right: 13px;
+}
+.live-label i,
+#status-label i {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #178c78;
+  margin-right: 8px;
+  vertical-align: 2px;
+}
+.icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 20px;
+  font-weight: 500;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+.icon-button:hover {
+  background: var(--glass);
+  transform: translateY(-2px);
+}
+svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.intro {
+  position: absolute;
+  top: 29%;
+  left: 7%;
+  pointer-events: none;
+  max-width: 520px;
+}
+.intro button {
+  pointer-events: auto;
+}
+.eyebrow {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+}
+.eyebrow-line {
+  width: 27px;
+  height: 1px;
+  background: var(--ink);
+  opacity: 0.4;
+}
+h1 {
+  font-family: Manrope, sans-serif;
+  font-size: clamp(44px, 5vw, 76px);
+  font-weight: 500;
+  letter-spacing: -4px;
+  line-height: 1.12;
+  margin: 24px 0;
+}
+h1 em {
+  font-style: normal;
+  color: var(--blue);
+}
+.intro-copy {
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--muted);
+  margin: 0 0 30px;
+}
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  color: #fffdf7;
+  background: var(--ink);
+  border-radius: 40px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 17px 25px;
+  box-shadow: 0 7px 20px #173f4d16;
+  transition:
+    transform 0.2s,
+    background 0.2s,
+    box-shadow 0.2s;
+}
+.primary-button:hover {
+  background: #076c8a;
+  transform: translateY(-3px);
+  box-shadow: 0 10px 22px #173f4d2a;
+}
+.primary-button svg {
+  width: 19px;
+}
+.intro-note {
+  margin-top: 20px;
+  font-size: 10px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.key-mini {
+  font-size: 16px;
+}
+.dot {
+  opacity: 0.5;
+}
+.gadget-label {
+  position: absolute;
+  right: 7.5%;
+  top: 30%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+  pointer-events: none;
+}
+.gadget-label small {
+  display: block;
+  margin-top: 6px;
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.label-dot {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  position: relative;
+}
+.label-dot:before {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 2px;
+  width: 36px;
+  height: 1px;
+  background: var(--line);
+}
+.bottom-bar {
+  position: fixed;
+  bottom: 69px;
+  left: 44px;
+  right: 44px;
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 20px;
+}
+.control-caption {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  display: block;
+  margin: 0 0 11px 3px;
+  color: var(--muted);
+}
+.scene-options {
+  display: flex;
+  gap: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 28px;
+  padding: 5px;
+  background: var(--glass);
+  backdrop-filter: blur(18px);
+}
+.scene-option {
+  border-radius: 24px;
+  padding: 10px 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  font-size: 10px;
+  transition:
+    background 0.2s,
+    box-shadow 0.2s;
+}
+.scene-option span {
+  font-size: 16px;
+}
+.scene-option.active {
+  background: var(--paper);
+  box-shadow: 0 2px 8px #1b465214;
+}
+.scene-option:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+.view-controls {
+  display: flex;
+  align-items: center;
+  padding: 5px;
+  background: var(--glass);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 30px;
+  gap: 3px;
+}
+.mode-button {
+  background: transparent;
+  border-radius: 30px;
+  padding: 11px 17px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+.mode-button.active {
+  background: var(--ink);
+  color: #fff;
+}
+.mode-button:not(.active):hover {
+  background: var(--paper);
+}
+.mode-button svg {
+  width: 17px;
+  height: 17px;
+}
+.divider {
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+  margin: 0 6px;
+}
+.footer {
+  position: fixed;
+  bottom: 28px;
+  left: 47px;
+  right: 47px;
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.2px;
+}
+#status-label {
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+}
+.flight-hud {
+  position: absolute;
+  top: 145px;
+  left: 44px;
+  background: var(--glass);
+  backdrop-filter: blur(18px);
+  border: 1px solid #ffffff50;
+  border-radius: 22px;
+  padding: 25px;
+  width: 280px;
+}
+.flight-hud h2 {
+  font-family: Manrope, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.6px;
+  margin: 14px 0 25px;
+}
+.flight-stats {
+  display: flex;
+  justify-content: space-between;
+}
+.flight-stats strong {
+  font-family: Manrope, sans-serif;
+  font-weight: 500;
+  font-size: 27px;
+  letter-spacing: -1px;
+}
+.flight-stats strong span {
+  font-size: 10px;
+  letter-spacing: 0;
+  margin-left: 2px;
+}
+.flight-stats small {
+  display: block;
+  font-size: 7px;
+  letter-spacing: 1px;
+  margin-top: 5px;
+  font-weight: 600;
+}
+.course-progress {
+  height: 3px;
+  background: var(--line);
+  margin-top: 19px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.course-progress span {
+  height: 100%;
+  width: 0;
+  background: #dba83b;
+  display: block;
+  transition: width 0.5s;
+}
+#flight-tip {
+  font-size: 10px;
+  line-height: 2;
+  color: var(--muted);
+  margin: 16px 0 8px;
+}
+.text-button {
+  font-size: 10px;
+  background: none;
+  padding: 7px 0;
+  color: var(--muted);
+}
+.text-button:hover {
+  color: var(--blue);
+}
+body.flying .intro,
+body.flying .gadget-label {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-10px);
+}
+body.flying .intro button {
+  pointer-events: none;
+}
+#ring-guide {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1;
+  text-align: center;
+  color: #fffdf0;
+  text-shadow: 0 1px 5px #16394688;
+  transform: translate(-50%, -50%);
+}
+#ring-guide span {
+  font-size: 30px;
+  line-height: 1;
+}
+#ring-guide small {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  margin-top: 3px;
+}
+#toast {
+  position: fixed;
+  top: 105px;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  opacity: 0;
+  pointer-events: none;
+  padding: 12px 23px;
+  border-radius: 30px;
+  background: var(--paper);
+  color: #173f4d;
+  box-shadow: 0 6px 30px #173f4d14;
+  font-size: 12px;
+  z-index: 10;
+  transition:
+    opacity 0.25s,
+    transform 0.25s;
+  text-align: center;
+}
+#toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+dialog {
+  border: 1px solid #fff;
+  padding: 38px;
+  background: #fffdf5;
+  color: #173f4d;
+  border-radius: 25px;
+  width: min(450px, calc(100% - 30px));
+  box-shadow: 0 20px 100px #1337463a;
+}
+dialog::backdrop {
+  background: #18394a40;
+  backdrop-filter: blur(8px);
+}
+dialog h2 {
+  font-family: Manrope, sans-serif;
+  font-size: 36px;
+  letter-spacing: -1.7px;
+  font-weight: 500;
+  margin: 20px 0 12px;
+}
+dialog p {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #557982;
+}
+dialog .close-dialog {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+}
+dialog dl {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  font-size: 11px;
+  gap: 16px 8px;
+  margin: 25px 0;
+}
+dialog dt {
+  font-weight: 600;
+}
+dialog dd {
+  margin: 0;
+  color: #557982;
+}
+kbd {
+  font:
+    10px "DM Sans",
+    sans-serif;
+  border: 1px solid #173f4d25;
+  border-radius: 4px;
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+.help-mobile {
+  font-size: 10px;
+}
+dialog .primary-button {
+  margin-top: 16px;
+  font-size: 12px;
+  padding: 14px 22px;
+}
+#complete {
+  text-align: center;
+}
+#complete .eyebrow {
+  justify-content: center;
+  font-size: 8px;
+}
+.completion-stamp {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 120px;
+  height: 120px;
+  border: 1px solid #d6ad4c;
+  border-radius: 50%;
+  margin: 24px auto 5px;
+  font:
+    32px Manrope,
+    sans-serif;
+  color: #aa7d26;
+  transform: rotate(-8deg);
+}
+.completion-stamp span {
+  font:
+    8px "DM Sans",
+    sans-serif;
+  letter-spacing: 1.5px;
+  margin-top: 7px;
+}
+#keep-flying {
+  display: block;
+  margin: 12px auto 0;
+}
+#loading {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #d2e9e9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity 0.6s,
+    visibility 0.6s;
+}
+#loading.done {
+  opacity: 0;
+  visibility: hidden;
+}
+#loading p {
+  font-family: Manrope, sans-serif;
+  font-size: 20px;
+  letter-spacing: -0.5px;
+  text-align: center;
+}
+#loading p span {
+  display: block;
+  font:
+    10px "DM Sans",
+    sans-serif;
+  letter-spacing: 1px;
+  margin-top: 12px;
+  color: #557982;
+}
+.loading-copter {
+  height: 70px;
+  position: relative;
+  width: 80px;
+}
+.loading-copter:after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 50px;
+  height: 40px;
+  left: 15px;
+  border-radius: 50% 50% 40% 40%;
+  background: #039cd0;
+}
+.loading-copter b {
+  position: absolute;
+  left: 38px;
+  width: 4px;
+  height: 35px;
+  background: #c9a343;
+}
+.loading-copter i {
+  position: absolute;
+  top: 0;
+  width: 80px;
+  height: 5px;
+  border-radius: 50%;
+  background: #c9a343;
+  animation: spin 0.25s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotateY(180deg);
+  }
+}
+#error {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  background: #d2e9e9;
+  text-align: center;
+  padding: 20vh 24px;
+}
+#error h1 {
+  font-size: 40px;
+  letter-spacing: -2px;
+}
+#error button {
+  padding: 12px 20px;
+  border-radius: 20px;
+  background: #173f4d;
+  color: white;
+  margin: 20px;
+}
+#error a {
+  display: block;
+  font-size: 12px;
+}
+[hidden] {
+  display: none !important;
+}
+body.night {
+  --ink: #ecf0e6;
+  --muted: #d7e5e5;
+  --blue: #94ddeb;
+  --line: #d9f2f025;
+  --glass: rgba(29, 53, 73, 0.65);
+  --paper: #35536a;
+}
+body.night .primary-button,
+body.night .mode-button.active {
+  color: #183c50;
+}
+body.night .scene-option.active {
+  color: #fff;
+}
+body.night dialog {
+  --ink: #173f4d;
+  --muted: #557982;
+  --glass: #fffdf5;
+  --paper: #fffdf5;
+}
+body.night dialog .primary-button {
+  background: #173f4d;
+  color: #fff;
+}
+.touch-flight {
+  position: fixed;
+  bottom: 145px;
+  left: 25px;
+  right: 25px;
+  display: none;
+  justify-content: space-between;
+  align-items: end;
+  pointer-events: none;
+}
+.joystick {
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  border: 1px solid #ffffff80;
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  position: relative;
+  pointer-events: auto;
+  touch-action: none;
+}
+.joystick > div {
+  position: absolute;
+  left: 34px;
+  top: 34px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--ink);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.joystick > span {
+  position: absolute;
+  bottom: 9px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 7px;
+  letter-spacing: 1.5px;
+  pointer-events: none;
+}
+.altitude-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  pointer-events: auto;
+}
+.altitude-buttons button {
+  width: 48px;
+  height: 48px;
+  border: 1px solid #ffffff80;
+  border-radius: 50%;
+  background: var(--glass);
+  font-size: 22px;
+  touch-action: none;
+}
+@media (pointer: coarse) {
+  body.flying .touch-flight {
+    display: flex;
+  }
+  #flight-tip {
+    display: none;
+  }
+}
+@media (min-width: 1700px) {
+  .intro {
+    left: 9%;
+    top: 31%;
+  }
+}
+@media (max-width: 1050px) {
+  .intro {
+    left: 5%;
+    top: 27%;
+  }
+  h1 {
+    font-size: 52px;
+    letter-spacing: -3px;
+  }
+  .gadget-label {
+    right: 5%;
+    top: 23%;
+    font-size: 8px;
+  }
+  .gadget-label small {
+    font-size: 9px;
+  }
+  .topbar {
+    left: 28px;
+    right: 28px;
+  }
+  .live-label {
+    display: none;
+  }
+  .bottom-bar {
+    left: 28px;
+    right: 28px;
+  }
+  .footer {
+    left: 30px;
+    right: 30px;
+  }
+  .intro-copy {
+    font-size: 12px;
+  }
+  .scene-option {
+    padding: 10px 11px;
+  }
+}
+@media (max-width: 700px) {
+  .topbar {
+    left: 22px;
+    right: 18px;
+    top: max(22px, env(safe-area-inset-top));
+  }
+  .brand {
+    font-size: 12px;
+    letter-spacing: 1.6px;
+    gap: 8px;
+  }
+  .brand small {
+    font-size: 6px;
+    letter-spacing: 1.5px;
+  }
+  .brand-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .top-actions {
+    gap: 2px;
+  }
+  .icon-button {
+    width: 34px;
+    height: 34px;
+  }
+  .intro {
+    top: 119px;
+    left: 27px;
+    right: 27px;
+    max-width: 100%;
+  }
+  .eyebrow {
+    font-size: 7px;
+    letter-spacing: 1.4px;
+    gap: 9px;
+  }
+  h1 {
+    font-size: 42px;
+    line-height: 1.08;
+    letter-spacing: -2.3px;
+    margin: 16px 0 14px;
+  }
+  .intro-copy {
+    font-size: 11px;
+    line-height: 1.7;
+    margin-bottom: 20px;
+  }
+  .intro-copy br {
+    display: none;
+  }
+  .intro-copy {
+    max-width: 245px;
+  }
+  .intro .primary-button {
+    padding: 12px 19px;
+    gap: 20px;
+    font-size: 11px;
+  }
+  .intro-note {
+    display: none;
+  }
+  .gadget-label {
+    display: none;
+  }
+  .bottom-bar {
+    bottom: 48px;
+    left: 17px;
+    right: 17px;
+    gap: 9px;
+    align-items: center;
+    flex-direction: column-reverse;
+  }
+  .control-caption {
+    display: none;
+  }
+  .scene-options {
+    padding: 3px;
+  }
+  .scene-option {
+    font-size: 9px;
+    padding: 8px 13px;
+  }
+  .scene-option span {
+    font-size: 14px;
+  }
+  .view-controls {
+    padding: 3px;
+  }
+  .mode-button {
+    padding: 8px 16px;
+    font-size: 10px;
+  }
+  .view-controls .icon-button {
+    width: 30px;
+    height: 30px;
+  }
+  .footer {
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    font-size: 7px;
+  }
+  .footer > span:first-child {
+    max-width: 165px;
+  }
+  #status-label {
+    font-size: 6px;
+    letter-spacing: 1px;
+  }
+  .flight-hud {
+    left: 20px;
+    top: 95px;
+    right: 20px;
+    width: auto;
+    padding: 17px 20px;
+    border-radius: 18px;
+  }
+  .flight-hud h2 {
+    font-size: 14px;
+    margin: 10px 0 16px;
+  }
+  .flight-stats {
+    max-width: 300px;
+  }
+  .flight-stats strong {
+    font-size: 24px;
+  }
+  .course-progress {
+    margin-top: 12px;
+  }
+  .flight-hud .text-button {
+    position: absolute;
+    top: 11px;
+    right: 17px;
+    font-size: 8px;
+  }
+  #flight-tip {
+    font-size: 8px;
+    margin-bottom: 0;
+  }
+  .touch-flight {
+    bottom: 160px;
+  }
+  #toast {
+    top: 78px;
+    font-size: 10px;
+    width: max-content;
+    max-width: 90%;
+    padding: 10px 17px;
+  }
+  dialog {
+    padding: 30px 25px;
+  }
+  dialog dl {
+    font-size: 10px;
+    gap: 14px 7px;
+  }
+  dialog h2 {
+    font-size: 32px;
+  }
+  body.flying .bottom-bar {
+    flex-direction: row;
+    align-items: end;
+  }
+  body.flying .scene-options {
+    flex-direction: column;
+    border-radius: 20px;
+  }
+  body.flying .scene-option {
+    padding: 7px 10px;
+  }
+  body.flying .touch-flight {
+    bottom: 175px;
+  }
+}
+@media (max-height: 600px) and (min-width: 701px) {
+  .topbar {
+    top: 20px;
+  }
+  .intro {
+    top: 24%;
+  }
+  h1 {
+    font-size: 44px;
+    margin: 16px 0;
+  }
+  .intro-copy {
+    margin-bottom: 18px;
+  }
+  .intro-note {
+    display: none;
+  }
+  .bottom-bar {
+    bottom: 45px;
+  }
+  .footer {
+    bottom: 18px;
+  }
+  .flight-hud {
+    top: 88px;
+    padding: 18px;
+  }
+  .flight-hud h2 {
+    margin: 10px 0 15px;
+  }
+  #flight-tip {
+    margin: 10px 0 0;
+  }
+  .touch-flight {
+    bottom: 100px;
+    left: auto;
+    width: 220px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+  .loading-copter i {
+    animation-duration: 1s;
+  }
+}
+
+.autopilot-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #fffdf575;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 11px 12px;
+  margin: 13px 0 3px;
+  font-size: 10px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+.autopilot-button > span {
+  font-size: 17px;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+.autopilot-button small {
+  display: block;
+  font-size: 8px;
+  font-weight: 400;
+  color: var(--muted);
+  margin: 3px 0 0 26px;
+}
+.autopilot-button.enabled {
+  background: #f5d79755;
+  border-color: #d7b16b;
+}
+.autopilot-button:hover {
+  background: #fffdf5aa;
+}
+body.night .autopilot-button {
+  background: #8aaabb20;
+}
+@media (max-width: 700px) {
+  .autopilot-button {
+    margin: 12px 0 0;
+    padding: 8px 11px;
+    font-size: 9px;
+  }
+  .autopilot-button small {
+    display: inline;
+    margin: 0 0 0 12px;
+    font-size: 7px;
+  }
+}
+
+@media (max-width: 700px) and (max-height: 700px) {
+  .intro {
+    top: 92px;
+  }
+  .intro h1 {
+    font-size: 34px;
+    letter-spacing: -1.8px;
+    margin: 12px 0;
+  }
+  .intro-copy {
+    font-size: 10px;
+    max-width: 240px;
+    margin-bottom: 14px;
+  }
+  .intro .primary-button {
+    padding: 10px 17px;
+  }
+  .topbar {
+    top: 18px;
+  }
+  .bottom-bar {
+    bottom: 38px;
+    gap: 6px;
+  }
+  .footer {
+    bottom: 13px;
+  }
+  .scene-option {
+    padding: 6px 11px;
+  }
+  .mode-button {
+    padding: 6px 14px;
+  }
+  .touch-flight {
+    bottom: 145px;
+  }
+  .joystick {
+    width: 96px;
+    height: 96px;
+  }
+  .joystick > div {
+    left: 26px;
+    top: 26px;
+  }
+  .flight-hud {
+    top: 78px;
+    padding: 13px 16px;
+  }
+  .flight-hud h2 {
+    margin: 9px 0 11px;
+  }
+  .flight-stats strong {
+    font-size: 21px;
+  }
+  .flight-hud .eyebrow {
+    font-size: 6px;
+  }
+  .autopilot-button small {
+    font-size: 6px;
+  }
+  .flight-hud .text-button {
+    top: 8px;
+    font-size: 7px;
+  }
+  body.flying .touch-flight {
+    bottom: 143px;
+  }
+}
+
+#ring-guide small {
+  background: rgba(23, 63, 77, 0.5);
+  padding: 5px 9px;
+  border-radius: 20px;
+  text-shadow: none;
+  font-size: 8px;
+  letter-spacing: 0.6px;
+}
+@media (max-width: 360px) {
+  body.flying .view-controls .mode-button {
+    font-size: 0;
+    gap: 0;
+    padding: 9px 11px;
+  }
+  body.flying .view-controls .divider {
+    margin: 0 2px;
+  }
+  body.flying .scene-option {
+    font-size: 8px;
+    padding: 7px 8px;
+  }
+  body.flying .bottom-bar {
+    gap: 6px;
+  }
+}
+.cruise-control {
+  margin: 12px 0 4px;
+}
+.cruise-control label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 7px;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+.cruise-control output {
+  font-size: 9px;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.speed-controls {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 7px;
+}
+.speed-controls button {
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  font-size: 16px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.speed-controls button:hover {
+  background: var(--glass);
+}
+.speed-controls input {
+  accent-color: var(--ink);
+  width: 100%;
+  min-width: 30px;
+  height: 18px;
+  cursor: pointer;
+}
+.speed-controls .hover-button {
+  border-radius: 15px;
+  width: auto;
+  padding: 0 9px;
+  font-size: 8px;
+}
+.auto-camera-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 8px 0 3px;
+}
+.auto-camera-controls > span {
+  font-size: 7px;
+  letter-spacing: 1px;
+  margin-right: auto;
+}
+.auto-camera-controls button {
+  font-size: 9px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  padding: 6px 13px;
+}
+.auto-camera-controls button.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+body.night .auto-camera-controls button.active {
+  color: #173f4d;
+}
+body.flying #world {
+  cursor: crosshair;
+}
+#mouse-stick {
+  position: fixed;
+  z-index: 2;
+  pointer-events: none;
+  width: 96px;
+  height: 96px;
+  border: 1px solid #ffffffbb;
+  border-radius: 50%;
+  background: #173f4d10;
+  transform: translate(-50%, -50%);
+}
+#mouse-stick i {
+  position: absolute;
+  left: 44px;
+  top: 44px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff9e3;
+}
+#mouse-stick b {
+  position: absolute;
+  left: 39px;
+  top: 39px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff4c2;
+  border: 2px solid #173f4d55;
+  box-shadow: 0 1px 8px #173f4d33;
+}
+#mouse-stick span {
+  position: absolute;
+  top: 104px;
+  left: -10px;
+  right: -10px;
+  text-align: center;
+  font-size: 7px;
+  letter-spacing: 1px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+dialog {
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}
+@media (max-width: 700px) {
+  .cruise-control {
+    margin: 10px 0 2px;
+  }
+  .speed-controls {
+    margin-top: 5px;
+  }
+  .auto-camera-controls {
+    margin-top: 7px;
+  }
+  .auto-camera-controls button {
+    padding: 5px 13px;
+  }
+  .cruise-control label {
+    font-size: 6px;
+  }
+  .cruise-control output {
+    font-size: 8px;
+  }
+}
+@media (max-height: 700px) and (max-width: 700px) {
+  .flight-hud h2 {
+    margin-bottom: 8px;
+  }
+  .cruise-control {
+    margin-top: 7px;
+  }
+  .speed-controls button {
+    height: 23px;
+    width: 23px;
+  }
+  .speed-controls .hover-button {
+    width: auto;
+  }
+  .auto-camera-controls button {
+    padding: 4px 12px;
+  }
+  .autopilot-button {
+    margin-top: 7px;
+  }
+  .flight-hud {
+    padding-top: 12px;
+    padding-bottom: 10px;
+  }
+}
+
+@media (max-width: 700px) {
+  body.autopiloting .cruise-control {
+    display: none;
+  }
+  body.autopiloting .flight-hud h2 {
+    margin-bottom: 13px;
+  }
+}
+@media (max-width: 700px) and (max-height: 700px) {
+  body.autopiloting .flight-hud h2 {
+    display: none;
+  }
+  body.autopiloting .flight-stats {
+    margin-top: 12px;
+  }
+}
+
+body.autopiloting #flight-tip {
+  display: none;
+}
+@media (max-width: 700px) {
+  body.autopiloting .flight-hud h2 {
+    display: none;
+  }
+  body.autopiloting .flight-stats {
+    margin-top: 15px;
+  }
+  #toast {
+    top: 68px;
+  }
+}

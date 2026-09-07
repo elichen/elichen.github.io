@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#c5e8ed" />
+    <meta
+      name="description"
+      content="A little blue friend. An impossibly small helicopter. An entire sky to explore. Fly with Doraemon in an interactive Three.js miniature world."
+    />
+    <title>Doraemon · A little sky adventure</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='34' r='28' fill='%23049ed2'/%3E%3Cellipse cx='32' cy='39' rx='23' ry='20' fill='white'/%3E%3Ccircle cx='32' cy='31' r='6' fill='%23e84843'/%3E%3Cpath d='M12 5h40M32 5v9' stroke='%23e6b744' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three.module.js",
+          "three/addons/": "./vendor/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas
+      id="world"
+      aria-label="Interactive 3D Doraemon with a bamboo copter above a miniature island. Drag to orbit; scroll to zoom."
+      tabindex="0"
+    ></canvas>
+    <div id="loading" role="status">
+      <div class="loading-copter"><i></i><b></b></div>
+      <p>Finding a little blue sky<span>Preparing your adventure</span></p>
+    </div>
+    <div id="error" hidden>
+      <h1>A little turbulence.</h1>
+      <p id="error-message">
+        This adventure needs a browser with WebGL 2 enabled.
+      </p>
+      <button onclick="location.reload()">Try again</button
+      ><a href="../">Back to the playground</a>
+    </div>
+    <header class="ui topbar">
+      <a class="brand" href="../" aria-label="Back to Eli’s apps"
+        ><span class="brand-icon"
+          ><svg viewBox="0 0 36 36" fill="none">
+            <path
+              d="M6 9h24M18 9v11"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+            />
+            <path
+              d="M10 27a8 8 0 0 1 16 0"
+              stroke="currentColor"
+              stroke-width="3"
+            />
+            <circle cx="18" cy="27" r="2" fill="currentColor" /></svg></span
+        ><span>POCKET SKIES<small>A DORAEMON ADVENTURE</small></span></a
+      >
+      <div class="top-actions">
+        <span class="live-label"><i></i> A LITTLE WONDER, IN 3D</span
+        ><button
+          id="sound"
+          class="icon-button"
+          title="Turn sound on"
+          aria-label="Turn sound on"
+          aria-pressed="false"
+        >
+          <svg viewBox="0 0 24 24">
+            <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+            <path id="sound-waves" d="m16 9 5 6m0-6-5 6" />
+          </svg></button
+        ><button
+          id="help-button"
+          class="icon-button"
+          title="Flight guide"
+          aria-label="Open flight guide"
+        >
+          ?
+        </button>
+      </div>
+    </header>
+    <main class="ui intro" id="intro">
+      <div class="eyebrow">
+        <span>GADGET No. 001</span
+        ><span class="eyebrow-line"></span> TAKE-COPTER
+      </div>
+      <h1>A little friend.<br />A big <em>blue sky.</em></h1>
+      <p class="intro-copy">
+        Some adventures start with a tiny propeller. <br />Take a breath. Leave
+        the ground behind.
+      </p>
+      <button id="start-flight" class="primary-button">
+        Let’s fly
+        <svg viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6" /></svg>
+      </button>
+      <div class="intro-note">
+        <span class="key-mini">↔</span> Drag to look around
+        <span class="dot">·</span> Scroll to get closer
+      </div>
+    </main>
+    <aside class="ui gadget-label" id="gadget-label">
+      <span class="label-dot"></span>
+      <div>
+        THE BAMBOO COPTER<small>Small gadget. Endless possibilities.</small>
+      </div>
+    </aside>
+    <aside class="ui flight-hud" id="flight-hud" hidden>
+      <div class="eyebrow">YOUR SKY ADVENTURE</div>
+      <h2>Follow the golden rings.</h2>
+      <div class="flight-stats">
+        <div>
+          <strong id="rings-value">00<span>/08</span></strong
+          ><small>SKY RINGS</small>
+        </div>
+        <div>
+          <strong id="altitude-value">24<span>m</span></strong
+          ><small>ALTITUDE</small>
+        </div>
+        <div>
+          <strong id="speed-value">0<span>km/h</span></strong
+          ><small>AIRSPEED</small>
+        </div>
+      </div>
+      <div class="course-progress"><span id="course-progress"></span></div>
+      <p id="flight-tip">
+        Hold &amp; drag · turn and climb<br />Release · hold course &nbsp; Wheel
+        · speed
+      </p>
+      <div class="cruise-control">
+        <label for="flight-speed"
+          >CRUISE SPEED
+          <output id="throttle-output" aria-live="off">54 km/h</output></label
+        >
+        <div class="speed-controls">
+          <button id="slower" aria-label="Fly slower">−</button>
+          <input
+            id="flight-speed"
+            aria-label="Cruise speed"
+            type="range"
+            min="0"
+            max="13"
+            step="0.5"
+            value="5"
+          />
+          <button id="faster" aria-label="Fly faster">+</button>
+          <button id="hover" class="hover-button">Hover</button>
+        </div>
+      </div>
+      <button id="autopilot" class="autopilot-button" aria-pressed="false">
+        <span>⌁</span> Let Doraemon guide<small
+          >Sit back & follow the breeze</small
+        >
+      </button>
+      <div
+        id="auto-camera-controls"
+        class="auto-camera-controls"
+        role="group"
+        aria-label="Guided flight camera"
+        hidden
+      >
+        <span>CAMERA</span>
+        <button
+          data-camera="cinematic"
+          class="active"
+          aria-pressed="true"
+          title="Smooth side and face views during guided flight"
+        >
+          Scenic
+        </button>
+        <button
+          data-camera="follow"
+          aria-pressed="false"
+          title="Keep the camera behind Doraemon"
+        >
+          Follow
+        </button>
+      </div>
+      <button id="reset-flight" class="text-button">
+        ↺ &nbsp; Restart flight
+      </button>
+    </aside>
+    <div id="ring-guide" hidden>
+      <span>◇</span><small id="ring-distance">NEXT RING</small>
+    </div>
+    <div id="mouse-stick" aria-hidden="true" hidden>
+      <i></i><b></b><span>STEER / CLIMB</span>
+    </div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div class="ui bottom-bar">
+      <div class="scene-picker" role="group" aria-label="Time of day">
+        <span class="control-caption">SKY MOOD</span>
+        <div class="scene-options">
+          <button
+            class="scene-option active"
+            data-sky="day"
+            aria-pressed="true"
+          >
+            <span class="sun-icon">☀</span> Daydream</button
+          ><button class="scene-option" data-sky="sunset" aria-pressed="false">
+            <span class="sunset-icon">◒</span> Golden hour</button
+          ><button class="scene-option" data-sky="night" aria-pressed="false">
+            <span class="moon-icon">☾</span> Moonlight
+          </button>
+        </div>
+      </div>
+      <div class="view-controls" role="group" aria-label="Camera mode">
+        <button id="orbit-mode" class="mode-button active" aria-pressed="true">
+          <svg viewBox="0 0 24 24">
+            <ellipse
+              cx="12"
+              cy="12"
+              rx="10"
+              ry="4"
+              transform="rotate(-30 12 12)"
+            />
+            <circle cx="12" cy="12" r="2" />
+          </svg>
+          Orbit</button
+        ><button id="fly-mode" class="mode-button" aria-pressed="false">
+          <svg viewBox="0 0 24 24">
+            <path d="m3 11 18-8-8 18-2-8-8-2Zm8 2 10-10" />
+          </svg>
+          Fly</button
+        ><span class="divider"></span
+        ><button
+          id="photo"
+          class="icon-button"
+          aria-label="Save a postcard"
+          title="Save a postcard (P)"
+        >
+          <svg viewBox="0 0 24 24">
+            <path d="M8 6 9 3h6l1 3h5v14H3V6h5Z" />
+            <circle cx="12" cy="12" r="4" />
+          </svg></button
+        ><button
+          id="reset-view"
+          class="icon-button"
+          aria-label="Reset view"
+          title="Reset view"
+        >
+          <svg viewBox="0 0 24 24">
+            <path d="M4 10a8 8 0 1 1 1 8M4 4v6h6" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <footer class="ui footer">
+      <span>Made of curiosity & a little future magic.</span
+      ><span id="status-label"><i></i> FREE TO WANDER</span>
+    </footer>
+    <div class="ui touch-flight" id="touch-flight" hidden>
+      <div
+        class="joystick"
+        id="joystick"
+        aria-label="Drag to steer and change speed"
+      >
+        <div id="joystick-knob"></div>
+        <span>STEER</span>
+      </div>
+      <div class="altitude-buttons">
+        <button id="rise" aria-label="Rise">↑</button
+        ><button id="descend" aria-label="Descend">↓</button>
+      </div>
+    </div>
+    <dialog id="help">
+      <button class="close-dialog icon-button" aria-label="Close flight guide">
+        ×
+      </button>
+      <div class="eyebrow">A POCKET-SIZED FLIGHT GUIDE</div>
+      <h2>The sky is yours.</h2>
+      <p>
+        Meet Doraemon and his Take-copter. Explore every little detail, or lift
+        off and collect all eight golden sky rings.
+      </p>
+      <dl>
+        <dt>Look around</dt>
+        <dd>Drag · pinch or scroll to zoom</dd>
+        <dt>Mouse-only flight</dt>
+        <dd>
+          Hold the left button and drag: sideways to turn, up/down to
+          rise/descend. Release to hold course.
+        </dd>
+        <dt>Mouse speed</dt>
+        <dd>Scroll up/down, use the slider or + / −. Click Hover to stop.</dd>
+        <dt>See his face</dt>
+        <dd>
+          Enable guided flight and choose Scenic. Follow keeps the camera behind
+          him.
+        </dd>
+        <dt>Fly forward / brake</dt>
+        <dd><kbd>W</kbd> / <kbd>S</kbd> or <kbd>↑</kbd> / <kbd>↓</kbd></dd>
+        <dt>Turn left / right</dt>
+        <dd><kbd>A</kbd> / <kbd>D</kbd> or <kbd>←</kbd> / <kbd>→</kbd></dd>
+        <dt>Rise / descend</dt>
+        <dd><kbd>Space</kbd> / <kbd>Shift</kbd></dd>
+        <dt>Save a postcard</dt>
+        <dd><kbd>P</kbd> or the camera button</dd>
+        <dt>Back to orbit</dt>
+        <dd><kbd>Esc</kbd> or Orbit</dd>
+      </dl>
+      <p class="help-mobile">
+        On a touch screen, use the flight joystick and altitude arrows. Rings
+        are forgiving—just get close to their centers.
+      </p>
+      <button class="primary-button close-guide">Got it. Let’s wander.</button>
+    </dialog>
+    <dialog id="complete">
+      <button class="close-dialog icon-button" aria-label="Close celebration">
+        ×
+      </button>
+      <div class="eyebrow">EIGHT LITTLE MOMENTS OF MAGIC</div>
+      <h2>Sky’s the limit.</h2>
+      <p>
+        You found every ring. Doraemon thinks that calls for a dorayaki break.
+      </p>
+      <div class="completion-stamp">8 / 8<span>SKY EXPLORER</span></div>
+      <button id="play-again" class="primary-button">
+        One more adventure ↗</button
+      ><button id="keep-flying" class="text-button">Keep wandering</button>
+    </dialog>
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
