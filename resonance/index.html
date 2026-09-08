@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f2efe7" />
+    <meta
+      name="description"
+      content="Sculpt a membrane. Strike its surface. Hear geometry become an instrument in a living playground for sound."
+    />
+    <title>Resonance — a shape you can hear</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23ec633d'/%3E%3Cpath d='M10 32Q21 4 32 32T54 32M10 32Q21 60 32 32T54 32' stroke='%23fff4df' stroke-width='3' fill='none'/%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="app.mjs"></script>
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="brand" href="./" aria-label="Resonance home"
+        ><svg viewBox="0 0 40 40" aria-hidden="true">
+          <path d="M3 20Q11-5 20 20T37 20M3 20Q11 45 20 20T37 20" /></svg
+        ><span>resonance<span class="brand-dot">.</span></span></a
+      >
+      <span class="masthead-caption">AN EXPLORATION OF SHAPE & SOUND</span>
+      <div class="header-actions">
+        <button class="text-button" id="about-button">
+          The science <span aria-hidden="true">↗</span></button
+        ><a class="back-link" href="../" aria-label="Back to all experiments"
+          >All experiments <span aria-hidden="true">↗</span></a
+        >
+      </div>
+    </header>
+
+    <main>
+      <section class="introduction" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">
+            <span class="tiny-star" aria-hidden="true">✳</span> A LITTLE
+            PHYSICS. A LOT OF POSSIBILITY.
+          </p>
+          <h1 id="page-title">Give sound <em>a shape.</em></h1>
+        </div>
+        <p class="intro-copy">
+          Pull an edge. Tap the surface.<br />
+          Discover an instrument that only you could make.
+        </p>
+      </section>
+
+      <section class="workbench" aria-label="Instrument workbench">
+        <aside class="shape-panel">
+          <div class="section-label">
+            <h2>The shape</h2>
+            <span>01</span>
+          </div>
+          <p class="section-copy">Every outline has a voice.</p>
+          <div class="preset-grid" role="group" aria-label="Starting shapes">
+            <button
+              class="preset active"
+              data-preset="circle"
+              aria-pressed="true"
+            >
+              <svg viewBox="0 0 70 54" aria-hidden="true">
+                <circle cx="35" cy="27" r="20" /></svg
+              ><span>Round</span>
+            </button>
+            <button class="preset" data-preset="square" aria-pressed="false">
+              <svg viewBox="0 0 70 54" aria-hidden="true">
+                <rect x="16" y="8" width="38" height="38" rx="6" /></svg
+              ><span>Square</span>
+            </button>
+            <button class="preset" data-preset="petal" aria-pressed="false">
+              <svg viewBox="0 0 70 54" aria-hidden="true">
+                <path
+                  d="M35 5C44 5 42 16 49 18S57 27 49 33S45 49 35 44S23 49 21 38S10 30 17 21S25 19 26 11S31 5 35 5Z"
+                /></svg
+              ><span>Petal</span>
+            </button>
+            <button class="preset" data-preset="drop" aria-pressed="false">
+              <svg viewBox="0 0 70 54" aria-hidden="true">
+                <path
+                  d="M35 5C39 13 54 26 54 34C54 54 16 54 16 34C16 26 31 13 35 5Z"
+                  transform="translate(0 -3)"
+                /></svg
+              ><span>Droplet</span>
+            </button>
+          </div>
+          <button class="draw-button" id="draw-button">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="m4 14-1 4 4-1L17 7l-3-3Z M12 6l3 3" /></svg
+            >Draw your own outline
+          </button>
+          <div class="control width-control">
+            <div class="control-heading">
+              <label for="width">Width</label
+              ><output for="width" id="width-output">100%</output>
+            </div>
+            <input
+              id="width"
+              type="range"
+              min="70"
+              max="115"
+              value="100"
+              step="1"
+            />
+            <div class="range-captions">
+              <span>Narrow</span><span>Wide</span>
+            </div>
+          </div>
+          <div class="shape-tip">
+            <span aria-hidden="true">↗</span>
+            <p>
+              Choose <strong>Reshape</strong>, then pull a point on the rim. The
+              sound follows the shape.
+            </p>
+          </div>
+          <div class="shape-foot">
+            <button
+              id="undo-button"
+              class="small-button"
+              disabled
+              title="Undo shape edit (⌘Z)"
+            >
+              ↶ Undo</button
+            ><button
+              id="reset-button"
+              class="small-button"
+              title="Restore the current starting shape"
+            >
+              Reset shape
+            </button>
+          </div>
+        </aside>
+
+        <div class="instrument-column">
+          <div class="stage" id="stage">
+            <div class="stage-top">
+              <div class="stage-title">
+                <span class="eyebrow">THE LISTENING ROOM</span>
+                <h2 id="instrument-name">Round study <span>/ 01</span></h2>
+              </div>
+              <div
+                class="tool-switch"
+                role="group"
+                aria-label="Surface interaction"
+              >
+                <button id="play-tool" class="selected" aria-pressed="true">
+                  Play</button
+                ><button id="shape-tool" aria-pressed="false">Reshape</button>
+              </div>
+            </div>
+            <canvas
+              id="membrane"
+              tabindex="0"
+              aria-label="Interactive membrane. Press Space to strike. In Reshape mode, use left and right arrows to select a rim point and up and down arrows to move it."
+            ></canvas>
+            <div class="stage-caption" id="stage-caption">
+              <span class="live-dot" aria-hidden="true"></span
+              ><span id="view-label">VIBRATION STUDY / MODE 05</span>
+            </div>
+            <div class="sound-prompt" id="sound-prompt">
+              <span aria-hidden="true">↙</span> tap anywhere to hear it
+            </div>
+            <div class="stage-bottom">
+              <span id="stage-hint">CLICK TO STRIKE · SPACE TO PLAY</span
+              ><button
+                class="stage-reset"
+                id="center-strike"
+                aria-label="Strike the center of the membrane"
+                title="Strike the center"
+              >
+                ⊕</button
+              ><span class="solve-status" id="solve-status" role="status"
+                >Finding its voice…</span
+              >
+            </div>
+            <div class="loading-state" id="loading-state">
+              <span class="loading-ring"></span><span>Finding its voice</span>
+            </div>
+          </div>
+          <div class="mode-section">
+            <div class="mode-heading">
+              <div>
+                <h3>The hidden harmonics</h3>
+                <p id="mode-description">
+                  Tap a mode to see and hear one vibration on its own.
+                </p>
+              </div>
+              <button
+                id="all-modes"
+                class="all-modes selected"
+                aria-pressed="true"
+              >
+                Full sound <span aria-hidden="true">≋</span>
+              </button>
+            </div>
+            <div
+              class="mode-strip"
+              id="mode-strip"
+              role="group"
+              aria-label="Individual vibration modes"
+            ></div>
+            <div class="mode-meta">
+              <span>LOWER TONES</span
+              ><span id="mode-count">12 VOICES, ONE SURFACE</span
+              ><span>HIGHER TONES</span>
+            </div>
+          </div>
+        </div>
+
+        <aside class="voice-panel">
+          <div class="section-label">
+            <h2>The voice</h2>
+            <span>02</span>
+          </div>
+          <p class="section-copy">Tune the feel of your instrument.</p>
+          <div class="pitch-readout">
+            <span class="eyebrow">FUNDAMENTAL</span>
+            <div>
+              <strong id="frequency-output">—</strong><span>Hz</span
+              ><span class="note-label" id="note-output">—</span>
+            </div>
+          </div>
+          <div class="control">
+            <div class="control-heading">
+              <label for="tension">Tension</label
+              ><output for="tension" id="tension-output">50%</output>
+            </div>
+            <input id="tension" type="range" min="15" max="100" value="50" />
+            <div class="range-captions">
+              <span>Loose & low</span><span>Tight & high</span>
+            </div>
+          </div>
+          <div class="control">
+            <div class="control-heading">
+              <label for="decay">Resonance</label
+              ><output for="decay" id="decay-output">2.5 s</output>
+            </div>
+            <input
+              id="decay"
+              type="range"
+              min="0.4"
+              max="6"
+              value="2.5"
+              step="0.1"
+            />
+            <div class="range-captions">
+              <span>Muted</span><span>Lingering</span>
+            </div>
+          </div>
+          <div class="control">
+            <div class="control-heading">
+              <label for="mallet">Mallet</label
+              ><output for="mallet" id="mallet-output">Balanced</output>
+            </div>
+            <input id="mallet" type="range" min="0" max="100" value="55" />
+            <div class="range-captions">
+              <span>Soft felt</span><span>Hard wood</span>
+            </div>
+          </div>
+          <div class="voice-actions">
+            <button class="strike-button" id="strike-button" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m5 19 9-9M12 5a4 4 0 1 0 8 0 4 4 0 0 0-8 0Z" /></svg
+              ><span>Strike the surface</span><kbd>␣</kbd></button
+            ><button class="save-button" id="save-pad" disabled>
+              <span aria-hidden="true">＋</span> Add to instrument rack
+            </button>
+          </div>
+          <div class="volume-control">
+            <button
+              id="mute-button"
+              class="mute-button"
+              aria-label="Mute audio"
+              aria-pressed="false"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M3 7h3l4-4v14l-4-4H3ZM13 6q5 4 0 8" />
+              </svg></button
+            ><label class="sr-only" for="volume">Volume</label
+            ><input
+              id="volume"
+              type="range"
+              min="0"
+              max="100"
+              value="65"
+            /><output id="volume-output" for="volume">65%</output>
+          </div>
+          <p class="audio-status" id="audio-status">
+            Sound starts with your first tap.
+          </p>
+        </aside>
+      </section>
+
+      <section class="rack-section" aria-labelledby="rack-title">
+        <div class="rack-heading">
+          <div>
+            <p class="eyebrow">YOUR SMALL COLLECTION</p>
+            <h2 id="rack-title">One shape. A whole orchestra.</h2>
+          </div>
+          <p>
+            Save a few voices. Play them together.<br /><span
+              >Use keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> to
+              perform.</span
+            >
+          </p>
+          <button id="pattern-button" class="pattern-button" disabled>
+            <span aria-hidden="true">▶</span> Play a pattern
+          </button>
+        </div>
+        <div class="rack" id="rack"></div>
+      </section>
+
+      <footer>
+        <p>
+          <span class="footer-star" aria-hidden="true">✳</span> THE SHAPE IS
+          THE INSTRUMENT.
+        </p>
+        <div>
+          <button id="export-button" disabled>
+            Export sound .wav <span aria-hidden="true">↗</span></button
+          ><button id="share-button" disabled>
+            Copy instrument link <span aria-hidden="true">↗</span>
+          </button>
+        </div>
+        <span>Made with curiosity. Played by you.</span>
+      </footer>
+    </main>
+
+    <dialog id="science-dialog" aria-labelledby="science-title">
+      <form method="dialog">
+        <button class="dialog-close" aria-label="Close the science explanation">
+          ×
+        </button>
+      </form>
+      <p class="eyebrow">FIELD NOTES / 001</p>
+      <h2 id="science-title">A shape has<br /><em>more than one voice.</em></h2>
+      <p>
+        A stretched membrane vibrates in many patterns at once. Each pattern—a
+        <strong>mode</strong>—has its own frequency. Together, they give your
+        instrument its character.
+      </p>
+      <div class="science-steps">
+        <p>
+          <span>01</span><strong>Shape changes sound.</strong><br />We solve the
+          wave equation on your outline. Pull the rim, and the vibration
+          patterns and pitches are recomputed.
+        </p>
+        <p>
+          <span>02</span><strong>Where you strike matters.</strong><br />A tap
+          excites modes at that point. Strike a still line in a mode and you
+          will barely hear it. A soft mallet spreads the impact over a wider
+          area.
+        </p>
+        <p>
+          <span>03</span><strong>One model, two senses.</strong><br />The same
+          modes drive the sound and the visible surface. The motion is slowed
+          and exaggerated so you can see it.
+        </p>
+      </div>
+      <details>
+        <summary>Inside the model & references</summary>
+        <p>
+          This is a linear membrane with a fixed rim, discretized on a square
+          grid. The lowest 18 eigenmodes of its Laplacian form the instrument.
+          Pitch follows the square root of tension and each eigenvalue;
+          normalized canvas dimensions use a fixed wave-speed scale.
+        </p>
+        <p>
+          Sound is a damped modal response at a virtual contact pickup. This is
+          an illustrative instrument, with no enclosed air, acoustic radiation,
+          or large-amplitude nonlinear effects. The mesh, finite mode count,
+          damping, and short attack limit the approximation. Modal frequencies
+          are physical model results, not samples or generated music.
+        </p>
+        <ul>
+          <li>
+            <a
+              href="https://www.cs.cornell.edu/~bindel/papers/2006-sound.pdf"
+              target="_blank"
+              rel="noopener"
+              >Bruyns & Bindel — Shape-changing objects for sound synthesis</a
+            >
+          </li>
+          <li>
+            <a
+              href="https://www.acs.psu.edu/drussell/demos/membranecircle/circle.html"
+              target="_blank"
+              rel="noopener"
+              >Dan Russell, Penn State — Vibrations of a circular membrane</a
+            >
+          </li>
+          <li>
+            <a
+              href="https://dougjam.github.io/demos/modal-sound-explorer/"
+              target="_blank"
+              rel="noopener"
+              >Doug James — Modal Sound Explorer, interaction inspiration</a
+            >
+          </li>
+        </ul>
+      </details>
+      <p class="dialog-end">
+        No account. No samples. Just your browser and a little physics.
+      </p>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <noscript
+      ><p class="noscript">
+        Resonance needs JavaScript to calculate vibrations and synthesize sound.
+        Enable JavaScript to play.
+      </p></noscript
+    >
+  </body>
+</html>

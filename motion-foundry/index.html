@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#e9ebdf" />
+    <meta
+      name="description"
+      content="Draw a movement. Discover a working machine. A browser workbench for synthesizing and exploring mechanical linkages."
+    />
+    <title>Motion Foundry — draw motion, discover a machine</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23253f91'/%3E%3Cpath d='M12 46V18l20 19 20-19v28' fill='none' stroke='%23f0eecf' stroke-width='6'/%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="app.mjs"></script>
+  </head>
+  <body>
+    <header>
+      <a class="identity" href="./" aria-label="Motion Foundry home"
+        ><span class="identity-mark" aria-hidden="true"
+          ><svg viewBox="0 0 34 34">
+            <path d="M5 26V8l12 12L29 8v18" /></svg></span
+        ><span>MOTION<br />FOUNDRY</span></a
+      >
+      <div class="header-caption">
+        AN EXPERIMENT IN<br />COMPUTATIONAL CRAFT
+      </div>
+      <div class="header-right">
+        <button id="about-button">How it works <span>↗</span></button
+        ><a href="../">All experiments <span>↗</span></a
+        ><span class="edition">VOL. 002</span>
+      </div>
+    </header>
+    <main>
+      <section class="hero">
+        <div>
+          <p class="overline">FROM A GESTURE TO A GEOMETRY</p>
+          <h1>DRAW A PATH.<br /><span>FIND A MACHINE.</span></h1>
+        </div>
+        <div class="hero-aside">
+          <svg class="hero-glyph" viewBox="0 0 150 80" aria-hidden="true">
+            <path d="M14 61 49 19 98 46 135 19M49 19 83 67 98 46" />
+            <circle cx="14" cy="61" r="5" />
+            <circle cx="49" cy="19" r="5" />
+            <circle cx="98" cy="46" r="5" />
+            <circle cx="135" cy="19" r="5" />
+            <circle class="orange" cx="83" cy="67" r="6" />
+          </svg>
+          <p>
+            A line on a page becomes links, joints, and motion.<br />Sketch a
+            loop. Find the mechanism hiding inside it.
+          </p>
+          <div class="hero-tags">
+            <span>ONE MOTOR</span><span>REAL GEOMETRY</span
+            ><span>ENDLESS LOOPS</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="foundry" aria-label="Mechanism design workbench">
+        <div class="workshop-bar">
+          <span
+            ><i aria-hidden="true"></i> DESIGN STUDY
+            <b id="study-number">001</b></span
+          ><span id="search-state" role="status">READY TO EXPLORE</span
+          ><button id="search-button">
+            Find a mechanism <span aria-hidden="true">→</span>
+          </button>
+        </div>
+        <div class="workshop-grid">
+          <aside class="path-panel">
+            <div class="panel-label">
+              <h2>Your path</h2>
+              <span>01 / INPUT</span>
+            </div>
+            <p class="panel-copy">Draw one continuous loop.</p>
+            <div class="sketch-wrap">
+              <canvas
+                id="sketch"
+                tabindex="0"
+                aria-label="Draw a closed target path. Drag to sketch, or click points and press Enter to close. Arrow keys move the drawing cursor; Space adds a point."
+              ></canvas
+              ><span class="sketch-label" id="sketch-label"
+                >THE DESIRED MOTION</span
+              ><button
+                id="clear-path"
+                aria-label="Clear target path"
+                title="Clear target path"
+              >
+                ×
+              </button>
+            </div>
+            <div class="sketch-actions">
+              <span>DRAG A LOOP · OR CLICK POINTS</span
+              ><button
+                id="close-path"
+                title="Close a path drawn with individual points (Enter)"
+              >
+                Close loop ↗
+              </button>
+            </div>
+            <p class="overline example-label">OR BORROW A GESTURE</p>
+            <div class="path-presets" role="group" aria-label="Example paths">
+              <button data-preset="stride" class="active" aria-pressed="true">
+                <svg viewBox="0 0 50 32" aria-hidden="true">
+                  <path d="M4 25C1 16 14 4 28 7S50 22 45 25Z" /></svg
+                >Walking step</button
+              ><button data-preset="oval" aria-pressed="false">
+                <svg viewBox="0 0 50 32" aria-hidden="true">
+                  <ellipse
+                    cx="25"
+                    cy="16"
+                    rx="21"
+                    ry="9"
+                    transform="rotate(-16 25 16)"
+                  /></svg
+                >Orbit</button
+              ><button data-preset="eight" aria-pressed="false">
+                <svg viewBox="0 0 50 32" aria-hidden="true">
+                  <path
+                    d="M25 16C-8-13-8 45 25 16S58-13 58 16S37 28 25 16Z"
+                  /></svg
+                >Figure eight</button
+              ><button data-preset="petal" aria-pressed="false">
+                <svg viewBox="0 0 50 32" aria-hidden="true">
+                  <path d="M4 24C0 4 47-8 46 21C45 31 10 25 4 24Z" /></svg
+                >Petal
+              </button>
+            </div>
+            <div class="family-heading">
+              <label for="family">Machine family</label
+              ><span>SEARCH WITHIN</span>
+            </div>
+            <select id="family">
+              <option value="all">Explore both families</option>
+              <option value="fourbar">Four-bar linkage</option>
+              <option value="slider">Crank-slider</option>
+            </select>
+            <p class="family-note">
+              Every candidate closes exactly and turns through a full
+              revolution.
+            </p>
+            <div class="path-bottom">
+              <button id="undo-button" disabled>↶ Undo drawing</button
+              ><span id="point-count">96 POINTS</span>
+            </div>
+          </aside>
+
+          <div class="machine-panel">
+            <div class="drawing-title">
+              <div>
+                <span class="overline">KINEMATIC ASSEMBLY</span>
+                <h2 id="machine-title">A machine in the making</h2>
+              </div>
+              <span class="scale-label">TOP VIEW<br />ONE COMPLETE CYCLE</span>
+            </div>
+            <canvas
+              id="machine"
+              tabindex="0"
+              aria-label="Animated mechanical linkage. Space pauses or plays the machine. Drag a highlighted tracing point to adjust its position."
+            ></canvas>
+            <div class="machine-key">
+              <span><i class="target-key"></i>YOUR PATH</span
+              ><span><i class="trace-key"></i>MACHINE PATH</span
+              ><span><i class="link-key"></i>RIGID LINKS</span>
+            </div>
+            <div class="machine-transport">
+              <button
+                id="play-button"
+                aria-label="Pause animation"
+                aria-pressed="true"
+              >
+                <span aria-hidden="true">Ⅱ</span></button
+              ><span class="transport-label">DRIVE SPEED</span
+              ><label class="sr-only" for="speed">Crank speed</label
+              ><input
+                type="range"
+                id="speed"
+                min="0.15"
+                max="1.5"
+                step="0.05"
+                value="0.45"
+              /><output for="speed" id="speed-output">0.45 rev/s</output
+              ><span class="transport-divider"></span
+              ><button
+                id="target-toggle"
+                class="toggle active"
+                aria-pressed="true"
+              >
+                Target</button
+              ><button
+                id="dimensions-toggle"
+                class="toggle"
+                aria-pressed="false"
+              >
+                Dimensions
+              </button>
+            </div>
+            <div class="search-progress"><div id="search-fill"></div></div>
+          </div>
+
+          <aside class="results-panel">
+            <div class="panel-label">
+              <h2>The fit</h2>
+              <span>02 / OUTPUT</span>
+            </div>
+            <div class="fit-value">
+              <strong id="error-output">—</strong><span>%</span>
+            </div>
+            <p class="fit-caption">
+              PATH DEVIATION
+              <button id="error-help" aria-label="Explain path deviation">
+                ?
+              </button>
+            </p>
+            <div class="fit-grade" id="fit-grade">
+              <span></span>Waiting for a path
+            </div>
+            <p class="fit-description" id="fit-description">
+              A lower number means a closer trace of your drawing.
+            </p>
+            <div class="history-plot">
+              <span class="overline">SEARCH PROGRESS</span
+              ><canvas
+                id="history"
+                aria-label="Best path error during optimization"
+              ></canvas>
+              <div>
+                <span>FIRST GUESS</span
+                ><span id="evaluation-count">0 TRIALS</span>
+              </div>
+            </div>
+            <div class="candidate-heading">
+              <h3>Possible machines</h3>
+              <span>SELECT TO COMPARE</span>
+            </div>
+            <div id="candidates" class="candidates">
+              <p class="candidate-empty">
+                The search will collect its best mechanisms here.
+              </p>
+            </div>
+            <div class="search-detail" id="search-detail">
+              Geometry first.<br />The motion follows.
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="bench-bottom">
+        <div class="tuning-section">
+          <div class="tuning-title">
+            <span class="overline">TAKE IT APART</span>
+            <h2>Make the mechanism yours.</h2>
+            <p>Move the tracing point. Watch the path change.</p>
+          </div>
+          <div class="coupler-control">
+            <label for="tracer-u"
+              >Along the coupler <output id="tracer-u-output">—</output></label
+            ><input
+              id="tracer-u"
+              type="range"
+              min="-2"
+              max="3"
+              step="0.02"
+              value="0.5"
+              disabled
+            /><span>POINT POSITION / U</span>
+          </div>
+          <div class="coupler-control">
+            <label for="tracer-v"
+              >Away from the coupler
+              <output id="tracer-v-output">—</output></label
+            ><input
+              id="tracer-v"
+              type="range"
+              min="-2"
+              max="2"
+              step="0.02"
+              value="0.5"
+              disabled
+            /><span>POINT OFFSET / V</span>
+          </div>
+          <button id="restore-fit" disabled>
+            Restore best fit <span>↶</span>
+          </button>
+        </div>
+        <div class="assembly-strip">
+          <div>
+            <span>ASSEMBLY RECORD</span
+            ><strong id="assembly-name">YOUR NEXT SMALL INVENTION</strong>
+          </div>
+          <div class="dimensions-readout" id="dimensions-readout">
+            Search for a mechanism to see its dimensions.
+          </div>
+          <button id="export-button" disabled>
+            Export animated drawing <span>↓ SVG</span>
+          </button>
+        </div>
+      </section>
+      <footer>
+        <span>DRAW SOMETHING. MAKE IT MOVE.</span
+        ><span>Built on geometry. Driven by curiosity.</span
+        ><button id="share-button" disabled>Copy this study ↗</button>
+      </footer>
+    </main>
+    <dialog id="about-dialog" aria-labelledby="about-title">
+      <form method="dialog">
+        <button class="dialog-close" aria-label="Close explanation">×</button>
+      </form>
+      <p class="overline">NOTES FROM THE WORKSHOP</p>
+      <h2 id="about-title">YOUR LINE.<br />A MACHINE'S <span>LOGIC.</span></h2>
+      <p>
+        Draw the motion you want. The foundry searches through two families of
+        mechanical linkages, changing their proportions until the tracing point
+        comes close to your line.
+      </p>
+      <ol>
+        <li>
+          <strong>Close the loop.</strong
+          ><span
+            >A motor turns a crank at a steady speed. Connected rigid bars
+            constrain the tracing point to one repeating path.</span
+          >
+        </li>
+        <li>
+          <strong>Try, measure, refine.</strong
+          ><span
+            >A collection of valid mechanisms seeds a population search. Better
+            fits survive, and local refinement adjusts their geometry.</span
+          >
+        </li>
+        <li>
+          <strong>Look at the difference.</strong
+          ><span
+            >Path deviation is the average ordered distance between uniformly
+            spaced points on the two curves, as an RMS percentage of your
+            drawing's diagonal. Lower is better. It does not promise an exact
+            match.</span
+          >
+        </li>
+      </ol>
+      <details>
+        <summary>The engineering & research</summary>
+        <p>
+          Four-bar and offset crank-slider mechanisms use exact analytic joint
+          closure and one fixed assembly branch. Full-rotation constraints
+          prevent impossible candidates. Similarity alignment removes
+          translation, rotation, and scale from the geometry search.
+        </p>
+        <p>
+          The approach takes inspiration from retrieval plus refinement in
+          <a
+            href="https://arxiv.org/abs/2405.20592"
+            target="_blank"
+            rel="noopener"
+            >LInK (2024)</a
+          >. Recent work such as
+          <a
+            href="https://arxiv.org/abs/2601.04054"
+            target="_blank"
+            rel="noopener"
+            >LinkD (2026)</a
+          >
+          explores learned generation of broader mechanism topologies. This
+          workbench runs its own numerical search in your browser.
+        </p>
+        <p>
+          These are kinematic designs, not certified construction plans. Link
+          thickness, collisions, loads, joint clearances, and motor torque are
+          not simulated. Exported dimensions use arbitrary design units.
+        </p>
+      </details>
+      <p class="dialog-signoff">
+        A little more than a drawing.<br />A little less than a factory.
+      </p>
+    </dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <noscript
+      ><p>
+        Enable JavaScript to draw paths and synthesize mechanisms.
+      </p></noscript
+    >
+  </body>
+</html>
