@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#102a3c" />
+    <meta
+      name="description"
+      content="One small penguin. One wonderful world. A miniature Babylon.js travel adventure with Tuxedo Sam."
+    />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <title>Tuxedo Sam</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght,SOFT,WONK@9..144,400,50,1;9..144,500,50,1;9..144,600,50,1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <script defer src="vendor/babylon.js"></script>
+    <script type="module" src="main.js"></script>
+  </head>
+  <body>
+    <canvas
+      id="scene"
+      aria-label="A three-dimensional Tuxedo Sam waddles around a miniature Earth. Drag to orbit and scroll to zoom."
+    ></canvas>
+    <header><a href="../" aria-label="Back to projects">Tuxedo Sam</a></header>
+    <footer class="controls" aria-label="Animation controls">
+      <button id="play" aria-label="Pause" title="Pause">Ⅱ</button>
+      <button
+        id="mood"
+        aria-label="Lighting: daylight. Switch to sunset"
+        title="Change lighting"
+      >
+        ☀
+      </button>
+      <button
+        id="sound"
+        aria-label="Enable music"
+        title="Music"
+        aria-pressed="false"
+      >
+        ♫
+      </button>
+      <button id="postcard" aria-label="Save postcard" title="Save postcard">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8 6l1.5-2h5L16 6h4v14H4V6z" />
+          <circle cx="12" cy="13" r="4" />
+        </svg>
+      </button>
+    </footer>
+    <p id="hint">Drag to look around · Scroll to zoom</p>
+    <div id="toast" role="status"></div>
+    <div id="loading"><span class="loading-compass">✳</span></div>
+    <div id="error" hidden>
+      <p id="error-message">WebGL is unavailable.</p>
+      <button onclick="location.reload()">Reload</button>
+    </div>
+    <script>
+      window.addEventListener(
+        "error",
+        (e) => {
+          if (e.target.tagName === "SCRIPT") {
+            document.getElementById("loading").hidden = true;
+            document.getElementById("error").hidden = false;
+          }
+        },
+        true,
+      );
+    </script>
+  </body>
+</html>
