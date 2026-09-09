@@ -407,7 +407,7 @@ async function init() {
         } else wave = Math.max(0, wave - dt);
       }
       world.update(travel, time);
-      sam.update(gait, playing, wave);
+      sam.update(gait, playing, wave, dt);
       const progress = ((travel % 1) + 1) % 1;
       let stop = 0;
       for (let i = 0; i < world.stopProgress.length; i++)

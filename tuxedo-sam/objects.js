@@ -239,7 +239,7 @@ export function makeSam(a) {
     feet,
     hat,
     bow,
-    update(t, walking, wave) {
+    update(t, walking, wave, dt = 1 / 60) {
       const phase = t * 7.3,
         amount = walking ? 1 : 0;
       body.position.y = Math.abs(Math.sin(phase)) * 0.045 * amount;
@@ -253,10 +253,13 @@ export function makeSam(a) {
       });
       arms.forEach((arm, i) => {
         arm.rotation.x = Math.cos(phase + i * Math.PI) * 0.25 * amount;
-        arm.rotation.z =
+        // The +X shoulder must turn outward; a negative wave folds the
+        // flipper into the torso. Ease both the greeting and its release.
+        const target =
           i === 1 && wave > 0
-            ? -0.95 - Math.sin(wave * 15) * 0.25
+            ? 0.95 + Math.sin(wave * 15) * 0.25
             : Math.sin(phase + i * Math.PI) * 0.08 * amount;
+        arm.rotation.z += (target - arm.rotation.z) * (1 - Math.exp(-14 * dt));
       });
       const blink = t % 4.7;
       eyes.forEach((e) => (e.scaling.y = blink > 4.52 ? 0.023 : 0.145));

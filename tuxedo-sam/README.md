@@ -36,3 +36,7 @@ Reduced-motion preferences pause the scene initially. Music is opt-in. Hidden ta
 - `land.geojson`: Natural Earth 1:110m land polygons, public domain.
 
 See [REFERENCES.md](REFERENCES.md) for character and map sources.
+
+## Animation regression checks
+
+Run `node --test tuxedo-sam/tests/animation.test.mjs`. The tests use the bundled Babylon NullEngine to check that flipper tips remain outside the torso throughout tap and arrival greetings, and that greeting transitions do not snap.
