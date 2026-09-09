@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5efe3">
+  <meta name="description" content="A quiet little garden. Help Miffy pull a carrot, and take a moment to watch the flowers sway.">
+  <title>Miffy’s little garden</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/"}}</script>
+  <script type="module" src="main.js"></script>
+</head>
+<body>
+  <a class="back" href="../" aria-label="Back to all projects">← <span>the playground</span></a>
+  <header><p class="eyebrow">MIFFY’S LITTLE GARDEN</p><h1>Good things take a little tug.</h1><p class="subtitle">A little sunshine. A little patience. A carrot or two.</p></header>
+  <main><canvas id="garden" aria-label="Miffy in a miniature flower garden, pulling carrots beside a wicker basket. Drag to look around and scroll to zoom."></canvas></main>
+  <footer><p id="message" role="status" aria-live="polite">Something good is growing.</p><button id="harvest" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 8C5 7 3 20 3 20s13-2 12-12Z"/><path d="m15 8 5-5m-5 5V2m0 6h7M8 12l3 2"/></svg><span>Pull a carrot</span></button><p class="hint">Drag to look around <span>·</span> Take your time</p></footer>
+  <p id="error" hidden>This little garden needs WebGL to grow. Try opening it in a browser with hardware acceleration enabled.</p>
+</body>
+</html>
