@@ -1,0 +1,354 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display:ital@0;1&display=swap");
+:root {
+  color-scheme: light;
+  font-family: "DM Sans", sans-serif;
+  color: #304133;
+  background: #dfe6cb;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  overflow: hidden;
+}
+#world {
+  position: fixed;
+  inset: 0;
+  touch-action: none;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+header,
+footer {
+  position: fixed;
+  left: clamp(22px, 4vw, 64px);
+  right: clamp(22px, 4vw, 64px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 2;
+}
+header {
+  top: 34px;
+  align-items: flex-start;
+}
+.eyebrow {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2.3px;
+}
+h1 {
+  font-family: "DM Serif Display", Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(25px, 3vw, 43px);
+  letter-spacing: -1.4px;
+  margin: 8px 0;
+}
+h1 > span {
+  color: #cd6947;
+}
+.population {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-top: 3px;
+}
+.population svg {
+  width: 26px;
+  height: 36px;
+  fill: #455e35;
+}
+.population strong {
+  font-family: "DM Serif Display", Georgia, serif;
+  display: block;
+  font-size: 42px;
+  line-height: 1;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.population div > span {
+  display: block;
+  font-size: 8px;
+  letter-spacing: 1.7px;
+  margin-top: 8px;
+}
+footer {
+  bottom: 27px;
+  gap: 20px;
+  font-size: 11px;
+}
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #40543e;
+}
+.hint i {
+  font-style: normal;
+  margin: 0 8px;
+  opacity: 0.5;
+}
+.mouse-icon {
+  width: 13px;
+  height: 19px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  position: relative;
+}
+.mouse-icon:before {
+  content: "";
+  position: absolute;
+  width: 1px;
+  height: 5px;
+  left: 5px;
+  top: 3px;
+  background: currentColor;
+}
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  pointer-events: auto;
+}
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #bf5b3a;
+  outline-offset: 4px;
+}
+.controls button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #45563c22;
+  border-radius: 50%;
+  background: #f2f4df55;
+  display: grid;
+  place-items: center;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+  backdrop-filter: blur(8px);
+}
+.controls button:hover {
+  background: #ffffe4b0;
+  transform: translateY(-2px);
+}
+button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+dialog {
+  border: 0;
+  border-radius: 3px;
+  background: #f6f5e8;
+  color: #344331;
+  max-width: 440px;
+  width: calc(100% - 36px);
+  padding: 43px;
+  box-shadow: 0 20px 100px #26332133;
+}
+dialog::backdrop {
+  background: #243e3240;
+  backdrop-filter: blur(7px);
+}
+dialog h2 {
+  font-family: "DM Serif Display", Georgia, serif;
+  font-size: 38px;
+  line-height: 1.1;
+  font-weight: 400;
+  margin: 22px 0;
+}
+dialog p {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #60705a;
+}
+#close {
+  position: absolute;
+  right: 17px;
+  top: 12px;
+  font-size: 26px;
+  background: none;
+  border: 0;
+}
+dialog .keyline {
+  font-size: 11px;
+  line-height: 2.5;
+  border-top: 1px solid #34433122;
+  border-bottom: 1px solid #34433122;
+  padding: 12px 0;
+  margin: 24px 0;
+}
+.keyline span {
+  font-size: 10px;
+  background: #e7e8d9;
+  padding: 3px 6px;
+  border-radius: 3px;
+  margin-right: 5px;
+}
+.keyline span:nth-child(2) {
+  margin-left: 12px;
+}
+#restart {
+  background: none;
+  border: 0;
+  padding: 0 0 5px;
+  border-bottom: 1px solid #50644966;
+  font-size: 12px;
+}
+dialog .credits {
+  font-size: 10px;
+  line-height: 1.7;
+  margin-top: 27px;
+  margin-bottom: 0;
+}
+a {
+  color: inherit;
+}
+#loading {
+  position: fixed;
+  inset: 0;
+  background: #dfe6cb;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  transition: opacity 0.7s;
+  pointer-events: none;
+}
+#loading p {
+  font-family: "DM Serif Display", Georgia, serif;
+  font-size: 22px;
+}
+.sprout {
+  font-size: 40px;
+  color: #617a47;
+  animation: breathe 1.3s ease-in-out infinite;
+}
+@keyframes breathe {
+  50% {
+    transform: translateY(-8px) rotate(20deg);
+  }
+}
+@media (max-width: 600px) {
+  header {
+    top: 24px;
+  }
+  .eyebrow {
+    font-size: 7px;
+    letter-spacing: 1.4px;
+  }
+  h1 {
+    letter-spacing: -0.7px;
+  }
+  .population {
+    gap: 8px;
+  }
+  .population strong {
+    font-size: 32px;
+  }
+  .population svg {
+    width: 20px;
+  }
+  .population div > span {
+    font-size: 6px;
+    letter-spacing: 1px;
+  }
+  footer {
+    bottom: 20px;
+  }
+  .hint {
+    max-width: 180px;
+    font-size: 10px;
+    line-height: 1.8;
+  }
+  .hint i {
+    margin: 0 4px;
+  }
+  .controls {
+    gap: 6px;
+  }
+  dialog {
+    padding: 32px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sprout {
+    animation: none;
+  }
+  * {
+    transition: none !important;
+  }
+}
+
+.hint {
+  transition: opacity 1s;
+}
+h1 {
+  font-size: clamp(25px, 2.6vw, 36px);
+}
+.population div > span {
+  letter-spacing: 2px;
+}
+.population strong {
+  transform-origin: left center;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    #e5e9cc38,
+    transparent 18%,
+    transparent 86%,
+    #dfe6cb30
+  );
+  z-index: 1;
+}
+@media (pointer: coarse) {
+  .controls button {
+    width: 44px;
+    height: 44px;
+  }
+  .controls {
+    gap: 8px;
+  }
+  header {
+    gap: 12px;
+  }
+  .wordmark {
+    min-width: 0;
+  }
+  h1 {
+    font-size: 24px;
+  }
+  .population strong {
+    font-size: 30px;
+  }
+  footer {
+    gap: 8px;
+  }
+  .hint {
+    font-size: 10px;
+  }
+}

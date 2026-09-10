@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#dfe6cb" />
+    <meta
+      name="description"
+      content="A little captain. An endless following. Guide Olimar through a living meadow and grow a Pikmin crowd without a limit."
+    />
+    <title>A little following · Pikmin</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main
+      id="world"
+      aria-label="Pikmin meadow: move your mouse to guide Olimar. On touch screens, drag to move."
+    ></main>
+    <header>
+      <div class="wordmark">
+        <h1>A little following<span>.</span></h1>
+      </div>
+      <div class="population" aria-label="Crowd size">
+        <svg viewBox="0 0 28 32" aria-hidden="true">
+          <path d="M14 17C14 8 19 3 25 3c0 8-5 12-11 10" />
+          <path d="M14 17C13 10 8 7 3 8c0 6 5 10 11 9" />
+          <ellipse cx="14" cy="24" rx="5" ry="7" />
+        </svg>
+        <div><strong id="count">0</strong><span>PIKMIN</span></div>
+      </div>
+    </header>
+    <footer>
+      <div class="hint" id="hint">
+        <span class="mouse-icon" aria-hidden="true"></span
+        ><span>Move to lead.</span>
+      </div>
+      <div class="controls">
+        <button id="sound" aria-label="Turn sound on" title="Sound">
+          <svg viewBox="0 0 24 24">
+            <path d="M11 5 6 9H3v6h3l5 4z" />
+            <path id="sound-wave" d="m16 9 5 6m0-6-5 6" />
+          </svg>
+        </button>
+        <button id="pause" aria-label="Pause" title="Pause (Space)">
+          <svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" /></svg>
+        </button>
+        <button
+          id="info"
+          aria-label="About and controls"
+          title="About & controls"
+        >
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 11v6M12 7v.5" />
+          </svg>
+        </button>
+      </div>
+    </footer>
+    <dialog id="about">
+      <button id="close" aria-label="Close">×</button>
+      <h2>The more,<br />the merrier.</h2>
+      <p>Move to lead. Touch to gather. Keep growing.</p>
+      <div class="keyline">
+        <span>Space</span> Pause the expedition <span>M</span> Sound on / off
+      </div>
+      <button id="restart">Start again ↗</button>
+      <p class="credits">
+        An unofficial fan-made plaything. Characters belong to Nintendo.
+        Original procedural models, inspired by
+        <a
+          href="https://play.nintendo.com/themes/friends/captain-olimar/"
+          target="_blank"
+          rel="noreferrer"
+          >Olimar</a
+        >
+        and the
+        <a href="https://pikmin4.nintendo.com/" target="_blank" rel="noreferrer"
+          >Pikmin</a
+        >. Made with Three.js.
+      </p>
+    </dialog>
+    <div id="loading" aria-label="Loading meadow">
+      <span class="sprout">✳</span>
+    </div>
+    <script type="module" src="game.js"></script>
+  </body>
+</html>
