@@ -210,6 +210,7 @@ function resetFlight() {
     r.userData.passed = false;
   });
   $("rings-value").innerHTML = "00<span>/08</span>";
+  $("mobile-rings").textContent = "0 / 8";
   $("course-progress").style.width = "0%";
   $("ring-guide").hidden = mode !== "fly";
   doraemon.root.position.copy(position);
@@ -472,6 +473,7 @@ function collectRing() {
   sound.chime(index);
   doraemon.wink();
   ringIndex++;
+  $("mobile-rings").textContent = `${ringIndex} / 8`;
   $("rings-value").innerHTML =
     String(ringIndex).padStart(2, "0") + "<span>/08</span>";
   $("course-progress").style.width = `${(ringIndex / 8) * 100}%`;
@@ -748,6 +750,35 @@ function releaseJoystick() {
   $("joystick-knob").style.transform = "";
 }
 function bindUI() {
+  // Move the existing controls so state and event handlers stay shared with desktop.
+  const compactUI = matchMedia("(max-width: 700px), (max-height: 600px) and (pointer: coarse)");
+  const panels = [$("flight-hud"), document.querySelector(".bottom-bar"), $("sky-chart"), document.querySelector(".top-actions")];
+  const homes = panels.map((panel) => {
+    const marker = document.createComment("desktop control position");
+    panel.before(marker);
+    return marker;
+  });
+  const arrangeControls = () => {
+    $("controls-dialog").close();
+    panels.forEach((panel, index) => {
+      if (compactUI.matches) $("mobile-panels").append(panel);
+      else homes[index].after(panel);
+    });
+  };
+  arrangeControls();
+  compactUI.addEventListener("change", arrangeControls);
+  $("mobile-controls").addEventListener("click", () => {
+    keys.clear();
+    releaseMouse();
+    releaseJoystick();
+    touch.rise = 0;
+    $("controls-dialog").showModal();
+    journey.drawChart(position, heading, ringIndex);
+  });
+  $("resume-flight").addEventListener("click", () => $("controls-dialog").close());
+  ["fly-mode", "orbit-mode", "autopilot", "reset-flight", "focus-mode"].forEach((id) => {
+    $(id).addEventListener("click", () => $("controls-dialog").close());
+  });
   $("start-flight").addEventListener("click", () => {
     autopilot = false;
     updateAutopilot();
@@ -762,6 +793,7 @@ function bindUI() {
   $("chart-toggle").addEventListener("click", () => {
     const collapsed = $("sky-chart").classList.toggle("is-collapsed");
     $("chart-toggle").setAttribute("aria-expanded", String(!collapsed));
+    if (!collapsed) journey.drawChart(position, heading, ringIndex);
   });
   $("fly-mode").addEventListener("click", () => setMode("fly"));
   $("orbit-mode").addEventListener("click", () => setMode("orbit"));

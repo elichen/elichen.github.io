@@ -1819,3 +1819,116 @@ body.autopiloting #flight-tip {
     top: 68px;
   }
 }
+
+/* Small screens keep the sky clear; secondary controls live in one sheet. */
+#mobile-controls,
+.mobile-progress { display: none; }
+@media (max-width: 700px), (max-height: 600px) and (pointer: coarse) {
+  .topbar {
+    top: max(12px, env(safe-area-inset-top));
+    left: max(16px, env(safe-area-inset-left));
+    right: max(16px, env(safe-area-inset-right));
+  }
+  .brand { font-size: 11px; gap: 7px; }
+  .brand small, .footer, .gadget-label { display: none; }
+  #mobile-controls {
+    display: block;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: var(--paper);
+    font-size: 12px;
+  }
+  .intro {
+    top: auto;
+    bottom: max(24px, env(safe-area-inset-bottom));
+    left: 24px;
+    right: 24px;
+    max-width: none;
+  }
+  .intro .eyebrow, .intro-copy, .intro-note { display: none; }
+  .intro h1 { font-size: 34px; margin: 0 0 16px; letter-spacing: -1px; }
+  .intro h1 br { display: none; }
+  .intro-actions { gap: 16px; flex-wrap: wrap; }
+  .intro .primary-button, .scenic-button { min-height: 44px; }
+  .scenic-button { font-size: 11px; }
+  body.flying .mobile-progress {
+    display: block;
+    position: fixed;
+    top: calc(max(12px, env(safe-area-inset-top)) + 52px);
+    left: max(16px, env(safe-area-inset-left));
+    padding: 8px 12px;
+    border-radius: 20px;
+    background: var(--glass);
+    font-size: 11px;
+    pointer-events: none;
+  }
+  body.flying .touch-flight {
+    bottom: max(20px, env(safe-area-inset-bottom));
+    left: max(20px, env(safe-area-inset-left));
+    right: max(20px, env(safe-area-inset-right));
+    width: auto;
+  }
+  #toast { top: 114px; }
+  #controls-dialog {
+    padding: 24px 20px;
+    width: min(440px, calc(100% - 24px));
+    max-height: calc(100dvh - 24px);
+    border-radius: 20px;
+  }
+  #controls-dialog h2 { font-size: 27px; margin: 12px 32px 8px 0; }
+  #controls-dialog button { min-height: 44px; }
+  #controls-dialog .icon-button { width: 44px; height: 44px; }
+  #mobile-panels { display: flex; flex-direction: column; gap: 18px; }
+  #mobile-panels .ui { transition: none; }
+  #mobile-panels .flight-hud,
+  #mobile-panels .bottom-bar,
+  #mobile-panels .sky-chart {
+    position: static;
+    transform: none;
+    width: 100%;
+    max-height: none;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+    backdrop-filter: none;
+    overflow: visible;
+  }
+  #mobile-panels .flight-hud { display: block; }
+  #mobile-panels .flight-hud h2,
+  #mobile-panels .flight-hud > .eyebrow,
+  #mobile-panels #flight-tip { display: none; }
+  #mobile-panels .flight-stats { margin-top: 0; }
+  #mobile-panels #reset-flight { position: static; font-size: 12px; }
+  #mobile-panels .cruise-control { display: block; margin-top: 16px; }
+  #mobile-panels .cruise-control label { font-size: 10px; }
+  #mobile-panels .speed-controls button { width: 44px; height: 44px; }
+  #mobile-panels .speed-controls .hover-button { width: auto; font-size: 11px; }
+  #mobile-panels input { height: 44px; }
+  #mobile-panels .autopilot-button { font-size: 12px; }
+  #mobile-panels .autopilot-button small { display: none; }
+  #mobile-panels .auto-camera-controls button { font-size: 12px; }
+  #mobile-panels .bottom-bar { flex-direction: column; align-items: stretch; gap: 12px; }
+  #mobile-panels .scene-options { flex-direction: row; }
+  #mobile-panels .scene-option { flex: 1; justify-content: center; padding: 6px; font-size: 10px; }
+  #mobile-panels .view-controls { flex-wrap: wrap; justify-content: center; }
+  #mobile-panels .mode-button { font-size: 12px; gap: 6px; padding: 8px 12px; }
+  #mobile-panels .chart-toggle small { font-size: 8px; }
+  #mobile-panels #chart-region { font-size: 20px; }
+  #mobile-panels .chart-key, #mobile-panels .chart-discoveries { font-size: 8px; }
+  #mobile-panels .top-actions { justify-content: flex-end; }
+  #controls-dialog > .primary-button { width: 100%; }
+  .focus-return { min-height: 44px; }
+}
+@media (max-width: 700px), (max-height: 600px) and (pointer: coarse) {
+  /* The controls sheet stays paper-colored in every sky mood. */
+  #controls-dialog { --ink: #173f4d; --muted: #42616a; --paper: #fffaf0; --glass: #f3f0e7; --line: #173f4d25; color: var(--ink); }
+  body.night #controls-dialog .scene-option.active { color: var(--ink); }
+  body.night #controls-dialog .mode-button.active,
+  body.night #controls-dialog .auto-camera-controls button.active { color: var(--paper); }
+}
+@media (max-width: 700px), (max-height: 600px) and (pointer: coarse) {
+  .altitude-buttons button { width: 48px; height: 48px; }
+}

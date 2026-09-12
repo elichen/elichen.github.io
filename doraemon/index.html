@@ -62,6 +62,7 @@
             <circle cx="18" cy="27" r="2" fill="currentColor" /></svg></span
         ><span>POCKET SKIES<small>A DORAEMON ADVENTURE</small></span></a
       >
+      <button id="mobile-controls" aria-haspopup="dialog" aria-controls="controls-dialog">Controls</button>
       <div class="top-actions">
         <span class="live-label"><i></i> A LITTLE WONDER, IN 3D</span
         ><button
@@ -191,6 +192,14 @@
         ↺ &nbsp; Restart flight
       </button>
     </aside>
+    <div class="ui mobile-progress" aria-label="Sky rings collected"><span id="mobile-rings">0 / 8</span> rings</div>
+    <dialog id="controls-dialog" aria-labelledby="controls-title">
+      <button class="close-dialog icon-button" aria-label="Close controls">×</button>
+      <h2 id="controls-title">Your flight controls</h2>
+      <p>Flight pauses while controls are open.</p>
+      <div id="mobile-panels"></div>
+      <button class="primary-button" id="resume-flight">Back to the sky</button>
+    </dialog>
     <div id="ring-guide" hidden>
       <span>◇</span><small id="ring-distance">NEXT RING</small>
     </div>

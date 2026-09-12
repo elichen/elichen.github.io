@@ -123,6 +123,7 @@ export function makeJourney(scene, landmarks, route, reduced) {
   }
 
   return {
+    drawChart: draw,
     get stats() { return { distance, elapsed, discovered: discovered.size, total: landmarks.length, region }; },
     reset(position) {
       distance = elapsed = chartClock = sampleClock = wakeClock = 0;
