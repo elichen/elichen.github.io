@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#e9ebdf" />
+    <meta name="theme-color" content="#f7f6f2" />
     <meta
       name="description"
       content="Draw a movement. Discover a working machine. A browser workbench for synthesizing and exploring mechanical linkages."
@@ -30,39 +30,21 @@
             <path d="M5 26V8l12 12L29 8v18" /></svg></span
         ><span>MOTION<br />FOUNDRY</span></a
       >
-      <div class="header-caption">
-        AN EXPERIMENT IN<br />COMPUTATIONAL CRAFT
-      </div>
       <div class="header-right">
         <button id="about-button">How it works <span>↗</span></button
-        ><a href="../">All experiments <span>↗</span></a
-        ><span class="edition">VOL. 002</span>
+        ><a href="../">All experiments <span>↗</span></a>
       </div>
     </header>
     <main>
       <section class="hero">
         <div>
-          <p class="overline">FROM A GESTURE TO A GEOMETRY</p>
-          <h1>DRAW A PATH.<br /><span>FIND A MACHINE.</span></h1>
-        </div>
-        <div class="hero-aside">
-          <svg class="hero-glyph" viewBox="0 0 150 80" aria-hidden="true">
-            <path d="M14 61 49 19 98 46 135 19M49 19 83 67 98 46" />
-            <circle cx="14" cy="61" r="5" />
-            <circle cx="49" cy="19" r="5" />
-            <circle cx="98" cy="46" r="5" />
-            <circle cx="135" cy="19" r="5" />
-            <circle class="orange" cx="83" cy="67" r="6" />
-          </svg>
-          <p>
-            A line on a page becomes links, joints, and motion.<br />Sketch a
-            loop. Find the mechanism hiding inside it.
+          <p class="overline">A LITTLE MECHANICAL MAGIC</p>
+          <h1>Draw a path. <span>Make it move.</span></h1>
+          <p class="intro">
+            Sketch a loop or choose a shape. Discover a machine that traces it.
           </p>
-          <div class="hero-tags">
-            <span>ONE MOTOR</span><span>REAL GEOMETRY</span
-            ><span>ENDLESS LOOPS</span>
-          </div>
         </div>
+        <span class="hero-note">One motor. Endless possibilities.</span>
       </section>
 
       <section class="foundry" aria-label="Mechanism design workbench">
@@ -79,9 +61,9 @@
           <aside class="path-panel">
             <div class="panel-label">
               <h2>Your path</h2>
-              <span>01 / INPUT</span>
+              <span></span>
             </div>
-            <p class="panel-copy">Draw one continuous loop.</p>
+            <p class="panel-copy">Drag to draw a closed loop.</p>
             <div class="sketch-wrap">
               <canvas
                 id="sketch"
@@ -99,7 +81,7 @@
               </button>
             </div>
             <div class="sketch-actions">
-              <span>DRAG A LOOP · OR CLICK POINTS</span
+              <span>Or click points, then close</span
               ><button
                 id="close-path"
                 title="Close a path drawn with individual points (Enter)"
@@ -107,7 +89,7 @@
                 Close loop ↗
               </button>
             </div>
-            <p class="overline example-label">OR BORROW A GESTURE</p>
+            <p class="overline example-label">TRY A SHAPE</p>
             <div class="path-presets" role="group" aria-label="Example paths">
               <button data-preset="stride" class="active" aria-pressed="true">
                 <svg viewBox="0 0 50 32" aria-hidden="true">
@@ -157,7 +139,7 @@
           <div class="machine-panel">
             <div class="drawing-title">
               <div>
-                <span class="overline">KINEMATIC ASSEMBLY</span>
+                <span class="overline">LIVE PREVIEW</span>
                 <h2 id="machine-title">A machine in the making</h2>
               </div>
               <span class="scale-label">TOP VIEW<br />ONE COMPLETE CYCLE</span>
@@ -179,7 +161,7 @@
                 aria-pressed="true"
               >
                 <span aria-hidden="true">Ⅱ</span></button
-              ><span class="transport-label">DRIVE SPEED</span
+              ><span class="transport-label">Speed</span
               ><label class="sr-only" for="speed">Crank speed</label
               ><input
                 type="range"
@@ -209,8 +191,8 @@
 
           <aside class="results-panel">
             <div class="panel-label">
-              <h2>The fit</h2>
-              <span>02 / OUTPUT</span>
+              <h2>Path accuracy</h2>
+              <span></span>
             </div>
             <div class="fit-value">
               <strong id="error-output">—</strong><span>%</span>
@@ -239,8 +221,8 @@
               </div>
             </div>
             <div class="candidate-heading">
-              <h3>Possible machines</h3>
-              <span>SELECT TO COMPARE</span>
+              <h3>Compare machines</h3>
+              <span>Choose a result to preview</span>
             </div>
             <div id="candidates" class="candidates">
               <p class="candidate-empty">
@@ -254,7 +236,13 @@
         </div>
       </section>
 
-      <section class="bench-bottom">
+      <details class="bench-bottom">
+        <summary>
+          <span>Fine-tune & export</span
+          ><span
+            >Adjust the tracing point, inspect dimensions, save an SVG</span
+          >
+        </summary>
         <div class="tuning-section">
           <div class="tuning-title">
             <span class="overline">TAKE IT APART</span>
@@ -304,7 +292,7 @@
             Export animated drawing <span>↓ SVG</span>
           </button>
         </div>
-      </section>
+      </details>
       <footer>
         <span>DRAW SOMETHING. MAKE IT MOVE.</span
         ><span>Built on geometry. Driven by curiosity.</span
