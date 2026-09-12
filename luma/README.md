@@ -13,6 +13,7 @@ From the repository root, run `python3 -m http.server 8000`, then open
   snap rotation to 15° increments.
 - Select objects with the Objects menu to edit them without a mouse. Arrow keys
   move the selection; Q and E rotate it. Hold Shift for larger steps.
+- Use Hide controls (F) for an unobstructed view; Show controls brings the workbench back.
 - Keys 1–4 add objects; D duplicates; Backspace/Delete removes; G toggles the grid.
 - Command/Ctrl+Z undoes. Command/Ctrl+Shift+Z redoes. Preset changes and resets
   can also be undone.

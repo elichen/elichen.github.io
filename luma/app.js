@@ -39,7 +39,7 @@ const hints = {
 let objects,
   preset = "prism",
   selected = 2,
-  showGrid = true;
+  showGrid = false;
 let paths = [],
   dirty = true,
   viewport = { width: 0, height: 0, scale: 1, x: 0, y: 0, dpr: 1 };
@@ -580,6 +580,7 @@ window.addEventListener("keydown", (event) => {
   } else if (key === "escape") select(null);
   else if (key === "d" && !event.repeat) duplicate();
   else if (key === "g" && !event.repeat) toggleGrid();
+  else if (key === "f" && !event.repeat) toggleFocus();
   else if (["1", "2", "3", "4"].includes(key) && !event.repeat)
     addObject(["source", "prism", "mirror", "lens"][Number(key) - 1]);
 });
@@ -602,6 +603,14 @@ window.addEventListener("blur", () => {
   finishKeyEdit();
   endDrag();
 });
+function toggleFocus() {
+  const focused = document.body.classList.toggle("focus-mode");
+  const button = $("#focus-button");
+  button.setAttribute("aria-pressed", String(focused));
+  button.innerHTML = `${focused ? "Show" : "Hide"} controls <span aria-hidden="true">${focused ? "↙" : "↗"}</span>`;
+  button.title = `${focused ? "Show" : "Hide"} controls (F)`;
+}
+
 function toggleGrid() {
   showGrid = !showGrid;
   $("#grid-button").setAttribute("aria-pressed", String(showGrid));
@@ -826,7 +835,7 @@ function drawObject(object, exporting) {
     ctx.strokeStyle = "#d1d5b8";
     ctx.stroke();
   }
-  if (!exporting) {
+  if (!exporting && (isSelected || hovered === object.id)) {
     const position =
       object.type === "source"
         ? add(object, { x: -31, y: 47 })
@@ -947,6 +956,7 @@ $("#object-picker").addEventListener("change", (event) =>
 $("#undo-button").addEventListener("click", undo);
 $("#redo-button").addEventListener("click", redo);
 $("#grid-button").addEventListener("click", toggleGrid);
+$("#focus-button").addEventListener("click", toggleFocus);
 $("#reset-button").addEventListener("click", () => {
   loadPreset(preset);
   toast("Back to the beginning. Undo to restore.");

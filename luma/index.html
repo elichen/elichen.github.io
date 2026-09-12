@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#efede6" />
+    <meta name="theme-color" content="#f5f3ed" />
     <meta
       name="description"
       content="A little playground for light. Arrange prisms, mirrors, and lenses to bend beams into something beautiful."
@@ -56,31 +56,23 @@
           >.</span
         ></a
       >
-      <span class="header-description">A PLAYGROUND FOR LIGHT</span>
+      <span class="header-description">A playground for light</span>
       <div class="header-actions">
-        <button id="about-button" class="text-button">
-          Field notes <span>↗</span></button
+        <button id="about-button" class="text-button">How to play</button
         ><button id="export-button" class="export-button">
           <svg><use href="#i-export" /></svg><span>Save image</span>
         </button>
       </div>
     </header>
     <main class="workspace">
-      <aside class="sidebar" aria-label="Optical controls">
+      <aside id="workbench" class="sidebar" aria-label="Optical controls">
         <div class="intro">
-          <span class="eyebrow"
-            ><span class="tiny-star">✳</span> AN EXERCISE IN CURIOSITY</span
-          >
-          <h1>Make light<br /><em>misbehave.</em></h1>
-          <p>
-            A beam, a prism, a little possibility.<br />See where your curiosity
-            takes you.
-          </p>
+          <h1>Play with <em>light.</em></h1>
+          <p>Add an object. See what unfolds.</p>
         </div>
         <section class="tool-section">
           <div class="section-heading">
-            <h2>The workbench</h2>
-            <span>01—04</span>
+            <h2>Add to scene</h2>
           </div>
           <div class="tool-grid">
             <button class="tool" data-add="source" title="Add light source (1)">
@@ -100,19 +92,14 @@
               ><span class="tool-plus">+</span>
             </button>
           </div>
-          <p class="tool-hint">Add an object. Drag it into the light.</p>
         </section>
         <section class="inspector" aria-label="Selected object">
           <div class="section-heading">
-            <h2>Fine tuning</h2>
+            <h2>Selected object</h2>
             <span id="selected-number">02</span>
           </div>
           <div id="inspector-content"></div>
         </section>
-        <div class="sidebar-footer">
-          <span class="live-dot"></span
-          ><span>ALL THE MAGIC HAPPENS RIGHT HERE.</span>
-        </div>
       </aside>
       <section class="studio" aria-label="Light playground">
         <div class="stage" id="stage">
@@ -125,10 +112,18 @@
           >
           <div class="stage-heading">
             <div>
-              <span class="eyebrow">THE OPTICAL SANDBOX</span>
+              <span class="eyebrow">LIGHT STUDIES</span>
               <h2 id="scene-name">Prism study<span> / 01</span></h2>
             </div>
-            <span class="live-label"><span class="live-dot"></span>LIVE</span>
+            <button
+              id="focus-button"
+              class="focus-button"
+              aria-pressed="false"
+              aria-controls="workbench"
+              title="Hide controls (F)"
+            >
+              Hide controls <span aria-hidden="true">↗</span>
+            </button>
           </div>
           <div class="stage-toolbar">
             <button
@@ -153,7 +148,7 @@
               class="icon-button grid-button"
               aria-label="Toggle grid"
               title="Toggle grid (G)"
-              aria-pressed="true"
+              aria-pressed="false"
             >
               ⊞</button
             ><button
@@ -167,19 +162,16 @@
           </div>
           <div class="stage-bottom">
             <span id="stage-hint"
-              >DRAG TO MOVE <span>·</span> Q / E TO ROTATE</span
+              >Drag to move <span>·</span> Drag the handle to rotate</span
             ><label class="object-picker-label"
-              ><span>OBJECTS</span
+              ><span>Objects</span
               ><select id="object-picker" aria-label="Select an object"></select
             ></label>
           </div>
           <div id="toast" role="status" aria-live="polite"></div>
         </div>
         <div class="scene-strip">
-          <div class="scene-strip-title">
-            <span class="eyebrow">A PLACE TO START</span>
-            <p>Follow the light.</p>
-          </div>
+          <span class="scene-strip-title">Explore a scene</span>
           <div class="presets" aria-label="Starting scenes">
             <button
               class="preset active"
@@ -187,43 +179,29 @@
               aria-pressed="true"
             >
               <span class="preset-number">01</span
-              ><span
-                ><strong>Prism study</strong
-                ><small>Find the hidden spectrum</small></span
+              ><span><strong>Prism study</strong></span
               ><svg><use href="#i-arrow" /></svg>
             </button>
             <button class="preset" data-preset="mirrors" aria-pressed="false">
               <span class="preset-number">02</span
-              ><span
-                ><strong>Around the bend</strong
-                ><small>Take the scenic route</small></span
+              ><span><strong>Reflection</strong></span
               ><svg><use href="#i-arrow" /></svg>
             </button>
             <button class="preset" data-preset="focus" aria-pressed="false">
               <span class="preset-number">03</span
-              ><span
-                ><strong>A point of focus</strong
-                ><small>Bring it all together</small></span
+              ><span><strong>Focus</strong></span
               ><svg><use href="#i-arrow" /></svg>
             </button>
             <button class="preset" data-preset="split" aria-pressed="false">
               <span class="preset-number">04</span
-              ><span
-                ><strong>Chromatic crossing</strong
-                ><small>A beautiful entanglement</small></span
+              ><span><strong>Color play</strong></span
               ><svg><use href="#i-arrow" /></svg>
             </button>
           </div>
         </div>
       </section>
     </main>
-    <footer class="page-footer">
-      <span>SMALL EXPERIMENTS. BRIGHT IDEAS.</span
-      ><span
-        >Made with curiosity <span class="footer-star">✳</span>
-        <a href="../">More experiments ↗</a></span
-      >
-    </footer>
+
     <dialog id="notes-dialog">
       <form method="dialog">
         <button class="close-button" aria-label="Close field notes">×</button>
@@ -274,8 +252,9 @@
         ><span><kbd>↑ ↓ ← →</kbd> Move</span
         ><span><kbd>Q</kbd> <kbd>E</kbd> Rotate</span
         ><span><kbd>⌫</kbd> Delete</span><span><kbd>⌘/Ctrl Z</kbd> Undo</span
-        ><span><kbd>G</kbd> Grid</span>
+        ><span><kbd>G</kbd> Grid</span><span><kbd>F</kbd> Hide controls</span>
       </div>
+      <a class="more-experiments" href="../">More experiments ↗</a>
     </dialog>
     <script type="module" src="app.js"></script>
   </body>
