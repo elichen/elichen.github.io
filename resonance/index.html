@@ -19,8 +19,8 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css" />
-    <script type="module" src="app.mjs"></script>
+    <link rel="stylesheet" href="styles.css?v=2" />
+    <script type="module" src="app.mjs?v=2"></script>
   </head>
   <body>
     <header class="masthead">
@@ -43,14 +43,14 @@
       <section class="introduction" aria-labelledby="page-title">
         <div>
           <p class="eyebrow">
-            <span class="tiny-star" aria-hidden="true">✳</span> A LITTLE
-            PHYSICS. A LOT OF POSSIBILITY.
+            <span class="tiny-star" aria-hidden="true">✳</span> SHAPE. SOUND.
+            PLAY.
           </p>
           <h1 id="page-title">Give sound <em>a shape.</em></h1>
         </div>
         <p class="intro-copy">
-          Pull an edge. Tap the surface.<br />
-          Discover an instrument that only you could make.
+          An instrument made by you.<br />
+          Choose a shape. Tap to hear it.
         </p>
       </section>
 
@@ -143,17 +143,27 @@
           <div class="stage" id="stage">
             <div class="stage-top">
               <div class="stage-title">
-                <span class="eyebrow">THE LISTENING ROOM</span>
+                <span class="eyebrow">YOUR INSTRUMENT</span>
                 <h2 id="instrument-name">Round study <span>/ 01</span></h2>
               </div>
-              <div
-                class="tool-switch"
-                role="group"
-                aria-label="Surface interaction"
-              >
-                <button id="play-tool" class="selected" aria-pressed="true">
-                  Play</button
-                ><button id="shape-tool" aria-pressed="false">Reshape</button>
+              <div class="stage-tools">
+                <button
+                  id="focus-button"
+                  class="focus-button"
+                  aria-pressed="false"
+                  title="Expand the instrument"
+                >
+                  Focus <span aria-hidden="true">⤢</span>
+                </button>
+                <div
+                  class="tool-switch"
+                  role="group"
+                  aria-label="Surface interaction"
+                >
+                  <button id="play-tool" class="selected" aria-pressed="true">
+                    Play</button
+                  ><button id="shape-tool" aria-pressed="false">Reshape</button>
+                </div>
               </div>
             </div>
             <canvas
@@ -188,7 +198,7 @@
           <div class="mode-section">
             <div class="mode-heading">
               <div>
-                <h3>The hidden harmonics</h3>
+                <h3>Explore the harmonics</h3>
                 <p id="mode-description">
                   Tap a mode to see and hear one vibration on its own.
                 </p>
@@ -302,11 +312,11 @@
       <section class="rack-section" aria-labelledby="rack-title">
         <div class="rack-heading">
           <div>
-            <p class="eyebrow">YOUR SMALL COLLECTION</p>
-            <h2 id="rack-title">One shape. A whole orchestra.</h2>
+            <p class="eyebrow">SAVE & PLAY</p>
+            <h2 id="rack-title">Your instrument rack.</h2>
           </div>
           <p>
-            Save a few voices. Play them together.<br /><span
+            Keep the sounds you like.<br /><span
               >Use keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> to
               perform.</span
             >
@@ -320,8 +330,8 @@
 
       <footer>
         <p>
-          <span class="footer-star" aria-hidden="true">✳</span> THE SHAPE IS
-          THE INSTRUMENT.
+          <span class="footer-star" aria-hidden="true">✳</span> THE SHAPE IS THE
+          INSTRUMENT.
         </p>
         <div>
           <button id="export-button" disabled>

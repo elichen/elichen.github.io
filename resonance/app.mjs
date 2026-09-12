@@ -880,6 +880,22 @@ $("volume").addEventListener("input", () => {
         : "Sound starts with your first tap.";
 });
 
+// Focus is a layout choice, so it works without fullscreen permissions.
+let focusScroll = 0;
+function setFocus(enabled) {
+  if (enabled) focusScroll = window.scrollY;
+  document.body.classList.toggle("instrument-focus", enabled);
+  $("focus-button").setAttribute("aria-pressed", String(enabled));
+  $("focus-button").innerHTML = enabled
+    ? 'Exit focus <span aria-hidden="true">↙</span>'
+    : 'Focus <span aria-hidden="true">⤢</span>';
+  if (enabled) window.scrollTo(0, 0);
+  else window.scrollTo(0, focusScroll);
+}
+$("focus-button").addEventListener("click", () => {
+  setFocus(!document.body.classList.contains("instrument-focus"));
+});
+
 const dialog = $("science-dialog");
 $("about-button").addEventListener("click", () => dialog.showModal());
 dialog.addEventListener("click", (event) => {
@@ -988,6 +1004,10 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     playPad(Number(event.key) - 1);
   } else if (event.key === "Escape") {
+    if (document.body.classList.contains("instrument-focus")) {
+      setFocus(false);
+      $("focus-button").focus({ preventScroll: true });
+    }
     stopPattern();
     audio.stop();
     setTool("play");

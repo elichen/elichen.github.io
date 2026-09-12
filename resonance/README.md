@@ -21,6 +21,9 @@ after a click, tap, or keyboard gesture.
 
 - Choose Round, Square, Petal, or Droplet. In **Play**, tap the membrane or press
   **Space** to strike it. The crosshair button strikes its center.
+- **Focus** expands the surface and harmonics into a quiet playing view.
+  **Exit focus** or **Escape** restores the studio and your previous scroll position.
+  On small screens, swipe the harmonic strip to browse the nine visible modes.
 - Choose **Reshape** and drag a rim point. With the canvas focused, use
   **Left/Right** to select one of 16 points and **Up/Down** to move it radially.
   The Width slider changes the horizontal extent. Geometry changes recalculate
