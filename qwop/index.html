@@ -4,74 +4,52 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Learning to QWOP</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <main>
-        <header>
-            <p class="eyebrow">100 m ragdoll sprint</p>
-            <h1>Learning to QWOP</h1>
-            <p class="lede">Four keys drive a floppy runner's thighs and calves. A hand-scripted teacher can barely shuffle. A network cloned from it shuffles exactly as well, so exactly that DAgger found nothing to fix. Then reinforcement learning takes that shuffle and turns it into a 21-second hundred metres.</p>
-        </header>
+        <div class="sitebar"><a href="../index.html">ELICHEN.GITHUB.IO</a></div>
+        <h1>LEARNING TO QWOP</h1>
 
-        <section class="stage">
-            <div class="hud">
-                <div class="hud-cell"><span id="hud-dist">0.0</span><label>metres</label></div>
-                <div class="hud-cell"><span id="hud-time">0.0</span><label>seconds</label></div>
-                <div class="hud-cell"><span id="hud-speed">0.0</span><label>m/s</label></div>
-            </div>
-            <div class="canvas-wrap">
-                <canvas id="track"></canvas>
-                <button id="banner" hidden>
-                    <span class="banner-title"></span>
-                    <span class="banner-sub"></span>
-                </button>
-            </div>
-            <div class="keys">
-                <div class="keypair">
-                    <button class="keycap" data-key="q">Q</button>
-                    <button class="keycap" data-key="w">W</button>
-                    <span>thighs</span>
-                </div>
-                <p id="key-hint">Keys pressed by the network. Press Q, W, O or P to take over.</p>
-                <div class="keypair">
-                    <button class="keycap" data-key="o">O</button>
-                    <button class="keycap" data-key="p">P</button>
-                    <span>calves</span>
-                </div>
-            </div>
-        </section>
+        <div class="canvas-wrap">
+            <canvas id="track"></canvas>
+            <button id="banner" hidden>
+                <span class="banner-ribbon"></span>
+                <span class="banner-title"></span>
+                <span class="banner-sub"></span>
+            </button>
+        </div>
+        <p id="key-hint">Keys pressed by the network. Press Q, W, O or P to take over.</p>
+
+        <p class="lede">Four keys drive a floppy runner's thighs and calves. A hand-scripted teacher can barely shuffle. A network cloned from it shuffles exactly as well, so exactly that DAgger found nothing to fix. Then reinforcement learning takes that shuffle and turns it into a 21-second hundred metres.</p>
 
         <section class="brains" aria-label="Who is running">
             <button class="brain" data-brain="human" aria-pressed="false">
-                <i style="background:#1d2a44"></i>
+                <i style="background:#e3342a"></i>
                 <b>You</b>
                 <span class="brain-desc">Q/W swing the thighs, O/P the calves. Good luck.</span>
                 <span class="brain-stat">keyboard or tap the keys</span>
             </button>
             <button class="brain" data-brain="teacher" aria-pressed="false">
-                <i style="background:#8a8f98"></i>
+                <i style="background:#8d939c"></i>
                 <b>1 · Teacher</b>
                 <span class="brain-desc">A four-phase scripted state machine, tuned by random search. No learning.</span>
                 <span class="brain-stat">&nbsp;</span>
             </button>
             <button class="brain" data-brain="bc" aria-pressed="false">
-                <i style="background:#d9a21b"></i>
+                <i style="background:#e0a81c"></i>
                 <b>2 · Cloned</b>
                 <span class="brain-desc">A network trained to copy the teacher's keys. It agrees with the teacher 99.98% of the time.</span>
                 <span class="brain-stat">&nbsp;</span>
             </button>
             <button class="brain" data-brain="dagger" aria-pressed="false">
-                <i style="background:#2f8f6b"></i>
+                <i style="background:#2f9a5f"></i>
                 <b>3 · DAgger</b>
                 <span class="brain-desc">Retrained on its own mistakes, relabelled by the teacher. The clone barely made any, so nothing changed.</span>
                 <span class="brain-stat">&nbsp;</span>
             </button>
             <button class="brain" data-brain="rl" aria-pressed="true">
-                <i style="background:#d8432b"></i>
+                <i style="background:#e3342a"></i>
                 <b>4 · PPO</b>
                 <span class="brain-desc">The same network fine-tuned by reinforcement learning. It invents a lunging gallop that taps a knee each stride.</span>
                 <span class="brain-stat">&nbsp;</span>
@@ -84,8 +62,9 @@
             <h2>How it was trained</h2>
             <p>The physics is a small custom rigid-body solver written twice, once in Python for training and once in JavaScript for this page, and checked to agree to floating-point precision. Every network is a 77-input, two-layer tanh MLP that picks one of nine key combinations thirty times a second. All of it trained on a laptop CPU: the simulator steps about a million runners per second.</p>
             <p>Did the imitation stages matter? For reinforcement learning, yes: started from the cloned shuffle, PPO reached a 22-second hundred metres in about 125M steps, while the same PPO from random weights was still at 38 seconds and falling a quarter of the time. Forbidding the knee tap produces a tidy upright walk, at a third of the speed.</p>
-            <p>Stats under each brain are measured over 2,048 runs with slightly randomised starting poses. Code is in <a href="https://github.com/elichen/elichen.github.io/tree/main/qwop/train">qwop/train</a>. QWOP is Bennett Foddy's game; this is a from-scratch homage.</p>
+            <p>Stats under each brain are measured over 2,048 runs with slightly randomised starting poses. Code is in <a href="https://github.com/elichen/elichen.github.io/tree/main/qwop/train">qwop/train</a>.</p>
         </section>
+        <footer>QWOP © 2008 BENNETT FODDY · <a href="https://www.foddy.net/Athletics.html">PLAY THE ORIGINAL</a> · THIS PAGE IS A FROM-SCRATCH HOMAGE</footer>
     </main>
     <script src="physics.js"></script>
     <script src="main.js"></script>
