@@ -1,0 +1,46 @@
+{
+ "teacher": {
+  "finish_rate": 0.0,
+  "time_100m": null,
+  "time_100m_ci95": null,
+  "best_time": null,
+  "distance": 50.015801565898705,
+  "knee_frac": 0.3463179877599113,
+  "speed": 0.5640018333152688,
+  "fall_rate": 0.2666015625,
+  "episodes": 2048
+ },
+ "bc": {
+  "finish_rate": 0.0,
+  "time_100m": null,
+  "time_100m_ci95": null,
+  "best_time": null,
+  "distance": 49.966787551742996,
+  "knee_frac": 0.3464131192930667,
+  "speed": 0.5604692549355563,
+  "fall_rate": 0.2685546875,
+  "episodes": 2048
+ },
+ "dagger": {
+  "finish_rate": 0.0,
+  "time_100m": null,
+  "time_100m_ci95": null,
+  "best_time": null,
+  "distance": 49.8464107757753,
+  "knee_frac": 0.3459692951266524,
+  "speed": 0.562518766890803,
+  "fall_rate": 0.27001953125,
+  "episodes": 2048
+ },
+ "rl:rl.pt": {
+  "finish_rate": 0.998046875,
+  "time_100m": 21.422462347235893,
+  "time_100m_ci95": 0.032788832728415276,
+  "best_time": 20.633333333333333,
+  "distance": 99.89790450153416,
+  "knee_frac": 0.14102672217471157,
+  "speed": 4.667362123202405,
+  "fall_rate": 0.001953125,
+  "episodes": 2048
+ }
+}

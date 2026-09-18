@@ -1,0 +1,145 @@
+{
+ "teacher": {
+  "finish_rate": 0.0,
+  "time_100m": null,
+  "time_100m_ci95": null,
+  "best_time": null,
+  "distance": 49.90236354541169,
+  "speed": 0.5611196975562059,
+  "fall_rate": 0.2607421875
+ },
+ "bc": {
+  "finish_rate": 0.0,
+  "time_100m": null,
+  "time_100m_ci95": null,
+  "best_time": null,
+  "distance": 49.80155365536267,
+  "speed": 0.5620922773978267,
+  "fall_rate": 0.2685546875,
+  "samples": 614400,
+  "label_acc": 0.9996858723958333
+ },
+ "dagger": [
+  {
+   "finish_rate": 0.0,
+   "time_100m": null,
+   "time_100m_ci95": null,
+   "best_time": null,
+   "distance": 49.831385640186966,
+   "speed": 0.5618523808072415,
+   "fall_rate": 0.2646484375,
+   "samples": 1228800,
+   "label_acc": 0.8381339518229166,
+   "beta": 0.5
+  },
+  {
+   "finish_rate": 0.0,
+   "time_100m": null,
+   "time_100m_ci95": null,
+   "best_time": null,
+   "distance": 49.86675466918848,
+   "speed": 0.5603193929007353,
+   "fall_rate": 0.26171875,
+   "samples": 1843200,
+   "label_acc": 0.7379340277777777,
+   "beta": 0.25
+  },
+  {
+   "finish_rate": 0.0,
+   "time_100m": null,
+   "time_100m_ci95": null,
+   "best_time": null,
+   "distance": 49.7918147783947,
+   "speed": 0.5597073699714548,
+   "fall_rate": 0.2646484375,
+   "samples": 2457600,
+   "label_acc": 0.6732706705729167,
+   "beta": 0.125
+  },
+  {
+   "finish_rate": 0.0,
+   "time_100m": null,
+   "time_100m_ci95": null,
+   "best_time": null,
+   "distance": 49.892139877435824,
+   "speed": 0.5537586439173965,
+   "fall_rate": 0.265625,
+   "samples": 3072000,
+   "label_acc": 0.6289654947916666,
+   "beta": 0.0625
+  },
+  {
+   "finish_rate": 0.0,
+   "time_100m": null,
+   "time_100m_ci95": null,
+   "best_time": null,
+   "distance": 49.690233899226456,
+   "speed": 0.5603577112703952,
+   "fall_rate": 0.2705078125,
+   "samples": 3686400,
+   "label_acc": 0.6010956488715278,
+   "beta": 0.03125
+  },
+  {
+   "finish_rate": 0.0,
+   "time_100m": null,
+   "time_100m_ci95": null,
+   "best_time": null,
+   "distance": 49.7327457897684,
+   "speed": 0.5618273924488404,
+   "fall_rate": 0.265625,
+   "samples": 4300800,
+   "label_acc": 0.5823477027529762,
+   "beta": 0.015625
+  },
+  {
+   "finish_rate": 0.0,
+   "time_100m": null,
+   "time_100m_ci95": null,
+   "best_time": null,
+   "distance": 49.594308578691184,
+   "speed": 0.5715226591213636,
+   "fall_rate": 0.26953125,
+   "samples": 4915200,
+   "label_acc": 0.5687624104817708,
+   "beta": 0.0078125
+  },
+  {
+   "finish_rate": 0.0,
+   "time_100m": null,
+   "time_100m_ci95": null,
+   "best_time": null,
+   "distance": 49.705812812185215,
+   "speed": 0.5593842883818749,
+   "fall_rate": 0.2705078125,
+   "samples": 5529600,
+   "label_acc": 0.5606065538194445,
+   "beta": 0.00390625
+  },
+  {
+   "finish_rate": 0.0,
+   "time_100m": null,
+   "time_100m_ci95": null,
+   "best_time": null,
+   "distance": 49.68006813574549,
+   "speed": 0.5672826610868457,
+   "fall_rate": 0.275390625,
+   "samples": 6144000,
+   "label_acc": 0.5558264973958333,
+   "beta": 0.001953125
+  },
+  {
+   "finish_rate": 0.0,
+   "time_100m": null,
+   "time_100m_ci95": null,
+   "best_time": null,
+   "distance": 49.710261287939375,
+   "speed": 0.5636588720730256,
+   "fall_rate": 0.26171875,
+   "samples": 6758400,
+   "label_acc": 0.5537741181344698,
+   "beta": 0.0009765625
+  }
+ ],
+ "dagger_best_iter": 3
+}
