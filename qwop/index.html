@@ -21,7 +21,7 @@
         </div>
         <p id="key-hint">Keys pressed by the network. Press Q, W, O or P to take over.</p>
 
-        <p class="lede">Four keys drive a floppy runner's thighs and calves. A hand-scripted teacher can barely shuffle. A network cloned from it shuffles exactly as well, so exactly that DAgger found nothing to fix. Then reinforcement learning takes that shuffle and turns it into a 21-second hundred metres.</p>
+        <p class="lede">Four keys drive a floppy runner's thighs and calves. A hand-scripted teacher can barely shuffle. A network cloned from it shuffles exactly as well, so exactly that DAgger found nothing to fix. Then reinforcement learning takes that shuffle and turns it into an 18.6-second hundred metres.</p>
 
         <section class="brains" aria-label="Who is running">
             <button class="brain" data-brain="human" aria-pressed="false">
@@ -51,7 +51,7 @@
             <button class="brain" data-brain="rl" aria-pressed="true">
                 <i style="background:#e3342a"></i>
                 <b>4 · PPO</b>
-                <span class="brain-desc">The same network fine-tuned by reinforcement learning. It invents a lunging gallop that taps a knee each stride.</span>
+                <span class="brain-desc">The same network fine-tuned by reinforcement learning. Five billion steps later it has invented a lunging gallop that brushes a knee each stride.</span>
                 <span class="brain-stat">&nbsp;</span>
             </button>
         </section>
@@ -60,7 +60,7 @@
 
         <section class="notes">
             <h2>How it was trained</h2>
-            <p>The physics is a small custom rigid-body solver written twice, once in Python for training and once in JavaScript for this page, and checked to agree to floating-point precision. Every network is a 77-input, two-layer tanh MLP that picks one of nine key combinations thirty times a second. All of it trained on a laptop CPU: the simulator steps about a million runners per second.</p>
+            <p>The physics is a small custom rigid-body solver written twice, once in Python for training and once in JavaScript for this page, and checked to agree to floating-point precision. Every network is a 77-input, two-layer tanh MLP that picks one of nine key combinations thirty times a second. The first 21-second gait trained on a laptop CPU in half an hour; a JAX port of the same simulator on a laptop GPU then ground out the last three seconds, mostly by turning exploration up.</p>
             <p>Did the imitation stages matter? For reinforcement learning, yes: started from the cloned shuffle, PPO reached a 22-second hundred metres in about 125M steps, while the same PPO from random weights was still at 38 seconds and falling a quarter of the time. Forbidding the knee tap produces a tidy upright walk, at a third of the speed.</p>
             <p>Stats under each brain are measured over 2,048 runs with slightly randomised starting poses. Code is in <a href="https://github.com/elichen/elichen.github.io/tree/main/qwop/train">qwop/train</a>.</p>
         </section>

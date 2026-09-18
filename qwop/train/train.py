@@ -180,11 +180,15 @@ def ppo(args):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     N, T = args.envs, args.horizon
-    gamma, lam = 0.99, 0.95
+    gamma, lam = args.gamma, 0.95
     actor = mlp(sim.NOBS, sim.NACT).to(DEV)
     if args.init:
         actor.load_state_dict(torch.load(os.path.join(HERE, args.init), map_location=DEV))
     critic = mlp(sim.NOBS, 1).to(DEV)
+    if args.init_full:  # resume actor and critic together
+        full = torch.load(os.path.join(HERE, args.init_full), map_location=DEV)
+        actor.load_state_dict(full['actor'])
+        critic.load_state_dict(full['critic'])
     cpu = CpuActor(actor)
     cpu_critic = mlp(sim.NOBS, 1)
     opt_a = torch.optim.Adam(actor.parameters(), lr=args.lr, eps=1e-5)
@@ -308,7 +312,13 @@ def ppo(args):
 # ----------------------------------------------------------- final eval ----
 def load_actor(path):
     net = mlp(sim.NOBS, sim.NACT)
-    net.load_state_dict(torch.load(os.path.join(HERE, path), map_location='cpu'))
+    if path.endswith('.npz'):  # weights written by the GPU trainer (jppo.py)
+        z = np.load(os.path.join(HERE, path))
+        sd = {f'{k}.{n}': torch.from_numpy(z[f'actor_{s}{i}'])
+              for i, k in enumerate((0, 2, 4)) for n, s in (('weight', 'W'), ('bias', 'b'))}
+    else:
+        sd = torch.load(os.path.join(HERE, path), map_location='cpu')
+    net.load_state_dict(sd)
     return CpuActor(net)
 
 
@@ -366,6 +376,8 @@ if __name__ == '__main__':
     ap.add_argument('--ent', type=float, default=0.01)
     ap.add_argument('--critic-warmup', type=int, default=10)
     ap.add_argument('--eval-every', type=int, default=20)
+    ap.add_argument('--gamma', type=float, default=0.99)
+    ap.add_argument('--init-full', default='')
     ap.add_argument('--knee-penalty', type=float, default=0.0)
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--init', default='dagger.pt')
