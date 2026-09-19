@@ -19,52 +19,52 @@
                 <span class="banner-sub"></span>
             </button>
         </div>
-        <p id="key-hint">Keys pressed by the network. Press Q, W, O or P to take over.</p>
+        <p id="key-hint">Highlighted keys show controller inputs. Press Q, W, O or P to take control.</p>
 
-        <p class="lede">Four keys drive a floppy runner's thighs and calves. A hand-scripted teacher can barely shuffle. A network cloned from it shuffles exactly as well, so exactly that DAgger found nothing to fix. Then reinforcement learning takes that shuffle and turns it into an 18.6-second hundred metres.</p>
+        <p class="lede">Control a simulated runner with Q, W, O and P. Compare a scripted controller with three stages of neural network training: behavior cloning, DAgger and PPO. The final model runs 100 m in 18.6 seconds.</p>
 
-        <section class="brains" aria-label="Who is running">
+        <section class="brains" aria-label="Select a controller">
             <button class="brain" data-brain="human" aria-pressed="false">
                 <i style="background:#e3342a"></i>
-                <b>You</b>
-                <span class="brain-desc">Q/W swing the thighs, O/P the calves. Good luck.</span>
-                <span class="brain-stat">keyboard or tap the keys</span>
+                <b>Manual</b>
+                <span class="brain-desc">Q/W control the thighs. O/P control the calves.</span>
+                <span class="brain-stat">Use the keyboard or on-screen keys</span>
             </button>
             <button class="brain" data-brain="teacher" aria-pressed="false">
                 <i style="background:#8d939c"></i>
                 <b>1 · Teacher</b>
-                <span class="brain-desc">A four-phase scripted state machine, tuned by random search. No learning.</span>
+                <span class="brain-desc">A four-state controller tuned by random search.</span>
                 <span class="brain-stat">&nbsp;</span>
             </button>
             <button class="brain" data-brain="bc" aria-pressed="false">
                 <i style="background:#e0a81c"></i>
-                <b>2 · Cloned</b>
-                <span class="brain-desc">A network trained to copy the teacher's keys. It agrees with the teacher 99.98% of the time.</span>
+                <b>2 · Behavior cloning</b>
+                <span class="brain-desc">A neural network trained on the teacher's actions. Action agreement: 99.98%.</span>
                 <span class="brain-stat">&nbsp;</span>
             </button>
             <button class="brain" data-brain="dagger" aria-pressed="false">
                 <i style="background:#2f9a5f"></i>
                 <b>3 · DAgger</b>
-                <span class="brain-desc">Retrained on its own mistakes, relabelled by the teacher. The clone barely made any, so nothing changed.</span>
+                <span class="brain-desc">The model visits new states, the teacher labels them, and the model retrains. No measured improvement here.</span>
                 <span class="brain-stat">&nbsp;</span>
             </button>
             <button class="brain" data-brain="rl" aria-pressed="true">
                 <i style="background:#e3342a"></i>
                 <b>4 · PPO</b>
-                <span class="brain-desc">The same network fine-tuned by reinforcement learning. Five billion steps later it has invented a lunging gallop that brushes a knee each stride.</span>
+                <span class="brain-desc">The DAgger model fine-tuned with reinforcement learning for about 4.7 billion steps.</span>
                 <span class="brain-stat">&nbsp;</span>
             </button>
         </section>
 
-        <label class="toggle"><input type="checkbox" id="ghosts" checked> Race the other brains as ghosts</label>
+        <label class="toggle"><input type="checkbox" id="ghosts" checked> Show other controllers as ghosts</label>
 
         <section class="notes">
             <h2>How it was trained</h2>
-            <p>The physics is a small custom rigid-body solver written twice, once in Python for training and once in JavaScript for this page, and checked to agree to floating-point precision. Every network is a 77-input, two-layer tanh MLP that picks one of nine key combinations thirty times a second. The first 21-second gait trained on a laptop CPU in half an hour; a JAX port of the same simulator on a laptop GPU then ground out the last three seconds, mostly by turning exploration up.</p>
-            <p>Did the imitation stages matter? For reinforcement learning, yes: started from the cloned shuffle, PPO reached a 22-second hundred metres in about 125M steps, while the same PPO from random weights was still at 38 seconds and falling a quarter of the time. Forbidding the knee tap produces a tidy upright walk, at a third of the speed.</p>
-            <p>Stats under each brain are measured over 2,048 runs with slightly randomised starting poses. Code is in <a href="https://github.com/elichen/elichen.github.io/tree/main/qwop/train">qwop/train</a>.</p>
+            <p>Training uses a custom rigid-body simulator in Python. This page uses a matching JavaScript version. Each neural network has 77 inputs and two hidden layers with tanh activations. It selects one of nine key combinations 30 times per second.</p>
+            <p>PPO reached 21.4 seconds per 100 m after 300 million steps on a laptop CPU. Another 4.4 billion steps on a GPU reduced the time to 18.6 seconds. At roughly 130 million steps, PPO initialized from DAgger reached 22.1 seconds, compared with 38.0 seconds from random weights. This comparison used one run per setup. Penalizing knee contact produced an upright gait at about one-third the speed.</p>
+            <p>Statistics use 2,048 runs per controller with randomized starting poses and a 100-second limit. Training code: <a href="https://github.com/elichen/elichen.github.io/tree/main/qwop/train">qwop/train</a>.</p>
         </section>
-        <footer>QWOP © 2008 BENNETT FODDY · <a href="https://www.foddy.net/Athletics.html">PLAY THE ORIGINAL</a> · THIS PAGE IS A FROM-SCRATCH HOMAGE</footer>
+        <footer>QWOP © 2008 BENNETT FODDY · <a href="https://www.foddy.net/Athletics.html">PLAY THE ORIGINAL</a> · INDEPENDENT REIMPLEMENTATION</footer>
     </main>
     <script src="physics.js"></script>
     <script src="main.js"></script>

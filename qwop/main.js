@@ -501,8 +501,8 @@
       el.setAttribute('aria-pressed', el.dataset.brain === id ? 'true' : 'false');
     });
     document.getElementById('key-hint').textContent = id === 'human'
-      ? 'You are running. Space restarts.'
-      : 'Keys pressed by the network. Press Q, W, O or P to take over.';
+      ? 'Manual control. Press Space or R to restart.'
+      : 'Highlighted keys show controller inputs. Press Q, W, O or P to take control.';
     resetRace();
   }
 
