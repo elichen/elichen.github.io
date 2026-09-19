@@ -1,4 +1,4 @@
-// Learning to QWOP — runs the ragdoll physics and the four trained "brains".
+// Learning to QWOP — runs the ragdoll physics and the five trained "brains".
 (() => {
   const P = QwopPhysics;
   const canvas = document.getElementById('track');
@@ -11,6 +11,7 @@
     { id: 'bc', color: '#e0a81c' },
     { id: 'dagger', color: '#2f9a5f' },
     { id: 'rl', color: '#e3342a' },
+    { id: 'sprint', color: '#2d6cdf' },
   ];
   const RESET_NOISE = 0.03;
   const keys = { q: false, w: false, o: false, p: false };
@@ -541,8 +542,9 @@
       dagger: makeMlp(m.dagger),
       rl: makeMlp(m.rl),
     };
+    if (m.sprint) controllers.sprint = makeMlp(m.sprint);
     fillStats(m.stats);
-    selectBrain('rl');
+    selectBrain(controllers.sprint ? 'sprint' : 'rl');
     requestAnimationFrame(frame);
   }).catch((err) => {
     console.error(err);

@@ -326,6 +326,7 @@ def final_eval(args):
     """Score every stage on the same 2,048 episodes (4 seeds x 512)."""
     stats = {}
     paths = [('bc', 'bc.pt'), ('dagger', 'dagger.pt')] + [(f'rl:{p}', p) for p in args.rl.split(',')]
+    paths += [(f'sprint:{p}', p) for p in args.sprint.split(',') if p]
     for name, path in [('teacher', None)] + paths:
         runs = []
         for seed in (11, 22, 33, 44):
@@ -346,17 +347,19 @@ def final_eval(args):
 # --------------------------------------------------------------- export ----
 def export(args):
     def layers(path):
-        sd = torch.load(os.path.join(HERE, path), map_location='cpu')
+        sd = load_actor(path).net.state_dict()
         ks = sorted({k.split('.')[0] for k in sd}, key=int)
         return [dict(W=[[float(f"{v:.5g}") for v in row] for row in sd[f'{k}.weight'].tolist()],
                      b=[float(f"{v:.5g}") for v in sd[f'{k}.bias'].tolist()]) for k in ks]
     models = dict(teacher=json.load(open(os.path.join(HERE, 'teacher.json'))))
-    for name, path in [('bc', 'bc.pt'), ('dagger', 'dagger.pt'), ('rl', args.rl)]:
-        models[name] = layers(path)
+    for name, path in [('bc', 'bc.pt'), ('dagger', 'dagger.pt'), ('rl', args.rl), ('sprint', args.sprint)]:
+        if path:
+            models[name] = layers(path)
     sp = os.path.join(HERE, 'final_stats.json')
     if os.path.exists(sp):
         st = json.load(open(sp))
-        models['stats'] = {k.split(':')[0]: v for k, v in st.items() if ':' not in k or k == f'rl:{args.rl}'}
+        keep = (f'rl:{args.rl}', f'sprint:{args.sprint}')
+        models['stats'] = {k.split(':')[0]: v for k, v in st.items() if ':' not in k or k in keep}
     dst = os.path.join(HERE, '..', 'models.json')
     json.dump(models, open(dst, 'w'), separators=(',', ':'))
     print("wrote", dst, os.path.getsize(dst) // 1024, "KB")
@@ -383,5 +386,6 @@ if __name__ == '__main__':
     ap.add_argument('--init', default='dagger.pt')
     ap.add_argument('--out', default='runs/ppo')
     ap.add_argument('--rl', default='rl.pt')
+    ap.add_argument('--sprint', default='sprint.npz')  # alternating-stride policy from jppo.py --stride
     args = ap.parse_args()
     dict(imitate=imitate, ppo=ppo, finaleval=final_eval, export=export)[args.cmd](args)

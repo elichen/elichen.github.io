@@ -21,7 +21,7 @@
         </div>
         <p id="key-hint">Highlighted keys show controller inputs. Press Q, W, O or P to take control.</p>
 
-        <p class="lede">Control a simulated runner with Q, W, O and P. Compare a scripted controller with three stages of neural network training: behavior cloning, DAgger and PPO. The final model runs 100 m in 18.6 seconds.</p>
+        <p class="lede">Control a simulated runner with Q, W, O and P. Compare a scripted controller with three stages of neural network training: behavior cloning, DAgger and PPO. PPO runs 100 m in 18.6 seconds with a galloping gait. A fifth model, trained to alternate its legs and keep its knees off the ground, takes 20.0 seconds.</p>
 
         <section class="brains" aria-label="Select a controller">
             <button class="brain" data-brain="human" aria-pressed="false">
@@ -48,10 +48,16 @@
                 <span class="brain-desc">The model visits new states, the teacher labels them, and the model retrains. No measured improvement here.</span>
                 <span class="brain-stat">&nbsp;</span>
             </button>
-            <button class="brain" data-brain="rl" aria-pressed="true">
+            <button class="brain" data-brain="rl" aria-pressed="false">
                 <i style="background:#e3342a"></i>
                 <b>4 · PPO</b>
                 <span class="brain-desc">The DAgger model fine-tuned with reinforcement learning for about 4.7 billion steps.</span>
+                <span class="brain-stat">&nbsp;</span>
+            </button>
+            <button class="brain" data-brain="sprint" aria-pressed="true">
+                <i style="background:#2d6cdf"></i>
+                <b>5 · Alternating stride</b>
+                <span class="brain-desc">An earlier PPO checkpoint retrained to reward alternating strides and end the run on knee contact. About 4.2 billion more steps.</span>
                 <span class="brain-stat">&nbsp;</span>
             </button>
         </section>
@@ -62,6 +68,7 @@
             <h2>How it was trained</h2>
             <p>Training uses a custom rigid-body simulator in Python. This page uses a matching JavaScript version. Each neural network has 77 inputs and two hidden layers with tanh activations. It selects one of nine key combinations 30 times per second.</p>
             <p>PPO reached 21.4 seconds per 100 m after 300 million steps on a laptop CPU. Another 4.4 billion steps on a GPU reduced the time to 18.6 seconds. At roughly 130 million steps, PPO initialized from DAgger reached 22.1 seconds, compared with 38.0 seconds from random weights. This comparison used one run per setup. Penalizing knee contact produced an upright gait at about one-third the speed.</p>
+            <p>The 18.6-second PPO gait is a gallop: the right leg leads 78% of the time and a knee touches the ground on 8% of steps. The alternating-stride model pays most of the progress reward per stride, and a stride counts only when a foot lands ahead of the other foot and the two feet take turns. Knee contact ends the episode. It runs 100 m in 20.0 seconds with no knee contact, and each leg leads about half the time.</p>
             <p>Statistics use 2,048 runs per controller with randomized starting poses and a 100-second limit. Training code: <a href="https://github.com/elichen/elichen.github.io/tree/main/qwop/train">qwop/train</a>.</p>
         </section>
         <footer>QWOP © 2008 BENNETT FODDY · <a href="https://www.foddy.net/Athletics.html">PLAY THE ORIGINAL</a> · INDEPENDENT REIMPLEMENTATION</footer>

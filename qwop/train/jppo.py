@@ -33,22 +33,49 @@ def init_mlp(key, n_in, n_out, hidden=256):
             for k, i, o in zip(ks, sizes[:-1], sizes[1:])]
 
 
+def gait_init(n):
+    """Stride tracker: previous foot contact, foot of the last valid stride, torso x there, knee touched since."""
+    return (jnp.zeros((n, 2), bool), -jnp.ones(n, jnp.int32), jnp.zeros(n, jnp.float32), jnp.zeros(n, bool))
+
+
+def gait_update(S, ACC, G, margin, cap):
+    """A stride is valid when a foot lands ahead of the other foot, it is not the foot that made the
+    last valid stride, and no knee touched down since. Returns the distance it is credited with, so a
+    gallop (same lead leg every time) or a shuffle earns nothing here."""
+    pf, last, x0, kflag = G
+    c = ACC[:, C.NJ * 5:C.NJ * 5 + 12:2] > 0.0
+    foot = jnp.stack([c[:, 0] | c[:, 1], c[:, 2] | c[:, 3]], axis=1)
+    knees = c[:, 4] | c[:, 5]
+    kflag = kflag | knees
+    lead = S[:, C.FOOT_R, 0] - S[:, C.FOOT_L, 0]
+    front = jnp.stack([lead > margin, -lead > margin], axis=1)
+    hit = foot & ~pf & front & (last[:, None] != jnp.arange(2)[None, :])
+    valid = hit.any(1)
+    xt = S[:, C.TORSO, 0]
+    credit = jnp.where(valid & ~kflag, jnp.clip(xt - x0, 0.0, cap), 0.0)
+    G = (foot, jnp.where(hit[:, 0], 0, jnp.where(hit[:, 1], 1, last)), jnp.where(valid, xt, x0), kflag & ~valid)
+    return G, credit, knees, valid
+
+
 def make_train(args, pool_S):
     N, T = args.envs, args.horizon
+    w_stride = args.stride
     gamma, lam = args.gamma, 0.95
     n_pool = pool_S.shape[0]
     opt_a = optax.chain(optax.clip_by_global_norm(0.5), optax.inject_hyperparams(optax.adam)(learning_rate=args.lr, eps=1e-5))
     opt_c = optax.chain(optax.clip_by_global_norm(1.0), optax.adam(1e-3, eps=1e-5))
 
-    def reset_where(done, S, ACC, prev, t, key):
+    def reset_where(done, S, ACC, prev, t, G, key):
         idx = jax.random.randint(key, (S.shape[0],), 0, n_pool)
         S = jnp.where(done[:, None, None], pool_S[idx], S)
         ACC = jnp.where(done[:, None], 0.0, ACC)
-        return S, ACC, jnp.where(done, 0, prev), jnp.where(done, 0, t)
+        G = jax.tree.map(lambda new, old: jnp.where(done.reshape((-1,) + (1,) * (old.ndim - 1)), new, old),
+                         gait_init(S.shape[0]), G)
+        return S, ACC, jnp.where(done, 0, prev), jnp.where(done, 0, t), G
 
     def rollout(actor, critic, env, key):
         def one(carry, k):
-            S, ACC, prev, t = carry
+            S, ACC, prev, t, G = carry
             k1, k2 = jax.random.split(k)
             obs = jsim.observe(S, ACC, prev)
             logits = forward(actor, obs)
@@ -56,16 +83,19 @@ def make_train(args, pool_S):
             logp = jax.nn.log_softmax(logits)[jnp.arange(N), a]
             v = forward(critic, obs)[:, 0]
             S2, ACC2, fell, dx = jsim.step(S, ACC, a)
+            G2, credit, knees, valid = gait_update(S2, ACC2, G, args.stride_margin, args.stride_cap)
+            if args.knee_fatal:
+                fell = fell | knees
             t2 = t + 1
             trunc = ((S2[:, 0, 0] >= C.GOAL_X) | (t2 >= args.max_steps)) & ~fell
             v2 = forward(critic, jsim.observe(S2, ACC2, a))[:, 0]
-            knees = (ACC2[:, C.NJ * 5 + 8] > 0) | (ACC2[:, C.NJ * 5 + 10] > 0)
-            rew = dx * (0.1 / C.DT) - 2.0 * fell - args.knee_penalty * knees + gamma * v2 * trunc
+            progress = (1.0 - w_stride) * dx + w_stride * credit  # with --stride 0 this is plain dx
+            rew = progress * (0.1 / C.DT) - 2.0 * fell - args.knee_penalty * knees + gamma * v2 * trunc
             done = fell | trunc
-            S3, ACC3, prev3, t3 = reset_where(done, S2, ACC2, a, t2, k2)
-            return (S3, ACC3, prev3, t3), (obs, a, logp, v, rew, done.astype(jnp.float32), dx, fell, knees)
+            S3, ACC3, prev3, t3, G3 = reset_where(done, S2, ACC2, a, t2, G2, k2)
+            return (S3, ACC3, prev3, t3, G3), (obs, a, logp, v, rew, done.astype(jnp.float32), dx, fell, knees, credit)
         env, traj = lax.scan(one, env, jax.random.split(key, T))
-        S, ACC, prev, t = env
+        S, ACC, prev, t, _ = env
         last_v = forward(critic, jsim.observe(S, ACC, prev))[:, 0]
         return env, traj, last_v
 
@@ -119,14 +149,15 @@ def make_train(args, pool_S):
         actor, critic, sa, sc = state
         sa[1].hyperparams['learning_rate'] = lr
         k1, k2 = jax.random.split(key)
-        env, (obs, a, logp, v, rew, done, dx, fell, knees), last_v = rollout(actor, critic, env, k1)
+        env, (obs, a, logp, v, rew, done, dx, fell, knees, credit), last_v = rollout(actor, critic, env, k1)
         adv = gae(v, rew, done, last_v)
         ret = adv + v
         advf = adv.reshape(-1)
         advf = (advf - advf.mean()) / (advf.std() + 1e-8)
         batch = (obs.reshape(-1, NOBS), a.reshape(-1), logp.reshape(-1), advf, ret.reshape(-1))
         state, vl, kl = update((actor, critic, sa, sc), batch, k2, ent_coef, train_actor)
-        stats = dict(vel=dx.mean() / C.DT, falls_per_1k=1000.0 * fell.mean(), knee=knees.mean(), vloss=vl, kl=kl)
+        stats = dict(vel=dx.mean() / C.DT, falls_per_1k=1000.0 * fell.mean(), knee=knees.mean(),
+                     stride=credit.sum() / jnp.maximum(dx.sum(), 1e-6), vloss=vl, kl=kl)
         return state, env, stats
 
     @jax.jit
@@ -136,18 +167,24 @@ def make_train(args, pool_S):
         S = pool_S[jax.random.randint(key, (n,), 0, n_pool)]
 
         def one(carry, _):
-            S, ACC, prev, active, fin, steps = carry
+            S, ACC, prev, active, fin, steps, G, kn, cr, dist = carry
             a = jnp.argmax(forward(actor, jsim.observe(S, ACC, prev)), axis=1)
             S, ACC, fell, _ = jsim.step(S, ACC, a)
+            G, credit, knees, _ = gait_update(S, ACC, G, args.stride_margin, args.stride_cap)
             steps = steps + active
+            kn = kn + (active & knees)
+            cr = cr + active * credit
+            dist = jnp.where(active, S[:, 0, 0], dist)
             goal = S[:, 0, 0] >= C.GOAL_X
             fin = fin | (active & goal)
             active = active & ~(fell | goal)
-            return (S, ACC, a, active, fin, steps), None
-        init = (S, jnp.zeros((n, C.NACC)), jnp.zeros(n, jnp.int32), jnp.ones(n, bool), jnp.zeros(n, bool), jnp.zeros(n))
-        (S, _, _, active, fin, steps), _ = lax.scan(one, init, None, length=1200)
+            return (S, ACC, a, active, fin, steps, G, kn, cr, dist), None
+        init = (S, jnp.zeros((n, C.NACC)), jnp.zeros(n, jnp.int32), jnp.ones(n, bool), jnp.zeros(n, bool), jnp.zeros(n),
+                gait_init(n), jnp.zeros(n), jnp.zeros(n), jnp.zeros(n))
+        (S, _, _, active, fin, steps, _, kn, cr, dist), _ = lax.scan(one, init, None, length=args.eval_steps)
         t = steps * C.DT
-        return dict(finish=fin.mean(), time=(t * fin).sum() / jnp.maximum(fin.sum(), 1), best=jnp.where(fin, t, 1e9).min())
+        return dict(finish=fin.mean(), time=(t * fin).sum() / jnp.maximum(fin.sum(), 1), best=jnp.where(fin, t, 1e9).min(),
+                    knee=(kn / jnp.maximum(steps, 1)).mean(), stride=(cr / jnp.maximum(dist, 1.0)).mean())
 
     return opt_a, opt_c, iteration, evaluate, reset_where
 
@@ -158,7 +195,7 @@ def to_np(tree):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--init', default='')          # npz with actor (and optionally critic) weights
+    ap.add_argument('--init', default='')          # npz with actor (and optionally critic) weights, or a latest_full.pkl
     ap.add_argument('--resume', default='')        # full checkpoint .pkl
     ap.add_argument('--pool', default='reset_pool.npy')
     ap.add_argument('--out', required=True)
@@ -174,6 +211,13 @@ def main():
     ap.add_argument('--gamma', type=float, default=0.99)
     ap.add_argument('--max-steps', type=int, default=1000)
     ap.add_argument('--knee-penalty', type=float, default=0.0)
+    ap.add_argument('--knee-fatal', type=int, default=0)             # a knee on the ground ends the episode
+    ap.add_argument('--stride', type=float, default=0.0)             # share of the progress reward paid per valid stride
+    ap.add_argument('--stride-margin', type=float, default=0.2)      # m the landing foot must be ahead of the other
+    ap.add_argument('--stride-cap', type=float, default=3.0)         # m of progress one stride can claim
+    ap.add_argument('--clean-knee', type=float, default=1.0)         # best.npz needs GPU-eval knee-down below this
+    ap.add_argument('--clean-stride', type=float, default=0.0)       # ... and stride coverage above this
+    ap.add_argument('--eval-steps', type=int, default=1200)
     ap.add_argument('--critic-warmup', type=int, default=0)
     ap.add_argument('--eval-every', type=int, default=50)
     ap.add_argument('--seed', type=int, default=0)
@@ -186,7 +230,9 @@ def main():
     key = jax.random.PRNGKey(args.seed)
     key, ka, kc, ke = jax.random.split(key, 4)
     actor, critic = init_mlp(ka, NOBS, NACT), init_mlp(kc, NOBS, 1)
-    if args.init:
+    if args.init.endswith('.pkl'):  # actor and critic from another run's checkpoint, fresh optimisers
+        actor, critic = jax.tree.map(jnp.asarray, pickle.load(open(args.init, 'rb'))['state'][:2])
+    elif args.init:
         z = np.load(args.init)
         actor = [(jnp.asarray(z[f'actor_W{i}']), jnp.asarray(z[f'actor_b{i}'])) for i in range(3)]
         if 'critic_W0' in z:
@@ -199,7 +245,7 @@ def main():
         start = ck['iter'] + 1
     N = args.envs
     env = (pool_S[jax.random.randint(ke, (N,), 0, pool_S.shape[0])], jnp.zeros((N, C.NACC), jnp.float32),
-           jnp.zeros(N, jnp.int32), jnp.zeros(N, jnp.int32))
+           jnp.zeros(N, jnp.int32), jnp.zeros(N, jnp.int32), gait_init(N))
     iters = args.steps // (N * args.horizon)
     log = open(os.path.join(args.out, 'history.jsonl'), 'a')
     best = 1e9
@@ -222,13 +268,15 @@ def main():
             flat = {f'actor_W{i}': np.asarray(W) for i, (W, b) in enumerate(state[0])}
             flat.update({f'actor_b{i}': np.asarray(b) for i, (W, b) in enumerate(state[0])})
             np.savez(os.path.join(args.out, f'actor_{it:06d}.npz'), **flat)
-            score = ev['time'] if ev['finish'] > 0.97 else 1e9
+            clean = ev['finish'] > 0.97 and ev['knee'] < args.clean_knee and ev['stride'] >= args.clean_stride
+            score = ev['time'] if clean else 1e9
             if score < best:
                 best = score
                 np.savez(os.path.join(args.out, 'best.npz'), **flat)
             print(f"it {it:5d} {rec['steps'] / 1e6:8.1f}M  vel {rec['vel']:5.2f}  falls/1k {rec['falls_per_1k']:5.2f}  "
-                  f"knee {rec['knee'] * 100:4.1f}%  kl {rec['kl']:.4f}  {rec['wall']:6.0f}s | "
-                  f"gpu-eval finish {ev['finish'] * 100:5.1f}%  100m {ev['time']:.2f}s  best {ev['best']:.2f}s", flush=True)
+                  f"knee {rec['knee'] * 100:4.1f}%  stride {rec['stride'] * 100:4.0f}%  kl {rec['kl']:.4f}  {rec['wall']:6.0f}s | "
+                  f"gpu-eval finish {ev['finish'] * 100:5.1f}%  100m {ev['time']:.2f}s  best {ev['best']:.2f}s  "
+                  f"knee {ev['knee'] * 100:5.2f}%  stride {ev['stride'] * 100:4.0f}%", flush=True)
 
 
 if __name__ == '__main__':
