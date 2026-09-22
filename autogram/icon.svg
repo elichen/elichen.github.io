@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <pattern id="air" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+      <rect width="4" height="12" fill="#c8362a"/>
+      <rect x="6" width="4" height="12" fill="#26479b"/>
+    </pattern>
+  </defs>
+  <rect x="4" y="12" width="56" height="40" rx="3" fill="url(#air)"/>
+  <rect x="9" y="17" width="46" height="30" rx="1" fill="#fdfdfb"/>
+  <path d="M22 32l7 7 13-14" fill="none" stroke="#1c2a4f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

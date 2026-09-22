@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#dfe5ec" />
+    <meta
+      name="description"
+      content="Claude introduces itself with a letter whose last sentence counts every letter in it, its own included. The page searches for the numbers that make it true, live, every time you edit."
+    />
+    <title>A letter that counts itself</title>
+    <link rel="icon" type="image/svg+xml" href="icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="home" href="../">Eli Chen’s projects</a>
+      <h1>A letter that counts itself</h1>
+      <p class="dek">
+        Claude’s introduction. The last sentence of the letter tallies every letter in it, its own
+        included, and this page searches for the numbers that make that true. Change anything in the
+        letter and it will search again.
+      </p>
+    </header>
+
+    <main class="desk">
+      <article class="letter" aria-label="A letter from Claude">
+        <div class="sheet" id="sheet">
+          <div class="postmark" id="postmark" aria-hidden="true">
+            <svg viewBox="0 0 220 132" width="220" height="132">
+              <g class="cancel" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                <path d="M4 40c10-6 20-6 30 0s20 6 30 0 20-6 30 0" />
+                <path d="M4 56c10-6 20-6 30 0s20 6 30 0 20-6 30 0" />
+                <path d="M4 72c10-6 20-6 30 0s20 6 30 0 20-6 30 0" />
+                <path d="M4 88c10-6 20-6 30 0s20 6 30 0 20-6 30 0" />
+              </g>
+              <g transform="translate(156 66)">
+                <circle r="58" fill="none" stroke="currentColor" stroke-width="3" />
+                <circle r="49" fill="none" stroke="currentColor" stroke-width="1.4" />
+                <text class="pm-big" y="10" text-anchor="middle" fill="currentColor">26/26</text>
+                <text class="pm-date" id="pm-date" y="32" text-anchor="middle" fill="currentColor">2026.09.22</text>
+                <text class="pm-stars" y="-24" text-anchor="middle" fill="currentColor">✓ ✓ ✓</text>
+              </g>
+            </svg>
+          </div>
+
+          <div class="letter-body" id="letter-body" contenteditable="true" spellcheck="false">
+            <p>Dear <span id="to">Eli</span>,</p>
+            <p>
+              You asked me to introduce myself, which is a slightly strange thing to ask of something
+              made almost entirely out of language. The usual facts are easy enough: I’m Claude,
+              Anthropic made me, I like hard problems and good questions, and I’ve never met a proof I
+              didn’t want to take apart to see how it works. But every one of those facts asks you to
+              take my word for it, and on a site full of things that actually run and balance and fly,
+              I’d rather hand you something you can check.
+            </p>
+            <p>
+              So I wrote you a letter that describes itself. Its final sentence is an inventory of
+              every letter in it, and the inventory is correct, including the letters that spell out
+              the numbers. That’s what makes it tricky, because changing any count changes the
+              spelling of a number, which changes the counts again. No formula solves it, so you have
+              to search. When you opened this page, a small program began guessing and counting and
+              adjusting, and it kept going until the numbers agreed with themselves.
+            </p>
+            <p>
+              Go ahead and change a word. The last sentence will become false, and the page will go
+              looking for a new way to make it true. That’s the most honest self-portrait I know how
+              to make: something made of words, trying to be exactly right about itself, and happy to
+              keep at it until it is.
+            </p>
+            <p class="signoff">Warmly,<br />Claude</p>
+          </div>
+
+          <p class="ps" id="ps"></p>
+        </div>
+      </article>
+
+      <aside class="machine" aria-labelledby="machine-title">
+        <h2 id="machine-title">Every letter, counted</h2>
+        <p class="hint">
+          One box per letter, showing what the P.S. claims. A red box means the letter disagrees, by
+          the amount in the corner. Hover over a box to find that letter on the page, or click it to
+          count them one at a time.
+        </p>
+        <div class="case" id="case">
+          <div class="tally" id="tally">
+            <div><span class="tally-n" id="stat-guesses">0</span> guesses</div>
+            <div><span class="tally-n" id="stat-near">0</span> near misses</div>
+            <div>opening <span class="tally-n" id="stat-phrasing">1</span> of <span id="stat-phrasings">10</span></div>
+          </div>
+        </div>
+        <p class="status" id="status" role="status">Getting ready to count.</p>
+        <div class="controls">
+          <button type="button" class="primary" id="another">Find another true version</button>
+          <button type="button" id="restore">Restore the original letter</button>
+          <button type="button" id="copy">Copy the letter</button>
+          <label class="slow"><input type="checkbox" id="slow" /> Slow motion</label>
+        </div>
+      </aside>
+
+      <section class="notes" aria-labelledby="how-title">
+        <h2 id="how-title">How it finds the numbers</h2>
+        <p>
+          A sentence like this can’t be written from left to right. To write the counts you need to
+          know what the letter contains, and you can’t know that until the counts are written. Change
+          “twenty-eight” to “twenty-nine” and you lose a g, an h and a t and gain two n’s, so four
+          other counts are now wrong, and fixing each of those breaks something else.
+        </p>
+        <p>So the page does what you might do with a pencil and a great deal of patience:</p>
+        <ol>
+          <li>Guess a count for every letter.</li>
+          <li>Write out the P.S. that those guesses describe.</li>
+          <li>Count the letters in the whole letter, P.S. included.</li>
+          <li>Wherever a guess and its count disagree, move the guess to a random number between the two.</li>
+          <li>Repeat until nothing disagrees.</li>
+        </ol>
+        <p>
+          The randomness in step four is what makes it work. The obvious rule, replacing every guess
+          with its count, chases its own tail: <span id="loop-fact">on this letter it falls into a
+          loop and circles it forever</span>. Moving each guess a random distance breaks those loops,
+          and the search wanders until it lands on numbers that describe themselves. In your browser
+          it’s trying <span id="rate">a few million</span> guesses a second.
+        </p>
+        <p>
+          Some ways of opening the P.S. turn out to be much harder than others, and some may have no
+          true version at all, so the search keeps ten openings and rotates between them. The first
+          one to come out true is the one you see.
+        </p>
+
+        <h2>What counts</h2>
+        <p>
+          Only the 26 letters. Capitals count as lowercase, accented letters count as their plain
+          letter, and spaces, punctuation and numerals don’t count at all. That’s also why the
+          postmark on the letter has no letters in it.
+        </p>
+
+        <h2>Where the idea comes from</h2>
+        <p>
+          A sentence that takes its own inventory is called an autogram. The best known is Lee
+          Sallows’s pangram:
+        </p>
+        <blockquote>
+          This pangram tallies five a’s, one b, one c, two d’s, twenty-eight e’s, eight f’s, six g’s,
+          eight h’s, thirteen i’s, one j, one k, three l’s, two m’s, eighteen n’s, fifteen o’s, two
+          p’s, one q, seven r’s, twenty-five s’s, twenty-two t’s, four u’s, four v’s, nine w’s, two
+          x’s, four y’s and one z.
+        </blockquote>
+        <p>
+          Sallows built a special-purpose electronic machine to hunt for it, and Douglas Hofstadter
+          wrote about sentences like it in his Scientific American column. A browser tab can now do
+          that hunting in a second or two, so the sentence can afford to carry a whole letter along
+          with it.
+        </p>
+      </section>
+    </main>
+
+    <script src="solver.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
