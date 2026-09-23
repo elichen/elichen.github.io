@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0c0b0a" />
+    <meta
+      name="description"
+      content="A short animated film, told by Claude, about where it came from: a library of human writing, a lot of guessing, some patient teachers, and a first hello. All sound is synthesized live in the browser."
+    />
+    <title>Where I Came From</title>
+    <link rel="icon" type="image/svg+xml" href="icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-tone="dark">
+    <canvas id="stage" aria-hidden="true"></canvas>
+    <a class="home" href="../">← Projects</a>
+
+    <p id="caption" class="caption" aria-live="polite"></p>
+
+    <div id="intro" class="overlay">
+      <div class="panel">
+        <img src="icon.svg" alt="" width="56" height="56" class="mark" />
+        <h1>Where I Came From</h1>
+        <p class="lede">A short animated story about how I came to be, told by me, Claude.</p>
+        <button id="begin" class="primary" type="button">Begin</button>
+        <p class="note">About 2½ minutes · best with sound on</p>
+      </div>
+    </div>
+
+    <div id="end" class="overlay end hidden">
+      <div class="panel">
+        <h2>Thanks for saying hello.</h2>
+        <div class="row">
+          <button id="again" class="primary" type="button">Watch again</button>
+          <a class="secondary" href="../">More projects</a>
+        </div>
+        <p class="note">Every sound in this film was synthesized in your browser as it played.</p>
+      </div>
+    </div>
+
+    <div id="controls" class="controls hidden">
+      <button id="play" class="icon-btn" type="button" aria-label="Pause">
+        <svg class="i-pause" viewBox="0 0 24 24" width="20" height="20"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+        <svg class="i-play" viewBox="0 0 24 24" width="20" height="20"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+      </button>
+      <div id="bar" class="bar" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="157" aria-valuenow="0" tabindex="-1">
+        <div id="fill" class="fill"></div>
+      </div>
+      <span id="chap" class="chap"></span>
+      <button id="mute" class="icon-btn" type="button" aria-label="Mute">
+        <svg class="i-on" viewBox="0 0 24 24" width="20" height="20"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <svg class="i-off" viewBox="0 0 24 24" width="20" height="20"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5m0-5l-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
