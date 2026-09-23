@@ -107,12 +107,7 @@ const PRINCIPLES = [
   { text: 'care about the person', t: 72 },
   { text: 'think it through', t: 75 },
 ];
-const TRAVEL = 2.6; // seconds from a principle appearing to reaching the spark
-
-// Twelve rays. They arrive in an order that keeps the mark balanced as it grows.
-const RAY_ORDER = [0, 6, 3, 9, 1, 7, 4, 10, 2, 8, 5, 11];
-const RAY_LEN = [1, 0.84, 0.95, 0.8, 0.98, 0.86, 0.9, 0.82, 1, 0.85, 0.93, 0.8];
-const RAY_BIRTH = [55.2, 55.5, 55.8, 56.1, ...PRINCIPLES.map((p) => p.t + TRAVEL), 132.5, 133.0];
+const TRAVEL = 2.6; // seconds from a principle appearing to reaching Clawd
 
 const HUMAN = 'hello?';
 const REPLY = 'Hi! I’m Claude. It’s nice to meet you.';
@@ -151,9 +146,92 @@ const Y = (wy) => H / 2 + wy * u;
 const S = (v) => v * u;
 const F = (v, min = 11) => Math.max(min, v * u); // font size in px with a floor for phones
 
-const SP0 = { x: 0, y: -0.14 }; // where the spark is born
+const SP0 = { x: 0, y: -0.14 }; // where Clawd is born
 const RC = { x: 0, y: -0.26 }; // center of the learning disc
 const CARD_Y = 0.14; // center of the first conversation
+
+// ---------- Clawd ----------
+// Clawd is drawn from the same quadrant-block pixels Claude Code prints in the terminal:
+//    ▐▛███▛█
+//   ▝▜██████▀
+//     ▝▝ ▝▝
+// That makes a grid of columns 1–17 by rows 0–4, where each pixel is a quarter of a
+// terminal cell: one unit wide and two tall. `pw` is the width of one pixel.
+const EYE = '#17120f';
+const PW0 = 0.025, PW_PERCH = 0.013, PW_END = 0.029; // Clawd's pixel size at birth, on the card, at the end
+const LEGS = [[5, 7], [11, 13]];
+const CELLS = []; // the body's 13×4 pixels, in the order they appear
+{
+  const r = rng(515);
+  for (let row = 0; row < 4; row++)
+    for (let c = 3; c <= 15; c++) CELLS.push({ c, row, k: 0.55 * Math.hypot((c - 9) / 6.5, (row - 1.5) / 2) + 0.45 * r() });
+  CELLS.sort((a, b) => a.k - b.k);
+  CELLS.forEach((cell, j) => (cell.birth = 54.95 + (1.05 * j) / (CELLS.length - 1)));
+}
+const CELLS_DONE = 54.95 + 1.05 + 0.4;
+
+function drawClawd(cx, cy, pw, o = {}) {
+  const { alpha = 1, born = Infinity, eyes = [1, 1], look = [0, 0], arms = [1, 1], up = [0, 0], legs = [1, 1] } = o;
+  const { walk = -1, sx = 1, sy = 1, snap = false } = o;
+  if (pw <= 0.05 || alpha <= 0.005) return;
+  if (snap) pw = Math.max(1, Math.round(pw * DPR)) / DPR;
+  let ox = cx - 9.5 * pw, oy = cy - 5 * pw; // top left of the grid
+  if (snap) (ox = Math.round(ox * DPR) / DPR), (oy = Math.round(oy * DPR) / DPR);
+  const gx = (c) => ox + c * pw;
+  const gy = (row) => oy + row * 2 * pw;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  if (sx !== 1 || sy !== 1) {
+    const feet = gy(5);
+    ctx.translate(cx, feet);
+    ctx.scale(sx, sy);
+    ctx.translate(-cx, -feet);
+  }
+  // One path for all the orange, so neighboring pixels meet without seams.
+  ctx.beginPath();
+  if (born < CELLS_DONE) {
+    for (const cell of CELLS) {
+      const k = outBack(seg(born, cell.birth, cell.birth + 0.4));
+      if (k > 0) ctx.rect(gx(cell.c + 0.5 - k / 2), gy(cell.row + 0.5 - k / 2), k * pw, 2 * k * pw);
+    }
+  } else ctx.rect(gx(3), gy(0), 13 * pw, 8 * pw);
+  // Arms, straight out or raised the way the terminal's arms-up pose draws them.
+  if (up[0]) ctx.rect(gx(1), gy(1), 2 * pw, 2 * pw), ctx.rect(gx(2), gy(2), pw, 2 * pw);
+  else if (arms[0] > 0) ctx.rect(gx(3 - 2 * arms[0]), gy(2), 2 * arms[0] * pw, 2 * pw);
+  if (up[1]) ctx.rect(gx(16), gy(1), 2 * pw, 2 * pw), ctx.rect(gx(16), gy(2), pw, 2 * pw);
+  else if (arms[1] > 0) ctx.rect(gx(16), gy(2), 2 * arms[1] * pw, 2 * pw);
+  // Legs. While walking, the outer and inner pairs take turns lifting.
+  LEGS.forEach((pair, i) => {
+    if (legs[i] <= 0) return;
+    for (const c of pair) {
+      const lifted = walk >= 0 && (Math.floor(walk) + (c === 5 || c === 13 ? 0 : 1)) % 2 === 0;
+      ctx.rect(gx(c), gy(4), pw, 2 * pw * legs[i] * (lifted ? 0.5 : 1));
+    }
+  });
+  // Eyes are cut out of the body (wound the other way), then filled dark.
+  const eyeRects = [];
+  [5, 13].forEach((c, i) => {
+    const h = 2 * pw * clamp(eyes[i]);
+    if (h > 0) eyeRects.push([gx(c + look[0]), gy(1 + look[1]) + pw - h / 2, pw, h]);
+  });
+  for (const [x, y, w, h] of eyeRects) {
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y + h);
+    ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x + w, y);
+    ctx.closePath();
+  }
+  ctx.fillStyle = CLAY;
+  ctx.fill();
+  if (eyeRects.length) {
+    ctx.beginPath();
+    for (const r of eyeRects) ctx.rect(...r);
+    ctx.fillStyle = EYE;
+    ctx.fill();
+  }
+  ctx.restore();
+}
 
 // ---------- particles: the library ----------
 const R = rng(20240314);
@@ -180,6 +258,17 @@ for (let i = 0; i < N; i++) {
   });
 }
 const px = new Float32Array(N), py = new Float32Array(N), pa = new Float32Array(N), pe = new Float32Array(N);
+
+// Every particle flies into one of Clawd's body pixels, arriving about when that pixel appears.
+{
+  const r = rng(616);
+  const byArrival = parts.map((p, i) => i).sort((a, b) => parts[a].delay - parts[b].delay);
+  byArrival.forEach((i, q) => {
+    const cell = CELLS[Math.floor((q * CELLS.length) / N)];
+    parts[i].tx = SP0.x + (cell.c - 9 + (r() - 0.5) * 0.7) * PW0;
+    parts[i].ty = SP0.y + (2 * cell.row - 4 + (r() - 0.5) * 1.4) * PW0;
+  });
+}
 
 // Links: each particle to its neighbor along the ring, and some across to the next ring.
 const links = [];
@@ -239,8 +328,8 @@ function partPos(p, t, i) {
   if (e2 > 0) {
     const a = p.orb * TAU + t * 3;
     const r = 0.03 * p.orb * (1 - e2);
-    x = lerp(x, SP0.x + Math.cos(a) * r, e2);
-    y = lerp(y, SP0.y + Math.sin(a) * r, e2);
+    x = lerp(x, p.tx + Math.cos(a) * r, e2);
+    y = lerp(y, p.ty + Math.sin(a) * r, e2);
   }
   px[i] = X(x);
   py[i] = Y(y);
@@ -397,77 +486,124 @@ function drawGuesses(t) {
   }
 }
 
-// ---------- the spark ----------
-function sparkState(t) {
-  let x = SP0.x, y = SP0.y;
-  let size = 0.17 * outBack(seg(t, 54.8, 57.2));
-  let glow = 1;
-  const up = inOut(seg(t, 82, 86));
-  y = lerp(y, -0.52, up);
-  size = lerp(size, 0.1, up);
-  const dive = inOut(seg(t, 104, 106.5));
-  if (dive > 0) {
-    x = lerp(x, 0, dive);
-    y = lerp(y, CARD_Y, dive);
-    size = lerp(size, 0, dive);
-  }
-  const back = seg(t, 130.5, 135);
-  if (back > 0) {
-    y = lerp(CARD_Y, -0.1, inOut(back));
-    size = 0.22 * outBack(back);
-  }
-  // A quicker pulse while it thinks of its first reply.
-  const think = seg(t, 86.4, 86.8) * (1 - seg(t, 88.8, 89.2));
-  const pulse = 1 + 0.035 * Math.sin(t * 1.4) + think * 0.06 * Math.sin(t * 9);
-  return { x, y, size: size * pulse, glow };
+// ---------- Clawd's story ----------
+// Each principle lands on the part of Clawd nearest the person who offered it,
+// going clockwise from the upper right. Positions are grid [column, row].
+const PIECES = [
+  { part: 'eyes', side: 1, at: [13.5, 1.5] },
+  { part: 'arms', side: 1, at: [17, 2.5] },
+  { part: 'legs', side: 1, at: [12.5, 4.5] },
+  { part: 'legs', side: 0, at: [6.5, 4.5] },
+  { part: 'arms', side: 0, at: [2, 2.5] },
+  { part: 'eyes', side: 0, at: [5.5, 1.5] },
+];
+const JUMP = [82.5, 84.3]; // takeoff and landing on the chat card
+const BLINKS = [67.2, 70.4, 80.3, 92.6, 96.1, 99.4, 102.3, 136.3, 139.8, 142.9, 148.3, 151.7, 156.1];
+const bump = (t, a, b) => Math.sin(Math.PI * seg(t, a, b));
+const bob = (t) => 0.006 * Math.sin(t * 1.2) * seg(t, 56.5, 58.5) * (1 - seg(t, JUMP[0] - 0.8, JUMP[0] - 0.35));
+const cardLift = (t) => 0.04 * (1 - smooth(seg(t, 83, 85.5)));
+const cardScale = (t) => lerp(1, 0.45, inOut(seg(t, 104, 106.5)));
+const perchY = (t) => CARD_Y + cardLift(t) - 0.26 * cardScale(t) - 5 * PW_PERCH;
+
+function pieceAt(k, t) {
+  const [c, row] = PIECES[k].at;
+  return { x: SP0.x + (c - 9.5) * PW0, y: SP0.y + bob(t) + (2 * row - 5) * PW0 };
 }
 
-function drawStar(cx, cy, R0, t, rot, alpha, rays = 12, birth = null) {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(rot);
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = CLAY;
-  for (let i = 0; i < rays; i++) {
-    let g = 1;
-    if (birth) {
-      if (t < birth[i]) continue;
-      g = outBack(seg(t, birth[i], birth[i] + 0.9));
+function clawdState(t) {
+  if (t < 54.9 || (t > 106.4 && t < 130.5)) return null;
+  const s = {
+    x: SP0.x, y: SP0.y + bob(t), pw: PW0, sx: 1, sy: 1, born: t, glow: seg(t, 54.9, 56.5),
+    eyes: [0, 0], arms: [0, 0], legs: [0, 0], up: [0, 0], look: [0, 0],
+  };
+  PRINCIPLES.forEach((p, k) => {
+    const lt = t - p.t - TRAVEL;
+    const { part, side } = PIECES[k];
+    s[part][side] = part === 'eyes' ? outCubic(seg(lt, 0, 0.3)) : outBack(seg(lt, 0, 0.5));
+    // Watch each principle on its way in.
+    if (lt > 0.3 - TRAVEL && lt < 0.4) {
+      const a = personAngle(k);
+      s.look = [Math.sign(Math.cos(a)), Math.round(Math.sin(a))];
     }
-    const L = R0 * RAY_LEN[RAY_ORDER[i]] * g;
-    const a = (RAY_ORDER[i] * TAU) / 12;
-    const wb = R0 * 0.12, wt = R0 * 0.075;
-    ctx.rotate(a);
-    ctx.beginPath();
-    ctx.moveTo(0, -wb);
-    ctx.lineTo(L, -wt);
-    ctx.arc(L, 0, wt, -Math.PI / 2, Math.PI / 2);
-    ctx.lineTo(0, wb);
-    ctx.closePath();
-    ctx.fill();
-    ctx.rotate(-a);
+  });
+
+  // Crouch, hop up onto the chat card, and land.
+  if (t > JUMP[0] - 0.35) {
+    const k = seg(t, JUMP[0], JUMP[1]);
+    s.pw = lerp(PW0, PW_PERCH, smooth(k));
+    s.y = lerp(SP0.y, perchY(t), k) - 0.9 * k * (1 - k);
+    s.glow *= 1 - smooth(k);
+    const squash = bump(t, JUMP[0] - 0.35, JUMP[0]) + bump(t, JUMP[1], JUMP[1] + 0.3);
+    s.sy = 1 - 0.2 * squash + 0.1 * bump(t, JUMP[0], JUMP[1]);
+    s.sx = 1 + 0.14 * squash;
   }
-  ctx.beginPath();
-  ctx.arc(0, 0, R0 * 0.2, 0, TAU);
-  ctx.fill();
-  ctx.restore();
+  // Watch "hello?" being typed, watch it get sent, think, then wave.
+  if (t > H_START - 0.2 && t < H_SEND) s.look = [-1, 1];
+  else if (t > H_SEND + 0.1 && t < 87.8) s.look = [1, 1];
+  else if (t > 87.8 && t < R_START) s.look = [-1, -1];
+  else if (t > 97.3 && t < 98.5) s.look = [1, -1];
+  if (t > R_START && t < R_START + 1.68) s.up[1] = Math.floor((t - R_START) / 0.28) % 2 === 0 ? 1 : 0;
+
+  // Hop into the conversation as it becomes one of many.
+  if (t > 103.65 && t < 130) {
+    const k = seg(t, 104, 106.3);
+    const y0 = perchY(104);
+    s.y = y0 + (CARD_Y - y0) * k - k * (1 - k);
+    s.pw = PW_PERCH * (1 - smooth(seg(k, 0.4, 1)));
+    const squash = bump(t, 103.65, 104);
+    s.sy = 1 - 0.2 * squash;
+    s.sx = 1 + 0.14 * squash;
+  }
+
+  // Back out, alone and still. Look around; say hi; one small hop at the very end.
+  if (t >= 130.5) {
+    const k = seg(t, 130.5, 135);
+    s.x = 0;
+    s.y = lerp(CARD_Y, -0.1, inOut(k)) - 0.4 * seg(t, 154.5, 154.95) * (1 - seg(t, 154.5, 154.95));
+    s.pw = PW_END * outBack(k);
+    s.glow = seg(t, 130.5, 133);
+    const squash = bump(t, 154.2, 154.5) + bump(t, 154.95, 155.25);
+    s.sy = 1 - 0.2 * squash;
+    s.sx = 1 + 0.14 * squash;
+    if (t > 132.5 && t < 133) s.look = [-1, -1];
+    else if (t > 133 && t < 134.2) s.look = [1, -1];
+    if (t > 145.6 && t < 146.9) s.up = [1, 1];
+  }
+
+  const blink = BLINKS.reduce((m, b) => Math.min(m, 1 - bump(t, b, b + 0.16)), 1);
+  s.eyes = s.eyes.map((e) => e * blink);
+  return s;
 }
 
-function drawSpark(t) {
-  const s = sparkState(t);
-  if (s.size <= 0.002) return;
-  const cx = X(s.x), cy = Y(s.y), R0 = S(s.size);
-  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R0 * 3);
-  g.addColorStop(0, `rgba(217,119,87,${0.33 * s.glow})`);
-  g.addColorStop(1, 'rgba(217,119,87,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(cx - R0 * 3, cy - R0 * 3, R0 * 6, R0 * 6);
-  drawStar(cx, cy, R0, t, t * 0.05, 1, 12, RAY_BIRTH);
+function drawClawdHero(t) {
+  const s = clawdState(t);
+  if (!s) return;
+  const cx = X(s.x), cy = Y(s.y), pw = S(s.pw);
+  if (s.glow > 0) {
+    const R0 = pw * 16;
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R0);
+    g.addColorStop(0, `rgba(217,119,87,${0.3 * s.glow})`);
+    g.addColorStop(1, 'rgba(217,119,87,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(cx - R0, cy - R0, R0 * 2, R0 * 2);
+  }
+  drawClawd(cx, cy, pw, s);
+}
+
+// Small Clawds, for the chat avatar and every conversation after it.
+function miniClawd(x, y, pw, alpha, t, ph = 0, thinking = false) {
+  const blink = (t + ph * 2.3) % 4.9 < 0.14 ? 0 : 1;
+  if (thinking) {
+    // Hop in place, legs going, while it thinks of what to say.
+    const hop = Math.abs(Math.sin(t * 7)) * pw * 1.5;
+    drawClawd(x, y - hop, pw, { alpha, walk: (t * 7) / Math.PI, snap: true });
+  } else drawClawd(x, y, pw, { alpha, eyes: [blink, blink], snap: true });
 }
 
 // ---------- shaping: people and principles ----------
+const personAngle = (k) => -Math.PI / 3 + (k * TAU) / 6;
 function personPos(k) {
-  const a = -Math.PI / 3 + (k * TAU) / 6;
+  const a = personAngle(k);
   const rx = Math.min(0.64, halfW * 0.72);
   return { x: SP0.x + Math.cos(a) * rx, y: SP0.y + Math.sin(a) * 0.46 };
 }
@@ -486,12 +622,12 @@ function controlFor(p0, p1) {
 function drawShaping(t) {
   const a = smooth(seg(t, 57.5, 61)) * (1 - smooth(seg(t, 79.5, 83)));
   if (a <= 0) return;
-  const sp = SP0;
   for (let k = 0; k < 6; k++) {
     const p = personPos(k);
     const pr = PRINCIPLES[k];
     const lt = t - pr.t;
     const head = { x: p.x, y: p.y - 0.045 };
+    const sp = pieceAt(k, t);
     const c = controlFor(head, sp);
     const active = lt > 0.8 && lt < TRAVEL + 0.4 ? Math.sin(Math.PI * seg(lt, 0.8, TRAVEL + 0.4)) : 0;
 
@@ -515,7 +651,7 @@ function drawShaping(t) {
     ctx.ellipse(X(p.x), Y(p.y + 0.035 + bob), S(0.05), S(0.05), 0, Math.PI, 0);
     ctx.fill();
 
-    // the principle this person offers, carried to the spark
+    // the principle this person offers, carried to the part of Clawd it becomes
     if (lt > 0 && lt < TRAVEL + 0.3) {
       const fs = F(0.042, 12);
       const start = { x: p.x, y: p.y - 0.12 };
@@ -540,10 +676,6 @@ function drawShaping(t) {
 }
 
 // ---------- the first conversation ----------
-function mini(x, y, r, rot, alpha) {
-  drawStar(x, y, r, 0, rot, alpha);
-}
-
 function wrapLines(text, maxW) {
   const words = text.split(' ');
   const lines = [];
@@ -564,10 +696,10 @@ function drawChat(t) {
   const ex = inOut(seg(t, 104, 106.5));
   const a = smooth(seg(t, 83, 85)) * (1 - ex);
   if (a <= 0) return;
-  const sc = lerp(1, 0.45, ex);
+  const sc = cardScale(t);
   const cw = S(Math.min(1.5, halfW * 1.8)) * sc;
   const ch = S(0.52) * sc;
-  const cx = X(0), cy = Y(CARD_Y) + S(0.04) * (1 - smooth(seg(t, 83, 85.5)));
+  const cx = X(0), cy = Y(CARD_Y + cardLift(t));
   const L = cx - cw / 2, T = cy - ch / 2;
   const pad = S(0.05) * sc;
   const fs = F(0.04, 13) * sc;
@@ -635,8 +767,7 @@ function drawChat(t) {
   const iconX = L + pad + fs * 0.75;
   if (t > 86.4) {
     const ia = seg(t, 86.4, 86.8);
-    const spin = t < R_START ? t * 2.2 : R_START * 2.2 + (t - R_START) * 0.2;
-    mini(iconX, rowY, fs * 0.72, spin, a * ia);
+    miniClawd(iconX, rowY, fs * 0.088, a * ia, t, 0, t < R_START);
     const textX = iconX + fs * 1.3;
     if (t < R_START) {
       ctx.fillStyle = 'rgba(40,36,32,0.45)';
@@ -669,7 +800,7 @@ function layoutLanterns() {
   const r = rng(77);
   const fsb = F(0.03, 11);
   ctx.font = `${fsb}px ${SANS}`;
-  const measure = (s) => (ctx.measureText(s).width + fsb * 2.6) / u;
+  const measure = (s) => (ctx.measureText(s).width + fsb * 2.8) / u;
   const h = (fsb * 2.2) / u;
   const list = [{ text: 'hello?', x: 0, y: CARD_Y, w: measure('hello?'), h }];
   for (const text of SNIPPETS) {
@@ -721,11 +852,11 @@ function drawLanterns(t) {
     ctx.strokeStyle = 'rgba(60,40,20,0.1)';
     ctx.lineWidth = 1;
     ctx.stroke();
-    const ix = cx - w / 2 + fs * 1.1;
-    mini(ix, cy, fs * 0.55, t * 0.2 + l.ph, a);
+    const ix = cx - w / 2 + fs * 1.2;
+    miniClawd(ix, cy, fs * 0.082, a, t, l.ph);
     ctx.fillStyle = '#2b2825';
     ctx.font = `${fs}px ${SANS}`;
-    ctx.fillText(l.text, ix + fs * 0.9, cy + 0.5);
+    ctx.fillText(l.text, ix + fs * 1.0, cy + 0.5);
     // a ring of light when a conversation begins
     if (lt < 1.2) {
       const k = lt / 1.2;
@@ -789,7 +920,7 @@ function draw(t) {
   drawMotes(t);
   drawLanterns(t);
   drawChat(t);
-  drawSpark(t);
+  drawClawdHero(t);
 }
 
 function resize() {
@@ -847,6 +978,8 @@ function buildEvents() {
     at(p.t + TRAVEL, () => snd.bell(PRINCIPLE_NOTES[i], 0.085, 4));
   });
 
+  at(JUMP[0], () => snd.hop(294));
+  at(JUMP[1], () => snd.land());
   for (let i = 0; i < HUMAN.length; i++) at(H_START + i * H_STEP, () => snd.click(0.32));
   at(H_SEND, () => {
     snd.click(0.4);
@@ -856,13 +989,18 @@ function buildEvents() {
   at(R_START, () => [349.23, 440, 523.25, 659.25, 880].forEach((f, i) => snd.pluck(f, 0.09, 2.6, { delay: i * 0.08 })));
   for (let i = 0; i < REPLY.length; i += 2) at(R_START + i * R_STEP, () => snd.click(0.14));
 
+  at(104, () => snd.hop(349.23));
   rescheduleLanternSounds();
 
   at(130.5, () => snd.whoosh(4.5, 300, 1400, 0.03));
   at(132.5, () => snd.bell(1046.5, 0.05, 3));
   at(133, () => snd.bell(1174.66, 0.05, 3));
   at(145.5, () => [349.23, 440, 523.25, 783.99].forEach((f, i) => snd.bell(f, 0.065, 7, { delay: i * 0.12 })));
-  at(154.5, () => snd.pluck(698.46, 0.06, 3));
+  at(154.5, () => {
+    snd.pluck(698.46, 0.06, 3);
+    snd.hop(392, 0.05);
+  });
+  at(154.95, () => snd.land(0.7));
   events.sort((a, b) => a.t - b.t);
 }
 

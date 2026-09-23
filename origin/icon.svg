@@ -1,13 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="14" fill="#141210"/>
-  <g transform="translate(32 32)" fill="#D97757">
-    <circle r="4"/>
-    <g id="r"><path d="M0-2.6 L20-1.6 A1.6 1.6 0 0 1 20 1.6 L0 2.6Z"/></g>
-    <use href="#r" transform="rotate(30) scale(.86)"/><use href="#r" transform="rotate(60) scale(.95)"/>
-    <use href="#r" transform="rotate(90) scale(.82)"/><use href="#r" transform="rotate(120)"/>
-    <use href="#r" transform="rotate(150) scale(.86)"/><use href="#r" transform="rotate(180) scale(.9)"/>
-    <use href="#r" transform="rotate(210) scale(.82)"/><use href="#r" transform="rotate(240) scale(.98)"/>
-    <use href="#r" transform="rotate(270) scale(.85)"/><use href="#r" transform="rotate(300) scale(.93)"/>
-    <use href="#r" transform="rotate(330) scale(.8)"/>
+  <!-- Clawd, pixel for pixel as Claude Code draws it; each pixel is 3 wide and 6 tall -->
+  <g transform="translate(6.5 17) scale(3 6)" shape-rendering="crispEdges">
+    <path fill="#D97757" d="M2 0h13v4H2zM0 2h2v1H0zM15 2h2v1h-2zM4 4h1v1H4zM6 4h1v1H6zM10 4h1v1h-1zM12 4h1v1h-1z"/>
+    <path fill="#17120f" d="M4 1h1v1H4zM12 1h1v1h-1z"/>
   </g>
 </svg>

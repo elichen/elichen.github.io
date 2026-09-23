@@ -274,6 +274,31 @@ export class Sound {
     }
   }
 
+  // Clawd's hop: a quick upward chirp.
+  hop(freq = 330, vol = 0.07) {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    const t = c.currentTime;
+    const o = c.createOscillator();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(freq * 2.2, t + 0.14);
+    const g = this.out(0.35);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    o.connect(g);
+    o.start(t);
+    o.stop(t + 0.25);
+  }
+
+  // ...and the soft tap of landing.
+  land(scale = 1) {
+    if (!this.ctx) return;
+    this.click(0.22 * scale);
+    this.pluck(146.83, 0.07 * scale, 0.3, { verb: 0.2 });
+  }
+
   boom(freq = 58, vol = 0.3, dur = 3) {
     if (!this.ctx) return;
     const c = this.ctx;
