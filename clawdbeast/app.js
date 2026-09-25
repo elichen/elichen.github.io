@@ -121,8 +121,8 @@
     const mat = D.cfg.mat;
     $('cutSummary').textContent = `${n} parts from ${D.cut.length} files, all ${mat.gauge} ${mat.name}. The ZIP holds every DXF plus the cut list, hardware list and assembly notes.`;
     $('orderNote').innerHTML = mat.coat
-      ? `<b>Ordering:</b> upload each DXF as its own part, confirm ${u === 'in' ? 'inches' : 'millimetres'} as the units, and set the quantities shown. Add the Clawd plate twice: 2 with Safety Orange powder coat for the outside, 2 bare for the inside. Powder coat narrows holes by up to 0.25 mm, which the plate holes already allow for. Deburring is worth adding on the links.`
-      : `<b>Ordering:</b> upload each DXF as its own part, confirm ${u === 'in' ? 'inches' : 'millimetres'} as the units, and set the quantities shown. Acrylic can't be powder coated, so Clawd stays clear or whatever colour you pick.`;
+      ? `<b>Ordering:</b> upload each DXF as its own part, confirm ${u === 'in' ? 'inches' : 'millimetres'} as the units, and set the quantities shown. Pick ${mat.name} under Metals, not Composites: carbon fibre and G10 need parts at least 1" wide, and the links are narrower. Add the Clawd plate twice: 2 with Safety Orange powder coat for the outside, 2 bare for the inside. Powder coat narrows holes by up to 0.25 mm, which the plate holes already allow for. SendCutSend only deburrs or coats parts at least 1" wide, so the links, crank arms and hand crank come bare; a few strokes of a file take off any sharp edges.`
+      : `<b>Ordering:</b> upload each DXF as its own part, confirm ${u === 'in' ? 'inches' : 'millimetres'} as the units, and set the quantities shown. Pick Acrylic under Plastics; the links are too narrow for most of the others. Acrylic can't be powder coated, so Clawd stays clear or whatever colour you pick.`;
   }
 
   // ------------------------------------------------------------------ assembly
