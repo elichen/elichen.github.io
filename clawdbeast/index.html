@@ -3,37 +3,53 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#e6e9eb" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0f1214" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#181b1f">
   <meta name="description" content="A 12-legged Theo Jansen walker with Clawd for a body. Watch it walk, resize it, and download laser-cut DXFs for SendCutSend.">
   <title>Clawdbeast</title>
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil:wght@700;800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,400;0,500;0,600;0,700;0,800;1,700&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="wrap">
-    <header class="top">
-      <a class="home" href="../">← Eli Chen’s projects</a>
-      <div class="title-row">
-        <h1>Clawdbeast</h1>
-        <div class="spec" id="spec"></div>
+  <header class="topbar">
+    <div class="topbar-in">
+      <a class="brand" href="#top"><img src="icon.svg" alt="" width="26" height="26">Clawdbeast</a>
+      <nav class="topnav" aria-label="Sections">
+        <a href="#walk">Walk</a>
+        <a href="#cut">Cut list</a>
+        <a href="#stack">Layer stack</a>
+        <a href="#hardware">Hardware</a>
+        <a href="#build">Build</a>
+      </nav>
+      <div class="topbar-cta">
+        <a class="btn primary cta-files" href="#cut">Get the files</a>
+        <a class="btn slate" href="../">Projects</a>
       </div>
-      <p class="lede">Clawd on <strong>Theo Jansen's walking linkage</strong>. The simulation, the layer order that keeps every moving part clear of the others, and each DXF on this page come from the same model. Change the size or material and all of it updates, ready to upload to SendCutSend.</p>
-    </header>
+    </div>
+  </header>
 
-    <section aria-label="Walking simulation">
+  <section class="hero" id="top">
+    <div class="hero-in">
+      <h1>Clawdbeast</h1>
+      <p class="lede">Clawd on <strong>Theo Jansen's walking linkage</strong>. The simulation, the layer order that keeps every moving part clear of the others, and each DXF on this page come from the same model. Change the size or material and all of it updates, ready to upload to SendCutSend.</p>
+      <div class="spec" id="spec"></div>
+      <a class="btn primary big" href="#cut">Get the cut files <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 2v9m0 0 4-4m-4 4L4 7M3 14h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <section id="walk" aria-label="Walking simulation">
       <div class="stage">
         <canvas id="stage" aria-label="Side view of the Clawdbeast walking"></canvas>
         <div class="hud" id="hud"></div>
         <div class="stage-bar">
-          <button id="play" type="button" aria-pressed="true">Pause</button>
+          <button class="primary" id="play" type="button" aria-pressed="true">Pause</button>
           <div class="grow">
             <label class="label" for="rpm">Crank</label>
             <input id="rpm" type="range" min="4" max="60" step="1" value="18">
-            <output class="mono" id="rpmOut" for="rpm">18 rpm</output>
+            <output class="num" id="rpmOut" for="rpm">18 rpm</output>
           </div>
           <label class="toggle"><input id="paths" type="checkbox" checked> Foot paths</label>
           <label class="toggle"><input id="xray" type="checkbox"> See through Clawd</label>
@@ -42,31 +58,36 @@
     </section>
 
     <div class="bench">
-      <aside class="panel" aria-label="Design settings">
-        <div class="field">
-          <div class="field-head"><label class="label" for="scale">Size</label><output id="scaleOut" for="scale"></output></div>
+      <aside class="panel" aria-labelledby="panelHead">
+        <div class="panel-head">
+          <h2 id="panelHead">Customize</h2>
+          <p>Every part, pivot and spacer below follows these settings.</p>
+        </div>
+        <div class="field box">
+          <label class="flabel" for="scale">Size</label>
           <input id="scale" type="range" min="1.2" max="2.6" step="0.05" value="1.7">
+          <output class="num" id="scaleOut" for="scale"></output>
         </div>
         <div class="field">
-          <label class="label" for="material">Material</label>
+          <label class="flabel" for="material">Material</label>
           <select id="material"></select>
         </div>
         <div class="field">
-          <span class="label" id="hwLabel">Pivot screws</span>
+          <span class="flabel" id="hwLabel">Pivot screws</span>
           <div class="seg" role="group" aria-labelledby="hwLabel" id="hw">
             <button type="button" data-v="M3">M3</button>
             <button type="button" data-v="M4">M4</button>
           </div>
         </div>
         <div class="field">
-          <span class="label" id="legsLabel">Legs</span>
+          <span class="flabel" id="legsLabel">Legs</span>
           <div class="seg" role="group" aria-labelledby="legsLabel" id="legs">
             <button type="button" data-v="2">8</button>
             <button type="button" data-v="3">12</button>
           </div>
         </div>
         <div class="field">
-          <span class="label" id="unitsLabel">DXF units</span>
+          <span class="flabel" id="unitsLabel">DXF units</span>
           <div class="seg" role="group" aria-labelledby="unitsLabel" id="units">
             <button type="button" data-v="in">Inches</button>
             <button type="button" data-v="mm">Millimetres</button>
@@ -77,7 +98,7 @@
       </aside>
 
       <div class="main">
-        <section aria-labelledby="cutHead">
+        <section id="cut" aria-labelledby="cutHead">
           <div class="sec-head">
             <div>
               <h2 id="cutHead">Cut list</h2>
@@ -91,7 +112,7 @@
           <p class="order-note" id="orderNote"></p>
         </section>
 
-        <section aria-labelledby="stackHead">
+        <section id="stack" aria-labelledby="stackHead">
           <div class="sec-head">
             <div>
               <h2 id="stackHead">Layer stack</h2>
@@ -117,7 +138,7 @@
           </div>
         </section>
 
-        <section aria-labelledby="hwHead">
+        <section id="hardware" aria-labelledby="hwHead">
           <div class="sec-head">
             <div>
               <h2 id="hwHead">Hardware</h2>
@@ -133,15 +154,17 @@
           </div>
         </section>
 
-        <section aria-labelledby="buildHead">
+        <section id="build" aria-labelledby="buildHead">
           <div class="sec-head"><h2 id="buildHead">Build</h2></div>
           <ol class="steps" id="steps"></ol>
         </section>
-
-        <p class="foot">Kinematics use Jansen's published link ratios. Design rules come from SendCutSend's guidelines: DXF with closed contours, one part per file at 1:1 scale; holes at least the material thickness; 2× thickness from hole to edge; minimum part size per material. Nothing here has been cut and assembled yet, so treat the first build as a prototype.</p>
       </div>
     </div>
   </div>
+
+  <footer class="footbar">
+    <p class="foot">Kinematics use Jansen's published link ratios. Design rules come from SendCutSend's guidelines: DXF with closed contours, one part per file at 1:1 scale; holes at least the material thickness; 2× thickness from hole to edge; minimum part size per material. Nothing here has been cut and assembled yet, so treat the first build as a prototype.</p>
+  </footer>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>

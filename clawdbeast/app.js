@@ -369,7 +369,7 @@
   let colors = {};
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
-    for (const k of ['stage', 'stage-line', 'ink', 'muted', 'line', 'line-strong', 'clawd', 'clawd-edge', 'metal', 'metal-edge', 'steel', 'accent', 'surface', 'mono']) colors[k] = cs.getPropertyValue('--' + k).trim();
+    for (const k of ['stage', 'stage-line', 'ink', 'muted', 'line', 'line-strong', 'clawd', 'clawd-edge', 'metal', 'metal-edge', 'steel', 'accent', 'surface', 'body']) colors[k] = cs.getPropertyValue('--' + k).trim();
   }
   readColors();
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); draw(); });
@@ -556,7 +556,7 @@
     ctx.beginPath(); ctx.moveTo(0, gy + 0.5); ctx.lineTo(W, gy + 0.5); ctx.stroke();
     ctx.strokeStyle = colors.muted;
     ctx.fillStyle = colors.muted;
-    ctx.font = `500 10px ${colors.mono || 'monospace'}`;
+    ctx.font = `500 11px ${colors.body || 'sans-serif'}`;
     ctx.textAlign = 'center';
     const left = camX - view.ox / view.k, right = camX + (W - view.ox) / view.k;
     ctx.beginPath();
@@ -598,7 +598,7 @@
     view.oy = cssH - 34;
     drawGround(cssW, cssH);
     if (!D.layout) {
-      ctx.fillStyle = colors.muted; ctx.textAlign = 'center'; ctx.font = '500 14px sans-serif';
+      ctx.fillStyle = colors.muted; ctx.textAlign = 'center'; ctx.font = `500 15px ${colors.body || 'sans-serif'}`;
       ctx.fillText('No working layout at this size. Make it bigger or pick thinner material.', cssW / 2, cssH / 2);
       return;
     }
@@ -638,6 +638,23 @@
     draw();
     requestAnimationFrame(frame);
   }
+
+  // ------------------------------------------------------------------ nav
+  // Underline the header link for the section filling the upper part of the view.
+  const navLinks = [...document.querySelectorAll('.topnav a')];
+  const navTargets = navLinks.map((a) => document.querySelector(a.getAttribute('href')));
+  let navQueued = false;
+  function syncNav() {
+    navQueued = false;
+    const edge = window.innerHeight * 0.4;
+    const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+    let cur = -1;
+    navTargets.forEach((el, i) => { if (el && el.getBoundingClientRect().top <= edge) cur = i; });
+    if (atBottom && cur >= 0) cur = navTargets.length - 1;
+    navLinks.forEach((a, i) => { if (i === cur) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current'); });
+  }
+  window.addEventListener('scroll', () => { if (!navQueued) { navQueued = true; requestAnimationFrame(syncNav); } }, { passive: true });
+  syncNav();
 
   syncPlay();
   rebuild();
