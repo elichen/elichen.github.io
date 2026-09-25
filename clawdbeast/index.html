@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#e6e9eb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1214" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="A 12-legged Theo Jansen walker with Clawd for a body. Watch it walk, resize it, and download laser-cut DXFs for SendCutSend.">
+  <title>Clawdbeast</title>
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil:wght@700;800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="home" href="../">← Eli Chen’s projects</a>
+      <div class="title-row">
+        <h1>Clawdbeast</h1>
+        <div class="spec" id="spec"></div>
+      </div>
+      <p class="lede">Clawd on <strong>Theo Jansen's walking linkage</strong>. The simulation, the layer order that keeps every moving part clear of the others, and each DXF on this page come from the same model. Change the size or material and all of it updates, ready to upload to SendCutSend.</p>
+    </header>
+
+    <section aria-label="Walking simulation">
+      <div class="stage">
+        <canvas id="stage" aria-label="Side view of the Clawdbeast walking"></canvas>
+        <div class="hud" id="hud"></div>
+        <div class="stage-bar">
+          <button id="play" type="button" aria-pressed="true">Pause</button>
+          <div class="grow">
+            <label class="label" for="rpm">Crank</label>
+            <input id="rpm" type="range" min="4" max="60" step="1" value="18">
+            <output class="mono" id="rpmOut" for="rpm">18 rpm</output>
+          </div>
+          <label class="toggle"><input id="paths" type="checkbox" checked> Foot paths</label>
+          <label class="toggle"><input id="xray" type="checkbox"> See through Clawd</label>
+        </div>
+      </div>
+    </section>
+
+    <div class="bench">
+      <aside class="panel" aria-label="Design settings">
+        <div class="field">
+          <div class="field-head"><label class="label" for="scale">Size</label><output id="scaleOut" for="scale"></output></div>
+          <input id="scale" type="range" min="1.2" max="2.6" step="0.05" value="1.7">
+        </div>
+        <div class="field">
+          <label class="label" for="material">Material</label>
+          <select id="material"></select>
+        </div>
+        <div class="field">
+          <span class="label" id="hwLabel">Pivot screws</span>
+          <div class="seg" role="group" aria-labelledby="hwLabel" id="hw">
+            <button type="button" data-v="M3">M3</button>
+            <button type="button" data-v="M4">M4</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label" id="legsLabel">Legs</span>
+          <div class="seg" role="group" aria-labelledby="legsLabel" id="legs">
+            <button type="button" data-v="2">8</button>
+            <button type="button" data-v="3">12</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label" id="unitsLabel">DXF units</span>
+          <div class="seg" role="group" aria-labelledby="unitsLabel" id="units">
+            <button type="button" data-v="in">Inches</button>
+            <button type="button" data-v="mm">Millimetres</button>
+          </div>
+        </div>
+        <div class="stats" id="stats"></div>
+        <ul class="checks" id="checks" aria-live="polite"></ul>
+      </aside>
+
+      <div class="main">
+        <section aria-labelledby="cutHead">
+          <div class="sec-head">
+            <div>
+              <h2 id="cutHead">Cut list</h2>
+              <p id="cutSummary"></p>
+            </div>
+            <div class="export">
+              <button class="primary" id="zip" type="button">Download all (.zip)</button>
+            </div>
+          </div>
+          <div class="parts" id="parts"></div>
+          <p class="order-note" id="orderNote"></p>
+        </section>
+
+        <section aria-labelledby="stackHead">
+          <div class="sec-head">
+            <div>
+              <h2 id="stackHead">Layer stack</h2>
+              <p>Links j and k sweep straight across the crank axle, so the crankshaft is built up: each phase is a pair of crank arms joined by a short D-shaft pin, with j and k riding between them. The order below was searched for, then checked against every other part over a full turn.</p>
+            </div>
+          </div>
+          <div class="card" style="margin-bottom:16px">
+            <span class="label" id="sideLabel">One side, to scale, inner plate to outer plate</span>
+            <div class="scroll"><svg id="sideBar" role="img" aria-label="Cross-section of one side of the walker"></svg></div>
+          </div>
+          <div class="two">
+            <div class="card">
+              <span class="label">Layers in one phase</span>
+              <div class="layers" id="layerMap"></div>
+              <span class="label" style="margin-top:6px">Pivot stacks, inner to outer</span>
+              <div class="scroll"><table id="pinTable"></table></div>
+            </div>
+            <div class="card">
+              <span class="label">Crank phasing, seen from the left, shaft flat up</span>
+              <svg id="dial" viewBox="-130 -130 260 260" role="img" aria-label="Crank arm angles"></svg>
+              <div class="scroll"><table id="armTable"></table></div>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="hwHead">
+          <div class="sec-head">
+            <div>
+              <h2 id="hwHead">Hardware</h2>
+              <p>Everything that isn't laser cut. Spacer lengths are the gap to fill; a few tenths short is fine, since the pivots should turn freely rather than clamp.</p>
+            </div>
+          </div>
+          <div class="two">
+            <div class="card"><div class="scroll"><table id="bom"></table></div></div>
+            <div class="card">
+              <span class="label">D-shaft cut list</span>
+              <div class="scroll"><table id="shaftTable"></table></div>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="buildHead">
+          <div class="sec-head"><h2 id="buildHead">Build</h2></div>
+          <ol class="steps" id="steps"></ol>
+        </section>
+
+        <p class="foot">Kinematics use Jansen's published link ratios. Design rules come from SendCutSend's guidelines: DXF with closed contours, one part per file at 1:1 scale; holes at least the material thickness; 2× thickness from hole to edge; minimum part size per material. Nothing here has been cut and assembled yet, so treat the first build as a prototype.</p>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="clawdbeast.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

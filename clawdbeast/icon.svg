@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#1b2024"/>
+  <!-- Jansen legs under Clawd -->
+  <path d="M17 33 8 44l5 11M25 33l-5 12 4 10M39 33l5 12-4 10M47 33l9 11-5 11" fill="none" stroke="#b8c0c7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Clawd; each pixel is 3 wide and 6 tall -->
+  <g transform="translate(5 10) scale(3 6)" shape-rendering="crispEdges">
+    <path fill="#D77757" d="M3 0h12v2h2v1h-2v1H3V3H1V2h2z"/>
+    <path fill="#1b2024" d="M5 1h1v1H5zM12 1h1v1h-1z"/>
+  </g>
+</svg>
