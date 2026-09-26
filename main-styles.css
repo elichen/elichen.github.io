@@ -148,12 +148,14 @@ body {
     padding: 15px 0;
     border-bottom: 1px solid #4d8b4d;
     display: flex;
+    flex-wrap: wrap;
     gap: 20px;
     justify-content: center;
 }
 
 .nav-links a {
     color: #7fbf7f;
+    white-space: nowrap;
     text-decoration: none;
     text-transform: uppercase;
     letter-spacing: 2px;
