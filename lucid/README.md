@@ -11,14 +11,14 @@ This tool visualizes what units in InceptionV3 "see" by optimizing an input imag
 ### Core Visualization
 - **Switchable Objective Modes**: Choose between center-neuron, full-channel, and final-class maximization
 - **Fourier Parameterization**: Optimize a learned Fourier basis instead of raw pixels
-- **Progressive Resolution**: Optimize at 128, 192, 256, and 299 px, then display at 512 px
+- **Native Resolution**: Optimize at InceptionV3's 299 px input, then display at 512 px
 - **ImageNet Labels**: Class mode exposes the final classifier output with human-readable labels
 
 ### Regularization Techniques
-- **Transformation Robustness**: Constant padding, jitter crops, and random scaling
+- **Transformation Robustness**: Lucid's constant padding, jitter crops, and random scaling (rotation is omitted because tfjs can't backpropagate through it)
 - **Frequency Bias**: Low frequencies are favored directly in the Fourier parameterization
 - **Total Variation**: Encourages spatial smoothness
-- **L2 Decay**: Prevents extreme pixel values
+- **L2 Decay**: Pulls pixels toward mid-gray to rein in saturation
 
 ### Layers Available
 - **Mixed_6a** (768 channels): Early patterns and textures
@@ -46,15 +46,15 @@ This tool visualizes what units in InceptionV3 "see" by optimizing an input imag
 
 ### Fourier Parameterization
 Instead of optimizing pixels directly, the app learns Fourier coefficients:
-- Uses a decayed frequency spectrum so low frequencies dominate early
+- Covers the full spectrum at 299 px, scaling each frequency by 1/f so low frequencies take larger steps, as in Lucid's `param.image(fft=True)`
+- Computes the inverse FFT as matrix products, since tfjs can't backpropagate through its FFT ops
 - Keeps the image in the model's expected `[0, 1]` range
-- Applies Lucid-style color decorrelation before the final sigmoid
+- Applies Lucid's color decorrelation (the square root of ImageNet's color covariance) before the final sigmoid
 
 ### Optimization Process
-1. Initialize a Fourier basis at the model's native resolution
-2. Optimize over progressive stages (128, 192, 256, 299):
-   - Resize the rendered image to the current stage
-   - Apply padded jitter and random scaling
+1. Initialize the spectrum with small noise (a near-uniform gray image) at 299 px
+2. For each step, with Adam:
+   - Pad, jitter, randomly scale, and jitter the rendered image again
    - Maximize either the selected channel's center neuron, the full channel map, or a final ImageNet class output
    - Apply L2 and total-variation penalties on the rendered image
 3. Render the final result at 512x512 for display and download
@@ -62,7 +62,7 @@ Instead of optimizing pixels directly, the app learns Fourier coefficients:
 ### Implementation Stack
 - **TensorFlow.js**: Neural network operations and model execution
 - **InceptionV3**: Pretrained model from TensorFlow Hub
-- **WebGL Backend**: GPU acceleration in the browser
+- **WebGPU Backend**: GPU acceleration in the browser, falling back to WebGL
 - **No Build Process**: Pure JavaScript, runs directly in browser
 
 ## Interesting Targets to Try
@@ -89,7 +89,6 @@ Instead of optimizing pixels directly, the app learns Fourier coefficients:
 2. **Experiment with channels**: Different channels show vastly different patterns
 3. **Try different layers**: Earlier layers show simpler patterns, later layers show more complex features
 4. **Adjust regularization**:
-   - Increase frequency penalty for smoother results
    - Increase TV weight for less noisy patterns
    - Decrease L2 weight for more vibrant colors
 
@@ -105,7 +104,7 @@ Instead of optimizing pixels directly, the app learns Fourier coefficients:
 
 ## Browser Requirements
 
-- Modern browser with WebGL support
+- Modern browser with WebGPU or WebGL support
 - Recommended: Chrome, Firefox, or Edge (latest versions)
 - Requires ~500MB RAM for model loading
 - GPU acceleration recommended for faster optimization

@@ -7,7 +7,6 @@ let isOptimizing = false;
 let visualizationHistory = [];
 const MODEL_INPUT_RESOLUTION = 299;
 const DISPLAY_RESOLUTION = 512;
-const DEFAULT_FOURIER_FREQUENCIES = 48;
 const IMAGENET_LABELS_URL = 'https://storage.googleapis.com/download.tensorflow.org/data/ImageNetLabels.txt';
 const IMAGENET_OUTPUT_LABEL = 'ImageNet Classification';
 const DEFAULT_IMAGENET_CLASS_COUNT = 1001;
@@ -102,7 +101,7 @@ async function init() {
     console.log('Initializing Lucid Feature Visualization...');
 
     // Set up TensorFlow.js
-    await tf.ready();
+    await selectBackend();
     console.log('TensorFlow.js backend:', tf.getBackend());
 
     // Load model
@@ -111,6 +110,21 @@ async function init() {
     // Set up event listeners
     setupEventListeners();
     updateObjectiveModeUI();
+}
+
+// WebGPU is fastest where available; fall back to WebGL, then CPU.
+async function selectBackend() {
+    for (const backendName of ['webgpu', 'webgl', 'cpu']) {
+        try {
+            if (await tf.setBackend(backendName)) {
+                await tf.ready();
+                return;
+            }
+        } catch (error) {
+            console.warn(`Unable to initialize TensorFlow.js backend "${backendName}".`, error);
+        }
+    }
+    throw new Error('Unable to initialize any TensorFlow.js backend.');
 }
 
 async function loadModel() {
@@ -311,187 +325,127 @@ function sanitizeForFilename(value) {
         .slice(0, 40) || 'target';
 }
 
-// ========== Color Decorrelation ==========
+// ========== Image Parameterization ==========
+// Lucid's param.image(fft=True, decorrelate=True): the image is a 1/f-scaled Fourier spectrum in
+// a decorrelated color space, squashed into [0, 1] with a sigmoid.
 
-// Color correlation matrix from Lucid library (based on ImageNet statistics)
-// This transforms from decorrelated space to RGB
+// Square root of ImageNet's color covariance, from lucid.optvis.param.color.
 const COLOR_CORRELATION_SVD_SQRT = [
     [0.26, 0.09, 0.02],
     [0.27, 0.00, -0.05],
     [0.27, -0.09, 0.03]
 ];
 
-// Normalize the color correlation matrix
-const COLOR_CORRELATION_NORMALIZED = (() => {
-    const maxNorm = Math.max(
-        ...COLOR_CORRELATION_SVD_SQRT.map(row =>
-            Math.sqrt(row.reduce((sum, v) => sum + v * v, 0))
-        )
-    );
-    return COLOR_CORRELATION_SVD_SQRT.map(row => row.map(v => v / maxNorm));
-})();
-
-// Apply color decorrelation: transform from decorrelated space to RGB
-function toRGB(decorrelatedImage) {
-    return tf.tidy(() => {
-        const colorMatrix = tf.tensor2d(COLOR_CORRELATION_NORMALIZED);
-        const [h, w, c] = decorrelatedImage.shape;
-        const reshaped = decorrelatedImage.reshape([h * w, c]);
-        const transformed = tf.matMul(reshaped, colorMatrix, false, true);
-        return transformed.reshape([h, w, c]);
-    });
+// 1x1 conv filter computing rgb = decorrelated @ C^T, with C normalized by its largest column norm as in Lucid.
+function colorFilterValues() {
+    const C = COLOR_CORRELATION_SVD_SQRT;
+    const maxNorm = Math.max(...[0, 1, 2].map(j => Math.hypot(C[0][j], C[1][j], C[2][j])));
+    return [0, 1, 2].flatMap(i => [0, 1, 2].map(o => C[o][i] / maxNorm));
 }
 
-// ========== Fourier Parameterization ==========
-
-function buildSignedFrequencies(count) {
-    const frequencies = [0];
-    let value = 1;
-
-    while (frequencies.length < count) {
-        frequencies.push(value);
-        if (frequencies.length < count) {
-            frequencies.push(-value);
-        }
-        value++;
+// DFT matrices for a real 2D FFT done as matrix products (tfjs has no gradient for its FFT ops).
+function getFourierBasis(size) {
+    if (fourierBasisCache.has(size)) {
+        return fourierBasisCache.get(size);
     }
 
-    return frequencies;
-}
+    const freqWidth = Math.floor(size / 2) + 1;
 
-function createBasisY(size, frequencies) {
-    const cosValues = new Float32Array(size * frequencies.length);
-    const sinValues = new Float32Array(size * frequencies.length);
-
-    for (let y = 0; y < size; y++) {
-        for (let index = 0; index < frequencies.length; index++) {
-            const angle = 2 * Math.PI * frequencies[index] * y / size;
-            const offset = y * frequencies.length + index;
-            cosValues[offset] = Math.cos(angle);
-            sinValues[offset] = Math.sin(angle);
+    const cosY = new Float32Array(size * size);
+    const sinY = new Float32Array(size * size);
+    for (let k = 0; k < size; k++) {
+        for (let y = 0; y < size; y++) {
+            const angle = 2 * Math.PI * k * y / size;
+            cosY[k * size + y] = Math.cos(angle);
+            sinY[k * size + y] = Math.sin(angle);
         }
     }
 
-    return {
-        cos: tf.tensor2d(cosValues, [size, frequencies.length]),
-        sin: tf.tensor2d(sinValues, [size, frequencies.length])
-    };
-}
-
-function createBasisX(size, frequencies) {
-    const cosValues = new Float32Array(frequencies.length * size);
-    const sinValues = new Float32Array(frequencies.length * size);
-
-    for (let index = 0; index < frequencies.length; index++) {
+    const cosX = new Float32Array(freqWidth * size);
+    const sinX = new Float32Array(freqWidth * size);
+    for (let k = 0; k < freqWidth; k++) {
         for (let x = 0; x < size; x++) {
-            const angle = 2 * Math.PI * frequencies[index] * x / size;
-            const offset = index * size + x;
-            cosValues[offset] = Math.cos(angle);
-            sinValues[offset] = Math.sin(angle);
+            const angle = 2 * Math.PI * k * x / size;
+            cosX[k * size + x] = Math.cos(angle);
+            sinX[k * size + x] = Math.sin(angle);
         }
     }
 
-    return {
-        cos: tf.tensor2d(cosValues, [frequencies.length, size]),
-        sin: tf.tensor2d(sinValues, [frequencies.length, size])
+    // Only non-negative x frequencies are stored, so every column but DC (and Nyquist,
+    // for even sizes) also stands in for its mirror image when inverting.
+    const columnWeights = new Float32Array(freqWidth).map((_, k) =>
+        (k === 0 || 2 * k === size ? 1 : 2) / size
+    );
+
+    // Lucid's 1/f scaling: low frequencies take bigger steps than high ones, so the optimizer
+    // builds coherent structure instead of pixel noise. It also folds in Lucid's divide-by-4
+    // and the 1/size of the inverse DFT.
+    const spectrumScale = new Float32Array(size * freqWidth);
+    for (let y = 0; y < size; y++) {
+        const fy = (y <= (size - 1) / 2 ? y : y - size) / size;
+        for (let x = 0; x < freqWidth; x++) {
+            const freq = Math.max(Math.hypot(x / size, fy), 1 / size);
+            spectrumScale[y * freqWidth + x] = 1 / freq / 4;
+        }
+    }
+
+    const basis = {
+        size,
+        freqWidth,
+        // One copy per color channel for batched matmuls.
+        cosY: tf.tidy(() => tf.tensor2d(cosY, [size, size]).expandDims(0).tile([3, 1, 1])),
+        sinY: tf.tidy(() => tf.tensor2d(sinY, [size, size]).expandDims(0).tile([3, 1, 1])),
+        cosX: tf.tensor2d(cosX, [freqWidth, size]),
+        sinX: tf.tensor2d(sinX, [freqWidth, size]),
+        columnWeights: tf.tensor1d(columnWeights),
+        spectrumScale: tf.tensor2d(spectrumScale, [size, freqWidth])
     };
+
+    fourierBasisCache.set(size, basis);
+    return basis;
 }
 
-function getFourierBasis(size, frequencyCount = DEFAULT_FOURIER_FREQUENCIES, decayPower = 1) {
-    const basisKey = `${size}:${frequencyCount}:${decayPower}`;
-    if (fourierBasisCache.has(basisKey)) {
-        return fourierBasisCache.get(basisKey);
-    }
-
-    const yFrequencies = buildSignedFrequencies(Math.min(frequencyCount, size));
-    const xFrequencies = buildSignedFrequencies(Math.min(frequencyCount, size));
-    const minFrequency = 1 / size;
-    const scaleValues = new Float32Array(yFrequencies.length * xFrequencies.length);
-
-    for (let yIndex = 0; yIndex < yFrequencies.length; yIndex++) {
-        for (let xIndex = 0; xIndex < xFrequencies.length; xIndex++) {
-            const radialFrequency = Math.max(
-                Math.hypot(yFrequencies[yIndex] / size, xFrequencies[xIndex] / size),
-                minFrequency
-            );
-            scaleValues[yIndex * xFrequencies.length + xIndex] =
-                (1 / Math.pow(radialFrequency, decayPower)) * size;
-        }
-    }
-
-    const scaleTensor = tf.tensor2d(scaleValues, [yFrequencies.length, xFrequencies.length]);
-    const basisY = createBasisY(size, yFrequencies);
-    const basisX = createBasisX(size, xFrequencies);
-    const basis = {
-        basisYCos: basisY.cos,
-        basisYSin: basisY.sin,
-        basisXCos: basisX.cos,
-        basisXSin: basisX.sin,
-        scale: scaleTensor,
-        normalization: size * size * 4
-    };
-
-    fourierBasisCache.set(basisKey, basis);
-    return basis;
+// tf.variable keeps its initial tensor registered, so dispose that tensor once the variable exists.
+function randomVariable(shape, stddev) {
+    const initial = tf.randomNormal(shape, 0, stddev);
+    const variable = tf.variable(initial);
+    initial.dispose();
+    return variable;
 }
 
 function createFourierParameter(size) {
     const basis = getFourierBasis(size);
-    const coefficientShape = [3, basis.scale.shape[0], basis.scale.shape[1]];
+    const shape = [3, size, basis.freqWidth];
 
     return {
-        size,
         basis,
-        realVar: tf.variable(tf.randomNormal(coefficientShape, 0, 0.01)),
-        imagVar: tf.variable(tf.randomNormal(coefficientShape, 0, 0.01))
+        colorFilter: tf.tensor4d(colorFilterValues(), [1, 1, 3, 3]),
+        // Lucid initializes the spectrum with small noise (sd 0.01), which renders as near-uniform gray.
+        realVar: randomVariable(shape, 0.01),
+        imagVar: randomVariable(shape, 0.01)
     };
 }
 
 function disposeFourierParameter(parameterization) {
     parameterization.realVar.dispose();
     parameterization.imagVar.dispose();
+    parameterization.colorFilter.dispose();
 }
 
+// Spectrum -> [size, size, 3] image in [0, 1]: inverse real FFT, recorrelate colors, sigmoid.
 function renderFourierImage(parameterization) {
     return tf.tidy(() => {
-        // WebGL in tfjs does not support complex64 kernels for these matmuls, so
-        // express the same Fourier basis using real-valued cosine/sine products.
-        const scaledReal = parameterization.realVar.mul(parameterization.basis.scale.expandDims(0));
-        const scaledImag = parameterization.imagVar.mul(parameterization.basis.scale.expandDims(0));
-        const channels = [];
-
-        for (let channel = 0; channel < 3; channel++) {
-            const realCoefficients = scaledReal.slice([channel, 0, 0], [1, -1, -1]).squeeze([0]);
-            const imagCoefficients = scaledImag.slice([channel, 0, 0], [1, -1, -1]).squeeze([0]);
-
-            const rowReal = tf.matMul(parameterization.basis.basisYCos, realCoefficients)
-                .sub(tf.matMul(parameterization.basis.basisYSin, imagCoefficients));
-            const rowImag = tf.matMul(parameterization.basis.basisYCos, imagCoefficients)
-                .add(tf.matMul(parameterization.basis.basisYSin, realCoefficients));
-
-            const spatialReal = tf.matMul(rowReal, parameterization.basis.basisXCos)
-                .sub(tf.matMul(rowImag, parameterization.basis.basisXSin));
-
-            channels.push(spatialReal);
-        }
-
-        const decorrelatedImage = tf
-            .stack(channels, -1)
-            .div(parameterization.basis.normalization);
-
-        return tf.sigmoid(toRGB(decorrelatedImage));
-    });
-}
-
-function resizeImage(image, resolution) {
-    if (image.shape[0] === resolution && image.shape[1] === resolution) {
-        return tf.clone(image);
-    }
-
-    return tf.tidy(() => {
-        const batched = image.expandDims(0);
-        const resized = tf.image.resizeBilinear(batched, [resolution, resolution]);
-        return resized.squeeze([0]);
+        const { basis, colorFilter, realVar, imagVar } = parameterization;
+        const { size, freqWidth } = basis;
+        const real = realVar.mul(basis.spectrumScale);
+        const imag = imagVar.mul(basis.spectrumScale);
+        const colReal = tf.matMul(basis.cosY, real).sub(tf.matMul(basis.sinY, imag)).mul(basis.columnWeights);
+        const colImag = tf.matMul(basis.cosY, imag).add(tf.matMul(basis.sinY, real)).mul(basis.columnWeights);
+        const decorrelated = tf.matMul(colReal.reshape([3 * size, freqWidth]), basis.cosX)
+            .sub(tf.matMul(colImag.reshape([3 * size, freqWidth]), basis.sinX))
+            .reshape([3, size, size]);
+        const rgb = tf.conv2d(decorrelated.transpose([1, 2, 0]).expandDims(0), colorFilter, 1, 'valid');
+        return tf.sigmoid(rgb).squeeze([0]);
     });
 }
 
@@ -540,9 +494,58 @@ function randomScaleImage(image, strength) {
 
     return tf.tidy(() => {
         const batched = image.expandDims(0);
-        const resized = tf.image.resizeBilinear(batched, [scaledHeight, scaledWidth]);
+        const resized = tf.image.resizeBilinear(batched, [scaledHeight, scaledWidth], false, true);
         return resized.squeeze([0]);
     });
+}
+
+// Bilinear rotation about the center, built from gathers so gradients reach the image
+// (tfjs has no gradient for tf.image.rotateWithOffset). Samples past the edge clamp to it,
+// which is the constant padding added earlier in the pipeline.
+function rotateImage(image, degrees) {
+    const [height, width, channels] = image.shape;
+    const count = height * width;
+    const cos = Math.cos(degrees * Math.PI / 180);
+    const sin = Math.sin(degrees * Math.PI / 180);
+    const centerY = (height - 1) / 2;
+    const centerX = (width - 1) / 2;
+    const indices = [0, 1, 2, 3].map(() => new Int32Array(count));
+    const weights = [0, 1, 2, 3].map(() => new Float32Array(count));
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const dy = y - centerY;
+            const dx = x - centerX;
+            const sourceY = Math.min(height - 1, Math.max(0, centerY + cos * dy - sin * dx));
+            const sourceX = Math.min(width - 1, Math.max(0, centerX + sin * dy + cos * dx));
+            const y0 = Math.floor(sourceY);
+            const x0 = Math.floor(sourceX);
+            const y1 = Math.min(y0 + 1, height - 1);
+            const x1 = Math.min(x0 + 1, width - 1);
+            const fy = sourceY - y0;
+            const fx = sourceX - x0;
+            const p = y * width + x;
+            indices[0][p] = y0 * width + x0; weights[0][p] = (1 - fy) * (1 - fx);
+            indices[1][p] = y0 * width + x1; weights[1][p] = (1 - fy) * fx;
+            indices[2][p] = y1 * width + x0; weights[2][p] = fy * (1 - fx);
+            indices[3][p] = y1 * width + x1; weights[3][p] = fy * fx;
+        }
+    }
+
+    return tf.tidy(() => {
+        const pixels = image.reshape([count, channels]);
+        const corners = indices.map((corner, i) =>
+            tf.gather(pixels, tf.tensor1d(corner, 'int32')).mul(tf.tensor2d(weights[i], [count, 1]))
+        );
+        return tf.addN(corners).reshape([height, width, channels]);
+    });
+}
+
+function randomRotateImage(image, strength) {
+    // Lucid's angles: -10..10 degrees, with extra weight on 0.
+    const angles = [...Array.from({ length: 21 }, (_, i) => i - 10), 0, 0, 0, 0, 0];
+    const degrees = angles[Math.floor(Math.random() * angles.length)] * strength;
+    return degrees === 0 ? tf.clone(image) : rotateImage(image, degrees);
 }
 
 function applyStandardTransforms(image, strength) {
@@ -558,48 +561,11 @@ function applyStandardTransforms(image, strength) {
         let transformed = padImage(image, padAmount);
         transformed = jitterCrop(transformed, jitterLarge);
         transformed = randomScaleImage(transformed, strength);
+        transformed = randomRotateImage(transformed, strength);
         transformed = jitterCrop(transformed, jitterSmall);
 
         return transformed;
     });
-}
-
-function buildOptimizationStages(totalSteps) {
-    let resolutions;
-    let weights;
-
-    if (totalSteps < 24) {
-        resolutions = [128, MODEL_INPUT_RESOLUTION];
-        weights = [0.4, 0.6];
-    } else if (totalSteps < 48) {
-        resolutions = [128, 224, MODEL_INPUT_RESOLUTION];
-        weights = [0.25, 0.35, 0.4];
-    } else {
-        resolutions = [128, 192, 256, MODEL_INPUT_RESOLUTION];
-        weights = [0.15, 0.2, 0.25, 0.4];
-    }
-
-    const stages = resolutions.map((resolution, index) => ({
-        resolution,
-        steps: 1,
-        weight: weights[index]
-    }));
-
-    let remainingSteps = Math.max(0, totalSteps - stages.length);
-    const totalWeight = weights.reduce((sum, value) => sum + value, 0);
-
-    stages.forEach((stage, index) => {
-        if (index === stages.length - 1 || remainingSteps === 0) {
-            return;
-        }
-
-        const weightedSteps = Math.floor((remainingSteps * stage.weight) / totalWeight);
-        stage.steps += weightedSteps;
-        remainingSteps -= weightedSteps;
-    });
-
-    stages[stages.length - 1].steps += remainingSteps;
-    return stages;
 }
 
 // ========== Regularization ==========
@@ -627,9 +593,10 @@ function totalVariation(image) {
     });
 }
 
+// Distance from mid-gray, so the penalty reins in saturated pixels instead of darkening the image.
 function l2Penalty(image) {
     return tf.tidy(() => {
-        return tf.mean(tf.square(image));
+        return tf.mean(tf.square(image.sub(0.5)));
     });
 }
 
@@ -715,7 +682,6 @@ async function optimizeVisualization(layerKey, channelIndex, config) {
     const layerInfo = config.objectiveMode === 'class' ? null : INCEPTION_LAYERS[layerKey];
     const resultLayerLabel = getVisualizationLayerLabel(config.objectiveMode, layerKey);
     const totalSteps = config.steps;
-    const stages = buildOptimizationStages(totalSteps);
     let objectiveFn;
 
     if (config.objectiveMode === 'class') {
@@ -726,7 +692,6 @@ async function optimizeVisualization(layerKey, channelIndex, config) {
         objectiveFn = batchedImage => computeNeuronObjective(batchedImage, layerInfo.name, channelIndex);
     }
 
-    let completedSteps = 0;
     let finalObjective = 0;
 
     updateProgress(0, 'Initializing Fourier basis...');
@@ -737,40 +702,34 @@ async function optimizeVisualization(layerKey, channelIndex, config) {
     const optimizer = tf.train.adam(config.learningRate);
 
     try {
-        for (const stage of stages) {
-            for (let stageStep = 0; stageStep < stage.steps; stageStep++) {
-                const loss = optimizer.minimize(() => tf.tidy(() => {
-                    const baseImage = renderFourierImage(parameterization);
-                    const stagedImage = resizeImage(baseImage, stage.resolution);
-                    const transformedImage = applyStandardTransforms(stagedImage, config.transformStrength);
-                    const batchedImage = transformedImage.expandDims(0);
-                    const activation = objectiveFn(batchedImage);
-                    const l2 = l2Penalty(baseImage).mul(config.l2Weight);
-                    const tv = totalVariation(baseImage).mul(config.tvWeight);
+        for (let step = 1; step <= totalSteps; step++) {
+            const loss = optimizer.minimize(() => tf.tidy(() => {
+                const image = renderFourierImage(parameterization);
+                const transformedImage = applyStandardTransforms(image, config.transformStrength);
+                const activation = objectiveFn(transformedImage.expandDims(0));
+                const l2 = l2Penalty(image).mul(config.l2Weight);
+                const tv = totalVariation(image).mul(config.tvWeight);
 
-                    return activation.sub(l2).sub(tv).neg();
-                }), true, [parameterization.realVar, parameterization.imagVar]);
+                return activation.sub(l2).sub(tv).neg();
+            }), true, [parameterization.realVar, parameterization.imagVar]);
 
+            // Reading the loss stalls the GPU pipeline, so only do it when reporting progress.
+            if (step === 1 || step % 5 === 0 || step === totalSteps) {
                 finalObjective = -((await loss.data())[0]);
-                loss.dispose();
-                completedSteps++;
+                updateProgress(
+                    (step / totalSteps) * 100,
+                    `Step ${step}/${totalSteps} (objective: ${finalObjective.toFixed(3)})`
+                );
 
-                if (completedSteps === 1 || completedSteps % 5 === 0 || completedSteps === totalSteps) {
-                    const progress = (completedSteps / totalSteps) * 100;
-                    updateProgress(
-                        progress,
-                        `Stage ${stage.resolution}px • Step ${completedSteps}/${totalSteps} (objective: ${finalObjective.toFixed(3)})`
-                    );
-
-                    if (config.showProgress && (completedSteps === 1 || completedSteps % 10 === 0 || completedSteps === totalSteps)) {
-                        const previewImage = renderFourierImage(parameterization);
-                        await displayImage(previewImage);
-                        previewImage.dispose();
-                    }
-
-                    await tf.nextFrame();
+                if (config.showProgress && (step === 1 || step % 10 === 0 || step === totalSteps)) {
+                    const previewImage = renderFourierImage(parameterization);
+                    await displayImage(previewImage);
+                    previewImage.dispose();
                 }
+
+                await tf.nextFrame();
             }
+            loss.dispose();
         }
 
         finalImage = renderFourierImage(parameterization);
