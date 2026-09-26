@@ -9,14 +9,22 @@ const QUERY_PARAMS = new URLSearchParams(window.location.search);
 const FULL_PROFILE = {
     maxImageSize: 512,
     octaves: [-2, -1, 0, 1, 2],
-    defaultSteps: 100,
-    sliderMax: 150
+    steps: {
+        classic: { value: 100, max: 150 },
+        lucid: { value: 256, max: 512 }
+    }
 };
 const FAST_PROFILE = {
     maxImageSize: 320,
     octaves: [-1, 0, 1],
-    defaultSteps: 20,
-    sliderMax: 60
+    steps: {
+        classic: { value: 20, max: 60 },
+        lucid: { value: 64, max: 256 }
+    }
+};
+const STEP_SLIDERS = {
+    classic: { label: 'Steps per Octave', min: 10, step: 10 },
+    lucid: { label: 'Steps', min: 32, step: 32 }
 };
 const cameraBtn = document.getElementById('cameraBtn');
 const uploadBtn = document.getElementById('uploadBtn');
@@ -28,7 +36,9 @@ const closeCameraBtn = document.getElementById('closeCameraBtn');
 const imagePreview = document.getElementById('imagePreview');
 const inputCanvas = document.getElementById('inputCanvas');
 const iterationsSlider = document.getElementById('iterationsSlider');
+const iterationsLabel = document.getElementById('iterationsLabel');
 const iterationsValue = document.getElementById('iterationsValue');
+const methodSelect = document.getElementById('methodSelect');
 const dreamBtn = document.getElementById('dreamBtn');
 const progressSection = document.getElementById('progressSection');
 const progressFill = document.getElementById('progressFill');
@@ -41,6 +51,9 @@ const layerSelect = document.getElementById('layerSelect');
 
 // Deep Dream configuration
 const INCEPTION_PREFIX = 'module_apply_default/InceptionV3/InceptionV3/';
+// The converter hoisted each block's ReLU out of its concat, so `Mixed_6b/concat` is pre-activation.
+// The block output (Keras `mixedN`) is the hoisted ReLU, which kept the first branch's name.
+// Mixed_6a's concat is already post-ReLU because its branches end in ReLU/max-pool.
 const RELU_SUFFIX = '/Branch_0/Conv2d_0a_1x1/Relu';
 const LAYER_PRESETS = {
     multi: [
@@ -54,16 +67,32 @@ const LAYER_PRESETS = {
     mixed7: [{ name: `${INCEPTION_PREFIX}Mixed_6e${RELU_SUFFIX}`, weight: 1 }]
 };
 
-const DREAM_OPTIONS = {
-    stepSize: 0.01,
-    jitter: 0,
-    tvStrength: 0,
-    contentStrength: 0,
-    contentBlend: 0,
-    smoothing: 0
+// TF DeepDream tutorial: gradient ascent in pixel space, run over octaves.
+const CLASSIC = {
+    // The tutorial steps 0.01 in [-1, 1] space; our image lives in [0, 1].
+    stepSize: 0.005,
+    octaveScale: 1.3,
+    tileSize: 512
 };
 
+// Lucid: optimize a 1/f-scaled Fourier spectrum in decorrelated color space with Adam,
+// under small random transforms (Olah et al., "Feature Visualization", Distill 2017).
+const LUCID = {
+    learningRate: 0.05,
+    pad: 12,
+    jitter: 8,
+    scales: Array.from({ length: 11 }, (_, i) => 1 + (i - 5) / 50),
+    jitterAfterScale: 4
+};
+// Square root of ImageNet's color covariance, from lucid.optvis.param.color.
+const COLOR_CORRELATION_SVD_SQRT = [
+    [0.26, 0.09, 0.02],
+    [0.27, 0.00, -0.05],
+    [0.27, -0.09, 0.03]
+];
+
 let activeLayers = LAYER_PRESETS.multi;
+let activeMethod = 'classic';
 let runtimeProfile = { ...FULL_PROFILE };
 
 function webglTensorSelfTest() {
@@ -136,8 +165,17 @@ function configureRuntimeProfile() {
             : { ...FULL_PROFILE };
     }
 
-    iterationsSlider.max = String(runtimeProfile.sliderMax);
-    iterationsSlider.value = String(runtimeProfile.defaultSteps);
+    configureStepSlider();
+}
+
+function configureStepSlider() {
+    const slider = STEP_SLIDERS[activeMethod];
+    const steps = runtimeProfile.steps[activeMethod];
+    iterationsLabel.textContent = slider.label;
+    iterationsSlider.min = String(slider.min);
+    iterationsSlider.step = String(slider.step);
+    iterationsSlider.max = String(steps.max);
+    iterationsSlider.value = String(steps.value);
     iterationsValue.textContent = iterationsSlider.value;
 }
 
@@ -159,6 +197,10 @@ if (layerSelect) {
         activeLayers = LAYER_PRESETS[key] || LAYER_PRESETS.multi;
     });
 }
+methodSelect.addEventListener('change', (e) => {
+    activeMethod = e.target.value;
+    configureStepSlider();
+});
 
 // Initialize
 async function init() {
@@ -279,59 +321,20 @@ async function loadModel() {
     return inceptionModel;
 }
 
-// TF Hub's InceptionV3 graph performs the DeepDream x * 2 - 1 preprocessing internally.
-function preprocessForInception(image) {
-    return tf.tidy(() => {
-        const rank = image.shape.length;
-        // Only add a batch dimension; keep the image in [0, 1].
-        return rank === 4 ? image : tf.expandDims(image, 0);
-    });
-}
-
-function computeLayerObjective(batchedImage, layers = activeLayers) {
+// TF Hub's InceptionV3 graph takes [0, 1] images and applies the x * 2 - 1 preprocessing itself.
+function computeLayerObjective(batchedImage, layers, squared = false) {
     return tf.tidy(() => {
         const outputs = inceptionModel.execute(
             batchedImage,
             layers.map(({ name }) => name)
         );
         const activations = Array.isArray(outputs) ? outputs : [outputs];
-        const scores = activations.map((activation, index) => {
-            // Match the TensorFlow DeepDream tutorial: maximize mean layer activation.
-            return tf.mean(activation).mul(layers[index].weight);
-        });
+        // The tutorial maximizes each layer's mean activation; Lucid's deepdream objective uses the mean square.
+        const scores = activations.map((activation, index) =>
+            tf.mean(squared ? tf.square(activation) : activation).mul(layers[index].weight)
+        );
 
-        if (scores.length === 1) {
-            return scores[0];
-        }
-
-        return tf.addN(scores).div(tf.scalar(scores.length));
-    });
-}
-
-function totalVariation(image) {
-    return tf.tidy(() => {
-        const [height, width, channels] = image.shape;
-        if (height < 2 || width < 2) {
-            return tf.scalar(0);
-        }
-
-        const yDiff = image
-            .slice([1, 0, 0], [height - 1, width, channels])
-            .sub(image.slice([0, 0, 0], [height - 1, width, channels]));
-        const xDiff = image
-            .slice([0, 1, 0], [height, width - 1, channels])
-            .sub(image.slice([0, 0, 0], [height, width - 1, channels]));
-
-        const yTerm = tf.mean(tf.abs(yDiff));
-        const xTerm = tf.mean(tf.abs(xDiff));
-
-        yDiff.dispose();
-        xDiff.dispose();
-
-        const result = yTerm.add(xTerm);
-        yTerm.dispose();
-        xTerm.dispose();
-        return result;
+        return scores.length === 1 ? scores[0] : tf.addN(scores);
     });
 }
 
@@ -367,141 +370,291 @@ function rollImage(image, shiftY, shiftX) {
     });
 }
 
-// Deep Dream with Octaves (multi-scale processing)
-async function deepDreamWithOctaves(inputTensor, stepsPerOctave, options = {}) {
-    const config = {
-        ...DREAM_OPTIONS,
-        ...options
-    };
-    config.layers = config.layers || activeLayers;
+// TF 2's tf.image.resize uses half-pixel centers; without them every octave nudges the image up and left.
+function resizeImage(image, height, width) {
+    return tf.tidy(() =>
+        tf.image.resizeBilinear(image.expandDims(0), [height, width], false, true).squeeze([0])
+    );
+}
 
-    // Octave parameters from TensorFlow tutorial
-    const octaveScale = 1.3;
+// ---------------------------------------------------------------------------
+// Classic: the TensorFlow DeepDream tutorial
+// ---------------------------------------------------------------------------
+
+async function deepDreamWithOctaves(inputTensor, stepsPerOctave, layers) {
     const octaves = runtimeProfile.octaves;
 
-    // Convert pixels to float32 [0, 1]. The TF Hub graph handles x * 2 - 1 internally.
-    const baseImage = tf.tidy(() => {
-        return tf.cast(inputTensor, 'float32').div(255);
-    });
-    const [originalHeight, originalWidth] = [baseImage.shape[0], baseImage.shape[1]];
+    const baseImage = tf.tidy(() => tf.cast(inputTensor, 'float32').div(255));
+    const [originalHeight, originalWidth] = baseImage.shape;
 
-    let img = baseImage.clone();
+    let img = baseImage;
 
     for (let i = 0; i < octaves.length; i++) {
-        const octave = octaves[i];
+        const scale = Math.pow(CLASSIC.octaveScale, octaves[i]);
+        const newHeight = Math.floor(originalHeight * scale);
+        const newWidth = Math.floor(originalWidth * scale);
 
-        // Calculate new size for this octave
-        const newHeight = Math.round(originalHeight * Math.pow(octaveScale, octave));
-        const newWidth = Math.round(originalWidth * Math.pow(octaveScale, octave));
-
-        // Resize image for this octave
-        const resized = tf.tidy(() => {
-            const expanded = img.expandDims(0);
-            const resizedExpanded = tf.image.resizeBilinear(expanded, [newHeight, newWidth]);
-            return resizedExpanded.squeeze();
-        });
-
+        const resized = resizeImage(img, newHeight, newWidth);
         img.dispose();
 
-        // Run gradient ascent for this octave
-        updateProgress(
-            20 + ((i + 1) / octaves.length) * 60,
-            `Processing octave ${i + 1}/${octaves.length} (${newWidth}x${newHeight})`
-        );
-
-        img = await gradientAscent(resized, stepsPerOctave, config);
+        const label = `Octave ${i + 1}/${octaves.length} (${newWidth}x${newHeight})`;
+        img = await gradientAscent(resized, stepsPerOctave, layers, (step) => {
+            const done = (i + step / stepsPerOctave) / octaves.length;
+            updateProgress(20 + done * 65, `${label}: step ${step}/${stepsPerOctave}`);
+        });
         resized.dispose();
-
-        await tf.nextFrame();
     }
 
-    // Resize back to original dimensions
-    const final = tf.tidy(() => {
-        const expanded = img.expandDims(0);
-        const resizedExpanded = tf.image.resizeBilinear(expanded, [originalHeight, originalWidth]);
-        return tf.clipByValue(resizedExpanded.squeeze(), 0, 1);
-    });
-
+    const final = tf.tidy(() => tf.clipByValue(resizeImage(img, originalHeight, originalWidth), 0, 1));
     img.dispose();
-    baseImage.dispose();
 
-    updateProgress(85, 'Polishing details...');
     return final;
 }
 
-// Gradient Ascent
-async function gradientAscent(baseImage, steps, config) {
-    const dreamVar = tf.variable(baseImage.clone());
+// Tile starts as in the tutorial: tf.range(0, size, tile)[:-1], or a single tile at 0.
+function tileStarts(size, tileSize) {
+    const starts = [];
+    for (let start = 0; start < size; start += tileSize) {
+        starts.push(start);
+    }
+    starts.pop();
+    return starts.length ? starts : [0];
+}
 
-    const computeGrad = tf.grad(image => tf.tidy(() => {
-        const prepped = preprocessForInception(image);
-        const featureLoss = computeLayerObjective(prepped, config.layers);
+// Sum the objective over 512px tiles, which caps the network's input size on large octaves.
+function tiledObjective(image, layers) {
+    const [height, width] = image.shape;
+    const { tileSize } = CLASSIC;
+    const scores = [];
 
-        let loss = featureLoss;
-        if (config.tvStrength > 0) {
-            const tv = totalVariation(image);
-            loss = loss.sub(tv.mul(config.tvStrength));
+    for (const y of tileStarts(height, tileSize)) {
+        for (const x of tileStarts(width, tileSize)) {
+            const tile = image.slice(
+                [y, x, 0],
+                [Math.min(tileSize, height - y), Math.min(tileSize, width - x), 3]
+            );
+            scores.push(computeLayerObjective(tile.expandDims(0), layers));
         }
-        if (config.contentStrength > 0) {
-            const content = tf.mean(tf.square(image.sub(baseImage)));
-            loss = loss.sub(content.mul(config.contentStrength));
-        }
+    }
 
-        return loss;
-    }));
+    return scores.length === 1 ? scores[0] : tf.addN(scores);
+}
+
+async function gradientAscent(baseImage, steps, layers, onProgress) {
+    const [height, width] = baseImage.shape;
+    const computeGrad = tf.grad(image => tiledObjective(image, layers));
+    let img = baseImage.clone();
 
     for (let step = 0; step < steps; step++) {
-        const shiftX = Math.floor(Math.random() * (config.jitter * 2 + 1)) - config.jitter;
-        const shiftY = Math.floor(Math.random() * (config.jitter * 2 + 1)) - config.jitter;
+        // Roll the image randomly before each step so tile edges and the network's
+        // stride grid don't imprint fixed artifacts.
+        const shiftY = Math.floor(Math.random() * height);
+        const shiftX = Math.floor(Math.random() * width);
 
-        const grads = shiftX === 0 && shiftY === 0
-            ? computeGrad(dreamVar)
-            : tf.tidy(() => {
-                const rolled = rollImage(dreamVar, shiftY, shiftX);
-                const gradTensor = computeGrad(rolled);
-                return rollImage(gradTensor, -shiftY, -shiftX);
-            });
-
-        const stepUpdate = tf.tidy(() => {
-            // Normalize gradients using standard deviation (TensorFlow tutorial method)
-            const mean = tf.mean(grads);
-            const variance = tf.mean(tf.square(tf.sub(grads, mean)));
-            const std = tf.sqrt(variance).add(1e-8);
-            const normalized = grads.div(std).mul(config.stepSize);
-            return normalized;
+        const next = tf.tidy(() => {
+            const rolledGrads = computeGrad(rollImage(img, shiftY, shiftX));
+            const grads = rollImage(rolledGrads, -shiftY, -shiftX);
+            const std = tf.moments(grads).variance.sqrt().add(1e-8);
+            return tf.clipByValue(img.add(grads.div(std).mul(CLASSIC.stepSize)), 0, 1);
         });
+        img.dispose();
+        img = next;
 
-        dreamVar.assign(tf.tidy(() => tf.clipByValue(dreamVar.add(stepUpdate), 0, 1)));
-
-        if (config.smoothing > 0) {
-            const smoothed = tf.tidy(() => {
-                const expanded = dreamVar.expandDims(0);
-                const pooled = tf.avgPool(expanded, [3, 3], [1, 1], 'same');
-                return pooled.squeeze();
-            });
-            dreamVar.assign(tf.tidy(() =>
-                dreamVar.mul(1 - config.smoothing).add(smoothed.mul(config.smoothing))
-            ));
-            smoothed.dispose();
-        }
-
-        if (config.contentBlend > 0) {
-            dreamVar.assign(tf.tidy(() =>
-                dreamVar.mul(1 - config.contentBlend).add(baseImage.mul(config.contentBlend))
-            ));
-        }
-
-        grads.dispose();
-        stepUpdate.dispose();
-
-        // Only update UI occasionally to avoid slowdown
         if (step % 10 === 0 || step === steps - 1) {
+            onProgress(step + 1);
             await tf.nextFrame();
         }
     }
 
-    const result = dreamVar.clone();
-    dreamVar.dispose();
+    return img;
+}
+
+// ---------------------------------------------------------------------------
+// Lucid: Fourier-space DeepDream
+// ---------------------------------------------------------------------------
+
+function invert3x3(m) {
+    const [[a, b, c], [d, e, f], [g, h, i]] = m;
+    const det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+    return [
+        [(e * i - f * h) / det, (c * h - b * i) / det, (b * f - c * e) / det],
+        [(f * g - d * i) / det, (a * i - c * g) / det, (c * d - a * f) / det],
+        [(d * h - e * g) / det, (b * g - a * h) / det, (a * e - b * d) / det]
+    ];
+}
+
+// rgb = decorrelated @ toRgb, with Lucid's matrix normalized by its largest column norm.
+function colorMatrices() {
+    const C = COLOR_CORRELATION_SVD_SQRT;
+    const maxNorm = Math.max(...[0, 1, 2].map(j => Math.hypot(C[0][j], C[1][j], C[2][j])));
+    const toRgb = [0, 1, 2].map(i => [0, 1, 2].map(o => C[o][i] / maxNorm));
+    return { toRgb, fromRgb: invert3x3(toRgb) };
+}
+
+// DFT matrices for a real 2D FFT done as matrix products (tfjs has no gradient for its FFT ops).
+function fourierBasis(height, width) {
+    const freqWidth = Math.floor(width / 2) + 1;
+
+    const cosH = new Float32Array(height * height);
+    const sinH = new Float32Array(height * height);
+    for (let k = 0; k < height; k++) {
+        for (let y = 0; y < height; y++) {
+            const angle = 2 * Math.PI * k * y / height;
+            cosH[k * height + y] = Math.cos(angle);
+            sinH[k * height + y] = Math.sin(angle);
+        }
+    }
+
+    const cosW = new Float32Array(freqWidth * width);
+    const sinW = new Float32Array(freqWidth * width);
+    for (let k = 0; k < freqWidth; k++) {
+        for (let x = 0; x < width; x++) {
+            const angle = 2 * Math.PI * k * x / width;
+            cosW[k * width + x] = Math.cos(angle);
+            sinW[k * width + x] = Math.sin(angle);
+        }
+    }
+
+    // Only non-negative x frequencies are stored, so every column but DC (and Nyquist,
+    // for even widths) also stands in for its mirror image when inverting.
+    const columnWeights = new Float32Array(freqWidth).map((_, k) =>
+        (k === 0 || 2 * k === width ? 1 : 2) / width
+    );
+
+    // Lucid's 1/f spectrum scaling: low frequencies take bigger steps than high ones, so the
+    // optimizer builds coherent structure instead of pixel noise. It also folds in Lucid's
+    // divide-by-4 and the 1/height of the inverse DFT.
+    const spectrumScale = new Float32Array(height * freqWidth);
+    for (let y = 0; y < height; y++) {
+        const fy = (y <= (height - 1) / 2 ? y : y - height) / height;
+        for (let x = 0; x < freqWidth; x++) {
+            const freq = Math.max(Math.hypot(x / width, fy), 1 / Math.max(width, height));
+            spectrumScale[y * freqWidth + x] = Math.sqrt(width * height) / freq / (4 * height);
+        }
+    }
+
+    return {
+        height,
+        width,
+        freqWidth,
+        // One copy per color channel for batched matmuls.
+        cosH: tf.tidy(() => tf.tensor2d(cosH, [height, height]).expandDims(0).tile([3, 1, 1])),
+        sinH: tf.tidy(() => tf.tensor2d(sinH, [height, height]).expandDims(0).tile([3, 1, 1])),
+        cosW: tf.tensor2d(cosW, [freqWidth, width]),
+        sinW: tf.tensor2d(sinW, [freqWidth, width]),
+        columnWeights: tf.tensor1d(columnWeights),
+        spectrumScale: tf.tensor2d(spectrumScale, [height, freqWidth])
+    };
+}
+
+function disposeBasis(basis) {
+    Object.values(basis).forEach(value => value instanceof tf.Tensor && value.dispose());
+}
+
+// [3, H, W] decorrelated image -> spectrum (real, imag) that spectrumToImage maps back to it.
+function imageToSpectrum(decorrelated, basis) {
+    return tf.tidy(() => {
+        const { height, width, freqWidth } = basis;
+        const rows = decorrelated.reshape([3 * height, width]);
+        const rowReal = tf.matMul(rows, basis.cosW, false, true).reshape([3, height, freqWidth]);
+        const rowImag = tf.matMul(rows, basis.sinW, false, true).neg().reshape([3, height, freqWidth]);
+        const real = tf.matMul(basis.cosH, rowReal).add(tf.matMul(basis.sinH, rowImag));
+        const imag = tf.matMul(basis.cosH, rowImag).sub(tf.matMul(basis.sinH, rowReal));
+        const norm = basis.spectrumScale.mul(height);
+        return [real.div(norm), imag.div(norm)];
+    });
+}
+
+// Spectrum -> [H, W, 3] image in [0, 1]: inverse real FFT, recorrelate colors, sigmoid.
+function spectrumToImage(real, imag, basis, toRgbFilter) {
+    return tf.tidy(() => {
+        const { height, width, freqWidth } = basis;
+        const scaledReal = real.mul(basis.spectrumScale);
+        const scaledImag = imag.mul(basis.spectrumScale);
+        const colReal = tf.matMul(basis.cosH, scaledReal).sub(tf.matMul(basis.sinH, scaledImag)).mul(basis.columnWeights);
+        const colImag = tf.matMul(basis.cosH, scaledImag).add(tf.matMul(basis.sinH, scaledReal)).mul(basis.columnWeights);
+        const decorrelated = tf.matMul(colReal.reshape([3 * height, freqWidth]), basis.cosW)
+            .sub(tf.matMul(colImag.reshape([3 * height, freqWidth]), basis.sinW))
+            .reshape([3, height, width]);
+        const rgb = tf.conv2d(decorrelated.transpose([1, 2, 0]).expandDims(0), toRgbFilter, 1, 'valid');
+        return tf.sigmoid(rgb).squeeze([0]);
+    });
+}
+
+// Pixels -> [3, H, W] decorrelated logits, so the sigmoid parameterization starts at the photo.
+// Computed in plain JS: on WebGL, log(0) in packed-texture padding turns 3-channel matmuls into NaN.
+function photoToDecorrelated(inputTensor, fromRgb) {
+    const [height, width] = inputTensor.shape;
+    const pixels = inputTensor.dataSync();
+    const count = height * width;
+    const out = new Float32Array(3 * count);
+
+    for (let p = 0; p < count; p++) {
+        const logits = [0, 1, 2].map(c => {
+            const v = Math.min(0.98, Math.max(0.02, pixels[p * 3 + c] / 255));
+            return Math.log(v / (1 - v));
+        });
+        for (let o = 0; o < 3; o++) {
+            out[o * count + p] = logits[0] * fromRgb[0][o] + logits[1] * fromRgb[1][o] + logits[2] * fromRgb[2][o];
+        }
+    }
+
+    return tf.tensor3d(out, [3, height, width]);
+}
+
+function randomCrop(image, amount) {
+    const [height, width] = image.shape;
+    const dy = Math.floor(Math.random() * (amount + 1));
+    const dx = Math.floor(Math.random() * (amount + 1));
+    return image.slice([dy, dx, 0], [height - amount, width - amount, 3]);
+}
+
+// Lucid's standard transforms, minus rotation (tfjs can't backprop through image rotation).
+function lucidTransforms(image) {
+    const { pad } = LUCID;
+    let x = tf.pad(image, [[pad, pad], [pad, pad], [0, 0]], 0.5);
+    x = randomCrop(x, LUCID.jitter);
+    const scale = LUCID.scales[Math.floor(Math.random() * LUCID.scales.length)];
+    const [height, width] = x.shape;
+    x = tf.image.resizeBilinear(x, [Math.round(height * scale), Math.round(width * scale)], false, true);
+    return randomCrop(x, LUCID.jitterAfterScale);
+}
+
+async function lucidDream(inputTensor, steps, layers) {
+    const [height, width] = inputTensor.shape;
+    const basis = fourierBasis(height, width);
+    const { toRgb, fromRgb } = colorMatrices();
+    const toRgbFilter = tf.tensor4d(toRgb.flat(), [1, 1, 3, 3]);
+
+    const decorrelated = photoToDecorrelated(inputTensor, fromRgb);
+    const [initReal, initImag] = imageToSpectrum(decorrelated, basis);
+    decorrelated.dispose();
+    const real = tf.variable(initReal);
+    const imag = tf.variable(initImag);
+    initReal.dispose();
+    initImag.dispose();
+
+    const optimizer = tf.train.adam(LUCID.learningRate);
+
+    for (let step = 0; step < steps; step++) {
+        optimizer.minimize(() => {
+            const image = lucidTransforms(spectrumToImage(real, imag, basis, toRgbFilter));
+            return computeLayerObjective(image.expandDims(0), layers, true).neg();
+        }, false, [real, imag]);
+
+        if (step % 5 === 0 || step === steps - 1) {
+            updateProgress(20 + ((step + 1) / steps) * 65, `Optimizing in Fourier space: step ${step + 1}/${steps}`);
+            await tf.nextFrame();
+        }
+    }
+
+    const result = spectrumToImage(real, imag, basis, toRgbFilter);
+
+    optimizer.dispose();
+    real.dispose();
+    imag.dispose();
+    toRgbFilter.dispose();
+    disposeBasis(basis);
 
     return result;
 }
@@ -520,15 +673,13 @@ async function generateDream() {
         await loadModel();
 
         // Get settings
-        const stepsPerOctave = parseInt(iterationsSlider.value);
-        const dynamicOptions = {
-            ...DREAM_OPTIONS,
-            layers: activeLayers.map(layer => ({ ...layer }))
-        };
+        const steps = parseInt(iterationsSlider.value);
+        const layers = activeLayers.map(layer => ({ ...layer }));
 
-        // Run deep dream with octaves
-        updateProgress(20, 'Dreaming across octaves...');
-        const dreamedImage = await deepDreamWithOctaves(inputImage, stepsPerOctave, dynamicOptions);
+        updateProgress(20, 'Dreaming...');
+        const dreamedImage = activeMethod === 'lucid'
+            ? await lucidDream(inputImage, steps, layers)
+            : await deepDreamWithOctaves(inputImage, steps, layers);
 
         // Display results
         updateProgress(95, 'Finalizing...');

@@ -55,14 +55,22 @@
             <!-- Controls Section -->
             <section class="controls-section">
                 <div class="control-group">
-                    <label for="iterationsSlider">Steps per Octave: <span id="iterationsValue">100</span></label>
+                    <label for="methodSelect">Method</label>
+                    <select id="methodSelect">
+                        <option value="classic" selected>Classic — pixel space with octaves (TF tutorial)</option>
+                        <option value="lucid">Lucid — Fourier space with decorrelated color</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="iterationsSlider"><span id="iterationsLabel">Steps per Octave</span>: <span id="iterationsValue">100</span></label>
                     <input type="range" id="iterationsSlider" min="10" max="150" value="100" step="10">
                 </div>
 
                 <div class="control-group">
                     <label for="layerSelect">DeepDream Objective</label>
                     <select id="layerSelect">
-                        <option value="multi" selected>Classic (mixed3 + mixed5)</option>
+                        <option value="multi" selected>mixed3 + mixed5 (tutorial)</option>
                         <option value="mixed3">mixed3 — low-level features</option>
                         <option value="mixed4">mixed4 — patterns</option>
                         <option value="mixed5">mixed5 — shapes & motifs</option>
@@ -100,7 +108,7 @@
         <footer>
             <p>Powered by TensorFlow.js & InceptionV3</p>
             <p class="note">All processing happens in your browser - no data is uploaded</p>
-            <p class="note">Learn more in the <a href="https://www.tensorflow.org/tutorials/generative/deepdream" target="_blank" rel="noopener noreferrer">TensorFlow DeepDream tutorial</a>.</p>
+            <p class="note">Learn more in the <a href="https://www.tensorflow.org/tutorials/generative/deepdream" target="_blank" rel="noopener noreferrer">TensorFlow DeepDream tutorial</a> and <a href="https://github.com/tensorflow/lucid" target="_blank" rel="noopener noreferrer">Lucid</a>.</p>
         </footer>
     </div>
 
