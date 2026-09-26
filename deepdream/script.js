@@ -91,8 +91,9 @@ const COLOR_CORRELATION_SVD_SQRT = [
     [0.27, -0.09, 0.03]
 ];
 
-let activeLayers = LAYER_PRESETS.multi;
-let activeMethod = 'classic';
+// Defaults come from the selected <option>s (Lucid on mixed5).
+let activeLayers = LAYER_PRESETS[layerSelect.value] || LAYER_PRESETS.mixed5;
+let activeMethod = methodSelect.value;
 let runtimeProfile = { ...FULL_PROFILE };
 
 function webglTensorSelfTest() {

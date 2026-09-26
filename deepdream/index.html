@@ -57,23 +57,23 @@
                 <div class="control-group">
                     <label for="methodSelect">Method</label>
                     <select id="methodSelect">
-                        <option value="classic" selected>Classic — pixel space with octaves (TF tutorial)</option>
-                        <option value="lucid">Lucid — Fourier space with decorrelated color</option>
+                        <option value="lucid" selected>Lucid — Fourier space with decorrelated color</option>
+                        <option value="classic">Classic — pixel space with octaves (TF tutorial)</option>
                     </select>
                 </div>
 
                 <div class="control-group">
-                    <label for="iterationsSlider"><span id="iterationsLabel">Steps per Octave</span>: <span id="iterationsValue">100</span></label>
-                    <input type="range" id="iterationsSlider" min="10" max="150" value="100" step="10">
+                    <label for="iterationsSlider"><span id="iterationsLabel">Steps</span>: <span id="iterationsValue">256</span></label>
+                    <input type="range" id="iterationsSlider" min="32" max="512" value="256" step="32">
                 </div>
 
                 <div class="control-group">
                     <label for="layerSelect">DeepDream Objective</label>
                     <select id="layerSelect">
-                        <option value="multi" selected>mixed3 + mixed5 (tutorial)</option>
+                        <option value="multi">mixed3 + mixed5 (tutorial)</option>
                         <option value="mixed3">mixed3 — low-level features</option>
                         <option value="mixed4">mixed4 — patterns</option>
-                        <option value="mixed5">mixed5 — shapes & motifs</option>
+                        <option value="mixed5" selected>mixed5 — shapes & motifs</option>
                         <option value="mixed6">mixed6 — complex forms</option>
                         <option value="mixed7">mixed7 — high-level features</option>
                     </select>
