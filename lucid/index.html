@@ -13,7 +13,7 @@
     <div class="container">
         <header>
             <h1>Lucid Feature Visualization</h1>
-            <p class="subtitle">Explore neuron, channel, and class features in InceptionV3</p>
+            <p class="subtitle">Explore neuron, channel, and class features in InceptionV3 and an adversarially robust ResNet-50</p>
         </header>
 
         <main>
@@ -28,15 +28,29 @@
             <!-- Controls Section -->
             <section class="controls-section">
                 <div class="control-group">
+                    <h3>Model</h3>
+                    <select id="modelSelect" class="layer-select" disabled>
+                        <option value="robust" selected>Robust ResNet-50 (L2 ε=3)</option>
+                        <option value="inception">InceptionV3 (standard)</option>
+                    </select>
+                    <p class="control-description">Adversarially trained models can't be moved by imperceptible pixel patterns, so their visualizations show recognizable objects</p>
+                </div>
+
+                <div class="control-group">
                     <h3>Layer Selection</h3>
                     <select id="layerSelect" class="layer-select" disabled>
                         <option value="" selected>Loading layers...</option>
                     </select>
-                    <p class="control-description">Browse the internal InceptionV3 layers discovered from the loaded graph</p>
+                    <p class="control-description">Browse the model's internal layers, from early edges and textures to late object parts</p>
                 </div>
 
                 <div class="control-group">
-                    <h3 id="targetHeading">Feature Channel</h3>
+                    <h3 id="targetHeading">ImageNet Class</h3>
+                    <div id="classSearchRow" class="class-search" hidden>
+                        <input type="text" id="classSearch" class="channel-input" list="classOptions"
+                               placeholder="Search classes, e.g. toilet tissue" autocomplete="off">
+                        <datalist id="classOptions"></datalist>
+                    </div>
                     <div class="channel-controls">
                         <input type="number" id="channelIndex" class="channel-input"
                                min="0" max="0" value="0" disabled>
@@ -44,7 +58,7 @@
                     </div>
                     <input type="range" id="channelSlider" class="channel-slider"
                            min="0" max="0" value="0" disabled>
-                    <p id="targetDescription" class="control-description">Choose a channel; the objective setting decides whether to target its center neuron or full activation map</p>
+                    <p id="targetDescription" class="control-description">Choose a final ImageNet class index to maximize at the model output</p>
                     <div id="targetDetail" class="target-detail" hidden>
                         <span class="target-detail-label">Class Name</span>
                         <span id="targetDetailValue" class="target-detail-value">-</span>
@@ -54,11 +68,11 @@
                 <div class="control-group">
                     <h3>Objective</h3>
                     <select id="objectiveMode" class="layer-select" disabled>
-                        <option value="neuron" selected>Center Neuron</option>
+                        <option value="neuron">Center Neuron</option>
                         <option value="channel">Full Channel</option>
-                        <option value="class">ImageNet Class</option>
+                        <option value="class" selected>ImageNet Class</option>
                     </select>
-                    <p id="objectiveDescription" class="control-description">Target the center neuron of the selected channel for Lucid-style localized features</p>
+                    <p id="objectiveDescription" class="control-description">Target the model output directly by maximizing a final ImageNet class activation</p>
                 </div>
 
                 <div class="control-group">
@@ -98,7 +112,7 @@
                 </div>
 
                 <button id="visualizeBtn" class="visualize-btn" disabled>
-                    <span id="btnText">Visualize Neuron</span>
+                    <span id="btnText">Visualize Class</span>
                 </button>
             </section>
 
@@ -155,11 +169,12 @@
                 and <a href="https://distill.pub/2017/feature-visualization/" target="_blank">Feature Visualization</a>
             </p>
             <p class="tech-note">
-                Running InceptionV3 with TensorFlow.js in your browser
+                Running InceptionV3 and a robust ResNet-50 (<a href="https://arxiv.org/abs/2007.08489" target="_blank">Salman et al.</a>) with TensorFlow.js in your browser
             </p>
         </footer>
     </div>
 
+    <script src="robust-resnet.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

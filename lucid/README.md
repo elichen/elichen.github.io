@@ -4,7 +4,7 @@ A browser-based implementation of neural network feature visualization, inspired
 
 ## Overview
 
-This tool visualizes what units in InceptionV3 "see" by optimizing an input image to maximally activate either a center neuron, an entire channel, or a final ImageNet class output. Unlike DeepDream which enhances all features, this focuses on targeted internal activations to show what patterns each unit responds to.
+This tool visualizes what units in InceptionV3 and an adversarially robust ResNet-50 "see" by optimizing an input image to maximally activate either a center neuron, an entire channel, or a final ImageNet class output. Unlike DeepDream which enhances all features, this focuses on targeted internal activations to show what patterns each unit responds to.
 
 ## Features
 
@@ -20,7 +20,11 @@ This tool visualizes what units in InceptionV3 "see" by optimizing an input imag
 - **Total Variation**: Encourages spatial smoothness
 - **L2 Decay**: Pulls pixels toward mid-gray to rein in saturation
 
-### Layers Available
+### Models
+- **InceptionV3** (TF Hub): the standard model. Neuron and channel renders show detailed textures, but class renders mostly fool the network with patterns people can't recognize.
+- **Robust ResNet-50** (L2, ε=3) from [Salman et al.](https://arxiv.org/abs/2007.08489), weights from [madrylab/robust-imagenet-models](https://huggingface.co/madrylab/robust-imagenet-models) (MIT). Adversarial training means no imperceptible pattern can move its outputs much, so its class renders show recognizable objects (apples, pandas, toilet paper). The 51 MB of float16 weights in `robust-resnet50/` load on first use; `robust-resnet.js` implements the network in TensorFlow.js ops, with batch norm folded into the convolutions.
+
+### Layers Available (InceptionV3)
 - **Mixed_6a** (768 channels): Early patterns and textures
 - **Mixed_6b** (768 channels): Mid-level features and parts
 - **Mixed_6c** (768 channels): Complex recurring patterns
@@ -29,7 +33,9 @@ This tool visualizes what units in InceptionV3 "see" by optimizing an input imag
 
 ## Usage
 
-1. **Select Layer**: Choose which InceptionV3 layer to visualize
+The app opens on the robust ResNet-50 in ImageNet class mode, targeting class 1000 (toilet tissue). InceptionV3 loads from TensorFlow Hub the first time you select it.
+
+1. **Select Model and Layer**: Choose the robust ResNet-50 or InceptionV3, and which layer to visualize
 2. **Choose Channel**: Select a specific channel index
 3. **Choose Objective**:
     - **Center Neuron**: More localized and closer to classic Lucid neuron renders
@@ -62,6 +68,7 @@ Instead of optimizing pixels directly, the app learns Fourier coefficients:
 ### Implementation Stack
 - **TensorFlow.js**: Neural network operations and model execution
 - **InceptionV3**: Pretrained model from TensorFlow Hub
+- **Robust ResNet-50**: PyTorch checkpoint exported to float16 TensorFlow.js weights
 - **WebGPU Backend**: GPU acceleration in the browser, falling back to WebGL
 - **No Build Process**: Pure JavaScript, runs directly in browser
 
@@ -79,9 +86,11 @@ Instead of optimizing pixels directly, the app learns Fourier coefficients:
 - Channel 500-600: Curved and organic shapes
 
 ### Final ImageNet Classes
-- Class 281: tabby, tabby cat
-- Class 388: giant panda, panda, panda bear, coon bear, Ailuropoda melanoleuca
-- Class 948: Granny Smith
+Class numbers follow the 1001-entry label file, where 0 is "background" (the robust ResNet has no background class, so its range starts at 1). Search by name in class mode, or try:
+- Class 282: tabby
+- Class 389: giant panda
+- Class 949: Granny Smith
+- Class 1000: toilet tissue (try it on the robust model)
 
 ## Tips for Best Results
 

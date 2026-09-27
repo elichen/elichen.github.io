@@ -1,12 +1,22 @@
-// Lucid Feature Visualization for InceptionV3
+// Lucid Feature Visualization for InceptionV3 and an adversarially robust ResNet-50
 // Inspired by the original Lucid library (https://github.com/tensorflow/lucid)
 
 // Global state
 let inceptionModel = null;
+let robustModel = null;
+let activeModelKey = null;
+// Toilet paper is a class the standard model can't draw but the robust one can.
+const DEFAULT_CLASS_INDEX = 1000;
 let isOptimizing = false;
 let visualizationHistory = [];
-const MODEL_INPUT_RESOLUTION = 299;
 const DISPLAY_RESOLUTION = 512;
+
+// Class targets use the 1001-entry ImageNet label file (0 = background); classOffset converts a
+// label index into the model's logit index, since the ResNet has no background class.
+const MODELS = {
+    inception: { name: 'InceptionV3', resolution: 299, classOffset: 0 },
+    robust: { name: 'Robust ResNet-50', resolution: 224, classOffset: 1 }
+};
 const IMAGENET_LABELS_URL = 'https://storage.googleapis.com/download.tensorflow.org/data/ImageNetLabels.txt';
 const IMAGENET_OUTPUT_LABEL = 'ImageNet Classification';
 const DEFAULT_IMAGENET_CLASS_COUNT = 1001;
@@ -44,6 +54,28 @@ let INCEPTION_LAYERS = {
     }
 };
 
+// Neuron and channel targets use each block's pre-ReLU sum, like the Inception concat nodes.
+const ROBUST_LAYERS = Object.fromEntries(
+    Object.entries(RobustResNet50.layerChannels()).map(([key, channels]) => [
+        key,
+        { name: key === 'conv1' ? key : `${key}/pre_relu`, channels }
+    ])
+);
+
+const INCEPTION_LAYER_GROUPS = {
+    'Early Layers': ['Conv2d_1a_3x3', 'Conv2d_2a_3x3', 'Conv2d_2b_3x3', 'Conv2d_3b_1x1', 'Conv2d_4a_3x3'],
+    'Mid-Level Mixed': ['Mixed_5b', 'Mixed_5c', 'Mixed_5d', 'Mixed_6a', 'Mixed_6b', 'Mixed_6c', 'Mixed_6d', 'Mixed_6e'],
+    'High-Level Mixed': ['Mixed_7a', 'Mixed_7b', 'Mixed_7c']
+};
+
+const ROBUST_LAYER_GROUPS = {
+    Stem: ['conv1'],
+    ...Object.fromEntries([1, 2, 3, 4].map(layer => [
+        `Layer ${layer}`,
+        Object.keys(ROBUST_LAYERS).filter(key => key.startsWith(`layer${layer}.`))
+    ]))
+};
+
 // DOM Elements
 const elements = {
     // Status
@@ -52,12 +84,16 @@ const elements = {
     statusDot: document.querySelector('.status-dot'),
 
     // Controls
+    modelSelect: document.getElementById('modelSelect'),
     layerSelect: document.getElementById('layerSelect'),
     targetHeading: document.getElementById('targetHeading'),
     objectiveMode: document.getElementById('objectiveMode'),
     objectiveDescription: document.getElementById('objectiveDescription'),
     targetDescription: document.getElementById('targetDescription'),
     targetDetail: document.getElementById('targetDetail'),
+    classSearchRow: document.getElementById('classSearchRow'),
+    classSearch: document.getElementById('classSearch'),
+    classOptions: document.getElementById('classOptions'),
     targetDetailValue: document.getElementById('targetDetailValue'),
     channelIndex: document.getElementById('channelIndex'),
     channelSlider: document.getElementById('channelSlider'),
@@ -104,12 +140,13 @@ async function init() {
     await selectBackend();
     console.log('TensorFlow.js backend:', tf.getBackend());
 
-    // Load model
-    await loadModel();
+    // Load labels and the selected model (the robust ResNet-50 by default)
+    await loadImageNetLabels();
+    await switchModel(elements.modelSelect.value);
+    setTargetIndex(DEFAULT_CLASS_INDEX);
 
     // Set up event listeners
     setupEventListeners();
-    updateObjectiveModeUI();
 }
 
 // WebGPU is fastest where available; fall back to WebGL, then CPU.
@@ -127,38 +164,25 @@ async function selectBackend() {
     throw new Error('Unable to initialize any TensorFlow.js backend.');
 }
 
-async function loadModel() {
-    try {
-        updateStatus('Loading InceptionV3 model...', 'loading');
+// Models load on first use.
+async function ensureModelLoaded(modelKey) {
+    if (modelKey === 'robust' && !robustModel) {
+        updateStatus('Loading robust ResNet-50 (51 MB)...', 'loading');
+        robustModel = await RobustResNet50.load('robust-resnet50/');
+    }
 
-        // Load InceptionV3 from TensorFlow Hub
+    if (modelKey === 'inception' && !inceptionModel) {
+        updateStatus('Loading InceptionV3 model...', 'loading');
         inceptionModel = await tf.loadGraphModel(
             'https://tfhub.dev/google/tfjs-model/imagenet/inception_v3/classification/3/default/1',
             { fromTFHub: true }
         );
-
         configureImageNetOutput();
-
-        // Discover and populate all available layers
         discoverAllLayers();
-        await loadImageNetLabels();
-
-        updateStatus('Model ready', 'ready');
-        enableControls(true);
-        updateObjectiveModeUI();
-
-        console.log('InceptionV3 model loaded successfully');
-    } catch (error) {
-        console.error('Failed to load model:', error);
-        updateStatus('Failed to load model', 'error');
     }
 }
 
 function discoverAllLayers() {
-    // Clear existing layer options
-    const layerSelect = elements.layerSelect;
-    layerSelect.innerHTML = '';
-
     // InceptionV3 common layer names and their typical channel counts
     // We'll try to detect and use all available layers
     const allLayers = {};
@@ -226,12 +250,12 @@ function discoverAllLayers() {
     // Update the global INCEPTION_LAYERS
     Object.assign(INCEPTION_LAYERS, allLayers);
 
-    // Populate the select dropdown
-    const groups = {
-        'Early Layers': ['Conv2d_1a_3x3', 'Conv2d_2a_3x3', 'Conv2d_2b_3x3', 'Conv2d_3b_1x1', 'Conv2d_4a_3x3'],
-        'Mid-Level Mixed': ['Mixed_5b', 'Mixed_5c', 'Mixed_5d', 'Mixed_6a', 'Mixed_6b', 'Mixed_6c', 'Mixed_6d', 'Mixed_6e'],
-        'High-Level Mixed': ['Mixed_7a', 'Mixed_7b', 'Mixed_7c']
-    };
+    console.log(`Discovered ${Object.keys(allLayers).length} layers in InceptionV3`);
+}
+
+function populateLayerSelect(layers, groups, defaultLayer) {
+    const layerSelect = elements.layerSelect;
+    layerSelect.innerHTML = '';
 
     // Add optgroups for better organization
     Object.entries(groups).forEach(([groupName, layerNames]) => {
@@ -239,10 +263,10 @@ function discoverAllLayers() {
         optgroup.label = groupName;
 
         layerNames.forEach(layerName => {
-            if (allLayers[layerName]) {
+            if (layers[layerName]) {
                 const option = document.createElement('option');
                 option.value = layerName;
-                option.textContent = `${layerName} (${allLayers[layerName].channels} channels)`;
+                option.textContent = `${layerName} (${layers[layerName].channels} channels)`;
                 optgroup.appendChild(option);
             }
         });
@@ -252,19 +276,51 @@ function discoverAllLayers() {
         }
     });
 
-    // Set default selection to Mixed_6b if available
-    if (allLayers['Mixed_6b']) {
-        layerSelect.value = 'Mixed_6b';
+    if (layers[defaultLayer]) {
+        layerSelect.value = defaultLayer;
     } else if (layerSelect.options.length > 0) {
         layerSelect.selectedIndex = Math.floor(layerSelect.options.length / 2);
     }
 
-    // Update channel slider based on selection
     if (layerSelect.options.length > 0) {
         updateChannelRange();
     }
+}
 
-    console.log(`Discovered ${Object.keys(allLayers).length} layers in InceptionV3`);
+function currentModel() {
+    return activeModelKey === 'robust' ? robustModel : inceptionModel;
+}
+
+function currentLayers() {
+    return activeModelKey === 'robust' ? ROBUST_LAYERS : INCEPTION_LAYERS;
+}
+
+async function switchModel(modelKey) {
+    if (modelKey === activeModelKey) {
+        return;
+    }
+
+    enableControls(false);
+    try {
+        await ensureModelLoaded(modelKey);
+
+        activeModelKey = modelKey;
+        if (modelKey === 'robust') {
+            populateLayerSelect(ROBUST_LAYERS, ROBUST_LAYER_GROUPS, 'layer4.0');
+        } else {
+            populateLayerSelect(INCEPTION_LAYERS, INCEPTION_LAYER_GROUPS, 'Mixed_6b');
+        }
+        updateStatus(`${MODELS[modelKey].name} ready`, 'ready');
+    } catch (error) {
+        console.error(`Failed to load ${MODELS[modelKey].name}:`, error);
+        updateStatus(`Failed to load ${MODELS[modelKey].name}`, 'error');
+    } finally {
+        if (activeModelKey) {
+            elements.modelSelect.value = activeModelKey;
+            enableControls(true);
+            updateObjectiveModeUI();
+        }
+    }
 }
 
 function configureImageNetOutput() {
@@ -291,10 +347,60 @@ async function loadImageNetLabels() {
 
         imagenetLabels = labels.slice(0, imagenetClassCount);
         console.log(`Loaded ${imagenetLabels.length} ImageNet labels`);
+        populateClassOptions();
     } catch (error) {
         console.warn('Failed to load ImageNet labels:', error);
         imagenetLabels = [];
     }
+}
+
+// Suggestions read "1000: toilet tissue", so typing part of a name finds it and carries the index along.
+function formatClassOption(classIndex) {
+    return `${classIndex}: ${getImageNetLabel(classIndex)}`;
+}
+
+function populateClassOptions() {
+    elements.classOptions.innerHTML = '';
+    for (let classIndex = 1; classIndex < imagenetLabels.length; classIndex++) {
+        const option = document.createElement('option');
+        option.value = formatClassOption(classIndex);
+        elements.classOptions.appendChild(option);
+    }
+}
+
+// Accepts a picked suggestion, or free text matched against class names on commit.
+function findClassIndex(text, allowPartial) {
+    const picked = /^(\d+):/.exec(text.trim());
+    if (picked) {
+        return Number.parseInt(picked[1], 10);
+    }
+
+    const query = text.trim().toLowerCase();
+    if (!allowPartial || !query) {
+        return null;
+    }
+    const exact = imagenetLabels.findIndex((label, i) => i > 0 && label.toLowerCase() === query);
+    if (exact > 0) {
+        return exact;
+    }
+    const partial = imagenetLabels.findIndex((label, i) => i > 0 && label.toLowerCase().includes(query));
+    return partial > 0 ? partial : null;
+}
+
+function selectClassFromSearch(allowPartial) {
+    const classIndex = findClassIndex(elements.classSearch.value, allowPartial);
+    if (classIndex !== null) {
+        setTargetIndex(classIndex);
+    }
+}
+
+function setTargetIndex(index) {
+    if (index < Number(elements.channelIndex.min) || index > Number(elements.channelIndex.max)) {
+        return;
+    }
+    elements.channelIndex.value = index;
+    elements.channelSlider.value = index;
+    updateTargetDetail();
 }
 
 function getImageNetLabel(classIndex) {
@@ -305,8 +411,8 @@ function getImageNetLabel(classIndex) {
     return imagenetLabels[classIndex] || `ImageNet class ${classIndex}`;
 }
 
-function getVisualizationLayerLabel(objectiveMode, layerKey) {
-    return objectiveMode === 'class' ? IMAGENET_OUTPUT_LABEL : layerKey;
+function getVisualizationLayerLabel(modelKey, objectiveMode, layerKey) {
+    return `${MODELS[modelKey].name} · ${objectiveMode === 'class' ? IMAGENET_OUTPUT_LABEL : layerKey}`;
 }
 
 function formatTargetValue(objectiveMode, targetIndex) {
@@ -604,7 +710,7 @@ function l2Penalty(image) {
 
 function computeChannelObjective(batchedImage, layerName, channelIndex) {
     return tf.tidy(() => {
-        const activations = inceptionModel.execute(batchedImage, layerName);
+        const activations = currentModel().execute(batchedImage, layerName);
         const channelActivations = activations.slice(
             [0, 0, 0, channelIndex],
             [1, -1, -1, 1]
@@ -616,7 +722,7 @@ function computeChannelObjective(batchedImage, layerName, channelIndex) {
 
 function computeNeuronObjective(batchedImage, layerName, channelIndex) {
     return tf.tidy(() => {
-        const activations = inceptionModel.execute(batchedImage, layerName);
+        const activations = currentModel().execute(batchedImage, layerName);
         const [, height, width] = activations.shape;
         const centerY = Math.floor(height / 2);
         const centerX = Math.floor(width / 2);
@@ -631,10 +737,11 @@ function computeNeuronObjective(batchedImage, layerName, channelIndex) {
 
 function computeClassObjective(batchedImage, classIndex) {
     return tf.tidy(() => {
-        const output = inceptionModel.execute(batchedImage);
+        const output = currentModel().execute(batchedImage);
         const scores = Array.isArray(output) ? output[0] : output;
         const flattenedScores = scores.reshape([scores.shape[0], -1]);
-        const classActivation = flattenedScores.slice([0, classIndex], [1, 1]);
+        const logitIndex = classIndex - MODELS[activeModelKey].classOffset;
+        const classActivation = flattenedScores.slice([0, logitIndex], [1, 1]);
 
         return tf.mean(classActivation);
     });
@@ -679,8 +786,9 @@ function updateObjectiveModeUI() {
 
 async function optimizeVisualization(layerKey, channelIndex, config) {
     const startTime = Date.now();
-    const layerInfo = config.objectiveMode === 'class' ? null : INCEPTION_LAYERS[layerKey];
-    const resultLayerLabel = getVisualizationLayerLabel(config.objectiveMode, layerKey);
+    const modelKey = activeModelKey;
+    const layerInfo = config.objectiveMode === 'class' ? null : currentLayers()[layerKey];
+    const resultLayerLabel = getVisualizationLayerLabel(modelKey, config.objectiveMode, layerKey);
     const totalSteps = config.steps;
     let objectiveFn;
 
@@ -698,7 +806,7 @@ async function optimizeVisualization(layerKey, channelIndex, config) {
 
     let finalImage = null;
     let displayTensor = null;
-    const parameterization = createFourierParameter(MODEL_INPUT_RESOLUTION);
+    const parameterization = createFourierParameter(MODELS[modelKey].resolution);
     const optimizer = tf.train.adam(config.learningRate);
 
     try {
@@ -746,7 +854,7 @@ async function optimizeVisualization(layerKey, channelIndex, config) {
 
         updateVisualizationInfo(config.objectiveMode, resultLayerLabel, channelIndex, finalObjective, elapsedTime);
 
-        await addToHistory(config.objectiveMode, layerKey, channelIndex, displayTensor);
+        await addToHistory(modelKey, config.objectiveMode, layerKey, channelIndex, displayTensor);
     } finally {
         disposeFourierParameter(parameterization);
         optimizer.dispose();
@@ -801,16 +909,18 @@ function updateVisualizationInfo(objectiveMode, layerKey, channelIndex, loss, ti
 }
 
 function enableControls(enabled) {
+    elements.modelSelect.disabled = !enabled;
     elements.layerSelect.disabled = !enabled || elements.objectiveMode.value === 'class';
     elements.objectiveMode.disabled = !enabled;
     elements.channelIndex.disabled = !enabled;
+    elements.classSearch.disabled = !enabled;
     elements.channelSlider.disabled = !enabled;
     elements.visualizeBtn.disabled = !enabled;
 }
 
 // ========== Gallery Functions ==========
 
-async function addToHistory(objectiveMode, layerKey, channelIndex, imageTensor) {
+async function addToHistory(modelKey, objectiveMode, layerKey, channelIndex, imageTensor) {
     // Create thumbnail
     const thumbnailCanvas = document.createElement('canvas');
     thumbnailCanvas.width = 150;
@@ -831,8 +941,9 @@ async function addToHistory(objectiveMode, layerKey, channelIndex, imageTensor) 
 
     // Add to history
     visualizationHistory.unshift({
+        model: modelKey,
         mode: objectiveMode,
-        layer: getVisualizationLayerLabel(objectiveMode, layerKey),
+        layer: getVisualizationLayerLabel(modelKey, objectiveMode, layerKey),
         sourceLayer: layerKey,
         channel: channelIndex,
         targetLabel: formatTargetValue(objectiveMode, channelIndex),
@@ -867,8 +978,13 @@ function updateGallery() {
             </div>
         `;
 
-        galleryItem.addEventListener('click', () => {
+        galleryItem.addEventListener('click', async () => {
+            if (isOptimizing) {
+                return;
+            }
+
             // Load this configuration
+            await switchModel(item.model);
             elements.objectiveMode.value = item.mode || 'neuron';
             updateObjectiveModeUI();
 
@@ -889,9 +1005,20 @@ function updateGallery() {
 // ========== Event Listeners ==========
 
 function setupEventListeners() {
+    elements.modelSelect.addEventListener('change', (e) => {
+        if (isOptimizing) {
+            e.target.value = activeModelKey;
+            return;
+        }
+        switchModel(e.target.value);
+    });
+
     // Layer selection change
     elements.layerSelect.addEventListener('change', updateChannelRange);
     elements.objectiveMode.addEventListener('change', updateObjectiveModeUI);
+
+    elements.classSearch.addEventListener('input', () => selectClassFromSearch(false));
+    elements.classSearch.addEventListener('change', () => selectClassFromSearch(true));
 
     // Channel input sync
     elements.channelIndex.addEventListener('input', (e) => {
@@ -917,11 +1044,12 @@ function setupEventListeners() {
 function updateChannelRange() {
     const objectiveMode = elements.objectiveMode.value;
     const isClassMode = objectiveMode === 'class';
+    const minTarget = isClassMode ? MODELS[activeModelKey].classOffset : 0;
     const maxTarget = isClassMode
         ? imagenetClassCount - 1
-        : (INCEPTION_LAYERS[elements.layerSelect.value]?.channels || 0) - 1;
+        : (currentLayers()[elements.layerSelect.value]?.channels || 0) - 1;
 
-    elements.layerSelect.disabled = !inceptionModel || isClassMode;
+    elements.layerSelect.disabled = !currentModel() || isClassMode;
     elements.targetHeading.textContent = isClassMode ? 'ImageNet Class' : 'Feature Channel';
     elements.targetDescription.textContent = isClassMode
         ? 'Choose a final ImageNet class index to maximize at the model output'
@@ -935,16 +1063,17 @@ function updateChannelRange() {
         return;
     }
 
+    elements.channelIndex.min = minTarget;
+    elements.channelSlider.min = minTarget;
     elements.channelIndex.max = maxTarget;
     elements.channelSlider.max = maxTarget;
-    elements.channelMax.textContent = isClassMode
-        ? `/ ${imagenetClassCount}`
-        : `/ ${maxTarget + 1}`;
+    elements.channelMax.textContent = `/ ${maxTarget - minTarget + 1}`;
 
     // Clamp current value
-    if (Number.parseInt(elements.channelIndex.value, 10) > maxTarget) {
-        elements.channelIndex.value = 0;
-        elements.channelSlider.value = 0;
+    const currentTarget = Number.parseInt(elements.channelIndex.value, 10);
+    if (!(currentTarget >= minTarget && currentTarget <= maxTarget)) {
+        elements.channelIndex.value = minTarget;
+        elements.channelSlider.value = minTarget;
     }
 
     updateTargetDetail();
@@ -955,11 +1084,16 @@ function updateTargetDetail() {
         const classIndex = Number.parseInt(elements.channelIndex.value, 10) || 0;
         elements.targetDetailValue.textContent = getImageNetLabel(classIndex);
         elements.targetDetail.hidden = false;
+        elements.classSearchRow.hidden = false;
+        if (findClassIndex(elements.classSearch.value, false) !== classIndex) {
+            elements.classSearch.value = classIndex > 0 ? formatClassOption(classIndex) : '';
+        }
         return;
     }
 
     elements.targetDetailValue.textContent = '';
     elements.targetDetail.hidden = true;
+    elements.classSearchRow.hidden = true;
 }
 
 async function startVisualization() {
@@ -1005,9 +1139,9 @@ function downloadVisualization() {
     const objectiveMode = elements.objectiveMode.value;
     if (objectiveMode === 'class') {
         const classSlug = sanitizeForFilename(getImageNetLabel(Number.parseInt(channelIndex, 10) || 0));
-        link.download = `lucid_class_imagenet_${channelIndex}_${classSlug}.png`;
+        link.download = `lucid_${activeModelKey}_class_imagenet_${channelIndex}_${classSlug}.png`;
     } else {
-        link.download = `lucid_${objectiveMode}_${layerKey}_channel${channelIndex}.png`;
+        link.download = `lucid_${activeModelKey}_${objectiveMode}_${layerKey}_channel${channelIndex}.png`;
     }
     link.href = elements.canvas.toDataURL();
     link.click();
@@ -1015,6 +1149,7 @@ function downloadVisualization() {
 
 function shareSettings() {
     const settings = {
+        model: activeModelKey,
         objectiveMode: elements.objectiveMode.value,
         layer: elements.layerSelect.value,
         channel: elements.channelIndex.value,

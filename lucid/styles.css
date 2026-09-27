@@ -144,6 +144,15 @@ h1 {
     word-break: break-word;
 }
 
+.class-search {
+    margin-bottom: 0.5rem;
+}
+
+.class-search .channel-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
 /* Layer Selection */
 .layer-select {
     width: 100%;
