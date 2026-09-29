@@ -1,12 +1,12 @@
-/* Aizome: indigo-dyed cloth on undyed cotton. Colors from traditional Japanese dye names. */
+/* Aizome: indigo-dyed cloth on white. Colors from traditional Japanese dye names. */
 :root {
-  --kinari: #f6f3ea;      /* 生成り undyed cotton: page and table */
+  --paper: #ffffff;       /* page and table */
   --ai: #165e83;          /* 藍色 indigo */
   --kamenozoki: #a2d7dd;  /* 瓶覗 palest indigo */
   --aitetsu: #393f4c;     /* 藍鉄 indigo-iron ink */
   --namari: #7b7c7d;      /* 鉛色 lead gray */
   --akane: #b7282e;       /* 茜 madder */
-  --rule: #ded8c8;
+  --rule: #e2e2e2;
   --mincho: 'Zen Old Mincho', 'Hiragino Mincho ProN', Georgia, serif;
   --gothic: 'Zen Kaku Gothic New', 'Hiragino Sans', system-ui, sans-serif;
 }
@@ -15,7 +15,7 @@
 
 body {
   margin: 0;
-  background: var(--kinari);
+  background: var(--paper);
   color: var(--aitetsu);
   font: 15px/1.6 var(--gothic);
 }
@@ -94,7 +94,7 @@ button:hover { border-color: var(--ai); }
 button[aria-pressed='true'] {
   background: var(--ai);
   border-color: var(--ai);
-  color: var(--kinari);
+  color: var(--paper);
 }
 
 .scenes { display: flex; flex-wrap: wrap; gap: 6px; }

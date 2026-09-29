@@ -2,13 +2,13 @@
 // the engine's position ring, a gridded table, obstacles, grippers and a shadow map.
 //
 // Palette (traditional Japanese dye colors): 藍色 indigo cloth, 瓶覗 pale-indigo reverse,
-// 生成り undyed-cotton table, 鉛色 lead-gray obstacles, 茜 madder grippers, 藍鉄 ink.
+// a white table, 鉛色 lead-gray obstacles, 茜 madder grippers, 藍鉄 ink.
 
 export const PALETTE = {
   cloth: [0x16, 0x5e, 0x83],
   back: [0xa2, 0xd7, 0xdd],
-  table: [0xf6, 0xf3, 0xea],
-  grid: [0xde, 0xd8, 0xc8],
+  table: [0xff, 0xff, 0xff],
+  grid: [0xe2, 0xe2, 0xe2],
   obstacle: [0x7b, 0x7c, 0x7d],
   gripper: [0xb7, 0x28, 0x2e],
   ink: [0x39, 0x3f, 0x4c],
