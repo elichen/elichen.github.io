@@ -1,0 +1,2417 @@
+{
+ "config": {
+  "latent": 128,
+  "hidden": 128,
+  "mlp_layers": 2,
+  "schedule": [
+   0,
+   0,
+   0,
+   1,
+   1,
+   2,
+   2,
+   2,
+   2,
+   1,
+   1,
+   0,
+   0,
+   0
+  ],
+  "noise_std": 0.0005,
+  "noise_gamma": 0.1
+ },
+ "strides": [
+  1,
+  2,
+  4
+ ],
+ "nbr_k": 8,
+ "world_k": 8,
+ "world_r": 0.03,
+ "d_clip": 0.05,
+ "kb_log_mid": -5.25,
+ "kb_log_half": 1.0,
+ "wind_scale": 4.0,
+ "grip_k": 2,
+ "grip_scale": 0.5,
+ "contact_d": 0.006,
+ "spacing": 0.02,
+ "obs_offset": 0.003,
+ "self_exclude": 0.042,
+ "frame_dt": 0.016666666666666666,
+ "dhat": 0.003,
+ "stats": {
+  "vel_mean": [
+   0.0001777588768163696,
+   -0.000819534296169877,
+   -0.00010151435708394274
+  ],
+  "vel_std": [
+   0.004231586586683989,
+   0.005775876343250275,
+   0.003984522540122271
+  ],
+  "acc_mean": [
+   2.200795101714448e-09,
+   2.8082863536837976e-06,
+   -8.564202680361177e-09
+  ],
+  "acc_std": [
+   0.0012947258073836565,
+   0.001969102770090103,
+   0.0013190738391131163
+  ]
+ },
+ "params": 2885251,
+ "tensors": [
+  {
+   "name": "enc_node.l0.w",
+   "shape": [
+    41,
+    128
+   ],
+   "offset": 0
+  },
+  {
+   "name": "enc_node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 5248
+  },
+  {
+   "name": "enc_node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 5376
+  },
+  {
+   "name": "enc_node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 21760
+  },
+  {
+   "name": "enc_node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 21888
+  },
+  {
+   "name": "enc_node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 38272
+  },
+  {
+   "name": "enc_node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 38400
+  },
+  {
+   "name": "enc_node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 38528
+  },
+  {
+   "name": "enc_edge0.l0.w",
+   "shape": [
+    8,
+    128
+   ],
+   "offset": 38656
+  },
+  {
+   "name": "enc_edge0.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 39680
+  },
+  {
+   "name": "enc_edge0.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 39808
+  },
+  {
+   "name": "enc_edge0.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 56192
+  },
+  {
+   "name": "enc_edge0.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 56320
+  },
+  {
+   "name": "enc_edge0.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 72704
+  },
+  {
+   "name": "enc_edge0.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 72832
+  },
+  {
+   "name": "enc_edge0.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 72960
+  },
+  {
+   "name": "enc_edge1.l0.w",
+   "shape": [
+    8,
+    128
+   ],
+   "offset": 73088
+  },
+  {
+   "name": "enc_edge1.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 74112
+  },
+  {
+   "name": "enc_edge1.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 74240
+  },
+  {
+   "name": "enc_edge1.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 90624
+  },
+  {
+   "name": "enc_edge1.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 90752
+  },
+  {
+   "name": "enc_edge1.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 107136
+  },
+  {
+   "name": "enc_edge1.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 107264
+  },
+  {
+   "name": "enc_edge1.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 107392
+  },
+  {
+   "name": "enc_edge2.l0.w",
+   "shape": [
+    8,
+    128
+   ],
+   "offset": 107520
+  },
+  {
+   "name": "enc_edge2.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 108544
+  },
+  {
+   "name": "enc_edge2.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 108672
+  },
+  {
+   "name": "enc_edge2.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 125056
+  },
+  {
+   "name": "enc_edge2.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 125184
+  },
+  {
+   "name": "enc_edge2.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 141568
+  },
+  {
+   "name": "enc_edge2.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 141696
+  },
+  {
+   "name": "enc_edge2.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 141824
+  },
+  {
+   "name": "enc_world.l0.w",
+   "shape": [
+    4,
+    128
+   ],
+   "offset": 141952
+  },
+  {
+   "name": "enc_world.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 142464
+  },
+  {
+   "name": "enc_world.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 142592
+  },
+  {
+   "name": "enc_world.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 158976
+  },
+  {
+   "name": "enc_world.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 159104
+  },
+  {
+   "name": "enc_world.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 175488
+  },
+  {
+   "name": "enc_world.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 175616
+  },
+  {
+   "name": "enc_world.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 175744
+  },
+  {
+   "name": "proc0.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 175872
+  },
+  {
+   "name": "proc0.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 225024
+  },
+  {
+   "name": "proc0.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 225152
+  },
+  {
+   "name": "proc0.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 241536
+  },
+  {
+   "name": "proc0.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 241664
+  },
+  {
+   "name": "proc0.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 258048
+  },
+  {
+   "name": "proc0.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 258176
+  },
+  {
+   "name": "proc0.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 258304
+  },
+  {
+   "name": "proc0.world.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 258432
+  },
+  {
+   "name": "proc0.world.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 307584
+  },
+  {
+   "name": "proc0.world.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 307712
+  },
+  {
+   "name": "proc0.world.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 324096
+  },
+  {
+   "name": "proc0.world.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 324224
+  },
+  {
+   "name": "proc0.world.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 340608
+  },
+  {
+   "name": "proc0.world.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 340736
+  },
+  {
+   "name": "proc0.world.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 340864
+  },
+  {
+   "name": "proc0.node.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 340992
+  },
+  {
+   "name": "proc0.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 390144
+  },
+  {
+   "name": "proc0.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 390272
+  },
+  {
+   "name": "proc0.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 406656
+  },
+  {
+   "name": "proc0.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 406784
+  },
+  {
+   "name": "proc0.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 423168
+  },
+  {
+   "name": "proc0.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 423296
+  },
+  {
+   "name": "proc0.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 423424
+  },
+  {
+   "name": "proc1.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 423552
+  },
+  {
+   "name": "proc1.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 472704
+  },
+  {
+   "name": "proc1.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 472832
+  },
+  {
+   "name": "proc1.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 489216
+  },
+  {
+   "name": "proc1.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 489344
+  },
+  {
+   "name": "proc1.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 505728
+  },
+  {
+   "name": "proc1.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 505856
+  },
+  {
+   "name": "proc1.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 505984
+  },
+  {
+   "name": "proc1.world.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 506112
+  },
+  {
+   "name": "proc1.world.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 555264
+  },
+  {
+   "name": "proc1.world.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 555392
+  },
+  {
+   "name": "proc1.world.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 571776
+  },
+  {
+   "name": "proc1.world.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 571904
+  },
+  {
+   "name": "proc1.world.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 588288
+  },
+  {
+   "name": "proc1.world.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 588416
+  },
+  {
+   "name": "proc1.world.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 588544
+  },
+  {
+   "name": "proc1.node.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 588672
+  },
+  {
+   "name": "proc1.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 637824
+  },
+  {
+   "name": "proc1.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 637952
+  },
+  {
+   "name": "proc1.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 654336
+  },
+  {
+   "name": "proc1.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 654464
+  },
+  {
+   "name": "proc1.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 670848
+  },
+  {
+   "name": "proc1.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 670976
+  },
+  {
+   "name": "proc1.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 671104
+  },
+  {
+   "name": "proc2.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 671232
+  },
+  {
+   "name": "proc2.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 720384
+  },
+  {
+   "name": "proc2.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 720512
+  },
+  {
+   "name": "proc2.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 736896
+  },
+  {
+   "name": "proc2.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 737024
+  },
+  {
+   "name": "proc2.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 753408
+  },
+  {
+   "name": "proc2.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 753536
+  },
+  {
+   "name": "proc2.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 753664
+  },
+  {
+   "name": "proc2.world.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 753792
+  },
+  {
+   "name": "proc2.world.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 802944
+  },
+  {
+   "name": "proc2.world.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 803072
+  },
+  {
+   "name": "proc2.world.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 819456
+  },
+  {
+   "name": "proc2.world.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 819584
+  },
+  {
+   "name": "proc2.world.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 835968
+  },
+  {
+   "name": "proc2.world.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 836096
+  },
+  {
+   "name": "proc2.world.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 836224
+  },
+  {
+   "name": "proc2.node.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 836352
+  },
+  {
+   "name": "proc2.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 885504
+  },
+  {
+   "name": "proc2.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 885632
+  },
+  {
+   "name": "proc2.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 902016
+  },
+  {
+   "name": "proc2.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 902144
+  },
+  {
+   "name": "proc2.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 918528
+  },
+  {
+   "name": "proc2.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 918656
+  },
+  {
+   "name": "proc2.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 918784
+  },
+  {
+   "name": "proc3.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 918912
+  },
+  {
+   "name": "proc3.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 968064
+  },
+  {
+   "name": "proc3.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 968192
+  },
+  {
+   "name": "proc3.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 984576
+  },
+  {
+   "name": "proc3.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 984704
+  },
+  {
+   "name": "proc3.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1001088
+  },
+  {
+   "name": "proc3.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1001216
+  },
+  {
+   "name": "proc3.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1001344
+  },
+  {
+   "name": "proc3.node.l0.w",
+   "shape": [
+    256,
+    128
+   ],
+   "offset": 1001472
+  },
+  {
+   "name": "proc3.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1034240
+  },
+  {
+   "name": "proc3.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1034368
+  },
+  {
+   "name": "proc3.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1050752
+  },
+  {
+   "name": "proc3.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1050880
+  },
+  {
+   "name": "proc3.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1067264
+  },
+  {
+   "name": "proc3.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1067392
+  },
+  {
+   "name": "proc3.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1067520
+  },
+  {
+   "name": "proc4.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 1067648
+  },
+  {
+   "name": "proc4.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1116800
+  },
+  {
+   "name": "proc4.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1116928
+  },
+  {
+   "name": "proc4.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1133312
+  },
+  {
+   "name": "proc4.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1133440
+  },
+  {
+   "name": "proc4.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1149824
+  },
+  {
+   "name": "proc4.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1149952
+  },
+  {
+   "name": "proc4.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1150080
+  },
+  {
+   "name": "proc4.node.l0.w",
+   "shape": [
+    256,
+    128
+   ],
+   "offset": 1150208
+  },
+  {
+   "name": "proc4.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1182976
+  },
+  {
+   "name": "proc4.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1183104
+  },
+  {
+   "name": "proc4.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1199488
+  },
+  {
+   "name": "proc4.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1199616
+  },
+  {
+   "name": "proc4.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1216000
+  },
+  {
+   "name": "proc4.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1216128
+  },
+  {
+   "name": "proc4.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1216256
+  },
+  {
+   "name": "proc5.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 1216384
+  },
+  {
+   "name": "proc5.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1265536
+  },
+  {
+   "name": "proc5.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1265664
+  },
+  {
+   "name": "proc5.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1282048
+  },
+  {
+   "name": "proc5.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1282176
+  },
+  {
+   "name": "proc5.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1298560
+  },
+  {
+   "name": "proc5.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1298688
+  },
+  {
+   "name": "proc5.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1298816
+  },
+  {
+   "name": "proc5.node.l0.w",
+   "shape": [
+    256,
+    128
+   ],
+   "offset": 1298944
+  },
+  {
+   "name": "proc5.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1331712
+  },
+  {
+   "name": "proc5.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1331840
+  },
+  {
+   "name": "proc5.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1348224
+  },
+  {
+   "name": "proc5.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1348352
+  },
+  {
+   "name": "proc5.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1364736
+  },
+  {
+   "name": "proc5.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1364864
+  },
+  {
+   "name": "proc5.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1364992
+  },
+  {
+   "name": "proc6.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 1365120
+  },
+  {
+   "name": "proc6.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1414272
+  },
+  {
+   "name": "proc6.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1414400
+  },
+  {
+   "name": "proc6.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1430784
+  },
+  {
+   "name": "proc6.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1430912
+  },
+  {
+   "name": "proc6.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1447296
+  },
+  {
+   "name": "proc6.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1447424
+  },
+  {
+   "name": "proc6.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1447552
+  },
+  {
+   "name": "proc6.node.l0.w",
+   "shape": [
+    256,
+    128
+   ],
+   "offset": 1447680
+  },
+  {
+   "name": "proc6.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1480448
+  },
+  {
+   "name": "proc6.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1480576
+  },
+  {
+   "name": "proc6.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1496960
+  },
+  {
+   "name": "proc6.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1497088
+  },
+  {
+   "name": "proc6.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1513472
+  },
+  {
+   "name": "proc6.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1513600
+  },
+  {
+   "name": "proc6.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1513728
+  },
+  {
+   "name": "proc7.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 1513856
+  },
+  {
+   "name": "proc7.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1563008
+  },
+  {
+   "name": "proc7.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1563136
+  },
+  {
+   "name": "proc7.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1579520
+  },
+  {
+   "name": "proc7.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1579648
+  },
+  {
+   "name": "proc7.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1596032
+  },
+  {
+   "name": "proc7.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1596160
+  },
+  {
+   "name": "proc7.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1596288
+  },
+  {
+   "name": "proc7.node.l0.w",
+   "shape": [
+    256,
+    128
+   ],
+   "offset": 1596416
+  },
+  {
+   "name": "proc7.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1629184
+  },
+  {
+   "name": "proc7.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1629312
+  },
+  {
+   "name": "proc7.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1645696
+  },
+  {
+   "name": "proc7.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1645824
+  },
+  {
+   "name": "proc7.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1662208
+  },
+  {
+   "name": "proc7.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1662336
+  },
+  {
+   "name": "proc7.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1662464
+  },
+  {
+   "name": "proc8.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 1662592
+  },
+  {
+   "name": "proc8.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1711744
+  },
+  {
+   "name": "proc8.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1711872
+  },
+  {
+   "name": "proc8.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1728256
+  },
+  {
+   "name": "proc8.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1728384
+  },
+  {
+   "name": "proc8.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1744768
+  },
+  {
+   "name": "proc8.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1744896
+  },
+  {
+   "name": "proc8.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1745024
+  },
+  {
+   "name": "proc8.node.l0.w",
+   "shape": [
+    256,
+    128
+   ],
+   "offset": 1745152
+  },
+  {
+   "name": "proc8.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1777920
+  },
+  {
+   "name": "proc8.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1778048
+  },
+  {
+   "name": "proc8.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1794432
+  },
+  {
+   "name": "proc8.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1794560
+  },
+  {
+   "name": "proc8.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1810944
+  },
+  {
+   "name": "proc8.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1811072
+  },
+  {
+   "name": "proc8.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1811200
+  },
+  {
+   "name": "proc9.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 1811328
+  },
+  {
+   "name": "proc9.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1860480
+  },
+  {
+   "name": "proc9.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1860608
+  },
+  {
+   "name": "proc9.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1876992
+  },
+  {
+   "name": "proc9.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1877120
+  },
+  {
+   "name": "proc9.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1893504
+  },
+  {
+   "name": "proc9.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1893632
+  },
+  {
+   "name": "proc9.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1893760
+  },
+  {
+   "name": "proc9.node.l0.w",
+   "shape": [
+    256,
+    128
+   ],
+   "offset": 1893888
+  },
+  {
+   "name": "proc9.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 1926656
+  },
+  {
+   "name": "proc9.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1926784
+  },
+  {
+   "name": "proc9.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 1943168
+  },
+  {
+   "name": "proc9.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 1943296
+  },
+  {
+   "name": "proc9.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 1959680
+  },
+  {
+   "name": "proc9.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 1959808
+  },
+  {
+   "name": "proc9.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 1959936
+  },
+  {
+   "name": "proc10.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 1960064
+  },
+  {
+   "name": "proc10.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 2009216
+  },
+  {
+   "name": "proc10.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2009344
+  },
+  {
+   "name": "proc10.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 2025728
+  },
+  {
+   "name": "proc10.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2025856
+  },
+  {
+   "name": "proc10.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 2042240
+  },
+  {
+   "name": "proc10.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 2042368
+  },
+  {
+   "name": "proc10.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 2042496
+  },
+  {
+   "name": "proc10.node.l0.w",
+   "shape": [
+    256,
+    128
+   ],
+   "offset": 2042624
+  },
+  {
+   "name": "proc10.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 2075392
+  },
+  {
+   "name": "proc10.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2075520
+  },
+  {
+   "name": "proc10.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 2091904
+  },
+  {
+   "name": "proc10.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2092032
+  },
+  {
+   "name": "proc10.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 2108416
+  },
+  {
+   "name": "proc10.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 2108544
+  },
+  {
+   "name": "proc10.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 2108672
+  },
+  {
+   "name": "proc11.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 2108800
+  },
+  {
+   "name": "proc11.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 2157952
+  },
+  {
+   "name": "proc11.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2158080
+  },
+  {
+   "name": "proc11.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 2174464
+  },
+  {
+   "name": "proc11.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2174592
+  },
+  {
+   "name": "proc11.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 2190976
+  },
+  {
+   "name": "proc11.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 2191104
+  },
+  {
+   "name": "proc11.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 2191232
+  },
+  {
+   "name": "proc11.world.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 2191360
+  },
+  {
+   "name": "proc11.world.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 2240512
+  },
+  {
+   "name": "proc11.world.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2240640
+  },
+  {
+   "name": "proc11.world.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 2257024
+  },
+  {
+   "name": "proc11.world.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2257152
+  },
+  {
+   "name": "proc11.world.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 2273536
+  },
+  {
+   "name": "proc11.world.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 2273664
+  },
+  {
+   "name": "proc11.world.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 2273792
+  },
+  {
+   "name": "proc11.node.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 2273920
+  },
+  {
+   "name": "proc11.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 2323072
+  },
+  {
+   "name": "proc11.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2323200
+  },
+  {
+   "name": "proc11.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 2339584
+  },
+  {
+   "name": "proc11.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2339712
+  },
+  {
+   "name": "proc11.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 2356096
+  },
+  {
+   "name": "proc11.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 2356224
+  },
+  {
+   "name": "proc11.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 2356352
+  },
+  {
+   "name": "proc12.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 2356480
+  },
+  {
+   "name": "proc12.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 2405632
+  },
+  {
+   "name": "proc12.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2405760
+  },
+  {
+   "name": "proc12.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 2422144
+  },
+  {
+   "name": "proc12.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2422272
+  },
+  {
+   "name": "proc12.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 2438656
+  },
+  {
+   "name": "proc12.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 2438784
+  },
+  {
+   "name": "proc12.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 2438912
+  },
+  {
+   "name": "proc12.world.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 2439040
+  },
+  {
+   "name": "proc12.world.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 2488192
+  },
+  {
+   "name": "proc12.world.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2488320
+  },
+  {
+   "name": "proc12.world.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 2504704
+  },
+  {
+   "name": "proc12.world.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2504832
+  },
+  {
+   "name": "proc12.world.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 2521216
+  },
+  {
+   "name": "proc12.world.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 2521344
+  },
+  {
+   "name": "proc12.world.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 2521472
+  },
+  {
+   "name": "proc12.node.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 2521600
+  },
+  {
+   "name": "proc12.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 2570752
+  },
+  {
+   "name": "proc12.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2570880
+  },
+  {
+   "name": "proc12.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 2587264
+  },
+  {
+   "name": "proc12.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2587392
+  },
+  {
+   "name": "proc12.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 2603776
+  },
+  {
+   "name": "proc12.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 2603904
+  },
+  {
+   "name": "proc12.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 2604032
+  },
+  {
+   "name": "proc13.edge.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 2604160
+  },
+  {
+   "name": "proc13.edge.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 2653312
+  },
+  {
+   "name": "proc13.edge.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2653440
+  },
+  {
+   "name": "proc13.edge.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 2669824
+  },
+  {
+   "name": "proc13.edge.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2669952
+  },
+  {
+   "name": "proc13.edge.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 2686336
+  },
+  {
+   "name": "proc13.edge.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 2686464
+  },
+  {
+   "name": "proc13.edge.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 2686592
+  },
+  {
+   "name": "proc13.world.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 2686720
+  },
+  {
+   "name": "proc13.world.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 2735872
+  },
+  {
+   "name": "proc13.world.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2736000
+  },
+  {
+   "name": "proc13.world.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 2752384
+  },
+  {
+   "name": "proc13.world.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2752512
+  },
+  {
+   "name": "proc13.world.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 2768896
+  },
+  {
+   "name": "proc13.world.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 2769024
+  },
+  {
+   "name": "proc13.world.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 2769152
+  },
+  {
+   "name": "proc13.node.l0.w",
+   "shape": [
+    384,
+    128
+   ],
+   "offset": 2769280
+  },
+  {
+   "name": "proc13.node.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 2818432
+  },
+  {
+   "name": "proc13.node.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2818560
+  },
+  {
+   "name": "proc13.node.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 2834944
+  },
+  {
+   "name": "proc13.node.l2.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2835072
+  },
+  {
+   "name": "proc13.node.l2.b",
+   "shape": [
+    128
+   ],
+   "offset": 2851456
+  },
+  {
+   "name": "proc13.node.ln.g",
+   "shape": [
+    128
+   ],
+   "offset": 2851584
+  },
+  {
+   "name": "proc13.node.ln.b",
+   "shape": [
+    128
+   ],
+   "offset": 2851712
+  },
+  {
+   "name": "dec.l0.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2851840
+  },
+  {
+   "name": "dec.l0.b",
+   "shape": [
+    128
+   ],
+   "offset": 2868224
+  },
+  {
+   "name": "dec.l1.w",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 2868352
+  },
+  {
+   "name": "dec.l1.b",
+   "shape": [
+    128
+   ],
+   "offset": 2884736
+  },
+  {
+   "name": "dec.l2.w",
+   "shape": [
+    128,
+    3
+   ],
+   "offset": 2884864
+  },
+  {
+   "name": "dec.l2.b",
+   "shape": [
+    3
+   ],
+   "offset": 2885248
+  }
+ ],
+ "source": "params_00295000.pkl"
+}

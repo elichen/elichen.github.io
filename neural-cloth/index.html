@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neural Cloth</title>
+  <meta name="description" content="A graph neural network that learned an accurate cloth solver, running live in your browser on WebGPU.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="main.js"></script>
+</head>
+<body>
+  <main class="stage">
+    <div class="viewport" id="viewport">
+      <div class="pane pane-solver">
+        <canvas id="view-solver" aria-label="The solver's recording of the same clip"></canvas>
+        <span class="tag">Solver (recorded)</span>
+      </div>
+      <div class="pane pane-net">
+        <canvas id="view" aria-label="3D cloth simulation. Drag the cloth to move it; drag elsewhere to orbit the camera."></canvas>
+        <span class="tag">Network (live)</span>
+      </div>
+      <p id="status" class="status">Starting WebGPU…</p>
+    </div>
+
+    <aside class="panel" aria-label="Controls">
+      <header>
+        <h1>Neural cloth</h1>
+        <p class="lede">
+          This towel is moved by a graph neural network, not a physics engine. It learned by imitating an
+          accurate cloth solver, one frame at a time, and now runs in your browser.
+        </p>
+      </header>
+
+      <section class="group">
+        <h2>Scene</h2>
+        <div class="scenes">
+          <button type="button" data-scene="table">Towel on a table</button>
+          <button type="button" data-scene="ball">Drape over a ball</button>
+          <button type="button" data-scene="rack">Towel rack</button>
+          <button type="button" data-scene="fold">Robot fold</button>
+          <button type="button" data-scene="fling">Robot fling</button>
+        </div>
+        <p id="hint" class="hint"></p>
+      </section>
+
+      <section class="group">
+        <h2>Solver vs network</h2>
+        <p class="hint compare-hint">Held-out clips the network never trained on. The recording is the solver; the network replays the same grippers live.</p>
+        <div class="scenes" id="clips"></div>
+        <p id="clip-error" class="clip-error" hidden></p>
+      </section>
+
+      <section class="group sliders">
+        <h2>Fabric</h2>
+        <label>Stiffness <output id="stiffness-out">towel</output>
+          <input id="stiffness" type="range" min="0" max="100" value="55">
+        </label>
+        <label>Friction <output id="friction-out">0.50</output>
+          <input id="friction" type="range" min="20" max="80" value="50">
+        </label>
+        <label>Wind <output id="wind-out">still</output>
+          <input id="wind" type="range" min="0" max="40" value="0">
+        </label>
+      </section>
+
+      <section class="group run">
+        <button type="button" id="pause">Pause</button>
+        <span class="keys">Space pauses, R resets, 1–5 pick a scene</span>
+      </section>
+
+      <dl class="readout">
+        <div><dt>Network step</dt><dd id="stat-step">–</dd></div>
+        <div><dt>Cloth vertices</dt><dd id="stat-verts">–</dd></div>
+        <div><dt>Contact edges</dt><dd id="stat-contacts">–</dd></div>
+      </dl>
+    </aside>
+  </main>
+
+  <article class="notes">
+    <h2>How it was made</h2>
+    <p>
+      <strong>The teacher</strong> is an implicit cloth solver written for this page. It models stretch,
+      shear and bending, friction, and contact with the table, balls, rods and the cloth itself, using
+      barrier functions that never let anything pass through. Each frame takes ten substeps, and each
+      substep is a small optimisation solved with Newton’s method. It is accurate and slow.
+    </p>
+    <p>
+      <strong>The student</strong> is a graph neural network in the style of MeshGraphNets, with a
+      three-level hierarchy borrowed from HOOD: messages pass between neighbouring vertices, between every
+      second vertex and between every fourth, so a tug on one side reaches the far side in a handful of
+      rounds instead of thirty. Vertices that come close in space but lie far apart on the cloth get extra contact edges. Each
+      frame it reads positions, velocities, grippers and nearby obstacles, and predicts every vertex’s
+      acceleration.
+    </p>
+    <p>
+      <strong>Training</strong> used about 750 five-second clips of towels being dropped, dragged, folded,
+      flung, shaken and draped, simulated by the teacher on a laptop GPU. The network learns from the
+      teacher’s frames, and also from the teacher’s physics directly: on its own rollouts it is scored by
+      the energy the solver minimises, so it learns to recover from its own mistakes rather than drift into
+      states the teacher never showed it.
+    </p>
+    <p>
+      <strong>How close it gets.</strong> On 16 held-out clips, the network’s towel is on average 5 cm from
+      the teacher’s after half a second and 15 cm after five seconds. The buttons under “Solver vs network”
+      replay three of them side by side. It errs most when a towel that is partly lying on the table is let
+      go: the lifted part falls more slowly than it should.
+    </p>
+    <table class="compare-table">
+      <caption>One frame of a 31 × 26 towel</caption>
+      <thead>
+        <tr><th scope="col"></th><th scope="col">Teacher</th><th scope="col">Network</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Work per frame</th><td>~40 Newton steps, ~3,000 conjugate-gradient steps</td><td>One pass, 14 rounds of message passing</td></tr>
+        <tr><th scope="row">Laptop CPU</th><td>0.3–0.7 s</td><td>32 ms</td></tr>
+        <tr><th scope="row">Your GPU</th><td>—</td><td id="stat-step-table">measured above</td></tr>
+      </tbody>
+    </table>
+  </article>
+</body>
+</html>

@@ -1,4 +1,3 @@
 **/.DS_Store
 .claude/settings.local.json
 output/agent-browser/
-gnn-explainer/data/raw/

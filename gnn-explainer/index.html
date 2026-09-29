@@ -2,123 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Graph Signal Lab</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650;9..144,760&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=movielens-lightgcn2">
-  <script src="app.js?v=movielens-lightgcn2" defer></script>
+  <title>Neural Cloth</title>
+  <meta http-equiv="refresh" content="0; url=/neural-cloth/">
+  <link rel="canonical" href="/neural-cloth/">
+  <script>location.replace('/neural-cloth/' + location.hash);</script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand-lockup">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <div>
-        <p class="eyebrow">graph signal lab</p>
-        <h1>MovieLens GNN recommender</h1>
-      </div>
-    </div>
-    <div class="topbar-meta">
-      <span>Trained LightGCN</span>
-      <span>Browser-side inference</span>
-    </div>
-  </header>
-
-  <main class="app-shell">
-    <aside class="scenario-panel" aria-label="Recommendation scenarios">
-      <div class="panel-heading">
-        <p class="eyebrow">cases</p>
-        <h2>Real held-out MovieLens predictions</h2>
-      </div>
-      <div id="scenario-list" class="scenario-list"></div>
-      <section class="lesson-box">
-        <p class="eyebrow">mental model</p>
-        <p>
-          The model was trained on MovieLens latest-small. Depth 0 uses learned
-          user and movie embeddings only; deeper settings run literal LightGCN
-          message passing over user-movie and movie-genre edges.
-        </p>
-      </section>
-    </aside>
-
-    <section class="lab-stage" aria-label="Recommendation graph workspace">
-      <div class="challenge-header">
-        <div>
-          <p id="scenario-kicker" class="eyebrow">scenario</p>
-          <h2 id="scenario-title">Loading scenario</h2>
-          <p id="scenario-objective" class="scenario-objective">Loading objective</p>
-        </div>
-        <div class="target-card">
-          <span>Candidate</span>
-          <strong id="candidate-name">--</strong>
-          <small id="candidate-meta">--</small>
-        </div>
-      </div>
-
-      <div class="graph-toolbar" aria-label="Model controls">
-        <div class="control-group">
-          <span class="control-label">model</span>
-          <div class="segmented" id="model-picker"></div>
-        </div>
-        <div class="control-group">
-          <span class="control-label">message depth</span>
-          <div class="segmented depth-picker" id="depth-picker"></div>
-        </div>
-        <button id="message-toggle" class="ghost-button" type="button" aria-pressed="true">
-          Show messages
-        </button>
-      </div>
-
-      <div class="graph-frame">
-        <svg id="graph" viewBox="0 0 920 620" role="img" aria-label="Recommendation graph"></svg>
-      </div>
-
-      <div class="graph-legend" aria-label="Graph legend">
-        <span><i class="legend-dot legend-user"></i>User</span>
-        <span><i class="legend-dot legend-item"></i>Item</span>
-        <span><i class="legend-dot legend-topic"></i>Topic</span>
-        <span><i class="legend-line"></i>Active message path</span>
-      </div>
-    </section>
-
-    <aside class="decision-panel" aria-label="Prediction and explanation">
-      <section class="prediction-card">
-        <p class="eyebrow">prediction</p>
-        <div class="score-readout">
-          <strong id="score-value">--</strong>
-          <span id="score-label">Awaiting run</span>
-        </div>
-        <div class="score-meter" aria-hidden="true">
-          <span id="score-fill"></span>
-        </div>
-        <button id="run-button" class="primary-button" type="button">Run prediction</button>
-        <p id="result-copy" class="result-copy">Choose a depth, then run the model.</p>
-      </section>
-
-      <section class="compare-panel">
-        <div class="section-title-row">
-          <div>
-            <p class="eyebrow">compare</p>
-            <h3>Depth sweep</h3>
-          </div>
-          <button id="compare-button" class="text-button" type="button">Reset best</button>
-        </div>
-        <div id="depth-comparison" class="depth-comparison"></div>
-      </section>
-
-      <section class="inspector-panel">
-        <p class="eyebrow">selected node</p>
-        <h3 id="node-name">--</h3>
-        <p id="node-description">Click a node to inspect it.</p>
-        <dl id="node-stats" class="node-stats"></dl>
-      </section>
-
-      <section class="message-panel">
-        <p class="eyebrow">why this depth behaves this way</p>
-        <div id="message-list" class="message-list"></div>
-      </section>
-    </aside>
-  </main>
+  <p>This demo has moved to <a href="/neural-cloth/">Neural Cloth</a>.</p>
 </body>
 </html>

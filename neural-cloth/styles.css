@@ -1,0 +1,171 @@
+/* Aizome: indigo-dyed cloth on undyed cotton. Colors from traditional Japanese dye names. */
+:root {
+  --kinari: #f6f3ea;      /* 生成り undyed cotton: page and table */
+  --ai: #165e83;          /* 藍色 indigo */
+  --kamenozoki: #a2d7dd;  /* 瓶覗 palest indigo */
+  --aitetsu: #393f4c;     /* 藍鉄 indigo-iron ink */
+  --namari: #7b7c7d;      /* 鉛色 lead gray */
+  --akane: #b7282e;       /* 茜 madder */
+  --rule: #ded8c8;
+  --mincho: 'Zen Old Mincho', 'Hiragino Mincho ProN', Georgia, serif;
+  --gothic: 'Zen Kaku Gothic New', 'Hiragino Sans', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--kinari);
+  color: var(--aitetsu);
+  font: 15px/1.6 var(--gothic);
+}
+
+:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
+
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  min-height: 100svh;
+}
+
+.viewport { position: relative; min-height: 70svh; display: grid; }
+.pane { position: relative; min-height: 0; }
+.pane-solver { display: none; }
+.viewport.compare { grid-template-columns: 1fr 1fr; }
+.viewport.compare .pane-solver { display: block; }
+.tag { display: none; position: absolute; top: 16px; left: 20px; font: 600 0.95rem var(--mincho); }
+.viewport.compare .tag { display: block; }
+.clip-error { margin: 10px 0 0; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+
+canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+
+canvas.grabbing { cursor: grabbing; }
+
+.status {
+  position: absolute;
+  inset: 45% 0 auto;
+  margin: 0;
+  text-align: center;
+  color: var(--namari);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  padding: 40px 32px 32px 8px;
+}
+
+h1 {
+  margin: 0;
+  font: 600 2.6rem/1.05 var(--mincho);
+  letter-spacing: 0.01em;
+  color: var(--ai);
+}
+
+.lede { margin: 14px 0 0; }
+
+h2 {
+  margin: 0 0 10px;
+  font: 600 1.05rem/1.2 var(--mincho);
+}
+
+button {
+  font: inherit;
+  font-size: 0.92rem;
+  color: var(--aitetsu);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 5px 13px;
+  cursor: pointer;
+}
+
+button:hover { border-color: var(--ai); }
+
+button[aria-pressed='true'] {
+  background: var(--ai);
+  border-color: var(--ai);
+  color: var(--kinari);
+}
+
+.scenes { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.hint { margin: 12px 0 0; font-size: 0.9rem; color: #5d6371; }
+
+.sliders label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 2px;
+  margin-bottom: 12px;
+  font-size: 0.92rem;
+}
+
+.sliders output { color: #5d6371; font-variant-numeric: tabular-nums; }
+
+input[type='range'] {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--ai);
+}
+
+.run { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.keys { font-size: 0.82rem; color: #6d7280; }
+
+.readout {
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.readout div { display: flex; justify-content: space-between; }
+.readout dt { color: #5d6371; }
+.readout dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.notes {
+  max-width: 44rem;
+  margin: 0 0 0 max(24px, calc((100vw - 320px) / 2 - 22rem));
+  padding: 56px 0 72px;
+  border-top: 1px solid var(--rule);
+  font: 16px/1.75 var(--mincho);
+}
+
+.notes h2 { font-size: 1.5rem; color: var(--ai); margin-bottom: 18px; }
+.notes p { margin: 0 0 16px; }
+.notes strong { font-weight: 600; color: var(--ai); }
+
+.compare-table {
+  width: 100%;
+  margin-top: 28px;
+  border-collapse: collapse;
+  font: 0.92rem/1.5 var(--gothic);
+}
+
+.compare-table caption { text-align: left; font: 600 1rem var(--mincho); margin-bottom: 8px; }
+.compare-table th, .compare-table td { text-align: left; vertical-align: top; padding: 8px 12px 8px 0; border-top: 1px solid var(--rule); }
+.compare-table thead th { color: #5d6371; font-weight: 500; border-top: 0; }
+.compare-table tbody th { font-weight: 500; white-space: nowrap; }
+.compare-table td { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 860px) {
+  .notes { margin: 0 16px; padding: 40px 0 56px; }
+  .compare-table tbody th { white-space: normal; }
+  .stage { grid-template-columns: 1fr; }
+  .viewport { height: 72svh; min-height: 0; order: 2; }
+  .panel { display: contents; }
+  .panel > header { order: 1; padding: 24px 16px 8px; }
+  .panel > .group, .panel > .readout { order: 3; margin: 0 16px 18px; }
+  h1 { font-size: 2.1rem; }
+  .keys { display: none; }
+}

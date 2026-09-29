@@ -1,0 +1,26 @@
+[
+ {
+  "name": "clip_0_0_fling",
+  "kind": "fling",
+  "size": [
+   31,
+   26
+  ]
+ },
+ {
+  "name": "clip_0_5_place",
+  "kind": "place",
+  "size": [
+   31,
+   26
+  ]
+ },
+ {
+  "name": "clip_1_4_fold",
+  "kind": "fold",
+  "size": [
+   26,
+   26
+  ]
+ }
+]
