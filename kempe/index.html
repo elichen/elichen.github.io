@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kempe's Machine</title>
+  <meta name="description" content="Draw a shape and watch a machine of bars, pins and belts learn to trace it. A learned search through millions of random linkages, tuned live in your browser.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232e2e2c'/%3E%3Ccircle cx='16' cy='16' r='8' fill='%23c02820'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@85..100,400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="main.js"></script>
+</head>
+<body>
+  <main class="device">
+    <section class="stage" aria-label="The plate">
+      <canvas id="view" aria-label="The plate. Draw a shape on it in one stroke; right-drag turns the view and scrolling zooms."></canvas>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <p id="hint" class="hint">Draw a shape on the plate in one stroke</p>
+      <div id="others" class="others" role="group" aria-label="Machines found" hidden></div>
+      <ul class="legend">
+        <li><span class="swatch swatch-ink"></span>Machine's pen</li>
+        <li><span class="swatch swatch-ghost"></span>Your drawing</li>
+      </ul>
+      <p class="nav-hint">Right-drag to turn the view. Scroll to zoom.</p>
+    </section>
+
+    <section class="deck" aria-label="Controls">
+      <div class="identity">
+        <h1>Kempe's Machine</h1>
+        <p>Draw any shape. The page searches <span id="count">thousands of</span> machines of bars and pins for one whose pen can trace it, then tunes every bar to fit.</p>
+      </div>
+
+      <div class="control shapes-control">
+        <div id="shapes" class="keys" role="group" aria-label="Example shapes"></div>
+        <span class="caption">Or start from an example</span>
+      </div>
+
+      <div class="control machine-control">
+        <input id="simplicity" type="range" min="0" max="3" step="1" value="1" aria-label="Machine: closer fit or fewer bars">
+        <div class="ends"><span>Closer fit</span><span>Fewer bars</span></div>
+      </div>
+
+      <dl class="display">
+        <div><dt>Error</dt><dd id="err">–</dd></div>
+        <div><dt>Bars</dt><dd id="bars">–</dd></div>
+        <div><dt>Cranks</dt><dd id="cranks">–</dd></div>
+      </dl>
+
+      <div class="control switches">
+        <button type="button" id="refine" class="switch" disabled>Refine more</button>
+        <button type="button" id="plan" class="switch" aria-pressed="false">Top view</button>
+        <button type="button" id="share" class="switch">Copy link</button>
+      </div>
+
+      <div class="control power">
+        <button type="button" id="run" class="power-button" aria-pressed="true" aria-labelledby="run-label"></button>
+        <span id="run-label" class="caption">Stop</span>
+      </div>
+    </section>
+  </main>
+
+  <article class="notes" id="notes">
+    <h2>How it works</h2>
+    <p>
+      In 1876 Alfred Kempe showed that any curve you can write down as a polynomial can be drawn by a
+      machine of rigid bars and pins, one whose pen can move only along that curve. (His argument had a
+      gap that wasn't closed until 2002.) The machine is built from parts that add angles, multiply them
+      and copy them from place to place. It works, but even modest curves need a great many bars.
+    </p>
+    <p>
+      This page looks for small machines instead. It can't promise an exact trace, but it often gets close
+      with a dozen bars or fewer, and it always tells you how close.
+    </p>
+
+    <h3>Twenty million random machines</h3>
+    <p>
+      Every machine is built the same way: some fixed pivots; a motor crank; sometimes a second or third
+      crank, belted to the motor so it turns a whole number of times per turn, in either direction; then
+      joints, each tied by two bars to parts already placed. Built that way a machine has exactly one way
+      to move, so the motor's angle fixes every joint, and its motion can be computed exactly. I generated
+      20 million of them at random on a laptop GPU, threw out any that jam before a full turn or whose bars
+      ever meet at too shallow an angle to push through, and kept every joint whose path stays compact next
+      to its machine: 34.7 million candidate pens.
+    </p>
+
+    <h3>Choosing the machines on this page</h3>
+    <p>
+      That many machines won't fit in a web page, so the page carries 309,307 of them, chosen for how
+      people actually draw. For each of about 150,000 one-stroke doodles from Google's
+      <a href="https://quickdraw.withgoogle.com/data">Quick, Draw!</a> dataset, I checked the 600 machines
+      out of all 34.7 million with the closest fingerprints (more on those below), lined each one up with
+      the doodle exactly, and kept the best three, plus 20,000 at random for variety. Then I ran this
+      page's own search and tuning on 65,124 training doodles and shapes, and kept the 49,319 tuned
+      machines that got within 15%. A new drawing usually starts from a machine that has already been
+      bent into a similar shape.
+    </p>
+
+    <h3>Finding and tuning yours</h3>
+    <p>
+      When you lift the pen, the page compares a fingerprint of your drawing with every machine's. The
+      fingerprint is the sizes of the drawing's first ten Fourier components, which don't change when a
+      shape is moved, turned, scaled, mirrored, or started from a different point. It takes the 800
+      closest machines and lines each one up with your drawing exactly: sliding its start point, then
+      turning, scaling and mirroring it for the best fit.
+    </p>
+    <p>
+      The machines whose paths start closest aren't always the ones that tune best, so a small neural
+      network, trained on how 3.1 million doodle-and-machine pairs actually tuned, predicts where each will
+      end up. The page tunes the most promising 40 together, then the best 12 for longer, then the best 3, adjusting every bar length, pivot and crank with Levenberg–Marquardt. You watch the
+      leader as it improves. Tuning keeps the machine drivable, so no joint may lock or bend too flat, and
+      keeps it compact.
+    </p>
+
+    <h3>How close it gets</h3>
+    <p>
+      The error is the root-mean-square distance between the pen's path and your drawing after the best
+      alignment, as a fraction of your drawing's root-mean-square radius. Below about 3% the two lines are
+      hard to tell apart; around 10% the machine draws a recognisable cousin of your shape.
+    </p>
+    <table>
+      <caption>400 Quick, Draw! doodles the page never saw during selection, tuning or training</caption>
+      <thead>
+        <tr><th scope="col"></th><th scope="col" class="num">Median error</th><th scope="col" class="num">Within 5%</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Closest machine in the library, untuned</th><td class="num">9.5%</td><td class="num">21%</td></tr>
+        <tr><th scope="row">Tuned, from a library chosen for doodles</th><td class="num">6.9%</td><td class="num">38%</td></tr>
+        <tr><th scope="row">Adding 49,319 machines tuned to training doodles</th><td class="num">5.7%</td><td class="num">45%</td></tr>
+        <tr><th scope="row">Adding the tuning predictor</th><td class="num">5.2%</td><td class="num">49%</td></tr>
+        <tr><th scope="row">Tuning for longer, as this page does at “Closer fit”</th><td class="num">5.0%</td><td class="num">50%</td></tr>
+        <tr><th scope="row">The page's default, one notch towards fewer bars</th><td class="num">5.5%</td><td class="num">47%</td></tr>
+      </tbody>
+    </table>
+    <p>
+      At “Closer fit” the machines average 12 bars and take about a second on a laptop; the default
+      averages 9. Moons, circles, triangles and fish usually land within 2–3%. The hardest doodles are
+      spirals: snails, lollipops and tornadoes come out between 30% and 50%.
+    </p>
+
+    <h3>What it can't do</h3>
+    <p>
+      Sharp corners, tight spirals and long wiggly outlines are hard for small machines; the readout
+      always shows the measured error rather than a claim. Open strokes are traced there and back, so a
+      line becomes a very thin loop.
+    </p>
+
+    <h3>Credits</h3>
+    <p>
+      A. B. Kempe, <em>On a general method of describing plane curves of the nth degree by linkwork</em>
+      (1876). The search-then-tune approach follows <a href="https://arxiv.org/abs/2405.20592">LInK</a>
+      (Nobari et al., 2024), which searches a large database of linkages and then optimises the best
+      matches. Doodles from Google's Quick, Draw! dataset (CC BY 4.0). Colours from Braun's palette, via
+      Hue Atlas and the DR01 set.
+    </p>
+  </article>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+ "version": 1,
+ "count": 309307,
+ "dim": 20,
+ "embedding": "fourier",
+ "posScale": 5000,
+ "joints": 2407334,
+ "sections": {
+  "pos": [
+   0,
+   9629336
+  ],
+  "emb": [
+   9629336,
+   6186140
+  ],
+  "n": [
+   15815476,
+   309307
+  ],
+  "struct": [
+   16124784,
+   4814668
+  ]
+ },
+ "file": "index.bin.gz",
+ "bytes": 20939452,
+ "poolSize": 34728589,
+ "ranker": "ranker.json"
+}
