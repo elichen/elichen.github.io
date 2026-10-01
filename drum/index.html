@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hear the Shape of a Drum</title>
+  <meta name="description" content="Draw a drum and strike it. A neural network that never sees the outline hears only the drum's notes and draws back the shape it heard. Then meet two drums that sound exactly alike.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23232524'/%3E%3Cpath d='M6 16c3-6 7-6 10 0s7 6 10 0' stroke='%23e0e0e0' stroke-width='2.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+      }
+    }
+  </script>
+  <script type="module" src="main.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <h1>Hear the Shape of a Drum</h1>
+    <p>Strike a drum and a network that has never seen it draws the shape it hears.</p>
+  </header>
+
+  <main class="bench">
+    <section class="stage" aria-label="The drum">
+      <p id="status" class="status" role="status" aria-live="polite">Tuning up…</p>
+      <div class="canvas-wrap">
+        <canvas id="view" tabindex="0" aria-label="The drum. Click it, or press Enter, to strike it; drag anywhere to draw a new drum."></canvas>
+      </div>
+      <div class="tray">
+        <div class="figures" role="group" aria-label="Sand figures">
+          <span>Sand figures</span>
+          <div id="figures"></div>
+        </div>
+        <p class="hint">Click the drum to strike it. Drag to draw a new one.</p>
+        <div id="examples" class="examples" role="group" aria-label="Example drums"></div>
+        <label class="dial">Pitch
+          <input id="pitch" type="range" min="0" max="100" value="45">
+        </label>
+        <label class="dial">Mallet
+          <input id="mallet" type="range" min="0" max="100" value="55">
+        </label>
+      </div>
+    </section>
+
+    <aside class="listener" aria-label="What the network heard">
+      <h2>What the network heard</h2>
+      <svg id="notes" class="notes" viewBox="0 0 320 90" role="img" aria-label="The drum's notes"></svg>
+      <p class="notes-caption">The drum's notes, lowest on the left. Click one to hear it alone and see where the drumhead stays still.</p>
+      <label class="heard">
+        <span>Notes heard <output id="k-out">12</output></span>
+        <input id="k" type="range" min="3" max="40" value="12">
+      </label>
+      <svg id="guess" class="guess" viewBox="-1.6 -1.6 3.2 3.2" role="img" aria-label="The network's guess over the true outline"></svg>
+      <p class="overlap"><span id="overlap">–</span> of the two shapes overlap</p>
+      <ul class="legend">
+        <li><span class="sw sw-true"></span>The drum</li>
+        <li><span class="sw sw-guess"></span>What the network drew</li>
+      </ul>
+      <div id="candidates" class="candidates" aria-label="Other shapes the network considered"></div>
+    </aside>
+  </main>
+
+  <section class="quiz" aria-labelledby="quiz-title">
+    <div class="quiz-text">
+      <h2 id="quiz-title">Can you hear it?</h2>
+      <p>One of these four drums is about to play. Listen, then pick the one you think it was. The network hears the same sound and answers too, though it has never seen any of them.</p>
+      <div class="quiz-actions">
+        <button type="button" id="quiz-play" class="action">Play a mystery drum</button>
+        <button type="button" id="quiz-next" class="action quiet" hidden>Next drum</button>
+      </div>
+      <p id="quiz-result" class="quiz-result" aria-live="polite"></p>
+      <dl class="quiz-score">
+        <div><dt>You</dt><dd id="score-you">0 of 0</dd></div>
+        <div><dt>The network</dt><dd id="score-net">0 of 0</dd></div>
+      </dl>
+    </div>
+    <div id="quiz-choices" class="quiz-choices" role="group" aria-label="Which drum played?"></div>
+  </section>
+
+  <section class="twins" aria-labelledby="twins-title">
+    <div class="twins-text">
+      <h2 id="twins-title">Two drums, one sound</h2>
+      <p>
+        In 1966 Mark Kac asked whether you could hear the shape of a drum: whether its notes pin down its
+        outline. In 1992 Carolyn Gordon, David Webb and Scott Wolpert showed that you can't. These two drums
+        are each seven half-squares glued together in different ways, and they ring at exactly the same
+        frequencies.
+      </p>
+      <p id="twins-status" class="twins-status">Working out both drums’ notes…</p>
+      <div class="twin-notes" role="group" aria-label="Play one note on both drums">
+        <span>Play one note on both, and watch the sand:</span>
+        <div id="twin-notes"></div>
+      </div>
+    </div>
+    <div class="twins-stage">
+      <canvas id="twins" aria-label="The two drums that sound the same. Click either one to strike it."></canvas>
+    </div>
+    <div class="twins-detail">
+      <table id="twins-table" class="twins-table">
+        <caption>Lowest notes, as multiples of the first</caption>
+        <thead><tr><th scope="col">Note</th><th scope="col">Left drum</th><th scope="col">Right drum</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <figure class="twins-guess">
+        <svg id="twins-guess" viewBox="-1.6 -1.6 3.2 3.2" role="img" aria-label="The network's guess for both drums"></svg>
+        <figcaption>The network hears the same notes from both, so it has to draw the same shape for both.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <article class="essay" id="essay">
+    <h2>How it works</h2>
+    <p>
+      A drumhead is a membrane held at its rim. It can only vibrate in certain patterns, its modes, and each
+      mode has its own frequency. A strike sets many of them going at once, and what you hear is their sum.
+      The outline decides the modes, so it decides the sound. Mark Kac asked in 1966 whether that works
+      backwards too: whether the frequencies alone pin down the outline.
+    </p>
+
+    <h3>Finding a drum’s notes</h3>
+    <p>
+      The page computes the modes with finite elements. It scales the drum to unit area, covers it with a
+      mesh of about 2,000 points, and solves for the 40 lowest modes. That takes about a tenth of a
+      second in your browser. The size of the drum and the tightness of the head move every note up or
+      down together, so what carries the shape is the notes’ ratios to the lowest one. Those ratios are all
+      the network gets.
+    </p>
+
+    <h3>The listener</h3>
+    <p>
+      The network was trained on about 490,000 drums: one-stroke doodles from Google’s
+      <a href="https://quickdraw.withgoogle.com/data">Quick, Draw!</a> dataset, stretched copies of them,
+      random blobs, stars, polygons and ellipses. For each, the same solver found its 40 lowest notes. The
+      network reads the ratios of the first few, from 3 up to 40, and draws four candidate outlines, each
+      with how sure it is. The notes can’t tell which way a drum is turned, whether it’s mirrored, or
+      where you started drawing it, so training lines each candidate up with the true outline in all those
+      ways before scoring it. The page does the same before it measures the overlap.
+    </p>
+
+    <h3>How well it hears</h3>
+    <p>
+      On 1,000 drums the network never trained on, mostly doodles, here is how much its most confident
+      outline overlaps the real one, after the best turn and mirror:
+    </p>
+    <table>
+      <caption>Overlap of the network’s outline with the true drum (area in common over total area)</caption>
+      <thead>
+        <tr><th scope="col">Notes heard</th><th scope="col" class="num">All test drums</th><th scope="col" class="num">Doodles</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>3</td><td class="num">72%</td><td class="num">68%</td></tr>
+        <tr><td>5</td><td class="num">75%</td><td class="num">71%</td></tr>
+        <tr><td>10</td><td class="num">78%</td><td class="num">74%</td></tr>
+        <tr><td>20</td><td class="num">79%</td><td class="num">75%</td></tr>
+        <tr><td>40</td><td class="num">79%</td><td class="num">76%</td></tr>
+        <tr><td>Always guessing a circle</td><td class="num">57%</td><td class="num"></td></tr>
+      </tbody>
+    </table>
+    <p>
+      With 40 notes, ellipses come back at 96% overlap, polygons and pointed stars at 95%, smooth random
+      shapes at 90–93%, and doodles at 76%. Most of what the network can hear, it hears in the first ten
+      notes. In the quiz above it picks the right drum out of four about three times in four (76% over 300
+      practice rounds), where guessing would manage one in four.
+    </p>
+
+    <h3>Where hearing runs out</h3>
+    <p>
+      Some of a drum’s shape is easy to hear. The way the notes crowd together as they rise gives away its
+      area, its perimeter and even how many holes it has. Fine detail lives in high notes, though, and 40
+      notes only reach so far, so long thin limbs and sharp notches come back blunted. And as Gordon, Webb
+      and Wolpert showed, some different drums have exactly the same notes, so no listener could ever tell
+      them apart. A mirror image always sounds the same as the original.
+    </p>
+
+    <h3>The sand</h3>
+    <p>
+      In 1787 Ernst Chladni scattered sand on a metal plate and bowed its edge. The sand bounced off the
+      parts that moved and piled up on the lines that stayed still. Pick a sand figure under the drum to
+      try it here: each grain takes small random hops, bigger where the drumhead moves more, so the
+      grains wander until they come to rest on the nodal lines. Switch notes and the same sand moves on
+      to the new lines.
+    </p>
+
+    <h3>Credits</h3>
+    <p>
+      M. Kac, <em>Can one hear the shape of a drum?</em>, American Mathematical Monthly (1966).
+      C. Gordon, D. Webb and S. Wolpert, <em>One cannot hear the shape of a drum</em>, Bulletin of the AMS
+      (1992). The drums’ coordinates follow T. Driscoll, <em>Eigenmodes of isospectral drums</em>, SIAM
+      Review (1997), as used in Cleve Moler’s 2012 posts. Doodles from Google’s Quick, Draw! dataset
+      (CC BY 4.0). Meshing by Mapbox’s Delaunator (ISC). Colours sampled from a Wikimedia Commons
+      photograph of a Chladni plate.
+    </p>
+  </article>
+</body>
+</html>

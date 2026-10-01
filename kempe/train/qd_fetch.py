@@ -56,27 +56,40 @@ def main():
     raws, cats, closed_f = [], [], []
     for ci, cat in enumerate(CATS):
         url = URL.format(urllib.parse.quote(cat))
-        kept = seen = 0
-        with urllib.request.urlopen(url) as f:
-            for line in f:
-                seen += 1
-                d = json.loads(line)
-                if not d.get('recognized', False):
-                    continue
-                dense, closed = extract(d['drawing'])
-                if dense is None:
-                    continue
-                raws.append(dense)
-                cats.append(ci)
-                closed_f.append(closed)
-                kept += 1
-                if kept >= args.per or seen >= 12 * args.per:
-                    break
-        print(f'{cat:14s} kept {kept} of {seen}', flush=True)
+        for attempt in range(4):   # the bucket occasionally times out mid-stream
+            try:
+                got = fetch_category(url, args.per)
+                break
+            except OSError as e:
+                print(f'{cat}: {e}, retrying', flush=True)
+        else:
+            continue
+        for dense, closed in got:
+            raws.append(dense)
+            cats.append(ci)
+            closed_f.append(closed)
+        print(f'{cat:14s} kept {len(got)}', flush=True)
     raws = np.stack(raws)
     z, _ = normalise(to_complex(resample(raws)))
     np.savez(args.out, raw=raws.astype(np.float32), z=z.astype(np.complex64),
              cat=np.array(cats, np.int16), closed=np.array(closed_f), cats=np.array(CATS))
+
+
+def fetch_category(url, per):
+    got, seen = [], 0
+    with urllib.request.urlopen(url, timeout=60) as f:
+        for line in f:
+            seen += 1
+            d = json.loads(line)
+            if not d.get('recognized', False):
+                continue
+            dense, closed = extract(d['drawing'])
+            if dense is None:
+                continue
+            got.append((dense, closed))
+            if len(got) >= per or seen >= 12 * per:
+                break
+    return got
 
 
 if __name__ == '__main__':
