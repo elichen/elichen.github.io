@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Second Hand</title>
+  <meta name="description" content="Write one line by hand. A neural network that learned from 170 people's handwriting writes anything you type in your hand, live in the browser.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23fefdfd'/%3E%3Cpath d='M6 21c3-9 5-9 6-3s3 5 5-2 4-6 4 1 3 5 5 1' stroke='%238c7692' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?h=1">
+  <script src="ink.js?h=1" defer></script>
+  <script src="main.js?h=1" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <h1>Second Hand</h1>
+    <p>Write one line. A network that learned from 170 people’s handwriting writes anything you type in your hand.</p>
+  </header>
+
+  <main class="desk">
+    <section class="step" aria-labelledby="pad-title">
+      <div class="step-head">
+        <h2 id="pad-title"><span class="num">1</span> Your hand</h2>
+        <p class="prompt">Copy this line in your own handwriting: <q id="prompt-text">The quick brown fox</q></p>
+      </div>
+      <div class="pad-wrap">
+        <canvas id="pad" class="pad" tabindex="0" aria-label="Writing pad. Write the line The quick brown fox here with a mouse, finger or stylus."></canvas>
+        <p id="pad-empty" class="pad-empty" aria-hidden="true">Write here</p>
+      </div>
+      <div class="pad-bar">
+        <div class="pad-actions">
+          <button type="button" id="undo" class="quiet">Undo</button>
+          <button type="button" id="clear" class="quiet">Clear</button>
+        </div>
+        <p id="pad-status" class="pad-status" role="status" aria-live="polite"></p>
+      </div>
+      <div class="borrow">
+        <span id="borrow-label">Or borrow a hand the network made up</span>
+        <div id="hands" class="hands" role="group" aria-labelledby="borrow-label"></div>
+      </div>
+    </section>
+
+    <section class="step" aria-labelledby="compose-title">
+      <div class="step-head">
+        <h2 id="compose-title"><span class="num">2</span> Anything you like</h2>
+      </div>
+      <form id="compose" class="compose" autocomplete="off">
+        <label class="sr-only" for="text">Text to write</label>
+        <input id="text" type="text" maxlength="180" spellcheck="false" value="Dear future me, this is how you write.">
+        <button type="submit" id="write" class="action">Write it</button>
+        <label class="dial" for="neat">
+          <span>Neatness</span>
+          <input id="neat" type="range" min="0" max="20" value="10">
+        </label>
+      </form>
+      <p id="text-note" class="text-note" aria-live="polite"></p>
+    </section>
+
+    <section class="sheet-step" aria-labelledby="sheet-title">
+      <div class="step-head">
+        <h2 id="sheet-title">In your hand</h2>
+        <div class="sheet-actions">
+          <label class="toggle"><input type="checkbox" id="guesses" checked> Show its guesses</label>
+          <button type="button" id="again" class="quiet">Write it again</button>
+          <button type="button" id="save" class="quiet">Save image</button>
+        </div>
+      </div>
+      <div class="sheet-wrap">
+        <canvas id="sheet" class="sheet" role="img" aria-label="The network's handwriting"></canvas>
+        <p id="sheet-status" class="sheet-status" role="status" aria-live="polite">Loading the network…</p>
+      </div>
+      <div class="sheet-foot">
+        <div class="strip" aria-hidden="true">
+          <span class="strip-label">Reading</span>
+          <div id="strip" class="strip-text"></div>
+        </div>
+        <figure class="loupe" id="loupe-box">
+          <canvas id="loupe" width="150" height="150" aria-label="Close-up of the pen tip with the network's guesses for its next move"></canvas>
+          <figcaption id="loupe-cap">Next move</figcaption>
+        </figure>
+      </div>
+    </section>
+  </main>
+
+  <article class="essay" id="essay">
+    <h2>How it works</h2>
+
+    <h3>A pen as a string of moves</h3>
+    <p>
+      When you write on the pad, the page records your pen as a list of points. It finds your baseline
+      and the height of your small letters, rescales the line so that a lowercase <em>x</em> is one unit
+      tall, and resamples every stroke at an even step of a fifth of that height. Your line becomes a few
+      hundred small moves, each one a step to the next point plus a flag for whether the pen was lifted
+      first. That is exactly the form the network learned from.
+    </p>
+
+    <h3>Guessing the next move</h3>
+    <p>
+      The network is a stack of three LSTM layers with 3.8 million weights. It reads the moves one at a
+      time and, after each, predicts the next. The prediction isn’t a single point but a cloud: a blend of
+      20 two-dimensional bell curves, plus the chance that the pen lifts. To write, the page picks a move
+      at random from that cloud, feeds it back in, and repeats. With <em>Show its guesses</em> ticked, the
+      circle beside the sheet magnifies the pen tip and draws the strongest few bell curves as ellipses.
+      Partway along a stroke there is one tight ellipse just ahead of the pen; near the end of a letter a
+      wide one appears where the pen might land if it lifts, and the caption gives the odds that it will.
+      The neatness slider sharpens the cloud before each pick, trading some wobble for legibility.
+    </p>
+
+    <h3>Which letter it’s on</h3>
+    <p>
+      The network reads the text through a soft window that slides along the characters. With every pen
+      move it decides how far to slide the window, so it works out for itself that an <em>m</em> takes
+      longer than an <em>i</em>. The strip under the sheet shows where the window is centred. When the
+      window slides past the last character, the line is done. This design comes from Alex Graves’s 2013
+      paper <a href="https://arxiv.org/abs/1308.0850"><em>Generating Sequences With Recurrent Neural
+      Networks</em></a>, the first to show a network writing by hand.
+    </p>
+
+    <h3>Your line as a prompt</h3>
+    <p>
+      There is no setting for “style” anywhere in the network. Instead, the page first feeds it your line
+      and its text, as if it had just written that line itself. By the end its memory holds your slant,
+      your size and spacing, the way you make each letter, and it carries on in the same hand with the
+      words you typed. Graves called this priming; it is the same trick as prompting a language model.
+      To make it work, every training example was two or three lines by one person laid end to end on a
+      single baseline, so carrying on in someone’s hand is exactly what the network practised.
+    </p>
+
+    <h3 id="results">How well it copies a hand</h3>
+    <p>
+      To check that priming really carries a hand, 12 of the 170 writers were kept out of training. For
+      each one, the network read their “The quick brown fox” and then wrote six sentences that the same
+      person had also written, three times each. Five things were measured on the generated lines and on
+      the person’s real ones, all relative to their own letter height: slant, width per letter, pen lifts
+      per letter, how high the tall letters reach and how low the tails hang.
+    </p>
+    <table>
+      <caption>Matching generated lines to the 12 held-out writers by those five measurements</caption>
+      <thead>
+        <tr><th scope="col"></th><th scope="col" class="num-col">Primed with their line</th><th scope="col" class="num-col">Not primed</th><th scope="col" class="num-col">Chance</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Closer to the right writer than to another one</td><td class="num-col">80%</td><td class="num-col">55%</td><td class="num-col">50%</td></tr>
+        <tr><td>Right writer is the closest of all 12</td><td class="num-col">33%</td><td class="num-col">17%</td><td class="num-col">8%</td></tr>
+        <tr><td>Right writer is among the closest 3</td><td class="num-col">58%</td><td class="num-col">25%</td><td class="num-col">25%</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Slant and letter width carry over most strongly: across the 12 writers, the generated and real
+      values correlate at 0.80 and 0.82. How often the pen lifts carries over partly (0.47). How tall the
+      tall letters are and how far the tails drop hardly carry over at all (0.28 and 0.13). Swapping the
+      primes gives the same picture: lines primed with someone else’s writing match that someone else
+      81% of the time.
+    </p>
+
+    <h3>Where it goes wrong</h3>
+    <p>
+      Most of the 170 writers in the training set printed rather than joined their letters, so a joined
+      hand tends to come back partly printed. Writing with a mouse is shaky, and the network copies the
+      shake faithfully. Now and then it drops or doubles a letter, more often at low neatness. Characters
+      it never saw anyone write, such as <em>@</em> or accented letters, are left out. And it judges your
+      size and baseline from one line: across 165 people who wrote this same line, that estimate of letter
+      height was within about 13%.
+    </p>
+
+    <h3>Credits</h3>
+    <p>
+      A. Graves, <em>Generating Sequences With Recurrent Neural Networks</em> (2013). Handwriting from the
+      BRUSH dataset: A. Kotani, S. Tellex and J. Tompkin, <em>Generating Handwriting via Decoupled Style
+      Descriptors</em>, ECCV 2020, used under its non-commercial research licence. Colours sampled from a
+      Wikimedia Commons photograph of a 1980 maths worksheet run off a spirit duplicator (KurtSchwitters,
+      CC BY 4.0). Everything runs in your browser; your handwriting never leaves the page.
+    </p>
+  </article>
+</body>
+</html>
