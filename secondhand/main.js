@@ -24,7 +24,7 @@
   // sheet state
   let job = 0, seed = 1, lines = [], renderXh = 22, playing = false;
 
-  const worker = new Worker("worker.js?h=1");
+  const worker = new Worker("worker.js?h=2");
   worker.onerror = (e) => {
     console.error("worker:", e.message);
     $("sheet-status").textContent = "The network stopped with an error.";
@@ -418,8 +418,9 @@
   function tick() {
     let active = lines.find((l) => !(l.done && l.drawn >= l.pts.length));
     if (active) {
+      // ink arrives a few words at a time; draw it at about the pace it's written
       const queued = active.pts.length - active.drawn;
-      active.drawn = Math.min(active.pts.length, active.drawn + Math.max(4, Math.ceil(queued / 24)));
+      active.drawn = Math.min(active.pts.length, active.drawn + Math.max(3, Math.ceil(queued / 48)));
       if (active.drawn) drawStrip(active.offset + Math.min(active.pts[active.drawn - 1][3], active.text.length - 1));
       drawSheet();
       requestAnimationFrame(tick);

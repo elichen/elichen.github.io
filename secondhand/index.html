@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css?h=1">
   <script src="ink.js?h=1" defer></script>
-  <script src="main.js?h=1" defer></script>
+  <script src="main.js?h=2" defer></script>
 </head>
 <body>
   <header class="masthead">
@@ -113,7 +113,7 @@
       The network reads the text through a soft window that slides along the characters. With every pen
       move it decides how far to slide the window, so it works out for itself that an <em>m</em> takes
       longer than an <em>i</em>. The strip under the sheet shows where the window is centred. When the
-      window slides past the last character, the line is done. This design comes from Alex Graves’s 2013
+      window slides past the last character, it stops. This design comes from Alex Graves’s 2013
       paper <a href="https://arxiv.org/abs/1308.0850"><em>Generating Sequences With Recurrent Neural
       Networks</em></a>, the first to show a network writing by hand.
     </p>
@@ -126,6 +126,14 @@
       words you typed. Graves called this priming; it is the same trick as prompting a language model.
       To make it work, every training example was two or three lines by one person laid end to end on a
       single baseline, so carrying on in someone’s hand is exactly what the network practised.
+    </p>
+    <p>
+      That memory fades, though. After about a dozen letters the network is reading more of its own
+      writing than yours, and it slides toward an average hand, with narrower letters and words crowding
+      together. So the page writes a few words at a time, up to 13 characters, starting each piece fresh
+      from your line. Each piece goes after the last at whatever gap the network chose when it jumped
+      from the end of your line. On 45-character lines by writers it never trained on, that took letter
+      width from 76% of the writer’s own to 85%, and the gaps between words from 78% to 97%.
     </p>
 
     <h3 id="results">How well it copies a hand</h3>
@@ -142,24 +150,25 @@
         <tr><th scope="col"></th><th scope="col" class="num-col">Primed with their line</th><th scope="col" class="num-col">Not primed</th><th scope="col" class="num-col">Chance</th></tr>
       </thead>
       <tbody>
-        <tr><td>Closer to the right writer than to another one</td><td class="num-col">80%</td><td class="num-col">55%</td><td class="num-col">50%</td></tr>
+        <tr><td>Closer to the right writer than to another one</td><td class="num-col">86%</td><td class="num-col">55%</td><td class="num-col">50%</td></tr>
         <tr><td>Right writer is the closest of all 12</td><td class="num-col">33%</td><td class="num-col">17%</td><td class="num-col">8%</td></tr>
-        <tr><td>Right writer is among the closest 3</td><td class="num-col">58%</td><td class="num-col">25%</td><td class="num-col">25%</td></tr>
+        <tr><td>Right writer is among the closest 3</td><td class="num-col">75%</td><td class="num-col">25%</td><td class="num-col">25%</td></tr>
       </tbody>
     </table>
     <p>
       Slant and letter width carry over most strongly: across the 12 writers, the generated and real
-      values correlate at 0.80 and 0.82. How often the pen lifts carries over partly (0.47). How tall the
-      tall letters are and how far the tails drop hardly carry over at all (0.28 and 0.13). Swapping the
-      primes gives the same picture: lines primed with someone else’s writing match that someone else
-      81% of the time.
+      values correlate at 0.89 and 0.88. How tall the tall letters are and how far the tails drop carry
+      over partly (0.63 and 0.47), and so does how often the pen lifts (0.29). Swapping the primes gives
+      the same picture: lines primed with someone else’s writing match that someone else 89% of the time.
     </p>
 
     <h3>Where it goes wrong</h3>
     <p>
       Most of the 170 writers in the training set printed rather than joined their letters, so a joined
       hand tends to come back partly printed. Writing with a mouse is shaky, and the network copies the
-      shake faithfully. Now and then it drops or doubles a letter, more often at low neatness. Characters
+      shake faithfully. Now and then it drops or doubles a letter, more often at low neatness, or loses
+      its place and sends a stroke off across the page; when a piece comes out far taller or wider than
+      any handwriting, the page quietly writes it again. Characters
       it never saw anyone write, such as <em>@</em> or accented letters, are left out. And it judges your
       size and baseline from one line: across 165 people who wrote this same line, that estimate of letter
       height was within about 13%.

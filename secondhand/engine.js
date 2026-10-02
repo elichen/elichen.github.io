@@ -141,6 +141,17 @@
       return [dx, dy, pen];
     }
 
+    // The first move after a primed line. The prime ended with a lift, but the
+    // network only learns that from its next input, and it draws the move apart
+    // from the lift. So redraw until the move is a jump to the next word, not
+    // one more step of the prime's last stroke.
+    sampleJump(s, bias, rand) {
+      let m = this.sample(s, bias, rand);
+      for (let k = 0; k < 50 && Math.hypot(m[0], m[1]) <= JUMP; k++) m = this.sample(s, bias, rand);
+      m[2] = 1;
+      return m;
+    }
+
     // The k likeliest components of the next-move mixture, after the same
     // sharpening as sample(): [weight, mux, muy, sx, sy, rho] each, plus P(lift).
     mixture(s, bias, k, out) {
