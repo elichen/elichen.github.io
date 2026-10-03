@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Path tracer vs three-gpu-pathtracer</title>
+<!--
+  Dev tool, not linked from the site. Renders the dragon scene with three-gpu-pathtracer
+  (WebGPU, wavefront and megakernel backends) at the same size, bounces and materials as
+  ../index.html, and reports samples per pixel per second. Open from a local server:
+  http://localhost:8765/pathtracer/tools/compare.html  then run  await bench('clay')  in the console.
+-->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+    "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js",
+    "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.tsl.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/",
+    "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/",
+    "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.15/src/index.js",
+    "three-mesh-bvh/webgpu": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.15/src/webgpu/index.js",
+    "three-gpu-pathtracer/webgpu": "https://cdn.jsdelivr.net/npm/three-gpu-pathtracer@0.0.26/src/webgpu/index.js"
+  }
+}
+</script>
+<style>body { margin: 0; background: #111; color: #ddd; font: 13px monospace; } canvas { display: block; } pre { margin: 8px; }</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<pre id="log"></pre>
+<script type="module">
+import * as THREE from 'three/webgpu';
+import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
+import { WebGPUPathTracer } from 'three-gpu-pathtracer/webgpu';
+import { decodeMesh } from '../mesh.js';
+import { SCENES, PRESETS, sweep } from '../scenes.js';
+
+const W = 1408, H = 902;              // the main page's render size on a 2x display
+const log = (...a) => { document.getElementById('log').textContent += a.join(' ') + '\n'; console.log(...a); };
+const linear = (m, c) => m.color.setRGB(c[0], c[1], c[2], THREE.LinearSRGBColorSpace);
+
+const renderer = new THREE.WebGPURenderer({ canvas: document.getElementById('c'), antialias: false });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H);
+await renderer.init();
+
+const def = SCENES.bench;          // the studio-backdrop dragon; pathtracer.loadScene('bench') shows it on the main page
+const scene = new THREE.Scene();
+scene.background = new THREE.Color().setRGB(...def.env.background, THREE.LinearSRGBColorSpace);
+const env = await new HDRLoader().loadAsync('../' + def.env.url);
+env.mapping = THREE.EquirectangularReflectionMapping;
+scene.environment = env;
+scene.environmentRotation.y = -def.env.rotation * 2 * Math.PI;
+
+const mesh = await decodeMesh(await (await fetch('../' + def.geometry.dragon.mesh)).arrayBuffer());
+const dragonGeo = new THREE.BufferGeometry();
+dragonGeo.setAttribute('position', new THREE.BufferAttribute(mesh.positions, 3));
+dragonGeo.setIndex(new THREE.BufferAttribute(mesh.indices, 1));
+dragonGeo.computeVertexNormals();
+const dragonMat = new THREE.MeshStandardMaterial();
+const dragon = new THREE.Mesh(dragonGeo, dragonMat);
+const inst = def.instances[0];
+dragon.scale.setScalar(inst.scale);
+dragon.rotation.y = (inst.yaw * Math.PI) / 180;
+scene.add(dragon);
+
+const s = sweep();
+const sweepGeo = new THREE.BufferGeometry();
+sweepGeo.setAttribute('position', new THREE.BufferAttribute(s.positions, 3));
+sweepGeo.setAttribute('normal', new THREE.BufferAttribute(s.normals, 3));
+sweepGeo.setIndex(new THREE.BufferAttribute(s.indices, 1));
+const backMat = new THREE.MeshStandardMaterial({ roughness: def.instances[1].materials[0].roughness, metalness: 0 });
+linear(backMat, def.instances[1].materials[0].color);
+scene.add(new THREE.Mesh(sweepGeo, backMat));
+
+const c = def.camera;
+const camera = new THREE.PerspectiveCamera(c.fov, W / H, 0.01, 100);
+const yaw = (c.yaw * Math.PI) / 180, pitch = (c.pitch * Math.PI) / 180;
+camera.position.set(
+  c.target[0] + Math.sin(yaw) * Math.cos(pitch) * c.distance,
+  c.target[1] + Math.sin(pitch) * c.distance,
+  c.target[2] + Math.cos(yaw) * Math.cos(pitch) * c.distance);
+camera.lookAt(...c.target);
+
+const pt = new WebGPUPathTracer(renderer);
+pt.maxBounces = 12;
+pt.dynamicLowRes = false;
+pt.renderDelay = 0;
+pt.fadeDuration = 0;
+pt.minSamples = 1;
+let t0 = performance.now();
+pt.setScene(scene, camera);
+log(`setScene (BVH build for ${(mesh.indices.length / 3).toLocaleString()} triangles): ${Math.round(performance.now() - t0)} ms`);
+
+const device = renderer.backend.device;
+const sync = () => device.queue.onSubmittedWorkDone();
+
+function setMaterial(name) {
+  const p = PRESETS[name];
+  dragonMat.metalness = p.metallic || 0;
+  dragonMat.roughness = p.roughness;
+  linear(dragonMat, p.color);
+  pt.updateMaterials();
+}
+
+// samples per pixel per second over `seconds`, after a short warm-up
+async function measure(seconds, budget) {
+  pt.frameBudget = budget;
+  pt.reset();
+  for (let i = 0; i < 10; i++) pt.renderSample();
+  await sync();
+  const before = (await pt.getSampleCountsAsync()).avg;
+  const start = performance.now();
+  while (performance.now() - start < seconds * 1000) {
+    pt.renderSample();
+    await sync();
+  }
+  const elapsed = (performance.now() - start) / 1000;
+  const after = (await pt.getSampleCountsAsync()).avg;
+  return (after - before) / elapsed;
+}
+
+window.bench = async (material = 'clay', seconds = 8) => {
+  setMaterial(material);
+  const results = {};
+  for (const [label, mega] of [['wavefront', false], ['megakernel', true]]) {
+    pt.useMegakernel(mega);
+    for (const budget of [250000, W * H]) {
+      const sps = await measure(seconds, budget);
+      results[`${label} budget ${budget}`] = +sps.toFixed(1);
+      log(`${material} ${label} frameBudget ${budget}: ${sps.toFixed(1)} samples per pixel per second`);
+    }
+  }
+  pt.useMegakernel(false);
+  return results;
+};
+window.pt = pt;
+log('ready: await bench("clay") or bench("gold")');
+</script>
+</body>
+</html>

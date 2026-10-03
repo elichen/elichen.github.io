@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Path Tracer</title>
+  <meta name="description" content="A physically based path tracer written as a WebGPU compute shader: an 870,000-triangle dragon, glass, jade and the Cornell box, rendered live in your browser.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="main.js"></script>
+</head>
+<body>
+  <main class="stage">
+    <div class="viewport">
+      <canvas id="view" aria-label="Path traced scene. Drag to orbit, right-drag or shift-drag to pan, scroll to zoom, click an object to change its material, double-click to focus."></canvas>
+      <div class="hud" aria-hidden="true">
+        <span><b id="hud-spp">0</b> samples per pixel</span>
+        <span><b id="hud-mrays">–</b> million rays a second</span>
+      </div>
+      <p class="help">Drag to orbit · scroll to zoom · click the object to restyle it · double-click to focus</p>
+      <p id="status" class="status">Starting WebGPU…</p>
+      <button type="button" id="resume" class="resume" hidden>Resume</button>
+    </div>
+
+    <aside class="panel" aria-label="Controls">
+      <header>
+        <h1>Path tracer</h1>
+        <p class="lede">
+          Light, simulated one path at a time by a compute shader on your GPU. Hold still and the noise
+          melts away.
+        </p>
+      </header>
+
+      <section class="group">
+        <h2>Object</h2>
+        <div class="buttons pairs" id="objects"></div>
+        <p id="scene-note" class="hint"></p>
+      </section>
+
+      <section class="group" id="place-group">
+        <h2>Place</h2>
+        <div class="buttons places">
+          <button type="button" data-place="venice">Venice at sunset</button>
+          <button type="button" data-place="shanghai">Shanghai at night</button>
+          <button type="button" data-place="studio">Photo studio</button>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Material</h2>
+        <p id="pick-hint" class="hint">Click an object to change what it’s made of.</p>
+        <div id="material" hidden>
+          <p class="mat-head" id="mat-name"></p>
+          <div class="buttons chips" id="presets"></div>
+        </div>
+      </section>
+
+      <section class="group">
+        <label class="check"><input id="dof" type="checkbox" checked><span>Depth of field <span class="aside">· double-click to focus</span></span></label>
+        <label class="check"><input id="xray" type="checkbox"><span>X-ray <span class="aside">· how hard each ray works to find what it hits</span></span></label>
+      </section>
+
+      <section class="group">
+        <h2>Classic test scenes</h2>
+        <div class="buttons pairs">
+          <button type="button" data-scene="cornell">Cornell box</button>
+          <button type="button" data-scene="spheres">One Weekend</button>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <article class="notes">
+    <h2>How it works</h2>
+    <p>
+      <strong>One light path per pixel, per frame.</strong> Each frame a WebGPU compute shader starts a ray at
+      the camera for every pixel and follows it through the scene. At each surface it picks one way to
+      continue, by reflecting, refracting or scattering, according to the material. The path ends when it
+      escapes to the sky or fades out. At every bounce the shader also aims a shadow ray at a light it chose on
+      purpose, and weighs that against stumbling onto the light by chance (multiple importance sampling), so
+      small, bright lights don’t turn into confetti. Each pixel shows the running average of its paths. Noise
+      falls with the square root of the sample count: four times the samples, half the grain.
+    </p>
+    <p>
+      <strong>Finding what a ray hits</strong> is most of the work. Testing a ray against all 870,616
+      triangles of the dragon would mean 870,616 tests. Instead the triangles are sorted into a bounding
+      volume hierarchy, a tree of nested boxes that your browser builds when the scene loads, in about two
+      seconds. A ray opens only the boxes it passes through, so a typical ray here visits a few dozen boxes
+      and tests a handful of triangles. Each node stores the boxes of both its children, so one 64-byte read
+      tells the shader which side to try first. Tick <em>X-ray</em> to see this work pixel by pixel: silhouettes and grazing angles are where it piles up.
+    </p>
+    <p>
+      <strong>Materials.</strong> Metals and glazes use GGX microfacets, sampled by the facets the eye can
+      actually see. Glass chooses between reflecting and refracting with the Fresnel equations, and amber
+      absorbs more the further light travels inside it. Jade and wax are glass filled with a cloudy medium:
+      light inside takes a random walk, bouncing off particles until it finds its way out.
+    </p>
+    <p>
+      <strong>Places.</strong> Each place is a high-dynamic-range photograph that wraps all the way around
+      the scene and lights it, so a gold dragon in Venice reflects the sunset and the promenade. The ground
+      is a trick borrowed from visual effects. The floor takes its colour from the photo itself, looked up
+      from the height the camera stood at, so where it’s lit it matches the photograph exactly, and the
+      dragon still casts real shadows into it.
+    </p>
+    <h2>Why a hand-written shader?</h2>
+    <p>
+      Browsers can’t reach the ray-tracing hardware in today’s GPUs, because WebGPU doesn’t expose it. So every
+      path tracer on the web, library or not, finds what its rays hit in ordinary shader code, and the
+      question is how well that code fits the job.
+    </p>
+    <p>
+      The best-known library, <a href="https://github.com/gkjohnson/three-gpu-pathtracer">three-gpu-pathtracer</a>,
+      also runs on WebGPU compute shaders, generated from three.js’s node system. Given the dragon on a plain
+      studio backdrop at the same size, bounce limit, lighting and materials, on the same laptop:
+    </p>
+    <table>
+      <caption>Samples per pixel per second at 1408 × 902: dragon on the studio backdrop, up to 12 bounces, Apple M4 Pro, Chrome</caption>
+      <thead><tr><th scope="col"></th><th scope="col">Clay</th><th scope="col">Gold</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">This page: one hand-written WGSL kernel</th><td class="num">52</td><td class="num">50</td></tr>
+        <tr><th scope="row">three-gpu-pathtracer 0.0.26, wavefront backend</th><td class="num">17.6</td><td class="num">18.0</td></tr>
+        <tr><th scope="row">three-gpu-pathtracer 0.0.26, megakernel backend</th><td class="num">2.4</td><td class="num">2.4</td></tr>
+      </tbody>
+    </table>
+    <p>
+      About three times as fast, but the comparison flatters the custom shader. The library handles textures,
+      the full glTF material model, any number of lights, animated meshes and denoising. This page handles
+      what its four scenes need and nothing more, and every feature left out is registers and branches the GPU
+      doesn’t have to carry. The library also spends its samples more cleverly. It draws them from
+      blue-noise-dithered Sobol sequences, where this page uses plain random numbers, so it reaches a given
+      level of noise in fewer samples than raw speed suggests.
+    </p>
+    <p>
+      So the lesson is less that custom beats libraries than that specialised beats general: one fixed material
+      model, a BVH laid out for exactly one traversal loop, and that loop written by hand. If you need the
+      features, the library is the better deal.
+    </p>
+    <h2>Credits</h2>
+    <p class="credits">
+      Dragon, Happy Buddha, Lucy, Armadillo and bunny: <a href="https://graphics.stanford.edu/data/3Dscanrep/">Stanford 3D Scanning Repository</a>.
+      Spot: <a href="https://www.cs.cmu.edu/~kmcrane/Projects/ModelRepository/">Keenan Crane</a> (CC0).
+      Marble bust, horse statue and rubber duck: <a href="https://polyhaven.com/models">Poly Haven</a> (CC0).
+      The teapot is tessellated from Martin Newell’s patches by three.js’s TeapotGeometry.
+      Places, from <a href="https://polyhaven.com/hdris">Poly Haven</a> (CC0): Venice Sunset and Shanghai Bund by Greg Zaal,
+      Brown Photostudio 02 and Studio Small 09 by Sergej Majboroda, and Kloofendal 48d Partly Cloudy by Greg Zaal and Jarod Guest.
+      Cornell box dimensions and reflectances: <a href="https://www.graphics.cornell.edu/online/box/data.html">Cornell Program of Computer Graphics</a>.
+      The spheres recreate the cover of Peter Shirley’s <a href="https://raytracing.github.io/books/RayTracingInOneWeekend.html"><cite>Ray Tracing in One Weekend</cite></a>.
+      Interface colours sampled from a GretagMacbeth ColorChecker.
+    </p>
+  </article>
+</body>
+</html>

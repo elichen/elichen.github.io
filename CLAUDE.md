@@ -99,3 +99,17 @@ The double pendulum is significantly harder than single due to chaotic dynamics 
 - `train_double.py`: PyTorch training (input_size=7, lambda=0.95)
 - `double-main.js`: Web runner (loads trained-weights-double.json)
 - Weights files generated after training: `trained-weights-double.json`, `trained-normalization-double.json`
+
+## Path Tracer (`/pathtracer/`)
+
+WebGPU path tracer: one WGSL megakernel (`trace.wgsl`) over per-mesh BVHs built in a worker (`bvh.js`, `mesh.js`), placed by instances (`assemble.js`).
+
+**GPU safety:** a shader loop that never ends hangs the whole Mac, not just the tab. On 2026-10-02 a bad BVH froze WindowServer and caused a kernel panic. Before testing any change to `trace.wgsl`, `bvh.js`, `assemble.js` or scene geometry in a browser:
+```bash
+node pathtracer/tools/check_scenes.mjs   # builds every scene, validates buffers, measures worst traversal
+```
+`validateScene` in `assemble.js` must keep rejecting trees where an inner child doesn't come after its parent. Keep every shader loop bounded (traversal has a 2048-step cap; real rays need < 300).
+
+- Meshes: `tools/pack_mesh.py` packs Stanford PLY scans into gzipped `model/*.mesh`
+- `tools/compare.html`: benchmark against three-gpu-pathtracer (dev only, loads it from a CDN)
+- In the console, `pathtracer.run(n)` renders n frames even when the tab is in the background

@@ -1,0 +1,123 @@
+/* Every colour is sampled from a photo of a GretagMacbeth ColorChecker chart:
+   its neutral row for the interface, so nothing tints the render, and two patches for colour. */
+:root {
+  --black-patch: #263334;
+  --chart-body: #2e3130;
+  --neutral-35: #4f5d5d;
+  --neutral-5: #7f8b8b;
+  --neutral-65: #acb0b4;
+  --white-patch: #e9e9e9;
+  --cyan-patch: #00acc2;
+  --yellow-patch: #edd721;
+
+  --bg: var(--black-patch);
+  --panel: var(--chart-body);
+  --line: var(--neutral-35);
+  --muted: var(--neutral-65);
+  --ink: var(--white-patch);
+  --accent: var(--cyan-patch);
+  --select: var(--yellow-patch);
+  --raised: color-mix(in srgb, var(--chart-body) 78%, var(--neutral-35));
+
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--bg); color: var(--ink); }
+body { margin: 0; background: var(--bg); font: 14px/1.5 var(--sans); }
+a { color: var(--accent); }
+kbd { font: 500 10px var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; margin-right: 2px; }
+
+/* ---------------------------------------------------------------- stage */
+
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 340px; height: 100vh; min-height: 560px; }
+.viewport { position: relative; min-height: 0; background: #000; }
+#view { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#view:active { cursor: grabbing; }
+
+.hud {
+  position: absolute; left: 14px; top: 12px; display: flex; gap: 6px; flex-wrap: wrap;
+  font: 12px var(--mono); color: var(--ink); pointer-events: none;
+}
+.hud span { background: color-mix(in srgb, var(--black-patch) 78%, transparent); padding: 3px 8px; border-radius: 3px; }
+.hud b { font-weight: 500; }
+
+.help {
+  position: absolute; right: 14px; bottom: 10px; margin: 0; font-size: 12px; color: var(--ink);
+  background: color-mix(in srgb, var(--black-patch) 72%, transparent); padding: 3px 8px; border-radius: 3px;
+  pointer-events: none; transition: opacity 0.6s;
+}
+.help.faded { opacity: 0; }
+
+.status {
+  position: absolute; left: 14px; bottom: 10px; margin: 0; max-width: calc(100% - 28px);
+  background: color-mix(in srgb, var(--black-patch) 88%, transparent); border: 1px solid var(--line);
+  padding: 6px 10px; border-radius: 3px; font-size: 13px;
+}
+.status[hidden] { display: none; }
+.resume { position: absolute; left: 14px; bottom: 52px; }
+
+/* ---------------------------------------------------------------- panel */
+
+.panel { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 18px 18px 22px; }
+.panel header h1 { font-size: 22px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+.lede { color: var(--muted); margin: 0 0 14px; font-size: 13.5px; }
+.hint { color: var(--muted); margin: 6px 0 0; font-size: 12.5px; }
+.hint:empty { display: none; }
+
+.group { border-top: 1px solid var(--line); padding: 12px 0 10px; }
+.group h2 {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--muted); margin: 0 0 8px;
+}
+
+.buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.pairs { display: grid; grid-template-columns: 1fr 1fr; }
+.pairs button, .places button { text-align: left; }
+.places { display: grid; grid-template-columns: 1fr; }
+button {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--raised);
+  border: 1px solid var(--line); border-radius: 4px; padding: 5px 10px; cursor: pointer;
+}
+button:hover { border-color: var(--neutral-5); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--panel) 85%, var(--accent)); }
+button[aria-pressed="true"] kbd { color: var(--accent); border-color: currentColor; }
+
+.chips { margin: 2px 0 6px; }
+.chips button { font-size: 12px; padding: 3px 8px 3px 6px; display: inline-flex; align-items: center; gap: 5px; }
+.chips i { width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.25); }
+.chips i.clear { background: conic-gradient(from 45deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.55)); }
+
+.mat-head { margin: 0 0 8px; font-weight: 600; }
+
+.check { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: baseline; margin: 4px 0 8px; font-size: 13.5px; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; position: relative; top: 2px; }
+.check .aside { color: var(--muted); font-size: 12.5px; }
+
+/* ---------------------------------------------------------------- notes */
+
+.notes { max-width: 720px; margin: 0 auto; padding: 44px 20px 64px; }
+.notes h2 { font-size: 19px; font-weight: 600; margin: 34px 0 10px; }
+.notes h2:first-child { margin-top: 0; }
+.notes p { color: color-mix(in srgb, var(--ink) 86%, var(--muted)); margin: 0 0 14px; }
+.notes strong { color: var(--ink); font-weight: 600; }
+.notes table { width: 100%; border-collapse: collapse; margin: 6px 0 18px; font-size: 13px; }
+.notes caption { text-align: left; color: var(--muted); font-size: 12.5px; margin-bottom: 6px; }
+.notes th, .notes td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.notes td.num { font-family: var(--mono); text-align: right; white-space: nowrap; }
+.notes th { color: var(--muted); font-weight: 500; }
+.notes thead th:not(:first-child) { text-align: right; }
+.credits { font-size: 13px; }
+
+/* ---------------------------------------------------------------- small screens */
+
+@media (max-width: 820px) {
+  .stage { grid-template-columns: 1fr; grid-template-rows: 62vh auto; height: auto; min-height: 0; }
+  .panel { border-left: 0; border-top: 1px solid var(--line); padding: 16px; }
+  .help { display: none; }
+  .hud { left: 10px; top: 10px; font-size: 11px; }
+  .notes { padding: 32px 16px 48px; }
+}
