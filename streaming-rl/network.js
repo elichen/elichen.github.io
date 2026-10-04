@@ -100,18 +100,6 @@ class StreamingNetwork {
         return this.model.trainableWeights;
     }
 
-    async saveModel() {
-        await this.model.save('localstorage://streaming-cartpole');
-    }
-
-    async loadModel() {
-        try {
-            this.model = await tf.loadLayersModel('localstorage://streaming-cartpole');
-        } catch (error) {
-            console.error('Error loading model:', error);
-        }
-    }
-
     async loadPretrainedWeights(weightsJson) {
         // Wait for sparseInit to complete first (avoid race condition)
         if (this.initPromise) {

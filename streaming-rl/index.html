@@ -2,42 +2,219 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Stream Q(λ) - CartPole Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Stream Q(λ) - CartPole Swingup</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
     <style>
+        body {
+            margin: 0;
+            background: #fff;
+            color: #0b0b0b;
+        }
         .container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 20px;
+            padding: 20px 16px;
             font-family: system-ui, -apple-system, sans-serif;
+        }
+        h1 {
+            text-align: center;
         }
         canvas {
             border: 1px solid #000;
+            max-width: 100%;
         }
         #stats {
             margin-top: 15px;
             font-size: 16px;
         }
+        .subtitle {
+            color: #666;
+            margin-bottom: 15px;
+            max-width: 600px;
+            text-align: center;
+        }
+        a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .panel {
+            width: 600px;
+            max-width: 100%;
+            box-sizing: border-box;
+            margin-top: 14px;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: auto 1fr 3.5em;
+            align-items: center;
+            gap: 8px 12px;
+            font-size: 14px;
+        }
+        .controls input[type="range"] {
+            width: 100%;
+            margin: 0;
+        }
+        .controls output {
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+        }
+        .buttons {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 12px;
+            margin-top: 12px;
+            font-size: 14px;
+        }
+        button {
+            font: inherit;
+            padding: 4px 10px;
+            border: 1px solid #c9c8c2;
+            border-radius: 6px;
+            background: #fff;
+            color: #0b0b0b;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #f3f3f1;
+        }
+        .speed {
+            display: inline-flex;
+        }
+        .speed button {
+            border-radius: 0;
+            margin-left: -1px;
+        }
+        .speed button:first-child {
+            border-radius: 6px 0 0 6px;
+            margin-left: 0;
+        }
+        .speed button:last-child {
+            border-radius: 0 6px 6px 0;
+        }
+        .speed button[aria-pressed="true"] {
+            background: #0b0b0b;
+            border-color: #0b0b0b;
+            color: #fff;
+        }
+        .spacer {
+            flex: 1;
+        }
+        .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin: 6px 0 2px;
+        }
+        .legend {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: #52514e;
+        }
+        .legend span::before {
+            content: '';
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        .legend .dot::before {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(42, 120, 214, 0.35);
+        }
+        .legend .line::before {
+            width: 14px;
+            height: 2px;
+            border-radius: 1px;
+            background: #2a78d6;
+        }
+        .chart-wrap {
+            position: relative;
+        }
+        #returnChart {
+            display: block;
+            width: 100%;
+            height: 190px;
+            border: none;
+        }
+        #chartTooltip {
+            position: absolute;
+            pointer-events: none;
+            background: #fff;
+            border: 1px solid rgba(11, 11, 11, 0.10);
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            padding: 6px 8px;
+            font-size: 12px;
+            color: #52514e;
+            white-space: nowrap;
+        }
+        #chartTooltip strong {
+            color: #0b0b0b;
+            font-size: 14px;
+        }
+        #chartTooltip .muted {
+            color: #898781;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Stream Q(λ) - CartPole</h1>
-        <p>Pretrained agent with continual learning (ε=0.01)</p>
-        <p>
-            <a href="swingup.html">Try Swingup Demo</a> - harder task where pole starts hanging down
-        </p>
-        <canvas id="cartpoleCanvas" width="600" height="400"></canvas>
+        <h1>Stream Q(λ) - CartPole Swingup</h1>
+        <p class="subtitle">Pole starts hanging down - agent learns to swing up and balance. It keeps learning from every step, so change the physics and watch it adapt: lengthen the pole and its return drops, then climbs back within 10-20 episodes. Turn learning off to compare.</p>
+        <canvas id="cartpoleCanvas" width="600" height="440"></canvas>
+
+        <div class="panel">
+            <div class="controls">
+                <label for="poleLength">Pole length</label>
+                <input type="range" id="poleLength" min="1" max="1.6" step="0.1" value="1">
+                <output id="poleLengthValue" for="poleLength">1.0 m</output>
+                <label for="forceMag">Motor force</label>
+                <input type="range" id="forceMag" min="8" max="15" step="1" value="10">
+                <output id="forceMagValue" for="forceMag">10 N</output>
+            </div>
+            <div class="buttons">
+                <label><input type="checkbox" id="learning" checked> Learning</label>
+                <button id="resetAgent" type="button">Reset agent</button>
+                <button id="resetPhysics" type="button">Default physics</button>
+                <span class="spacer"></span>
+                <span>Speed</span>
+                <span class="speed">
+                    <button type="button" data-speed="1" aria-pressed="true">1×</button>
+                    <button type="button" data-speed="10" aria-pressed="false">10×</button>
+                    <button type="button" data-speed="max" aria-pressed="false">Max</button>
+                </span>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="chart-title">Return per episode</div>
+            <div class="legend">
+                <span class="dot">Each episode</span>
+                <span class="line">10-episode average</span>
+            </div>
+            <div class="chart-wrap">
+                <canvas id="returnChart"></canvas>
+                <div id="chartTooltip" hidden></div>
+            </div>
+        </div>
+
         <div id="stats">Loading pretrained agent...</div>
         <pre id="gradientStats" style="font-family: monospace; white-space: pre; margin: 10px; padding: 10px; background: #f5f5f5; font-size: 12px;"></pre>
     </div>
 
-    <script src="cartpole.js"></script>
+    <script src="cartpole-swingup.js"></script>
     <script src="network.js"></script>
     <script src="optimizer.js"></script>
     <script src="agent.js"></script>
     <script src="normalization.js"></script>
-    <script src="main.js"></script>
+    <script src="return-chart.js"></script>
+    <script src="swingup-main.js"></script>
 </body>
 </html>

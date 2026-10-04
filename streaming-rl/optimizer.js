@@ -1,136 +1,83 @@
-class ObGD {
-    constructor(params, learningRate = 1.0, gamma = 0.99, lambda = 0.8, kappa = 2.0) {
+// StreamingOptimizer from the paper's 2026 revision (github.com/mohmdelsayed/streaming-drl,
+// branch 2026). Each weight's step is divided by a slowly decaying max of |δ·e|, so no
+// weight moves more than lr per step. It starts from our ObGD-trained weights, so it
+// first spends warmupSteps measuring that max without moving any weights.
+class StreamingOptimizer {
+    constructor(params, learningRate = 3e-4, gamma = 0.99, lambda = 0.8, beta = 0.99995, warmupSteps = 1000, eps = 1e-8) {
         this.lr = learningRate;
         this.gamma = gamma;
         this.lambda = lambda;
-        this.kappa = kappa;
-        this.traces = new Map();
+        this.beta = beta;
+        this.warmupSteps = warmupSteps;
+        this.eps = eps;
         this.params = params;
-        this.lastStats = null;
-        
-        // Initialize eligibility traces for each parameter
-        params.forEach((param, index) => {
-            if (!param.name) return;
-            const trace = tf.variable(tf.zeros(param.shape));
-            this.traces.set(param.name, trace);
+        this.traces = new Map();
+        this.maxV = new Map();
+        this.t = 0;
+        this.lastDelta = 0;
+
+        params.forEach(param => {
+            this.traces.set(param.name, tf.variable(tf.zeros(param.shape)));
+            this.maxV.set(param.name, tf.variable(tf.zeros(param.shape)));
         });
     }
 
     async step(delta, grads, reset) {
-        // First pass: update traces and compute z_sum
-        let z_sum = 0.0;
         const gammaLambda = this.gamma * this.lambda;
-        
-        // Collect gradient stats
-        const gradStats = [];
-        const tensorsToDispose = [];
-        
+        const lr = ++this.t > this.warmupSteps ? this.lr : 0;
+        this.lastDelta = delta;
+
         grads.forEach((grad, index) => {
             if (!grad) return;
             const param = this.params[index];
             if (!param || !param.name) return;
-            
-            const e = this.traces.get(param.name);
-            if (!e) return;
-            
-            // Update trace: e = γλe + grad
-            const newTrace = e.mul(gammaLambda).add(grad);
-            tensorsToDispose.push(newTrace);
-            e.assign(newTrace);
-            
-            // Add to z_sum
-            const traceSum = e.abs().sum().dataSync()[0];
-            z_sum += traceSum;
 
-            // Collect gradient statistics
-            const data = grad.dataSync();
-            const nonZeros = data.filter(x => x !== 0);
-            const mean = nonZeros.length > 0 ? 
-                nonZeros.reduce((a, b) => a + b, 0) / nonZeros.length : 0;
-            const max = Math.max(...data);
-            const min = Math.min(...data);
-            const zeroCount = data.length - nonZeros.length;
-            
-            gradStats.push({
-                name: param.name,
-                mean,
-                max,
-                min,
-                zeroCount,
-                total: data.length
+            const e = this.traces.get(param.name);
+            const v = this.maxV.get(param.name);
+            if (!e) return;
+
+            tf.tidy(() => {
+                // e = γλe + grad; v = max(βv, |δe|)
+                e.assign(e.mul(gammaLambda).add(grad));
+                v.assign(tf.maximum(v.mul(this.beta), e.abs().mul(Math.abs(delta))));
+
+                // Grads are of -q, so w = w - lr·δ·e / v
+                param.write(param.read().sub(e.div(v.add(this.eps)).mul(lr * delta)));
+
+                if (reset) {
+                    e.assign(tf.zerosLike(e));
+                }
             });
         });
+    }
 
-        // Compute step size
-        const deltaBar = Math.max(Math.abs(delta), 1.0);
-        const dotProduct = deltaBar * z_sum * this.lr * this.kappa;
-        const stepSize = dotProduct > 1 ? this.lr / dotProduct : this.lr;
+    resetTraces() {
+        for (const e of this.traces.values()) {
+            tf.tidy(() => e.assign(tf.zerosLike(e)));
+        }
+    }
 
-        // Store stats
-        this.lastStats = {
-            gradients: gradStats,
-            obgd: {
-                delta,
-                deltaBar,
-                zSum: z_sum,
-                dotProduct,
-                stepSize
-            }
-        };
-
-        // Second pass: update parameters
-        grads.forEach((grad, index) => {
-            if (!grad) return;
-            const param = this.params[index];
-            if (!param || !param.name) return;
-            
-            const e = this.traces.get(param.name);
-            if (!e) return;
-            
-            // Update parameter: w = w - αδe
-            const update = e.mul(-stepSize * delta);
-            tensorsToDispose.push(update);
-            const currentValue = tf.variable(param.read());
-            tensorsToDispose.push(currentValue);
-            const newValue = currentValue.add(update);
-            tensorsToDispose.push(newValue);
-            param.write(newValue);
-            
-            if (reset) {
-                e.assign(tf.zeros(e.shape));
-            }
-        });
-
-        // Cleanup tensors
-        tensorsToDispose.forEach(tensor => tensor.dispose());
+    // Forget everything, including the step scale, for a fresh start from new weights
+    reset() {
+        this.resetTraces();
+        for (const v of this.maxV.values()) {
+            tf.tidy(() => v.assign(tf.zerosLike(v)));
+        }
+        this.t = 0;
     }
 
     getLastStats() {
-        if (!this.lastStats) return '';
-        
-        const gradientText = this.lastStats.gradients.map(g => 
-            `Layer: ${g.name}
-  Mean (non-zero): ${g.mean.toFixed(6)}
-  Max: ${g.max.toFixed(6)}
-  Min: ${g.min.toFixed(6)}
-  Zero grads: ${g.zeroCount}/${g.total} (${(g.zeroCount/g.total*100).toFixed(2)}%)`
-        ).join('\n\n');
+        const scales = this.params.map(param => {
+            const mean = tf.tidy(() => this.maxV.get(param.name).mean().dataSync()[0]);
+            return `  ${param.name}: ${mean.toFixed(6)}`;
+        }).join('\n');
+        const warmup = this.t < this.warmupSteps ? ` (warming up, ${this.warmupSteps - this.t} steps left)` : '';
 
-        const obgdText = `ObGD Stats:
-Delta: ${this.lastStats.obgd.delta.toFixed(6)}
-Delta Bar: ${this.lastStats.obgd.deltaBar.toFixed(6)}
-Z Sum: ${this.lastStats.obgd.zSum.toFixed(6)}
-Dot Product: ${this.lastStats.obgd.dotProduct.toFixed(6)}
-Step Size: ${this.lastStats.obgd.stepSize.toFixed(6)}`;
+        return `StreamingOptimizer${warmup}
+Learning rate: ${this.lr}   β: ${this.beta}
+Delta: ${this.lastDelta.toFixed(6)}
 
-        return `Gradient Flow Stats:\n${gradientText}\n\n${obgdText}`;
+Mean step scale max|δ·e| per layer:
+${scales}`;
     }
-
-    dispose() {
-        // Clean up all traces
-        for (const trace of this.traces.values()) {
-            trace.dispose();
-        }
-        this.traces.clear();
-    }
-} 
+}

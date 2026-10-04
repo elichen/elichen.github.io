@@ -69,36 +69,21 @@ Since projects are browser-based:
 
 ## Streaming RL Project (`/streaming-rl/`)
 
-Stream Q(lambda) reinforcement learning demos based on "Streaming Deep Reinforcement Learning Finally Works" (arXiv:2410.14606).
+CartPole swingup with Stream Q(λ), from "Streaming Deep Reinforcement Learning Finally Works" (arXiv:2410.14606). The pole starts hanging down; a pretrained agent swings it up and keeps learning from every step, and sliders change the pole length and motor force mid-run so viewers can watch it re-adapt.
 
-### Demos
-- **Balance** (`index.html`): Classic CartPole balancing - pole starts upright
-- **Swingup** (`swingup.html`): Single pendulum swingup - pole starts hanging down
-- **Double Pendulum** (`double.html`): Two-segment chaotic swingup (WIP)
+- `index.html` + `swingup-main.js`: page, controls (physics sliders, learning toggle, reset, speed) and run loop
+- `cartpole-swingup.js`: environment (`setPhysics` for the sliders); `return-chart.js`: episode-return chart
+- `agent.js`, `network.js`, `optimizer.js`, `normalization.js`: Stream Q(λ), with the per-weight bounded `StreamingOptimizer` from the paper's 2026 revision
+- `train_swingup.py`: PyTorch training (2024 ObGD) that produced `trained-weights-swingup.json` / `trained-normalization-swingup.json`
 
-### Training Commands
 ```bash
 cd streaming-rl
-
-# Single pendulum swingup (achieves 90%+ returns)
 python3 train_swingup.py --steps 500000
-
-# Double pendulum swingup (much harder - chaotic dynamics)
-python3 train_double.py --steps 10000000 --hidden 128
 ```
 
-### Double Pendulum Progress
-The double pendulum is significantly harder than single due to chaotic dynamics and discrete actions:
-- 10M steps with hidden=128: ~44% of max return (avg 445/1000)
-- The system plateaus around 350-450 avg return
-- May need larger network (--hidden 256) or more steps
-- Consider: discrete actions limit fine control needed for chaotic system
+**Slider limits are measured:** pole 1.0–1.6 m, motor 8–15 N. Outside them continual learning can collapse (6 N: the agent learns to drive into the wall; 1.8 m fails in some seeds). Re-run a seeded adaptation sweep before widening them or changing optimizer settings. `AddTimeInfo.timeLimit` = 10000 on purpose (see the comment there).
 
-### Files
-- `cartpole-double.js`: 6D state environment with Lagrangian physics
-- `train_double.py`: PyTorch training (input_size=7, lambda=0.95)
-- `double-main.js`: Web runner (loads trained-weights-double.json)
-- Weights files generated after training: `trained-weights-double.json`, `trained-normalization-double.json`
+The double pendulum moved to `/double-pendulum/` (an SB3 SAC policy, not streaming).
 
 ## Path Tracer (`/pathtracer/`)
 

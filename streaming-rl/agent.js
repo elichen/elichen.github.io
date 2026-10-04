@@ -30,12 +30,13 @@ class StreamQ {
             this.numActions
         );
 
-        this.optimizer = new ObGD(
+        this.optimizer = new StreamingOptimizer(
             this.network.getTrainableVariables(),
-            config.learningRate || 1.0,
+            config.learningRate || 3e-4,
             this.gamma,
             config.lambda || 0.8,
-            config.kappa || 2.0
+            config.beta || 0.99995,
+            config.warmupSteps ?? 1000
         );
     }
 
@@ -71,16 +72,17 @@ class StreamQ {
         }
     }
 
-    async update(state, action, reward, nextState, done, isNonGreedy) {
+    async update(state, action, reward, nextState, done, isNonGreedy, truncated = false) {
         const stateTensor = tf.tensor2d([state], [1, state.length]);
         const nextStateTensor = tf.tensor2d([nextState], [1, nextState.length]);
-        
+
         try {
-            // 1. Compute TD target
+            // 1. Compute TD target. A step-limit cutoff still bootstraps: the time
+            // input never reaches the limit, so the network can't see it coming
             const nextQValues = this.network.model.predict(nextStateTensor);
             const maxNextQ = nextQValues.max(1);
-            const doneMask = done ? 0 : 1;
-            const tdTarget = tf.scalar(reward).add(maxNextQ.mul(tf.scalar(this.gamma * doneMask)));
+            const doneMask = done && !truncated ? 0 : 1;
+            const tdTarget = tf.tidy(() => tf.scalar(reward).add(maxNextQ.mul(tf.scalar(this.gamma * doneMask))));
             
             // 2. Compute current Q-value and gradients
             const {value: qsa, grads} = tf.variableGrads(() => {
@@ -110,6 +112,7 @@ class StreamQ {
                 maxNextQ,
                 tdTarget,
                 qsa,
+                selectedQ,
                 tdError,
                 ...Object.values(grads)
             ]);
@@ -117,17 +120,5 @@ class StreamQ {
             console.error('Error in update:', error);
             throw error;
         }
-    }
-
-    async saveAgent() {
-        await this.network.saveModel();
-    }
-
-    async loadAgent() {
-        await this.network.loadModel();
-    }
-
-    dispose() {
-        this.optimizer.dispose();
     }
 } 

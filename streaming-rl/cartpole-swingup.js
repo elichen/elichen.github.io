@@ -29,11 +29,21 @@ class CartPoleSwingup {
         this.poleWidth = 6;
         this.axleHeight = 8;
 
-        // Calculate scale to fit cart's full range of motion
+        // Calculate scale to fit cart's full range of motion, and the longest
+        // pole the controls allow (2 m) pointing straight up or down
         const totalWidth = this.canvas.width - this.cartWidth - 40;
-        this.scale = totalWidth / (2 * this.xLimit);
+        const maxPoleLength = 2.0;
+        this.scale = Math.min(totalWidth / (2 * this.xLimit), (this.canvas.height / 2 - 12) / maxPoleLength);
+        this.lastAction = null;
 
         this.reset();
+    }
+
+    // Change the physics mid-run. poleLength is the full length in meters
+    setPhysics({ poleLength = this.length * 2, forceMag = this.forceMag }) {
+        this.length = poleLength / 2;
+        this.poleMassLength = this.poleMass * this.length;
+        this.forceMag = forceMag;
     }
 
     reset() {
@@ -56,6 +66,7 @@ class CartPoleSwingup {
 
         // Get force direction (0: left, 1: right)
         let force = (action === 0 ? -1 : 1) * this.forceMag;
+        this.lastAction = action;
 
         const cosTheta = Math.cos(theta);
         const sinTheta = Math.sin(theta);
@@ -87,8 +98,9 @@ class CartPoleSwingup {
         // Shift to [0, 2] range: 1 + cos(theta)
         let reward = 1.0 + Math.cos(theta);
 
-        // Episode ends if cart goes out of bounds or max steps
-        const done = Math.abs(x) >= this.xLimit || this.steps >= this.maxSteps;
+        // Episode ends if cart goes out of bounds (terminated) or max steps (truncated)
+        const truncated = Math.abs(x) < this.xLimit && this.steps >= this.maxSteps;
+        const done = Math.abs(x) >= this.xLimit || truncated;
 
         // Penalty for going out of bounds
         if (Math.abs(x) >= this.xLimit) {
@@ -105,7 +117,8 @@ class CartPoleSwingup {
                 episode: {
                     r: this.episodeReturn,
                     steps: this.steps
-                }
+                },
+                truncated
             }
         };
     }
@@ -134,6 +147,26 @@ class CartPoleSwingup {
         // Draw cart
         this.ctx.fillStyle = '#333';
         this.ctx.fillRect(cartX - this.cartWidth/2, cartY - this.cartHeight/2, this.cartWidth, this.cartHeight);
+
+        // Draw the push as an arrow behind the cart, its length set by the motor force
+        if (this.lastAction !== null) {
+            const dir = this.lastAction === 0 ? -1 : 1;
+            const tail = cartX - dir * (this.cartWidth/2 + 4 + this.forceMag * 3);
+            const head = cartX - dir * (this.cartWidth/2 + 4);
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.moveTo(tail, cartY);
+            this.ctx.lineTo(head, cartY);
+            this.ctx.moveTo(head - dir * 6, cartY - 5);
+            this.ctx.lineTo(head, cartY);
+            this.ctx.lineTo(head - dir * 6, cartY + 5);
+            this.ctx.strokeStyle = '#2a78d6';
+            this.ctx.lineWidth = 2;
+            this.ctx.lineCap = 'round';
+            this.ctx.lineJoin = 'round';
+            this.ctx.stroke();
+            this.ctx.restore();
+        }
 
         // Draw pole
         this.ctx.beginPath();

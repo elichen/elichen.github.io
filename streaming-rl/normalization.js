@@ -157,7 +157,10 @@ class AddTimeInfo {
     constructor(env) {
         this.env = env;
         this.epiTime = -0.5;
-        this.timeLimit = 10000;  // Same as Python's max_episode_steps
+        // Training used 500 (the episode length), but the pretrained swingup
+        // policy gets sloppy late in an episode when it sees the real time.
+        // 10000 keeps the input near -0.5, so it always acts as if early on.
+        this.timeLimit = 10000;
     }
 
     reset() {
