@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Node tools for pretraining the Ant (the page itself loads MuJoCo from a CDN)",
+  "devDependencies": {
+    "@mujoco/mujoco": "3.14.0"
+  }
+}

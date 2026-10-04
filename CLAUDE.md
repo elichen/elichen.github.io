@@ -85,6 +85,24 @@ python3 train_swingup.py --steps 500000
 
 The double pendulum moved to `/double-pendulum/` (an SB3 SAC policy, not streaming).
 
+## Learning on Ice (`/slippery-ant/`)
+
+Article plus live demo of continual, streaming RL: Gymnasium's Ant on MuJoCo's official WebAssembly build (`@mujoco/mujoco` 3.14 from jsDelivr), learning with Stream-AC from the 2026 revision of arXiv 2410.14606 while the floor friction changes.
+
+- `worker.js` runs physics + learning off the main thread; `main.js` (UI), `render.js` (three.js, z-up), `chart.js`
+- `stream-ac.js` is the readable reference learner (also init, save/load); `wasm-learner.js` runs the same math from `stream-ac.wasm`, built from `tools/wasm-learner` (Rust, SIMD): `tools/wasm-learner/build.sh` (needs `rustup target add wasm32-unknown-unknown`)
+- `ant-env.js` is shared by the page and the Node tools, so pretraining and the page run identical physics. `setFriction` must change every geom: MuJoCo uses the larger friction of the two contacting geoms.
+- `model/agent.{json,bin}` is the shipped agent (3M steps at μ=2, seed 2); `data/*.json` are the article's recorded runs
+
+```bash
+cd slippery-ant && npm install            # MuJoCo for Node (tools only)
+node tools/check-wasm.mjs                 # wasm learner must match stream-ac.js; prints speeds
+node tools/pretrain.mjs --load mu2-s2 --wasm --steps 4000000 --friction 0.02@0,2@1000000 --out switch
+node tools/export-run.mjs switch --as switches   # CSV -> data/switches.json for the article
+```
+
+Testing: a hidden or background Chrome tab runs the worker ~6x slower (about 900 vs 6,400 steps/s) and pauses requestAnimationFrame, so measure speed in a visible tab.
+
 ## Path Tracer (`/pathtracer/`)
 
 WebGPU path tracer: one WGSL megakernel (`trace.wgsl`) over per-mesh BVHs built in a worker (`bvh.js`, `mesh.js`), placed by instances (`assemble.js`).

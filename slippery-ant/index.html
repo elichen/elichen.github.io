@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Learning on Ice</title>
+    <meta name="description" content="A simulated ant keeps learning while you turn the floor to ice: a technical walkthrough of continual, streaming reinforcement learning.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/contrib/auto-render.min.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="main.js"></script>
+</head>
+<body data-floor="rubber">
+    <header class="masthead">
+        <a class="home" href="../index.html">elichen.github.io</a>
+        <h1>Learning on Ice</h1>
+        <p class="dek">A simulated ant keeps learning while you change the floor under it. A technical walkthrough of continual, streaming reinforcement learning.</p>
+    </header>
+
+    <main class="layout">
+        <section class="demo" id="demo" aria-label="Live demo">
+            <div class="viewport">
+                <canvas id="view" aria-label="The ant, rendered in 3D"></canvas>
+                <div class="hud"><span id="hud-floor">rubber</span></div>
+                <div class="status" id="status">Loading the physics engine and the pretrained ant…</div>
+            </div>
+
+            <div class="controls">
+                <div class="row">
+                    <span class="group">
+                        <span class="label">Floor</span>
+                        <span class="segmented">
+                            <button type="button" data-floor="rubber" aria-pressed="true">Rubber μ 2</button>
+                            <button type="button" data-floor="ice" aria-pressed="false">Ice μ 0.02</button>
+                        </span>
+                    </span>
+                    <input type="range" id="friction" min="0" max="100" step="1" value="100" aria-label="Friction">
+                    <output id="friction-value" for="friction">2.0</output>
+                </div>
+                <div class="row">
+                    <label class="switch"><input type="checkbox" id="learning" checked> Learning</label>
+                    <button type="button" id="reset-agent">Reset agent</button>
+                    <span class="spacer"></span>
+                    <span class="group">
+                        <span class="label">Speed</span>
+                        <span class="segmented">
+                            <button type="button" data-speed="1" aria-pressed="true">1×</button>
+                            <button type="button" data-speed="10" aria-pressed="false">10×</button>
+                            <button type="button" data-speed="max" aria-pressed="false">Max</button>
+                        </span>
+                    </span>
+                </div>
+            </div>
+
+            <div class="chart">
+                <div class="chart-head">
+                    <span class="chart-title">Return per episode</span>
+                    <span class="legend"><span class="dot">each episode</span><span class="line">20-episode average</span></span>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="returns"></canvas>
+                    <div class="tooltip" id="returns-tip" hidden></div>
+                </div>
+            </div>
+
+            <dl class="readouts">
+                <div><dt>Steps learned here</dt><dd id="ro-steps">0</dd></div>
+                <div><dt>Including pretraining</dt><dd id="ro-total">—</dd></div>
+                <div><dt>Simulation speed</dt><dd id="ro-rate">—</dd></div>
+                <div><dt>This episode</dt><dd id="ro-ep">—</dd></div>
+                <div><dt>Last return</dt><dd id="ro-last">—</dd></div>
+                <div><dt>20-episode average</dt><dd id="ro-avg">—</dd></div>
+                <div><dt>Mean |δ| (TD error)</dt><dd id="ro-delta">—</dd></div>
+                <div><dt>Value \(\hat v(S)\)</dt><dd id="ro-value">—</dd></div>
+                <div><dt>Optimizer push, actor · critic</dt><dd id="ro-push">—</dd></div>
+            </dl>
+        </section>
+
+        <article class="prose">
+            <p class="lede">This ant learned to walk on rubber, and it hasn't stopped learning. Twenty times per simulated second it takes an action, sees what happened, nudges its two small neural networks, and throws the experience away. Nothing is stored and nothing is replayed.</p>
+            <p>Now turn the floor to ice. <button type="button" class="inline" data-do="ice max">Make it ice, at Max speed</button> The gait that worked on rubber skids, and the return in the chart drops. Over the next minute or two the ant works out how to walk on ice. Nobody tells it the floor changed; it notices only because its predictions start going wrong.</p>
+
+            <h2>Continual learning</h2>
+            <p>A continual learner keeps learning for as long as it runs, in a world that changes without warning. That sounds like the obvious way to build an agent, but most deep reinforcement learning avoids it. The usual recipe trains a policy from a large replay buffer of past experience, in big batches, until the curve flattens, and then freezes it. A frozen policy can't adapt, and the replay buffer fills with experience from a world that no longer exists.</p>
+            <p>Learning forever has two classic failure modes. <em>Catastrophic forgetting</em> is when learning something new overwrites what was learned before. <em>Loss of plasticity</em> is subtler: after enough training, a network gradually loses its ability to learn at all. Dohare and colleagues showed it happening to standard deep-learning methods across long sequences of tasks, including an ant whose floor friction kept changing, the experiment this page re-creates [2].</p>
+
+            <h2>Streaming: one transition, used once</h2>
+            <p>This ant learns in the most demanding setting: <em>streaming</em>. Every transition \((S_t, A_t, R_{t+1}, S_{t+1})\) is used for exactly one update, immediately, and then discarded. There is no replay buffer, no batch, and no target network. That's what makes it continual by construction, and why it fits small devices. The authors' 2026 revision runs the same kind of learner on a microcontroller playing Pong.</p>
+            <p>For years streaming deep RL simply didn't work: single, noisy updates to a deep network were too unstable. Elsayed, Vasan and Mahmood called this the <em>stream barrier</em> and showed that a handful of changes gets past it [1]. Everything below is their recipe, ported to run in your browser.</p>
+
+            <h2>The learner, step by step</h2>
+            <p>The ant is an <em>actor-critic</em>. The critic network \(\hat v\) predicts how much reward is coming. The actor network \(\pi\) outputs a Gaussian distribution over the 8 joint torques and samples the action from it. Both are small: 27 inputs, two hidden layers of 128 units, about 42,000 weights in all.</p>
+
+            <h3>1. The TD error says how wrong the prediction was</h3>
+            $$\delta_t = R_{t+1} + \gamma\,\hat v(S_{t+1}) - \hat v(S_t), \qquad \gamma = 0.99$$
+            <p>If the next state turned out better than predicted, \(\delta\) is positive; worse, negative. This single number drives both networks. One detail matters for continual learning: \(\hat v(S_{t+1})\) is set to zero only when the ant actually falls over, not when an episode hits its 1,000-step time limit. Treating a time limit as a failure teaches the critic something false over and over. Our cart-pole demo had exactly that bug, and fixing it stopped its learning from slowly wrecking the policy.</p>
+
+            <h3>2. Eligibility traces remember who was responsible</h3>
+            $$z \leftarrow \gamma\lambda\, z + \nabla_{w}\hat v(S_t), \qquad \lambda = 0.8$$
+            <p>A trace \(z\) is a fading record of which weights shaped recent predictions. Multiplying it by \(\delta\) assigns credit to the last few dozen steps at once, without storing them. The actor keeps its own trace, of the gradient of \(\log \pi(A_t \mid S_t) + \tau\,\operatorname{sign}(\delta_t)\,\mathcal{H}(\pi(\cdot \mid S_t))\). The entropy term \(\mathcal{H}\), with \(\tau = 0.01\), keeps the policy from becoming certain too early. Traces reset at the end of every episode.</p>
+
+            <h3>3. A step size that can't blow up</h3>
+            $$v \leftarrow \max\!\big(\beta v,\ |\delta z|\big), \qquad w \leftarrow w + \alpha\,\frac{\delta z}{v}$$
+            <p>This is the heart of the 2026 revision. Every weight keeps \(v\), the largest push it has received recently (\(\beta = 0.99995\), a memory of roughly 14,000 steps), and its update is divided by it. So no weight moves more than \(\alpha\) in a single step (\(10^{-4}\) for the actor, \(2 \times 10^{-4}\) for the critic), however surprising the transition. The 2024 version bounded the whole update with one global step size (ObGD); the per-weight bound replaced it. On our cart-pole swingup, ObGD stalled for 50+ episodes after a physics change in one run of four; the per-weight optimizer recovered in 10–20 episodes in all four.</p>
+            <p>The <em>optimizer push</em> readout shows the mean of \(|\delta z| / v\) over all weights: how hard this step pushed, as a fraction of each weight's cap. Watch it jump when the floor changes.</p>
+
+            <h3>4. Keep every number near 1</h3>
+            <p>Observations are standardized with a running mean and variance. Rewards are divided by the running standard deviation of the discounted return. A LayerNorm before every activation keeps the hidden units in range. Together these mean a single update has a predictable effect, whatever the units of the sensors and rewards.</p>
+
+            <h3>5. Start sparse</h3>
+            <p>95% of the weights start at exactly zero, spread by an Erdős–Rényi-style budget. Here that means each first-layer unit sees 2 of the 27 inputs, each second-layer unit sees 3 of 128, and the output heads see about 30. Sparse starting connections make updates interfere with each other less. The zeros don't stay zero: any weight with a nonzero input gets a gradient.</p>
+
+            <h2>The slippery-ant experiment</h2>
+            <p>Dohare et al. alternated the ant's floor friction between 2.0 and 0.02 every 2 million steps [2]. In the authors' 2026 revision, the streaming actor-critic recovers after every switch and gets better with each visit, while SAC, a standard replay-buffer method, collapses after the first switch [1].</p>
+            <p>Here is the same experiment run with this page's code. First the ant you see learned to walk, from random weights, on rubber:</p>
+            <figure class="run">
+                <div class="chart-wrap"><canvas data-run="pretrain"></canvas><div class="tooltip" hidden></div></div>
+                <figcaption>Learning to walk from scratch: 3 million steps on rubber, about 15 minutes of computer time. Each dot is one episode of up to 1,000 steps.</figcaption>
+            </figure>
+            <p>Then, continuing from that ant, the floor switched every million steps:</p>
+            <figure class="run">
+                <div class="chart-wrap"><canvas data-run="switches"></canvas><div class="tooltip" hidden></div></div>
+                <figcaption>Ice, rubber, ice, rubber, a million steps each, learning the whole time. Every switch knocks the return down, and it climbs back within 200,000–300,000 steps, about a minute at page speed. The second visit to ice goes better than the first: 2,308 against 1,658 over the first 100,000 steps, and 3,683 against 3,387 by the end. A second run with a different random seed did the same (2,507 against 1,683).</figcaption>
+            </figure>
+            <p>For comparison, the same network with learning switched off averages 1,064 on ice, where it barely moves (0.34 m/s), and 4,759 on rubber (4.2 m/s). That second number is slightly <em>higher</em> than the learning ant's on rubber. Continual learning has a small cost when nothing is changing: every update nudges a policy that was already fine. It pays off the moment something does change.</p>
+
+            <h2>Try it</h2>
+            <ul class="try">
+                <li><button type="button" class="inline" data-do="ice max">Ice, at Max speed</button> Watch the return dip and recover over one to two minutes.</li>
+                <li><button type="button" class="inline" data-do="rubber max">Back to rubber</button>, then to ice again. The ant usually handles its second visit to ice better than its first.</li>
+                <li><button type="button" class="inline" data-do="learning-off ice max">Learning off, then ice</button> A frozen policy stays where it falls.</li>
+                <li><button type="button" class="inline" data-do="reset learning-on rubber">Start over</button> Restores the pretrained ant on rubber.</li>
+                <li>Drag the friction slider for anything in between. Around μ 0.2 the ant ends up <em>faster</em> than on rubber: after a million steps there it averaged about 7,600, against about 4,300 on rubber. Set the speed to 1× to watch the gait it finds.</li>
+            </ul>
+
+            <h2>What goes wrong</h2>
+            <p>Building this, and the cart-pole demo before it, turned up a few ways continual learning fails quietly.</p>
+            <p><strong>Time limits aren't failures.</strong> As above: if the end of an episode's time budget is treated like a fall, the critic learns that perfectly good states lead nowhere, every single episode.</p>
+            <p><strong>Learning can talk itself into a bad policy.</strong> On the cart-pole page, a weak motor occasionally makes the agent learn to drive straight into the wall. With the pole hanging, reward is near zero whether it crashes or not, so small value errors decide, and once it's crashing it never sees anything better. Reward centering [4] didn't help, because it preserves exactly that ordering. The authors' "intentional" step sizes [3] removed the collapses, at the cost of slower adaptation in normal cases.</p>
+            <p><strong>Normalizers never forget.</strong> The running statistics average over the whole lifetime, so after millions of steps a new floor barely moves them. It works here, but a learner that runs for months would want statistics that forget.</p>
+            <p><strong>Check what the simulator means by friction.</strong> MuJoCo uses the larger friction of the two touching surfaces, so making only the floor icy changes nothing; every body part's friction has to change.</p>
+
+            <h2>How this page works</h2>
+            <p>The physics is MuJoCo's official WebAssembly build running Gymnasium's Ant model. The learner is the authors' code, rewritten twice: once in plain JavaScript as the readable reference, and once in Rust compiled to WebAssembly with SIMD for speed. The two agree to about one part in a million after hundreds of steps. Both run in a background thread at about 6,000 steps per second on a recent laptop, so a million steps takes under three minutes.</p>
+            <p>The faster options turned out not to be faster. At batch size 1, one learning step costs 4.1 ms in TensorFlow.js, 0.15 ms in plain JavaScript, and 0.03 ms in WebAssembly. WebGPU can't even start: sending the observation to the GPU and reading the action back takes 0.3 ms before doing any work, and the physics needs that action before it can take the next step.</p>
+            <p>The starting ant was trained for 3 million steps (about 15 minutes) in Node.js on the same physics build, so what it learned there transfers to the page exactly.</p>
+
+            <h2>References</h2>
+            <ol class="refs">
+                <li>M. Elsayed, G. Vasan, A. R. Mahmood. <a href="https://arxiv.org/abs/2410.14606">Streaming Deep Reinforcement Learning Finally Works</a>. arXiv:2410.14606 (2024; revised 2026). Code: <a href="https://github.com/mohmdelsayed/streaming-drl">mohmdelsayed/streaming-drl</a>.</li>
+                <li>S. Dohare, J. F. Hernandez-Garcia, Q. Lan, P. Rahman, A. R. Mahmood, R. S. Sutton. <a href="https://www.nature.com/articles/s41586-024-07711-7">Loss of plasticity in deep continual learning</a>. Nature 632 (2024).</li>
+                <li>A. Sharifnassab, M. Elsayed, K. De Asis, A. R. Mahmood, R. S. Sutton. <a href="https://arxiv.org/abs/2604.19033">Intentional Updates for Streaming Reinforcement Learning</a>. arXiv:2604.19033 (2026).</li>
+                <li>K. De Asis, M. Elsayed, J. He. <a href="https://arxiv.org/abs/2605.04368">Extending Differential Temporal Difference Methods for Episodic Problems</a>. arXiv:2605.04368 (2026).</li>
+                <li><a href="https://github.com/google-deepmind/mujoco">MuJoCo</a> (WebAssembly bindings, v3.14) and <a href="https://gymnasium.farama.org/environments/mujoco/ant/">Gymnasium Ant-v4</a>.</li>
+            </ol>
+        </article>
+    </main>
+</body>
+</html>
