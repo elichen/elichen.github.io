@@ -40,10 +40,11 @@ class CartPoleSwingup {
     }
 
     // Change the physics mid-run. poleLength is the full length in meters
-    setPhysics({ poleLength = this.length * 2, forceMag = this.forceMag }) {
+    setPhysics({ poleLength = this.length * 2, forceMag = this.forceMag, gravity = this.gravity }) {
         this.length = poleLength / 2;
         this.poleMassLength = this.poleMass * this.length;
         this.forceMag = forceMag;
+        this.gravity = gravity;
     }
 
     reset() {

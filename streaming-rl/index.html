@@ -50,7 +50,7 @@
         }
         .controls {
             display: grid;
-            grid-template-columns: auto 1fr 3.5em;
+            grid-template-columns: auto 1fr 4.5em;
             align-items: center;
             gap: 8px 12px;
             font-size: 14px;
@@ -62,6 +62,7 @@
         .controls output {
             font-variant-numeric: tabular-nums;
             text-align: right;
+            white-space: nowrap;
         }
         .buttons {
             display: flex;
@@ -178,6 +179,9 @@
                 <label for="forceMag">Motor force</label>
                 <input type="range" id="forceMag" min="8" max="15" step="1" value="10">
                 <output id="forceMagValue" for="forceMag">10 N</output>
+                <label for="gravity">Gravity</label>
+                <input type="range" id="gravity" min="6" max="12" step="0.2" value="9.8">
+                <output id="gravityValue" for="gravity">9.8 m/s²</output>
             </div>
             <div class="buttons">
                 <label><input type="checkbox" id="learning" checked> Learning</label>

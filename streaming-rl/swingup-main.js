@@ -88,22 +88,27 @@ class SwingupRunner {
     setupControls() {
         const pole = document.getElementById('poleLength');
         const force = document.getElementById('forceMag');
+        const gravity = document.getElementById('gravity');
         const showPhysics = () => {
             document.getElementById('poleLengthValue').textContent = `${(+pole.value).toFixed(1)} m`;
             document.getElementById('forceMagValue').textContent = `${force.value} N`;
+            document.getElementById('gravityValue').textContent = `${(+gravity.value).toFixed(1)} m/s²`;
         };
         const applyPhysics = () => {
-            this.baseEnv.setPhysics({ poleLength: +pole.value, forceMag: +force.value });
+            this.baseEnv.setPhysics({ poleLength: +pole.value, forceMag: +force.value, gravity: +gravity.value });
             showPhysics();
         };
         // Physics changes live while dragging; the chart marks where the drag ended
         pole.addEventListener('input', applyPhysics);
         force.addEventListener('input', applyPhysics);
+        gravity.addEventListener('input', applyPhysics);
         pole.addEventListener('change', () => this.markEvent(`pole ${(+pole.value).toFixed(1)} m`));
         force.addEventListener('change', () => this.markEvent(`force ${force.value} N`));
+        gravity.addEventListener('change', () => this.markEvent(`gravity ${(+gravity.value).toFixed(1)}`));
         document.getElementById('resetPhysics').addEventListener('click', () => {
             pole.value = 1.0;
             force.value = 10;
+            gravity.value = 9.8;
             applyPhysics();
             this.markEvent('default physics');
         });
@@ -167,6 +172,7 @@ class SwingupRunner {
             avg: avgReturn,
             pole: this.baseEnv.length * 2,
             force: this.baseEnv.forceMag,
+            gravity: this.baseEnv.gravity,
             learning: this.learning
         });
         if (this.history.length > 1000) this.history.shift();

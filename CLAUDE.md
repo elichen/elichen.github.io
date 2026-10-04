@@ -81,7 +81,7 @@ cd streaming-rl
 python3 train_swingup.py --steps 500000
 ```
 
-**Slider limits are measured:** pole 1.0–1.6 m, motor 8–15 N. Outside them continual learning can collapse (6 N: the agent learns to drive into the wall; 1.8 m fails in some seeds). Re-run a seeded adaptation sweep before widening them or changing optimizer settings. `AddTimeInfo.timeLimit` = 10000 on purpose (see the comment there).
+**Slider limits are measured:** pole 1.0–1.6 m, motor 8–15 N, gravity 6–12 m/s². Outside them continual learning can collapse (6 N or gravity 13: the agent learns to drive into the wall; 1.8 m and gravity 5 fail in some seeds). Cart friction was tried and left out: below 5 N·s/m the frozen policy doesn't notice, above it learning makes things worse. Re-run a seeded adaptation sweep before widening them or changing optimizer settings. `AddTimeInfo.timeLimit` = 10000 on purpose (see the comment there).
 
 The double pendulum moved to `/double-pendulum/` (an SB3 SAC policy, not streaming).
 

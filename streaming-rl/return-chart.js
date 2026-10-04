@@ -192,7 +192,7 @@ class ReturnChart {
         row2.textContent = `10-episode average ${Math.round(best.avg).toLocaleString()}`;
         const row3 = document.createElement('div');
         row3.className = 'muted';
-        row3.textContent = `pole ${best.pole.toFixed(1)} m · force ${best.force} N · learning ${best.learning ? 'on' : 'off'}`;
+        row3.textContent = `pole ${best.pole.toFixed(1)} m · force ${best.force} N · gravity ${best.gravity.toFixed(1)} m/s² · learning ${best.learning ? 'on' : 'off'}`;
         t.append(row1, row2, row3);
         t.hidden = false;
         const left = Math.min(Math.max(x(best.episode) + 12, 0), rect.width - t.offsetWidth);
