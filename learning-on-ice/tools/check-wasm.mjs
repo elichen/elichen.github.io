@@ -3,13 +3,13 @@
 //   node tools/check-wasm.mjs
 import loadMujoco from '@mujoco/mujoco';
 import { readFileSync } from 'fs';
-import { AntEnv } from '../ant-env.js';
+import { HumanoidEnv } from '../humanoid-env.js';
 import { StreamAC } from '../stream-ac.js';
 import { WasmLearner } from '../wasm-learner.js';
 
 const here = new URL('..', import.meta.url);
 const mujoco = await loadMujoco();
-const env = new AntEnv(mujoco, readFileSync(new URL('ant.xml', here), 'utf8'));
+const env = new HumanoidEnv(mujoco, readFileSync(new URL('humanoid.xml', here), 'utf8'));
 const wasmBytes = readFileSync(new URL('stream-ac.wasm', here));
 
 // --- 1. Equivalence: feed both learners the same transitions, with the wasm learner's actions

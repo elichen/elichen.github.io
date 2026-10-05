@@ -1,16 +1,19 @@
-// Pretrain (or keep training) the Ant with Stream-AC in Node, on the same MuJoCo
-// build and the same code the page runs.
+// Pretrain (or keep training) the humanoid with Stream-AC in Node, on the same
+// MuJoCo build and the same code the page runs.
 //
-//   node tools/pretrain.mjs --steps 3000000 --seed 1 --friction 2@0 --out ant-mu2
-//   node tools/pretrain.mjs --load ant-mu2 --steps 4000000 --friction 0.02@0,2@1000000 --out switch
+//   node tools/pretrain.mjs --wasm --steps 10000000 --seed 1 --friction 1@0 --out hum
+//   node tools/pretrain.mjs --wasm --load hum --steps 2000000 --friction 0.1@0 --out slippery
 //   add --wasm to run the per-step math in stream-ac.wasm (~1.6x faster, same results up to f32 rounding)
 //   add --frozen to only act (no learning), e.g. to measure the pretrained policy on ice
+//   other challenges: --injury right:0.5 (that leg's motors at 50%), --backpack 10 (kg on the torso)
+//   or the page's worlds on a schedule: --worlds ice@0,normal@1000000,hurt@2000000
 //
 // Writes tools/runs/<out>.csv (one row per episode) and tools/runs/<out>.{json,bin}
 // (the agent). Copy a checkpoint into model/ to ship it.
 import loadMujoco from '@mujoco/mujoco';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { AntEnv } from '../ant-env.js';
+import { HumanoidEnv } from '../humanoid-env.js';
+import { applyWorld } from '../worlds.js';
 import { StreamAC } from '../stream-ac.js';
 import { WasmLearner } from '../wasm-learner.js';
 
@@ -22,6 +25,7 @@ const steps = +(args.steps || 1e6);
 const seed = +(args.seed || 1);
 const out = args.out || 'run';
 const schedule = (args.friction || '').split(',').filter(Boolean).map(x => x.split('@').map(Number));
+const worldSchedule = (args.worlds || '').split(',').filter(Boolean).map(x => { const [w, at] = x.split('@'); return [w, +at]; });
 
 // Seeded Math.random (mulberry32) so runs are reproducible
 let rs = seed >>> 0;
@@ -38,7 +42,16 @@ const runs = new URL('tools/runs/', here);
 mkdirSync(runs, { recursive: true });
 
 const mujoco = await loadMujoco();
-const env = new AntEnv(mujoco, readFileSync(new URL('ant.xml', here), 'utf8'));
+const env = new HumanoidEnv(mujoco, readFileSync(new URL('humanoid.xml', here), 'utf8'));
+if (args.injury) {
+    const [side, scale] = args.injury.split(':');
+    env.setLegStrength(side, +scale);
+    console.log(`${args.out || 'run'} ${side} leg at ${Math.round(100 * scale)}%`);
+}
+if (args.backpack) {
+    env.setBackpack(+args.backpack);
+    console.log(`${args.out || 'run'} carrying ${args.backpack} kg`);
+}
 
 let agent;
 if (args.load) {
@@ -80,11 +93,17 @@ const save = name => {
     writeFileSync(new URL(`${name}.bin`, runs), Buffer.from(data.buffer));
 };
 
-const rows = ['step,return,length,forward,friction'];
+const rows = ['step,return,length,forward,friction,world'];
 learner.start(env.reset());
 let ret = 0, len = 0, fwd = 0;
-let block = [], t0 = performance.now();
+let block = [], lens = [], t0 = performance.now();
 for (let step = 1; step <= steps; step++) {
+    for (const [w, at] of worldSchedule) {
+        if (step - 1 === at) {
+            applyWorld(env, w);
+            console.log(`${out} world -> ${w} at ${at}`);
+        }
+    }
     for (const [mu, at] of schedule) {
         if (step - 1 === at) {
             env.setFriction(mu);
@@ -96,16 +115,19 @@ for (let step = 1; step <= steps; step++) {
     const done = r.terminated || r.truncated;
     ret += r.reward; fwd += r.forward; len++;
     if (done) {
-        rows.push(`${step},${ret.toFixed(1)},${len},${(fwd / len).toFixed(3)},${env.friction}`);
+        rows.push(`${step},${ret.toFixed(1)},${len},${(fwd / len).toFixed(3)},${env.friction},${env.world || ''}`);
         block.push(ret);
+        lens.push(len);
         ret = 0; len = 0; fwd = 0;
         learner.start(env.reset());
     }
     if (step % 100000 === 0) {
         const avg = block.reduce((x, y) => x + y, 0) / Math.max(block.length, 1);
         const rate = Math.round(100000 / ((performance.now() - t0) / 1000));
-        console.log(`${out} ${(step / 1e6).toFixed(1)}M | avg return ${avg.toFixed(0)} over ${block.length} episodes | ${rate} steps/s`);
+        const avgLen = lens.reduce((x, y) => x + y, 0) / Math.max(lens.length, 1);
+        console.log(`${out} ${(step / 1e6).toFixed(1)}M | avg return ${avg.toFixed(0)} | avg length ${avgLen.toFixed(0)} over ${block.length} episodes | ${rate} steps/s`);
         block = [];
+        lens = [];
         t0 = performance.now();
     }
     if (step % 1000000 === 0) save(out);

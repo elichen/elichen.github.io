@@ -1,0 +1,333 @@
+/* Distill-style article on white. The few colors come from Chase N.'s photo
+   "Rock on the button." (Wikimedia Commons, CC BY-SA 2.0): the stone's red handle
+   marks the agent (its body and return line), the house-ring navy marks controls,
+   and the pebbled ice and granite color the two floors. */
+:root {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --text: rgba(0, 0, 0, 0.8);
+    --text-2: rgba(0, 0, 0, 0.6);
+    --text-3: rgba(0, 0, 0, 0.45);
+    --hairline: rgba(0, 0, 0, 0.1);
+    --grid: rgba(0, 0, 0, 0.08);
+    --accent: #3b3b61;        /* blue house ring */
+    --accent-ink: #ffffff;
+    --series: #870a09;        /* red handle cap */
+    --series-dot: rgba(135, 10, 9, 0.28);
+    --event: rgba(0, 0, 0, 0.45);
+    --viewport-bg: #ffffff;
+    --body: #870a09;
+    --body-eye: #ffffff;
+    --ice: #dcdbe1;           /* white button ice */
+    --ice-tint: #c8c8e7;      /* pebble sparkle */
+    --rubber: #303432;        /* granite of the stone */
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --text-col: 648px;
+    --page-col: 984px;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 17px/1.7 var(--font);
+}
+
+a { color: inherit; text-decoration-color: rgba(0, 0, 0, 0.3); text-underline-offset: 2px; }
+a:hover { text-decoration-color: currentColor; }
+
+/* Text column (648px) centered with a 16px gutter; figures use the 984px page column */
+nav.site, .title, .byline, .prose, .appendix > * {
+    max-width: var(--text-col);
+    margin-left: auto;
+    margin-right: auto;
+}
+
+nav.site {
+    padding: 14px 16px 0;
+    font-size: 13px;
+    max-width: var(--page-col);
+}
+
+nav.site a { color: var(--text-3); text-decoration: none; }
+nav.site a:hover { color: var(--text); }
+
+.title { padding: 56px 16px 28px; }
+
+.title h1 {
+    margin: 0 0 12px;
+    font-size: clamp(36px, 6vw, 50px);
+    line-height: 1.1;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.85);
+}
+
+.description {
+    margin: 0;
+    font-size: 21px;
+    line-height: 1.5;
+    color: var(--text-2);
+}
+
+/* --- Demo: full-width hero, controls and results at page width */
+
+.viewport {
+    position: relative;
+    width: 100%;
+    height: clamp(320px, 62vh, 760px);
+    background: var(--viewport-bg);
+    border-top: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+}
+
+#view { display: block; width: 100%; height: 100%; }
+
+.hud {
+    position: absolute;
+    left: 16px;
+    top: 14px;
+    font: 13px var(--mono);
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.85);
+    color: var(--text);
+    border: 1px solid var(--hairline);
+}
+
+.status {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    text-align: center;
+    color: var(--text-2);
+    font-size: 15px;
+}
+
+.status:empty { display: none; }
+
+.panel {
+    max-width: var(--page-col);
+    margin: 0 auto;
+    padding: 14px 16px 0;
+}
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 24px;
+    font-size: 14px;
+}
+
+.group { display: inline-flex; align-items: center; gap: 10px; }
+
+.label {
+    color: var(--text-3);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+button {
+    font: inherit;
+    font-size: 14px;
+    padding: 4px 12px;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    border-radius: 5px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+}
+
+button:hover { border-color: rgba(0, 0, 0, 0.4); }
+
+.segmented { display: inline-flex; }
+.segmented button { border-radius: 0; margin-left: -1px; }
+.segmented button:first-child { border-radius: 5px 0 0 5px; margin-left: 0; }
+.segmented button:last-child { border-radius: 0 5px 5px 0; }
+.segmented button[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    position: relative;
+}
+
+.switch { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.switch input { accent-color: var(--accent); width: 15px; height: 15px; }
+
+.results {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 210px;
+    gap: 20px;
+    align-items: end;
+}
+
+@media (max-width: 700px) {
+    .results { grid-template-columns: minmax(0, 1fr); }
+}
+
+.chart-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
+}
+
+.chart-title { font-weight: 600; font-size: 13px; color: var(--text); }
+
+.legend { display: inline-flex; gap: 14px; font-size: 12px; color: var(--text-2); }
+.legend span::before { content: ''; display: inline-block; vertical-align: middle; margin-right: 6px; }
+.legend .dot::before { width: 6px; height: 6px; border-radius: 50%; background: var(--series-dot); }
+.legend .line::before { width: 14px; height: 2px; border-radius: 1px; background: var(--series); }
+
+.chart-wrap { position: relative; }
+.chart-wrap canvas { display: block; width: 100%; height: 170px; }
+
+.tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: #fff;
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    padding: 6px 8px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-2);
+    white-space: nowrap;
+    z-index: 1;
+}
+
+.tooltip strong { color: var(--text); font-size: 14px; }
+.tooltip .muted { color: var(--text-3); }
+
+.readouts {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 16px;
+    border-top: 1px solid var(--hairline);
+}
+
+@media (max-width: 700px) {
+    .readouts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.readouts div { padding: 7px 0; border-bottom: 1px solid var(--hairline); min-width: 0; }
+.readouts dt {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.readouts dd { margin: 0; font: 14px var(--mono); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* --- Byline, as on Distill: small uppercase labels between hairlines */
+
+.byline {
+    margin-top: 36px;
+    padding: 12px 16px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px 24px;
+    border-top: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.byline h3 {
+    margin: 0 0 4px;
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+}
+
+.byline p { margin: 0; color: var(--text); }
+
+@media (max-width: 560px) {
+    .byline { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* --- Article */
+
+.prose { padding: 32px 16px 48px; }
+
+.prose h2 {
+    margin: 2.2rem 0 1.2rem;
+    padding-bottom: 0.9rem;
+    border-bottom: 1px solid var(--hairline);
+    font-size: 24px;
+    line-height: 1.25;
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.85);
+}
+
+.prose p { margin: 0 0 1.1em; }
+
+.prose .katex-display { margin: 0.6em 0 1.1em; overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+
+a.cite {
+    color: var(--text-2);
+    text-decoration: none;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+
+a.cite:hover { color: var(--accent); }
+
+button.inline {
+    display: inline;
+    margin: 0 0.15em;
+    padding: 0 9px;
+    font-size: 14px;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    border-radius: 999px;
+}
+
+figure.run { margin: 1.4em 0; }
+figure.run .chart-wrap canvas { height: 210px; }
+figcaption { font-size: 13px; line-height: 1.5; color: var(--text-2); margin-top: 8px; }
+
+/* --- Appendix */
+
+.appendix {
+    border-top: 1px solid var(--hairline);
+    padding: 20px 16px 64px;
+    color: var(--text-2);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* The appendix has its own 16px gutter, so its children take the text column minus it */
+.appendix > * { max-width: calc(var(--text-col) - 32px); }
+
+.appendix h3 {
+    margin-top: 22px;
+    margin-bottom: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.65);
+}
+
+.appendix a { color: var(--text-2); }
+
+.refs { padding-left: 1.3em; margin-top: 0; }
+.refs li { margin-bottom: 0.5em; }
+.refs li:target { background: #fff8d6; }

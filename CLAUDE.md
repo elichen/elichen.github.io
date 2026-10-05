@@ -85,23 +85,25 @@ python3 train_swingup.py --steps 500000
 
 The double pendulum moved to `/double-pendulum/` (an SB3 SAC policy, not streaming).
 
-## Learning on Ice (`/slippery-ant/`)
+## Learning on Ice (`/learning-on-ice/`)
 
-Article plus live demo of continual, streaming RL: Gymnasium's Ant on MuJoCo's official WebAssembly build (`@mujoco/mujoco` 3.14 from jsDelivr), learning with Stream-AC from the 2026 revision of arXiv 2410.14606 while the floor friction changes.
+Distill-style article plus live demo of continual, streaming RL: Gymnasium's Humanoid-v5 on MuJoCo's official WebAssembly build (`@mujoco/mujoco` 3.14 from jsDelivr), learning with Stream-AC from the 2026 revision of arXiv 2410.14606 while you change its environment.
 
-- `worker.js` runs physics + learning off the main thread; `main.js` (UI), `render.js` (three.js, z-up), `chart.js`
+- `worlds.js` defines the environments (normal, ice μ 0.02, injured right leg at 50%, 10 kg backpack); the page, worker and tools all use it. Each changes physics only, never the observation, so the pretrained networks carry over.
+- `worker.js` runs physics + learning off the main thread; `main.js` (UI), `render.js` (three.js, z-up; ice mirror, bandage, backpack), `chart.js`
 - `stream-ac.js` is the readable reference learner (also init, save/load); `wasm-learner.js` runs the same math from `stream-ac.wasm`, built from `tools/wasm-learner` (Rust, SIMD): `tools/wasm-learner/build.sh` (needs `rustup target add wasm32-unknown-unknown`)
-- `ant-env.js` is shared by the page and the Node tools, so pretraining and the page run identical physics. `setFriction` must change every geom: MuJoCo uses the larger friction of the two contacting geoms.
-- `model/agent.{json,bin}` is the shipped agent (3M steps at μ=2, seed 2); `data/*.json` are the article's recorded runs
+- `humanoid-env.js` is shared by the page and the Node tools, so pretraining and the page run identical physics. It calls `mj_rnePostConstraint` after stepping (cfrc_ext is in the observation, as in Gymnasium). `setFriction` changes every geom (MuJoCo uses the larger friction of two contacting geoms); `setBackpack` recomputes constants with `mj_setConst` on scratch data (it overwrites the state it is given).
+- `model/agent.{json,bin}` is the shipped agent: 3M steps on the normal floor (seed 1). A 10M checkpoint walked faster (3.1 vs 1.4 m/s) but re-adapted much more slowly (ice: ~600k vs ~300k steps), so 3M ships. `data/tour.json` is the article's recorded run
 
 ```bash
-cd slippery-ant && npm install            # MuJoCo for Node (tools only)
+cd learning-on-ice && npm install         # MuJoCo for Node (tools only)
 node tools/check-wasm.mjs                 # wasm learner must match stream-ac.js; prints speeds
-node tools/pretrain.mjs --load mu2-s2 --wasm --steps 4000000 --friction 0.02@0,2@1000000 --out switch
-node tools/export-run.mjs switch --as switches   # CSV -> data/switches.json for the article
+node tools/pretrain.mjs --wasm --steps 3000000 --seed 1 --friction 1@0 --out hum
+node tools/pretrain.mjs --wasm --load hum --steps 3500000 --worlds ice@0,normal@700000 --out tour
+node tools/export-run.mjs tour             # CSV -> data/tour.json for the article
 ```
 
-Testing: a hidden or background Chrome tab runs the worker ~6x slower (about 900 vs 6,400 steps/s) and pauses requestAnimationFrame, so measure speed in a visible tab.
+Testing: a hidden or background Chrome tab runs the worker ~6x slower and pauses requestAnimationFrame, so measure speed in a visible tab.
 
 ## Path Tracer (`/pathtracer/`)
 

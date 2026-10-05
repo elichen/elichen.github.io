@@ -2,7 +2,7 @@
 name = "stream_ac"
 version = "0.1.0"
 edition = "2021"
-description = "Stream-AC's per-step math for the slippery-ant page, compiled to WebAssembly with SIMD"
+description = "Stream-AC's per-step math for the Learning on Ice page, compiled to WebAssembly with SIMD"
 
 [lib]
 crate-type = ["cdylib"]

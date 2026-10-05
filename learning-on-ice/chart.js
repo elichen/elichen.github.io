@@ -19,7 +19,7 @@ export class ReturnChart {
         this.window = opts.window || null;
         this.avgN = opts.avgN || 20;
         this.yMin = opts.yMin ?? -500;
-        this.yMax = opts.yMax ?? 8000;
+        this.yMax = opts.yMax ?? 10000;
         this.describe = opts.describe || (p => `${fmtSteps(p.x)} steps`);
         this.empty = opts.empty || '';
         this.points = [];   // { x, y, avg, ... }

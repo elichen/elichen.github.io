@@ -2,13 +2,14 @@
 //   node tools/export-run.mjs <run> [<run> ...] [--as name] [--frozen]
 // Concatenates runs end to end (steps offset), marks every friction change.
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { WORLDS } from '../worlds.js';
 
 const argv = process.argv.slice(2);
 const as = argv.includes('--as') ? argv[argv.indexOf('--as') + 1] : null;
 const frozen = argv.includes('--frozen');
 const runs = argv.filter((a, i) => !a.startsWith('--') && argv[i - 1] !== '--as');
 const here = new URL('..', import.meta.url);
-const label = mu => mu >= 1.5 ? 'rubber' : mu <= 0.03 ? 'ice' : `μ ${mu}`;
+const label = w => (WORLDS[w]?.label || w).toLowerCase();
 
 const points = [], events = [];
 let offset = 0, lastMu = null;
@@ -16,7 +17,8 @@ for (const run of runs) {
     const rows = readFileSync(new URL(`tools/runs/${run}.csv`, here), 'utf8').trim().split('\n').slice(1);
     let maxStep = 0;
     for (const row of rows) {
-        const [step, ret, , , mu] = row.split(',').map(Number);
+        const cols = row.split(',');
+        const [step, ret] = cols.map(Number), mu = cols[5] || `μ ${cols[4]}`;
         // An episode belongs to the friction it ended on; mark where the friction first changed
         if (mu !== lastMu) {
             const prev = points.length ? points[points.length - 1][0] : 0;

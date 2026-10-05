@@ -2,7 +2,8 @@
 // at full speed. The page sends commands; this posts poses (about 60 a second)
 // and one message per finished episode.
 import loadMujoco from 'https://cdn.jsdelivr.net/npm/@mujoco/mujoco@3.14.0/mujoco.js';
-import { AntEnv } from './ant-env.js';
+import { HumanoidEnv } from './humanoid-env.js';
+import { applyWorld } from './worlds.js';
 import { StreamAC } from './stream-ac.js';
 import { WasmLearner } from './wasm-learner.js';
 
@@ -15,16 +16,16 @@ let lastFrame = 0, budgetStart = 0, simTime = 0, wallStart = 0;
 let rateSteps = 0, rateStart = 0, busy = 0, rate = 0, busyFraction = 0;
 const deltas = [];
 
-async function init({ friction }) {
+async function init({ world }) {
     const [mujoco, xml, meta, bin, wasm] = await Promise.all([
         loadMujoco(),
-        fetch('ant.xml').then(r => r.text()),
+        fetch('humanoid.xml').then(r => r.text()),
         fetch('model/agent.json').then(r => r.json()),
         fetch('model/agent.bin').then(r => r.arrayBuffer()),
         fetch('stream-ac.wasm').then(r => r.arrayBuffer())
     ]);
-    env = new AntEnv(mujoco, xml);
-    env.setFriction(friction);
+    env = new HumanoidEnv(mujoco, xml);
+    applyWorld(env, world);
     pristine = StreamAC.load(meta, new Float32Array(bin));
     learner = await WasmLearner.create(wasm, pristine, (Math.random() * 2 ** 32) >>> 0);
     learner.resetObs(env.reset());
@@ -35,6 +36,7 @@ async function init({ friction }) {
         ngeom: m.ngeom,
         geomType: Array.from(m.geom_type),
         geomSize: Array.from(m.geom_size),
+        geomNames: Array.from({ length: m.ngeom }, (_, i) => m.geom(i).name),
         dt: env.dt,
         pretrainedSteps: meta.obsCount
     });
@@ -55,7 +57,7 @@ function tick() {
     if (r.terminated || r.truncated) {
         postMessage({
             type: 'episode', step, ret: epReturn, length: epLength, speed: epForward / epLength,
-            friction: env.friction, learning: learner.learning, fell: r.terminated
+            world: env.world, learning: learner.learning, fell: r.terminated
         });
         epReturn = 0; epLength = 0; epForward = 0;
         learner.resetObs(env.reset());
@@ -69,9 +71,11 @@ function postFrame() {
     meanDelta = deltas.length ? meanDelta / deltas.length : 0;
     deltas.length = 0;
     const xpos = Float32Array.from(d.geom_xpos), xmat = Float32Array.from(d.geom_xmat);
+    // The torso body's own frame, for things attached to it (the backpack)
+    const torsoPos = Array.from(d.xpos.slice(3, 6)), torsoMat = Array.from(d.xmat.slice(9, 18));
     postMessage({
         type: 'frame', xpos, xmat, step, epReturn, epLength,
-        torso: [d.qpos[0], d.qpos[1], d.qpos[2]],
+        torso: [d.qpos[0], d.qpos[1], d.qpos[2]], torsoPos, torsoMat,
         value: learner.lastValue, meanDelta, push: learner.actorPush, criticPush: learner.criticPush,
         rate, busyFraction
     }, [xpos.buffer, xmat.buffer]);
@@ -122,7 +126,7 @@ function setSpeed(s) {
 onmessage = async ({ data }) => {
     switch (data.type) {
         case 'init': await init(data); break;
-        case 'friction': env.setFriction(data.value); break;
+        case 'world': applyWorld(env, data.value); break;
         case 'speed': setSpeed(data.value); break;
         case 'learning':
             learner.learning = data.value;

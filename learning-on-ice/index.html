@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Learning on Ice</title>
+    <meta name="description" content="A simulated humanoid that learns continuously. Change its environment (ice, an injured leg, a backpack) and it adapts while you watch.">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/contrib/auto-render.min.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="main.js"></script>
+</head>
+<body>
+    <nav class="site"><a href="../index.html">elichen.github.io</a></nav>
+
+    <header class="title">
+        <h1>Learning on Ice</h1>
+        <p class="description">A simulated humanoid that learns continuously. Change its environment (ice, an injured leg, a 10 kg backpack) and it adapts while you watch.</p>
+    </header>
+
+    <section class="demo" id="demo" aria-label="Live demo">
+        <div class="viewport">
+            <canvas id="view" aria-label="The humanoid, rendered in 3D"></canvas>
+            <div class="hud" id="hud-floor">Normal floor</div>
+            <div class="status" id="status">Loading the physics engine and the pretrained agent…</div>
+        </div>
+
+        <div class="panel">
+            <div class="controls">
+                <span class="group">
+                    <span class="label">World</span>
+                    <span class="segmented">
+                        <button type="button" data-world="normal" aria-pressed="true">Normal</button>
+                        <button type="button" data-world="ice" aria-pressed="false">Ice</button>
+                        <button type="button" data-world="hurt" aria-pressed="false">Injured leg</button>
+                        <button type="button" data-world="backpack" aria-pressed="false">Backpack</button>
+                    </span>
+                </span>
+                <span class="group">
+                    <label class="switch"><input type="checkbox" id="learning" checked> Learning</label>
+                    <button type="button" id="reset-agent">Reset</button>
+                </span>
+                <span class="group">
+                    <span class="label">Speed</span>
+                    <span class="segmented">
+                        <button type="button" data-speed="1" aria-pressed="true">1×</button>
+                        <button type="button" data-speed="max" aria-pressed="false">Max</button>
+                    </span>
+                </span>
+            </div>
+
+            <div class="results">
+                <div class="chart">
+                    <div class="chart-head">
+                        <span class="chart-title">Return per episode</span>
+                        <span class="legend"><span class="dot">each episode</span><span class="line">20-episode average</span></span>
+                    </div>
+                    <div class="chart-wrap">
+                        <canvas id="returns"></canvas>
+                        <div class="tooltip" id="returns-tip" hidden></div>
+                    </div>
+                </div>
+                <dl class="readouts">
+                    <div><dt>Steps learned</dt><dd id="ro-steps">0</dd></div>
+                    <div><dt>Speed</dt><dd id="ro-rate">—</dd></div>
+                    <div><dt>Average return</dt><dd id="ro-avg">—</dd></div>
+                    <div><dt>Optimizer push</dt><dd id="ro-push">—</dd></div>
+                </dl>
+            </div>
+        </div>
+    </section>
+
+    <div class="byline">
+        <div><h3>Published</h3><p>October 4, 2026</p></div>
+        <div><h3>Physics</h3><p><a href="https://github.com/google-deepmind/mujoco">MuJoCo</a>, Gymnasium Humanoid</p></div>
+        <div><h3>Learner</h3><p>Stream-AC <a href="#ref-1" class="cite">[1]</a>, running in your browser</p></div>
+    </div>
+
+    <article class="prose">
+        <p class="lede">This humanoid was trained to walk, and it keeps learning while it runs. At every simulation step (15 ms of simulated time) it chooses an action, observes the result, updates its two neural networks once, and discards the data.</p>
+        <p>Switch the floor to ice <button type="button" class="inline" data-do="ice max">Ice, at Max speed</button>. The trained gait slips and the agent falls within a fraction of a second. After about two minutes of learning at Max speed (300,000 to 550,000 steps), it stays upright again, although it shuffles slowly instead of walking. The agent is not told that the floor changed. It detects the change only through larger prediction errors. With the injured leg or the backpack, it recovers in about a minute and keeps walking.</p>
+
+        <h2>Continual, streaming learning</h2>
+        <p>Most deep reinforcement learning trains a policy on stored experience (a replay buffer, sampled in batches) and then fixes the weights. A fixed policy cannot adapt when the environment changes.</p>
+        <p>This agent learns continually, in streaming mode: each transition (state, action, reward, next state) is used for one update and then discarded. There is no replay buffer and no batching.</p>
+        <p>Continual learning has two known problems. New learning can overwrite old skills (catastrophic forgetting), and networks can lose the ability to learn over time (loss of plasticity) <a href="#ref-2" class="cite">[2]</a>. Streaming updates are also noisy, which made streaming deep RL unstable. Elsayed, Vasan and Mahmood describe a method that makes it stable <a href="#ref-1" class="cite">[1]</a>. This page implements that method.</p>
+
+        <h2>The method</h2>
+        <p>The agent is an actor-critic. The critic \(\hat v\) estimates future reward. The actor \(\pi\) outputs the 17 joint torques. After each step, the TD error \(\delta\) measures the critic's error:</p>
+        $$\delta_t = R_{t+1} + \gamma\,\hat v(S_{t+1}) - \hat v(S_t)$$
+        <p>An eligibility trace \(z\) is a decaying sum of recent gradients. It lets each TD error update the weights for the last few dozen steps without storing those steps:</p>
+        $$z \leftarrow \gamma\lambda\, z + \nabla_{w}\hat v(S_t)$$
+        <p>The optimizer divides each weight's update by the largest recent value of \(|\delta z|\) for that weight. This limits every weight change to at most \(\alpha\) per step:</p>
+        $$v \leftarrow \max\!\big(\beta v,\ |\delta z|\big), \qquad w \leftarrow w + \alpha\,\frac{\delta z}{v}$$
+        <p>The <em>optimizer push</em> readout shows \(|\delta z| / v\) averaged over all weights. It rises when the environment changes. The method also normalizes observations and rewards with running statistics, applies LayerNorm in both networks, and initializes 95% of the weights to zero.</p>
+
+        <h2>The experiment</h2>
+        <p>Dohare et al. tested continual learning by switching a simulated ant's floor between high and low friction <a href="#ref-2" class="cite">[2]</a>. We ran a similar test with this agent: ice, normal floor, injured right leg (hip and knee motors at 50%), normal floor, then a 10 kg backpack. Each condition lasted 700,000 steps, with learning on throughout.</p>
+        <figure class="run">
+            <div class="chart-wrap"><canvas data-run="tour"></canvas><div class="tooltip" hidden></div></div>
+            <figcaption>Return per episode during the tour. Each change lowers the return within the first 100,000 steps. Learning brings it back: about 400,000 steps for ice and about 200,000 for the injured leg and the backpack. On ice the agent learns to stay upright but moves slowly (0.14 m/s). In the other conditions it walks at 1.0 to 2.0 m/s. On the normal floor, it ended the tour faster (2.0 m/s) and with a higher average return (6,300) than it started with (1.5 m/s, 5,500).</figcaption>
+        </figure>
+        <p>With learning turned off, the same agent averages a return of 5,531 on the normal floor, walking at 1.4 m/s. In every changed environment it falls within about a second: after 0.3 s on ice, 0.7 s with the backpack, and 1.3 s with the injured leg.</p>
+
+    </article>
+
+    <footer class="appendix">
+        <h3>How this works</h3>
+        <p>Physics: <a href="https://github.com/google-deepmind/mujoco">MuJoCo</a> (WebAssembly build) with Gymnasium's Humanoid-v5 model. The agent runs in a Web Worker. Before you opened the page, it was trained for 3 million steps (about 15 minutes of computer time) on a normal floor (friction 1.0).</p>
+        <h3>References</h3>
+        <ol class="refs">
+            <li id="ref-1">M. Elsayed, G. Vasan, A. R. Mahmood. <a href="https://arxiv.org/abs/2410.14606">Streaming Deep Reinforcement Learning Finally Works</a>. arXiv:2410.14606 (2024; revised 2026). <a href="https://github.com/mohmdelsayed/streaming-drl">Code</a>.</li>
+            <li id="ref-2">S. Dohare, J. F. Hernandez-Garcia, Q. Lan, P. Rahman, A. R. Mahmood, R. S. Sutton. <a href="https://www.nature.com/articles/s41586-024-07711-7">Loss of plasticity in deep continual learning</a>. Nature 632 (2024).</li>
+        </ol>
+    </footer>
+</body>
+</html>

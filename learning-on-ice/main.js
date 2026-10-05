@@ -1,19 +1,18 @@
-import { AntRenderer } from './render.js';
+import { BodyRenderer } from './render.js';
 import { ReturnChart, fmtSteps } from './chart.js';
+import { WORLDS } from './worlds.js';
 
-const MU_ICE = 0.02, MU_RUBBER = 2.0;
 const $ = id => document.getElementById(id);
-const fmtMu = mu => mu >= 0.995 ? mu.toFixed(1) : mu >= 0.0995 ? mu.toFixed(2) : mu.toFixed(3).replace(/0$/, '');
-const floorName = mu => mu >= 1.5 ? 'rubber' : mu <= 0.03 ? 'ice' : 'μ ' + fmtMu(mu);
+const worldName = w => (WORLDS[w]?.label || w).toLowerCase();
 
-const state = { friction: MU_RUBBER, learning: true, speed: '1', step: 0, ready: false };
+const state = { world: 'normal', learning: true, speed: '1', step: 0, ready: false };
 let renderer = null, lastFrame = null, chartDirty = false;
 const recent = [];
 
 const chart = new ReturnChart($('returns'), $('returns-tip'), {
     window: 600000,
-    empty: 'Each episode lasts up to 1,000 steps (50 s at 1×); they appear here as they end',
-    describe: p => `${fmtSteps(p.x)} steps · ${floorName(p.friction)} · learning ${p.learning ? 'on' : 'off'}`
+    empty: 'Each episode lasts up to 1,000 steps (15 s at 1×); they appear here as they end',
+    describe: p => `${fmtSteps(p.x)} steps · ${worldName(p.world)} · learning ${p.learning ? 'on' : 'off'}`
 });
 
 const worker = new Worker('worker.js', { type: 'module' });
@@ -25,14 +24,14 @@ worker.onmessage = ({ data }) => {
 worker.onerror = e => {
     $('status').textContent = 'The simulation failed to start: ' + (e.message || 'unknown error');
 };
-worker.postMessage({ type: 'init', friction: state.friction });
+worker.postMessage({ type: 'init', world: state.world });
 requestAnimationFrame(() => chart.draw());
 
 function onReady(info) {
     state.ready = true;
     state.pretrained = info.pretrainedSteps;
-    renderer = new AntRenderer($('view'), info);
-    renderer.setFriction(state.friction);
+    renderer = new BodyRenderer($('view'), info);
+    renderer.setWorld(WORLDS[state.world]);
     document.body.classList.add('ready');
     $('status').textContent = '';
     new ResizeObserver(() => renderer.resize()).observe($('view'));
@@ -40,11 +39,10 @@ function onReady(info) {
 }
 
 function onEpisode(ep) {
-    chart.add({ x: ep.step, y: ep.ret, friction: ep.friction, learning: ep.learning });
+    chart.add({ x: ep.step, y: ep.ret, world: ep.world, learning: ep.learning });
     chartDirty = true;
     recent.push(ep.ret);
     if (recent.length > 20) recent.shift();
-    $('ro-last').textContent = Math.round(ep.ret).toLocaleString();
     $('ro-avg').textContent = Math.round(recent.reduce((a, b) => a + b, 0) / recent.length).toLocaleString();
 }
 
@@ -56,11 +54,8 @@ function frame(now) {
         if (f.step !== state.step) {
             state.step = f.step;
             $('ro-steps').textContent = fmtSteps(f.step);
-            $('ro-total').textContent = fmtSteps(f.step + (state.pretrained || 0));
-            $('ro-ep').textContent = `${Math.round(f.epReturn).toLocaleString()} after ${f.epLength}`;
-            $('ro-delta').textContent = state.learning ? f.meanDelta.toFixed(3) : '—';
-            $('ro-value').textContent = f.value.toFixed(2);
-            $('ro-push').textContent = state.learning ? `${(100 * f.push).toFixed(1)}% · ${(100 * f.criticPush).toFixed(1)}%` : '—';
+            // Actor and critic together: mean |δz|/v as a percentage of each weight's cap
+            $('ro-push').textContent = state.learning ? `${(50 * (f.push + f.criticPush)).toFixed(1)}%` : 'off';
         }
     }
     if (lastFrame && now - rateTime > 500) {
@@ -78,20 +73,13 @@ function frame(now) {
 
 // --- Controls (the panel and the buttons inside the article share these)
 
-const sliderToMu = v => MU_ICE * (MU_RUBBER / MU_ICE) ** (v / 100);
-const muToSlider = mu => 100 * Math.log(mu / MU_ICE) / Math.log(MU_RUBBER / MU_ICE);
-
-function setFriction(mu, mark = true) {
-    state.friction = mu;
-    worker.postMessage({ type: 'friction', value: mu });
-    renderer?.setFriction(mu);
-    $('friction').value = muToSlider(mu);
-    $('friction-value').textContent = fmtMu(mu);
-    document.querySelectorAll('[data-floor]').forEach(b => b.setAttribute('aria-pressed', String(
-        (b.dataset.floor === 'ice' && mu <= 0.03) || (b.dataset.floor === 'rubber' && mu >= 1.5))));
-    $('hud-floor').textContent = floorName(mu);
-    document.body.dataset.floor = mu <= 0.2 ? 'ice' : 'rubber';
-    if (mark) markEvent(floorName(mu));
+function setWorld(name, mark = true) {
+    state.world = name;
+    worker.postMessage({ type: 'world', value: name });
+    renderer?.setWorld(WORLDS[name]);
+    document.querySelectorAll('[data-world]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.world === name)));
+    $('hud-floor').textContent = WORLDS[name].hud;
+    if (mark) markEvent(worldName(name));
 }
 
 function setLearning(on) {
@@ -117,34 +105,27 @@ function markEvent(label) {
     chartDirty = true;
 }
 
-$('friction').addEventListener('input', e => {
-    const mu = sliderToMu(+e.target.value);
-    state.friction = mu;
-    worker.postMessage({ type: 'friction', value: mu });
-    renderer?.setFriction(mu);
-    $('friction-value').textContent = fmtMu(mu);
-});
-$('friction').addEventListener('change', e => setFriction(sliderToMu(+e.target.value)));
 $('learning').addEventListener('change', e => setLearning(e.target.checked));
 $('reset-agent').addEventListener('click', resetAgent);
-document.querySelectorAll('[data-floor]').forEach(b => b.addEventListener('click', () => setFriction(b.dataset.floor === 'ice' ? MU_ICE : MU_RUBBER)));
+document.querySelectorAll('[data-world]').forEach(b => b.addEventListener('click', () => setWorld(b.dataset.world)));
 document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => setSpeed(b.dataset.speed)));
 
 // Buttons inside the article: data-do="ice rubber max learning-off ..."
 document.querySelectorAll('[data-do]').forEach(b => b.addEventListener('click', () => {
     for (const action of b.dataset.do.split(' ')) {
-        if (action === 'ice') setFriction(MU_ICE);
-        if (action === 'rubber') setFriction(MU_RUBBER);
+        if (action in WORLDS) setWorld(action);
         if (action === 'max') setSpeed('max');
         if (action === 'realtime') setSpeed('1');
         if (action === 'learning-off' && state.learning) setLearning(false);
         if (action === 'learning-on' && !state.learning) setLearning(true);
         if (action === 'reset') resetAgent();
     }
-    if (window.matchMedia('(max-width: 1099px)').matches) $('demo').scrollIntoView({ behavior: 'smooth' });
+    // Bring the view back if it has scrolled away
+    const r = $('view').getBoundingClientRect();
+    if (r.bottom < 120 || r.top > innerHeight - 120) $('demo').scrollIntoView({ behavior: 'smooth' });
 }));
 
-setFriction(MU_RUBBER, false);
+setWorld('normal', false);
 setSpeed('1');
 
 // --- Recorded runs in the article (exported from tools/runs by tools/export-run.mjs)
@@ -153,9 +134,9 @@ document.querySelectorAll('canvas[data-run]').forEach(async canvas => {
     if (!run) { canvas.closest('figure').hidden = true; return; }
     const tip = canvas.parentElement.querySelector('.tooltip');
     const c = new ReturnChart(canvas, tip, {
-        describe: p => `${fmtSteps(p.x)} steps · ${floorName(p.friction)}${run.frozen ? ' · learning off' : ''}`
+        describe: p => `${fmtSteps(p.x)} steps · ${worldName(p.world)}${run.frozen ? ' · learning off' : ''}`
     });
-    c.setData(run.points.map(([x, y, f]) => ({ x, y, friction: f })), run.events.map(([x, label]) => ({ x, label })));
+    c.setData(run.points.map(([x, y, w]) => ({ x, y, world: w })), run.events.map(([x, label]) => ({ x, label })));
     new ResizeObserver(() => c.draw()).observe(canvas);
 });
 
