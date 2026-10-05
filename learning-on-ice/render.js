@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 
-const MU_ICE = 0.02, MU_RUBBER = 1.0;
+const MU_ICE = 0.15, MU_RUBBER = 0.6;   // G1's own foot friction counts as the normal floor
 
 function cssColor(name, fallback) {
     const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -109,50 +109,37 @@ export class BodyRenderer {
         this.floorGroup.add(this.mirror, this.floor, this.scratches);
         scene.add(this.floorGroup);
 
-        // Body: one mesh per geom, posed from MuJoCo every frame
-        this.bodyMat = new THREE.MeshStandardMaterial({ color: this.colors.body, roughness: 0.45, metalness: 0.05 });
-        this.meshes = [];
-        this.bandages = [];
-        for (let i = 0; i < info.ngeom; i++) {
-            const type = info.geomType[i], [r, half] = info.geomSize.slice(3 * i, 3 * i + 2);
-            let geo = null;
-            if (type === 2) geo = new THREE.SphereGeometry(r, 32, 24);
-            if (type === 3) geo = new THREE.CapsuleGeometry(r, 2 * half, 6, 16).rotateX(Math.PI / 2);  // MuJoCo capsules run along local z
-            if (!geo) { this.meshes.push(null); continue; }
-            const mesh = new THREE.Mesh(geo, this.bodyMat);
+        // Robot: one mesh per visual geom, built from MuJoCo's mesh data and posed every frame
+        const geometries = {};
+        for (const [id, { verts, faces }] of Object.entries(info.meshes)) {
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+            geo.setIndex(new THREE.BufferAttribute(faces, 1));
+            geo.computeVertexNormals();
+            geometries[id] = geo;
+        }
+        this.meshes = new Array(info.ngeom).fill(null);
+        this.legMats = [];
+        for (const v of info.visuals) {
+            const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(...v.color), roughness: 0.5, metalness: 0.25, flatShading: true });
+            const mesh = new THREE.Mesh(geometries[v.mesh], mat);
             mesh.matrixAutoUpdate = false;
             mesh.castShadow = true;
             scene.add(mesh);
-            this.meshes.push(mesh);
-            // Bandage rings on the right leg, shown when it's hurt (capsules run along local z)
-            if (info.geomNames[i] === 'right_shin1' || info.geomNames[i] === 'right_thigh1') {
-                const bandageMat = new THREE.MeshStandardMaterial({ color: this.colors.eye, roughness: 0.8 });
-                for (const z of [-0.3 * half, 0.3 * half]) {
-                    const ring = new THREE.Mesh(new THREE.TorusGeometry(r + 0.004, 0.014, 8, 28), bandageMat);
-                    ring.position.z = z;
-                    ring.castShadow = true;
-                    mesh.add(ring);
-                    this.bandages.push(ring);
-                }
-            }
-            // Eyes on the head, so you can tell which way it faces (+x is forward)
-            if (info.geomNames[i] === 'head') {
-                const eyeMat = new THREE.MeshStandardMaterial({ color: this.colors.eye, roughness: 0.2 });
-                for (const y of [-0.035, 0.035]) {
-                    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.018, 16, 12), eyeMat);
-                    eye.position.set(r * 0.88, y, 0.03);
-                    mesh.add(eye);
-                }
-            }
+            this.meshes[v.geom] = mesh;
+            // The right leg's parts, tinted when that leg is injured
+            if (/^right_(hip|knee|ankle)/.test(v.body)) this.legMats.push({ mat, base: mat.color.clone() });
         }
         // Backpack, posed from the torso body's frame (x forward, z up)
-        this.backpack = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.27, 0.32),
+        this.backpack = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.26),
             new THREE.MeshStandardMaterial({ color: cssColor('--accent', '#3b3b61'), roughness: 0.7 }));
         this.backpack.matrixAutoUpdate = false;
         this.backpack.castShadow = true;
-        this.backpackOffset = new THREE.Matrix4().makeTranslation(-0.17, 0, -0.08);
+        this.backpackOffset = new THREE.Matrix4().makeTranslation(-0.14, 0, 0.3);
         scene.add(this.backpack);
         this.target = new THREE.Vector3();
+        this.yaw = 0;
+        this.camYaw = 0;
         this.camPos = null;
         this.setWorld({ friction: MU_RUBBER, leg: 1, pack: 0 });
         this.resize();
@@ -174,7 +161,7 @@ export class BodyRenderer {
     // A world from worlds.js: the floor, the bandage and the backpack
     setWorld(w) {
         this.setFriction(w.friction);
-        this.bandages.forEach(b => { b.visible = w.leg < 1; });
+        for (const { mat, base } of this.legMats) mat.color.copy(base).lerp(this.colors.body, w.leg < 1 ? 0.75 : 0);
         this.backpack.visible = w.pack > 0;
     }
 
@@ -210,17 +197,22 @@ export class BodyRenderer {
             this.backpack.matrix.multiplyMatrices(m, this.backpackOffset);
         }
         const [x, y] = frame.torso;
-        this.target.set(x, y, 0.95);
+        this.target.set(x, y, 0.7);
+        this.yaw = frame.yaw;
     }
 
     render() {
         // Follow from behind and to the side, with a little lag
-        const want = new THREE.Vector3(this.target.x - 2.6, this.target.y - 3.6, 1.9);
+        // Behind and to the side of the way it faces; the heading eases slowly so sway doesn't shake the view
+        const dyaw = Math.atan2(Math.sin(this.yaw - this.camYaw), Math.cos(this.yaw - this.camYaw));
+        this.camYaw += 0.03 * dyaw;
+        const c = Math.cos(this.camYaw), s = Math.sin(this.camYaw);
+        const want = new THREE.Vector3(this.target.x - 2.0 * c + 2.8 * s, this.target.y - 2.0 * s - 2.8 * c, 1.5);
         // Ease while walking; snap when far behind (fast forward, or a new episode)
-        if (!this.camPos || this.camPos.distanceTo(want) > 3) this.camPos = want.clone();
+        if (!this.camPos || this.camPos.distanceTo(want) > 3) { this.camPos = want.clone(); this.camYaw = this.yaw; }
         else this.camPos.lerp(want, 0.12);
         this.camera.position.copy(this.camPos);
-        this.camera.lookAt(this.target.x + 0.4, this.target.y, 0.85);
+        this.camera.lookAt(this.target.x + 0.3 * c, this.target.y + 0.3 * s, 0.6);
         this.floorGroup.position.set(Math.round(this.target.x), Math.round(this.target.y), 0);
         this.sun.position.set(this.target.x + 3, this.target.y - 2, 6);
         this.sun.target.position.copy(this.target);

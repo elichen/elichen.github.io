@@ -241,13 +241,19 @@ function gauss() {
 // It sees each transition once and keeps nothing: no replay buffer, no batches.
 export class StreamAC {
     constructor(obsDim, actDim, { hidden = 128, gamma = 0.99, lambda = 0.8, beta = 0.99995,
-                                  lrPolicy = 1e-4, lrValue = 2e-4, entropy = 0.01, sparsity = 0.95 } = {}) {
+                                  lrPolicy = 1e-4, lrValue = 2e-4, entropy = 0.01, sparsity = 0.95, initStd = null } = {}) {
         this.obsDim = obsDim;
         this.actDim = actDim;
-        this.hp = { hidden, gamma, lambda, beta, lrPolicy, lrValue, entropy, sparsity };
+        this.hp = { hidden, gamma, lambda, beta, lrPolicy, lrValue, entropy, sparsity, initStd };
         this.actor = new Trunk(obsDim, hidden, [actDim, actDim]);
         this.critic = new Trunk(obsDim, hidden, [1]);
         erkInit([this.actor, this.critic], sparsity);
+        // Optional starting exploration noise: std head bias b with softplus(b) = initStd
+        // (the default bias 0 gives std 0.69, large next to actions clipped to ±1)
+        if (initStd) {
+            const b = Math.log(Math.expm1(initStd)), bias = this.actor.offsets[7];
+            for (let i = 0; i < actDim; i++) this.actor.w[bias + i] = b;
+        }
         this.optPi = new StreamingOpt(this.actor, lrPolicy, gamma, lambda, beta);
         this.optV = new StreamingOpt(this.critic, lrValue, gamma, lambda, beta);
         this.obsStats = new SampleMeanStd(obsDim);

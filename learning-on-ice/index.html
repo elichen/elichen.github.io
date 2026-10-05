@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Learning on Ice</title>
-    <meta name="description" content="A simulated humanoid that learns continuously. Change its environment (ice, an injured leg, a backpack) and it adapts while you watch.">
+    <meta name="description" content="A simulated Unitree G1 humanoid robot that learns continuously. Change its environment (ice, an injured leg, a backpack) and it adapts while you watch.">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
     <link rel="stylesheet" href="styles.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
@@ -24,12 +24,12 @@
 
     <header class="title">
         <h1>Learning on Ice</h1>
-        <p class="description">A simulated humanoid that learns continuously. Change its environment (ice, an injured leg, a 10 kg backpack) and it adapts while you watch.</p>
+        <p class="description">A simulated humanoid robot that learns continuously. Change its environment (ice, an injured leg, a 15 kg backpack) and it adapts while you watch.</p>
     </header>
 
     <section class="demo" id="demo" aria-label="Live demo">
         <div class="viewport">
-            <canvas id="view" aria-label="The humanoid, rendered in 3D"></canvas>
+            <canvas id="view" aria-label="The robot, rendered in 3D"></canvas>
             <div class="hud" id="hud-floor">Normal floor</div>
             <div class="status" id="status">Loading the physics engine and the pretrained agent…</div>
         </div>
@@ -80,14 +80,14 @@
     </section>
 
     <div class="byline">
-        <div><h3>Published</h3><p>October 4, 2026</p></div>
-        <div><h3>Physics</h3><p><a href="https://github.com/google-deepmind/mujoco">MuJoCo</a>, Gymnasium Humanoid</p></div>
+        <div><h3>Published</h3><p>October 5, 2026</p></div>
+        <div><h3>Robot</h3><p>Unitree G1 in <a href="https://github.com/google-deepmind/mujoco">MuJoCo</a></p></div>
         <div><h3>Learner</h3><p>Stream-AC <a href="#ref-1" class="cite">[1]</a>, running in your browser</p></div>
     </div>
 
     <article class="prose">
-        <p class="lede">This humanoid was trained to walk, and it keeps learning while it runs. At every simulation step (15 ms of simulated time) it chooses an action, observes the result, updates its two neural networks once, and discards the data.</p>
-        <p>Switch the floor to ice <button type="button" class="inline" data-do="ice max">Ice, at Max speed</button>. The trained gait slips and the agent falls within a fraction of a second. After about two minutes of learning at Max speed (300,000 to 550,000 steps), it stays upright again, although it shuffles slowly instead of walking. The agent is not told that the floor changed. It detects the change only through larger prediction errors. With the injured leg or the backpack, it recovers in about a minute and keeps walking.</p>
+        <p class="lede">This Unitree G1 robot was trained to walk, and it keeps learning while it runs. At every control step (20 ms of simulated time) it chooses an action, observes the result, updates its two neural networks once, and discards the data.</p>
+        <p>Switch the floor to ice <button type="button" class="inline" data-do="ice max">Ice, at Max speed</button>. The copied gait slips and the robot falls within a second. With learning at Max speed it walks again after 400,000 to over a million steps, depending on the run (about 1.5 to 4 minutes). The agent is not told that the floor changed. It detects the change only through larger prediction errors. With the injured leg or the backpack, it falls within a few seconds at first and walks again after 100,000 to 200,000 steps (under a minute).</p>
 
         <h2>Continual, streaming learning</h2>
         <p>Most deep reinforcement learning trains a policy on stored experience (a replay buffer, sampled in batches) and then fixes the weights. A fixed policy cannot adapt when the environment changes.</p>
@@ -95,31 +95,38 @@
         <p>Continual learning has two known problems. New learning can overwrite old skills (catastrophic forgetting), and networks can lose the ability to learn over time (loss of plasticity) <a href="#ref-2" class="cite">[2]</a>. Streaming updates are also noisy, which made streaming deep RL unstable. Elsayed, Vasan and Mahmood describe a method that makes it stable <a href="#ref-1" class="cite">[1]</a>. This page implements that method.</p>
 
         <h2>The method</h2>
-        <p>The agent is an actor-critic. The critic \(\hat v\) estimates future reward. The actor \(\pi\) outputs the 17 joint torques. After each step, the TD error \(\delta\) measures the critic's error:</p>
+        <p>The agent is an actor-critic. The critic \(\hat v\) estimates future reward. The actor \(\pi\) outputs target angles for the robot's 12 leg joints, which its motors then track. The waist and arms hold still. After each step, the TD error \(\delta\) measures the critic's error:</p>
         $$\delta_t = R_{t+1} + \gamma\,\hat v(S_{t+1}) - \hat v(S_t)$$
         <p>An eligibility trace \(z\) is a decaying sum of recent gradients. It lets each TD error update the weights for the last few dozen steps without storing those steps:</p>
         $$z \leftarrow \gamma\lambda\, z + \nabla_{w}\hat v(S_t)$$
         <p>The optimizer divides each weight's update by the largest recent value of \(|\delta z|\) for that weight. This limits every weight change to at most \(\alpha\) per step:</p>
         $$v \leftarrow \max\!\big(\beta v,\ |\delta z|\big), \qquad w \leftarrow w + \alpha\,\frac{\delta z}{v}$$
-        <p>The <em>optimizer push</em> readout shows \(|\delta z| / v\) averaged over all weights. It rises when the environment changes. The method also normalizes observations and rewards with running statistics, applies LayerNorm in both networks, and initializes 95% of the weights to zero.</p>
+        <p>The <em>optimizer push</em> readout shows \(|\delta z| / v\) averaged over all weights. It rises when the environment changes. The method also normalizes observations and rewards with running statistics, applies LayerNorm in both networks, and starts each network with 95% of its weights at zero.</p>
+
+        <h2>Where the walk comes from</h2>
+        <p>Learning to walk from scratch with this method takes millions of steps and produces an odd gait, so this actor did not start from random weights. We copied Unitree's published walking controller for the G1 <a href="#ref-3" class="cite">[3]</a> into the actor network. The copy drove the robot, Unitree's controller labeled each state it visited with its own action, and the copy was refit on all the labels so far, eight times over (DAgger <a href="#ref-4" class="cite">[4]</a>). To track the copied gait, the actor also observes a gait clock: the phase of a 0.8 s stepping cycle.</p>
+        <p>Then streaming learning took over: 300,000 steps that trained only the critic, so its first TD errors were meaningful, then 3 million steps of the full method on a normal floor. From there on, every change in the gait comes from streaming learning.</p>
 
         <h2>The experiment</h2>
-        <p>Dohare et al. tested continual learning by switching a simulated ant's floor between high and low friction <a href="#ref-2" class="cite">[2]</a>. We ran a similar test with this agent: ice, normal floor, injured right leg (hip and knee motors at 50%), normal floor, then a 10 kg backpack. Each condition lasted 700,000 steps, with learning on throughout.</p>
+        <p>Dohare et al. tested continual learning by switching a simulated ant's floor between high and low friction <a href="#ref-2" class="cite">[2]</a>. We ran a similar test with this agent: ice (friction 0.15), normal floor, injured right leg (hip, knee and ankle motors limited to 20% of their torque), normal floor, then a 15 kg backpack. Each condition lasted 800,000 steps, with learning on throughout.</p>
         <figure class="run">
             <div class="chart-wrap"><canvas data-run="tour"></canvas><div class="tooltip" hidden></div></div>
-            <figcaption>Return per episode during the tour. Each change lowers the return within the first 100,000 steps. Learning brings it back: about 400,000 steps for ice and about 200,000 for the injured leg and the backpack. On ice the agent learns to stay upright but moves slowly (0.14 m/s). In the other conditions it walks at 1.0 to 2.0 m/s. On the normal floor, it ended the tour faster (2.0 m/s) and with a higher average return (6,300) than it started with (1.5 m/s, 5,500).</figcaption>
+            <figcaption>Return per episode during the tour (one run; we fixed its random seed before recording it). A full 20 s episode scores about 2,900. On ice the return starts near 100 and passes 2,500 after about 380,000 steps. By the end of the ice phase the robot finishes 84% of its episodes. Back on the normal floor it walks as before, so learning on ice did not overwrite the old gait. The injured leg causes a short dip, and the backpack a deep one that recovers in about 120,000 steps. Every condition ends with the robot walking at 0.77 to 0.80 m/s.</figcaption>
         </figure>
-        <p>With learning turned off, the same agent averages a return of 5,531 on the normal floor, walking at 1.4 m/s. In every changed environment it falls within about a second: after 0.3 s on ice, 0.7 s with the backpack, and 1.3 s with the injured leg.</p>
+        <p>With learning turned off, the same agent finishes 99% of its episodes on the normal floor. In each changed environment it falls within a few seconds: after 0.7 s on ice, 3.4 s with the injured leg, and 5.7 s with the backpack (averages over at least 175 episodes).</p>
 
     </article>
 
     <footer class="appendix">
         <h3>How this works</h3>
-        <p>Physics: <a href="https://github.com/google-deepmind/mujoco">MuJoCo</a> (WebAssembly build) with Gymnasium's Humanoid-v5 model. The agent runs in a Web Worker. Before you opened the page, it was trained for 3 million steps (about 15 minutes of computer time) on a normal floor (friction 1.0).</p>
+        <p>Physics: <a href="https://github.com/google-deepmind/mujoco">MuJoCo</a> (WebAssembly build) with the Unitree G1 model from <a href="https://github.com/google-deepmind/mujoco_menagerie">MuJoCo Menagerie</a>, with its meshes simplified for the web. The agent runs in a Web Worker. The reward pays for staying up and for walking forward at about 0.8 m/s in the robot's own frame, and subtracts for sliding sideways and for tilting the pelvis. The robot's leg motors use Unitree's own gains.</p>
+        <p>Unitree G1 model: Copyright (c) 2016-2023 HangZhou YuShu Technology Co., Ltd. ("Unitree Robotics"), BSD-3-Clause license (<a href="robot/LICENSE">full text</a>).</p>
         <h3>References</h3>
         <ol class="refs">
             <li id="ref-1">M. Elsayed, G. Vasan, A. R. Mahmood. <a href="https://arxiv.org/abs/2410.14606">Streaming Deep Reinforcement Learning Finally Works</a>. arXiv:2410.14606 (2024; revised 2026). <a href="https://github.com/mohmdelsayed/streaming-drl">Code</a>.</li>
             <li id="ref-2">S. Dohare, J. F. Hernandez-Garcia, Q. Lan, P. Rahman, A. R. Mahmood, R. S. Sutton. <a href="https://www.nature.com/articles/s41586-024-07711-7">Loss of plasticity in deep continual learning</a>. Nature 632 (2024).</li>
+            <li id="ref-3">Unitree Robotics. <a href="https://github.com/unitreerobotics/unitree_rl_gym">unitree_rl_gym</a>: the pretrained G1 walking policy (BSD-3-Clause).</li>
+            <li id="ref-4">S. Ross, G. Gordon, J. A. Bagnell. <a href="https://arxiv.org/abs/1011.0686">A Reduction of Imitation Learning and Structured Prediction to No-Regret Online Learning</a>. AISTATS (2011).</li>
         </ol>
     </footer>
 </body>

@@ -18,8 +18,8 @@ export class ReturnChart {
         this.tooltip = tooltip;
         this.window = opts.window || null;
         this.avgN = opts.avgN || 20;
-        this.yMin = opts.yMin ?? -500;
-        this.yMax = opts.yMax ?? 10000;
+        this.yMin = opts.yMin ?? 0;
+        this.yMax = opts.yMax ?? 3000;   // a full 20 s episode scores about 2,900
         this.describe = opts.describe || (p => `${fmtSteps(p.x)} steps`);
         this.empty = opts.empty || '';
         this.points = [];   // { x, y, avg, ... }
@@ -146,7 +146,15 @@ export class ReturnChart {
                 ctx.fillStyle = c.muted;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(this.empty, (m.left + w - m.right) / 2, (m.top + h - m.bottom) / 2);
+                // Word-wrap to the plot width (phones are narrower than the sentence)
+                const lines = [''];
+                for (const word of this.empty.split(' ')) {
+                    const line = lines[lines.length - 1] ? `${lines[lines.length - 1]} ${word}` : word;
+                    if (lines[lines.length - 1] && ctx.measureText(line).width > w - m.left - m.right - 16) lines.push(word);
+                    else lines[lines.length - 1] = line;
+                }
+                const lh = 16, y0 = (m.top + h - m.bottom) / 2 - (lines.length - 1) * lh / 2;
+                lines.forEach((line, i) => ctx.fillText(line, (m.left + w - m.right) / 2, y0 + i * lh));
             }
             return;
         }

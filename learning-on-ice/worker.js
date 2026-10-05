@@ -2,13 +2,13 @@
 // at full speed. The page sends commands; this posts poses (about 60 a second)
 // and one message per finished episode.
 import loadMujoco from 'https://cdn.jsdelivr.net/npm/@mujoco/mujoco@3.14.0/mujoco.js';
-import { HumanoidEnv } from './humanoid-env.js';
+import { G1Env } from './g1-env.js';
 import { applyWorld } from './worlds.js';
 import { StreamAC } from './stream-ac.js';
 import { WasmLearner } from './wasm-learner.js';
 
-const SPEEDS = { 1: 1, 10: 10, max: Infinity };  // multiples of real time (20 steps/s)
-let env, learner, pristine;
+const SPEEDS = { 0.05: 0.05, 1: 1, 10: 10, max: Infinity };  // multiples of real time; 0.05 is slow motion for checking gaits
+let env, learner, pristine, torsoBody = 1;
 let speed = 1, running = false;
 let step = 0, epReturn = 0, epLength = 0, epForward = 0;
 let lastFrame = 0, budgetStart = 0, simTime = 0, wallStart = 0;
@@ -16,30 +16,48 @@ let lastFrame = 0, budgetStart = 0, simTime = 0, wallStart = 0;
 let rateSteps = 0, rateStart = 0, busy = 0, rate = 0, busyFraction = 0;
 const deltas = [];
 
+// The robot's files (robot/manifest.json), keyed by name for MuJoCo's virtual file system
+async function loadRobot() {
+    const { files: list } = await fetch('robot/manifest.json').then(r => r.json());
+    const files = {};
+    await Promise.all(list.map(async f => {
+        const name = f.split('/').pop(), r = await fetch('robot/' + f);
+        files[name] = f.endsWith('.xml') ? (await r.text()).replace(/meshdir="[^"]*"/, 'meshdir="."') : new Uint8Array(await r.arrayBuffer());
+    }));
+    return files;
+}
+
 async function init({ world }) {
-    const [mujoco, xml, meta, bin, wasm] = await Promise.all([
+    const [mujoco, files, meta, bin, wasm] = await Promise.all([
         loadMujoco(),
-        fetch('humanoid.xml').then(r => r.text()),
+        loadRobot(),
         fetch('model/agent.json').then(r => r.json()),
         fetch('model/agent.bin').then(r => r.arrayBuffer()),
         fetch('stream-ac.wasm').then(r => r.arrayBuffer())
     ]);
-    env = new HumanoidEnv(mujoco, xml);
+    env = new G1Env(mujoco, files);
     applyWorld(env, world);
     pristine = StreamAC.load(meta, new Float32Array(bin));
     learner = await WasmLearner.create(wasm, pristine, (Math.random() * 2 ** 32) >>> 0);
     learner.resetObs(env.reset());
 
-    const m = env.model;
-    postMessage({
-        type: 'ready',
-        ngeom: m.ngeom,
-        geomType: Array.from(m.geom_type),
-        geomSize: Array.from(m.geom_size),
-        geomNames: Array.from({ length: m.ngeom }, (_, i) => m.geom(i).name),
-        dt: env.dt,
-        pretrainedSteps: meta.obsCount
-    });
+    // Visual geoms (group 2) and their meshes, sent once; the renderer poses them every frame
+    const m = env.model, transfer = [], meshes = {};
+    const bodyName = b => m.body(b).name;
+    torsoBody = [...Array(m.nbody).keys()].find(b => bodyName(b) === 'torso_link');
+    const visuals = [];
+    for (let g = 0; g < m.ngeom; g++) {
+        if (m.geom_group[g] !== 2 || m.geom_type[g] !== 7) continue;
+        const mesh = m.geom_dataid[g], mat = m.geom_matid[g];
+        if (!meshes[mesh]) {
+            const v0 = m.mesh_vertadr[mesh], nv = m.mesh_vertnum[mesh], f0 = m.mesh_faceadr[mesh], nf = m.mesh_facenum[mesh];
+            meshes[mesh] = { verts: Float32Array.from(m.mesh_vert.slice(3 * v0, 3 * (v0 + nv))), faces: Uint32Array.from(m.mesh_face.slice(3 * f0, 3 * (f0 + nf))) };
+            transfer.push(meshes[mesh].verts.buffer, meshes[mesh].faces.buffer);
+        }
+        const rgba = mat >= 0 ? m.mat_rgba.slice(4 * mat, 4 * mat + 3) : m.geom_rgba.slice(4 * g, 4 * g + 3);
+        visuals.push({ geom: g, mesh, body: bodyName(m.geom_bodyid[g]), color: Array.from(rgba) });
+    }
+    postMessage({ type: 'ready', ngeom: m.ngeom, visuals, meshes, dt: env.dt }, transfer);
     running = true;
     wallStart = performance.now();
     loop();
@@ -72,10 +90,12 @@ function postFrame() {
     deltas.length = 0;
     const xpos = Float32Array.from(d.geom_xpos), xmat = Float32Array.from(d.geom_xmat);
     // The torso body's own frame, for things attached to it (the backpack)
-    const torsoPos = Array.from(d.xpos.slice(3, 6)), torsoMat = Array.from(d.xmat.slice(9, 18));
+    const torsoPos = Array.from(d.xpos.slice(3 * torsoBody, 3 * torsoBody + 3)), torsoMat = Array.from(d.xmat.slice(9 * torsoBody, 9 * torsoBody + 9));
     postMessage({
         type: 'frame', xpos, xmat, step, epReturn, epLength,
         torso: [d.qpos[0], d.qpos[1], d.qpos[2]], torsoPos, torsoMat,
+        // Pelvis heading (yaw) from its quaternion, so the camera can follow the way it faces
+        yaw: Math.atan2(2 * (d.qpos[4] * d.qpos[5] + d.qpos[3] * d.qpos[6]), 1 - 2 * (d.qpos[5] * d.qpos[5] + d.qpos[6] * d.qpos[6])),
         value: learner.lastValue, meanDelta, push: learner.actorPush, criticPush: learner.criticPush,
         rate, busyFraction
     }, [xpos.buffer, xmat.buffer]);
@@ -125,7 +145,10 @@ function setSpeed(s) {
 
 onmessage = async ({ data }) => {
     switch (data.type) {
-        case 'init': await init(data); break;
+        case 'init':
+            // Errors in async code don't reach the page's worker.onerror, so report them
+            try { await init(data); } catch (e) { postMessage({ type: 'error', message: String(e?.message || e) }); }
+            break;
         case 'world': applyWorld(env, data.value); break;
         case 'speed': setSpeed(data.value); break;
         case 'learning':

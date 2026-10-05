@@ -87,19 +87,24 @@ The double pendulum moved to `/double-pendulum/` (an SB3 SAC policy, not streami
 
 ## Learning on Ice (`/learning-on-ice/`)
 
-Distill-style article plus live demo of continual, streaming RL: Gymnasium's Humanoid-v5 on MuJoCo's official WebAssembly build (`@mujoco/mujoco` 3.14 from jsDelivr), learning with Stream-AC from the 2026 revision of arXiv 2410.14606 while you change its environment.
+Distill-style article plus live demo of continual, streaming RL: a Unitree G1 humanoid (MuJoCo Menagerie) on MuJoCo's official WebAssembly build (`@mujoco/mujoco` 3.14 from jsDelivr), learning with Stream-AC from the 2026 revision of arXiv 2410.14606 while you change its environment.
 
-- `worlds.js` defines the environments (normal, ice μ 0.02, injured right leg at 50%, 10 kg backpack); the page, worker and tools all use it. Each changes physics only, never the observation, so the pretrained networks carry over.
-- `worker.js` runs physics + learning off the main thread; `main.js` (UI), `render.js` (three.js, z-up; ice mirror, bandage, backpack), `chart.js`
+- `g1-env.js` is shared by the page and the Node tools, so both run identical physics. It is set up like Unitree's own controller so Unitree's walking policy can teach ours: the agent drives only the 12 leg joints on Unitree's PD gains (waist and arms hold the stand pose), and the observation (36) is heading-free with a 0.8 s gait clock. 4 ms physics steps and robot-floor contacts only (~3x faster). `setFriction` changes every geom; `setBackpack` recomputes constants with `mj_setConst` on scratch data (it overwrites the state it is given).
+- `robot/` is Menagerie's G1 packed by `tools/pack_g1.py` (decimated visual meshes, convex-hull collision meshes; same masses).
+- `worlds.js` defines the environments (normal μ 0.6, ice μ 0.15, right leg at 20% torque, 15 kg backpack); the page, worker and tools all use it. Each changes physics only, never the observation.
+- `worker.js` runs physics + learning off the main thread; `main.js` (UI), `render.js` (three.js, z-up; ice mirror, leg tint, backpack), `chart.js`
 - `stream-ac.js` is the readable reference learner (also init, save/load); `wasm-learner.js` runs the same math from `stream-ac.wasm`, built from `tools/wasm-learner` (Rust, SIMD): `tools/wasm-learner/build.sh` (needs `rustup target add wasm32-unknown-unknown`)
-- `humanoid-env.js` is shared by the page and the Node tools, so pretraining and the page run identical physics. It calls `mj_rnePostConstraint` after stepping (cfrc_ext is in the observation, as in Gymnasium). `setFriction` changes every geom (MuJoCo uses the larger friction of two contacting geoms); `setBackpack` recomputes constants with `mj_setConst` on scratch data (it overwrites the state it is given).
-- `model/agent.{json,bin}` is the shipped agent: 3M steps on the normal floor (seed 1). A 10M checkpoint walked faster (3.1 vs 1.4 m/s) but re-adapted much more slowly (ice: ~600k vs ~300k steps), so 3M ships. `data/tour.json` is the article's recorded run
+- **Where the agent comes from:** `tools/distill.py` copies Unitree's policy (unitree_rl_gym `motion.pt`) into the actor with DAgger; its Python `G1` class mirrors `g1-env.js` and must stay in sync. Then the critic is warmed up with the actor fixed (`--lr-policy 0`), then 3M steps of streaming RL on the normal floor give `model/agent.{json,bin}`. RL with the full body (29 joints) or without the tilt penalty drifted into a hunched gait. RL from scratch walks too but with an odd gait, and only some seeds.
+- Streaming RL dips before it improves on a freshly copied policy (the optimizer takes full-size steps even when TD errors are just noise); after a few million steps on the normal floor it is stable. `data/tour.json` is the article's recorded run.
 
 ```bash
 cd learning-on-ice && npm install         # MuJoCo for Node (tools only)
 node tools/check-wasm.mjs                 # wasm learner must match stream-ac.js; prints speeds
-node tools/pretrain.mjs --wasm --steps 3000000 --seed 1 --friction 1@0 --out hum
-node tools/pretrain.mjs --wasm --load hum --steps 3500000 --worlds ice@0,normal@700000 --out tour
+python3 tools/distill.py <unitree_rl_gym checkout> tools/runs/student.json   # needs mujoco, torch
+node tools/pretrain.mjs --wasm --student tools/runs/student.json --lr-policy 0 --steps 300000 --out warm
+node tools/pretrain.mjs --wasm --load warm --lr-policy 1e-4 --steps 2000000 --seed 1 --out g1-2m
+node tools/pretrain.mjs --wasm --load g1-2m --steps 1000000 --seed 1 --out g1   # shipped as model/agent
+node tools/pretrain.mjs --wasm --load g1 --steps 4000000 --worlds ice@0,normal@800000,hurt@1600000,normal@2400000,backpack@3200000 --out tour
 node tools/export-run.mjs tour             # CSV -> data/tour.json for the article
 ```
 

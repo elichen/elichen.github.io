@@ -222,6 +222,10 @@ button:hover { border-color: rgba(0, 0, 0, 0.4); }
     .readouts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
+@media (max-width: 480px) {
+    .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .readouts div { padding: 7px 0; border-bottom: 1px solid var(--hairline); min-width: 0; }
 .readouts dt {
     font-size: 10px;

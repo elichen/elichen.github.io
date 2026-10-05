@@ -11,7 +11,7 @@ const recent = [];
 
 const chart = new ReturnChart($('returns'), $('returns-tip'), {
     window: 600000,
-    empty: 'Each episode lasts up to 1,000 steps (15 s at 1×); they appear here as they end',
+    empty: 'Each episode lasts up to 1,000 steps (20 s at 1×); they appear here as they end',
     describe: p => `${fmtSteps(p.x)} steps · ${worldName(p.world)} · learning ${p.learning ? 'on' : 'off'}`
 });
 
@@ -20,6 +20,7 @@ worker.onmessage = ({ data }) => {
     if (data.type === 'ready') onReady(data);
     else if (data.type === 'frame') lastFrame = data;
     else if (data.type === 'episode') onEpisode(data);
+    else if (data.type === 'error') $('status').textContent = 'The simulation failed to start: ' + data.message;
 };
 worker.onerror = e => {
     $('status').textContent = 'The simulation failed to start: ' + (e.message || 'unknown error');
@@ -29,7 +30,6 @@ requestAnimationFrame(() => chart.draw());
 
 function onReady(info) {
     state.ready = true;
-    state.pretrained = info.pretrainedSteps;
     renderer = new BodyRenderer($('view'), info);
     renderer.setWorld(WORLDS[state.world]);
     document.body.classList.add('ready');

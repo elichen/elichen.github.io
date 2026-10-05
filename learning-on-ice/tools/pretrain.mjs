@@ -1,18 +1,20 @@
-// Pretrain (or keep training) the humanoid with Stream-AC in Node, on the same
-// MuJoCo build and the same code the page runs.
+// Pretrain (or keep training) the Unitree G1 with Stream-AC in Node, on the same
+// MuJoCo build, model files and code the page runs.
 //
-//   node tools/pretrain.mjs --wasm --steps 10000000 --seed 1 --friction 1@0 --out hum
-//   node tools/pretrain.mjs --wasm --load hum --steps 2000000 --friction 0.1@0 --out slippery
+//   node tools/pretrain.mjs --wasm --init-std 0.2 --steps 2000000 --seed 1 --out g1
+//   node tools/pretrain.mjs --wasm --load g1 --steps 1000000 --worlds ice@0 --out g1-ice
 //   add --wasm to run the per-step math in stream-ac.wasm (~1.6x faster, same results up to f32 rounding)
 //   add --frozen to only act (no learning), e.g. to measure the pretrained policy on ice
-//   other challenges: --injury right:0.5 (that leg's motors at 50%), --backpack 10 (kg on the torso)
-//   or the page's worlds on a schedule: --worlds ice@0,normal@1000000,hurt@2000000
+//   the page's worlds on a schedule: --worlds ice@0,normal@1000000,hurt@2000000
+//   --model-dir <dir> loads another copy of the robot (default: robot/, the packed one the page uses)
+//   --student <json from tools/distill.py> starts from the policy copied from Unitree's walking
+//   controller (fresh critic: warm it up first with --lr-policy 0)
 //
 // Writes tools/runs/<out>.csv (one row per episode) and tools/runs/<out>.{json,bin}
 // (the agent). Copy a checkpoint into model/ to ship it.
 import loadMujoco from '@mujoco/mujoco';
-import { readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { HumanoidEnv } from '../humanoid-env.js';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'fs';
+import { G1Env } from '../g1-env.js';
 import { applyWorld } from '../worlds.js';
 import { StreamAC } from '../stream-ac.js';
 import { WasmLearner } from '../wasm-learner.js';
@@ -42,16 +44,17 @@ const runs = new URL('tools/runs/', here);
 mkdirSync(runs, { recursive: true });
 
 const mujoco = await loadMujoco();
-const env = new HumanoidEnv(mujoco, readFileSync(new URL('humanoid.xml', here), 'utf8'));
-if (args.injury) {
-    const [side, scale] = args.injury.split(':');
-    env.setLegStrength(side, +scale);
-    console.log(`${args.out || 'run'} ${side} leg at ${Math.round(100 * scale)}%`);
+function g1Files(dir) {
+    const files = { 'scene.xml': readFileSync(`${dir}/scene.xml`, 'utf8'),
+                    'g1.xml': readFileSync(`${dir}/g1.xml`, 'utf8').replace(/meshdir="[^"]*"/, 'meshdir="."') };
+    const meshDir = readdirSync(dir).includes('meshes') ? 'meshes' : 'assets';   // packed model or raw Menagerie
+    for (const f of readdirSync(`${dir}/${meshDir}`)) files[f] = new Uint8Array(readFileSync(`${dir}/${meshDir}/${f}`));
+    return files;
 }
-if (args.backpack) {
-    env.setBackpack(+args.backpack);
-    console.log(`${args.out || 'run'} carrying ${args.backpack} kg`);
-}
+const env = new G1Env(mujoco, g1Files(args['model-dir'] || new URL('robot', here).pathname),
+    Object.fromEntries(Object.entries({ healthy: args.healthy, forwardWeight: args.forward, targetSpeed: args['target-speed'] })
+        .filter(([, v]) => v !== undefined).map(([k, v]) => [k, +v])));
+env.setFriction(0.6);   // the normal floor (G1's own foot friction), unless a schedule changes it
 
 let agent;
 if (args.load) {
@@ -61,8 +64,19 @@ if (args.load) {
     agent = StreamAC.load(meta, new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4));
     console.log(`loaded ${args.load} (${meta.obsCount.toLocaleString()} steps of normalizer history)`);
 } else {
-    agent = new StreamAC(env.obsDim, env.nu);
+    agent = new StreamAC(env.obsDim, env.actDim, args['init-std'] ? { initStd: +args['init-std'] } : {});
+    if (args.student) {
+        const st = JSON.parse(readFileSync(args.student, 'utf8'));
+        agent.actor.w.set(st.actor);
+        agent.obsStats.mean.set(st.obsMean);
+        agent.obsStats.var.set(st.obsVar);
+        agent.obsStats.p.set(st.obsVar.map(v => v * (st.count - 1)));
+        agent.obsStats.count = st.count;
+        console.log(`actor and observation statistics from ${args.student}`);
+    }
 }
+// --lr-policy 0 trains only the critic, e.g. to warm it up under a policy copied from a teacher
+if (args['lr-policy'] !== undefined) agent.hp.lrPolicy = agent.optPi.lr = +args['lr-policy'];
 
 // One interface over both learners: start(raw obs), act(), learn(raw next obs, reward, terminated, truncated)
 const frozen = 'frozen' in args;

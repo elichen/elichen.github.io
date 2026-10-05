@@ -2,18 +2,21 @@
 // 2) Speed of physics + learning with each.
 //   node tools/check-wasm.mjs
 import loadMujoco from '@mujoco/mujoco';
-import { readFileSync } from 'fs';
-import { HumanoidEnv } from '../humanoid-env.js';
+import { readFileSync, readdirSync } from 'fs';
+import { G1Env } from '../g1-env.js';
 import { StreamAC } from '../stream-ac.js';
 import { WasmLearner } from '../wasm-learner.js';
 
 const here = new URL('..', import.meta.url);
 const mujoco = await loadMujoco();
-const env = new HumanoidEnv(mujoco, readFileSync(new URL('humanoid.xml', here), 'utf8'));
+const dir = new URL('robot/', here).pathname;
+const files = { 'scene.xml': readFileSync(dir + 'scene.xml', 'utf8'), 'g1.xml': readFileSync(dir + 'g1.xml', 'utf8').replace(/meshdir="[^"]*"/, 'meshdir="."') };
+for (const f of readdirSync(dir + 'meshes')) files[f] = new Uint8Array(readFileSync(dir + 'meshes/' + f));
+const env = new G1Env(mujoco, files);
 const wasmBytes = readFileSync(new URL('stream-ac.wasm', here));
 
 // --- 1. Equivalence: feed both learners the same transitions, with the wasm learner's actions
-const js = new StreamAC(env.obsDim, env.nu);
+const js = new StreamAC(env.obsDim, env.actDim);
 const wasm = await WasmLearner.create(wasmBytes, js, 7);
 let raw = env.reset();
 let s = js.normalize(raw);
@@ -32,7 +35,7 @@ for (; steps < 300; steps++) {
     s = s2;
     if (done) { raw = env.reset(); s = js.normalize(raw); wasm.resetObs(raw); }
 }
-const back = wasm.copyOut(new StreamAC(env.obsDim, env.nu));
+const back = wasm.copyOut(new StreamAC(env.obsDim, env.actDim));
 const relDiff = (x, y) => {
     let num = 0, den = 0;
     for (let i = 0; i < x.length; i++) { num += (x[i] - y[i]) ** 2; den += x[i] ** 2; }
@@ -54,7 +57,7 @@ const bench = (name, stepFn, resetFn) => {
     console.log(`${name}: ${Math.round(n / ((performance.now() - t0) / 1000))} steps/s (physics + act + learn)`);
 };
 {
-    const agent = new StreamAC(env.obsDim, env.nu);
+    const agent = new StreamAC(env.obsDim, env.actDim);
     let s;
     bench('JavaScript', () => {
         agent.act(s);
@@ -66,7 +69,7 @@ const bench = (name, stepFn, resetFn) => {
     }, raw => { s = agent.normalize(raw); });
 }
 {
-    const w = await WasmLearner.create(wasmBytes, new StreamAC(env.obsDim, env.nu), 3);
+    const w = await WasmLearner.create(wasmBytes, new StreamAC(env.obsDim, env.actDim), 3);
     bench('WebAssembly', () => {
         const r = env.step(w.act());
         w.learn(r.obs, r.reward, r.terminated, r.truncated);
@@ -74,7 +77,7 @@ const bench = (name, stepFn, resetFn) => {
     }, raw => w.resetObs(raw));
 }
 {
-    let n = 0; env.reset(); const a = new Float64Array(env.nu); const t0 = performance.now();
-    while (performance.now() - t0 < 3000) { for (let i = 0; i < env.nu; i++) a[i] = Math.random() * 2 - 1; const r = env.step(a); n++; if (r.terminated || r.truncated) env.reset(); }
+    let n = 0; env.reset(); const a = new Float64Array(env.actDim); const t0 = performance.now();
+    while (performance.now() - t0 < 3000) { for (let i = 0; i < env.actDim; i++) a[i] = Math.random() * 2 - 1; const r = env.step(a); n++; if (r.terminated || r.truncated) env.reset(); }
     console.log(`physics only: ${Math.round(n / ((performance.now() - t0) / 1000))} steps/s`);
 }
