@@ -5,8 +5,10 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const MU_ICE = 0.15, MU_RUBBER = 0.6;   // G1's own foot friction counts as the normal floor
+const UP = new THREE.Vector3(0, 0, 1);
 
 function cssColor(name, fallback) {
     const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -78,6 +80,17 @@ export class BodyRenderer {
         // MuJoCo's world is z-up
         this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
         this.camera.up.set(0, 0, 1);
+        this.camera.position.set(-2.3, -2.8, 1.5);
+        // Drag to orbit around the robot; render() moves the view along with it, so no panning
+        this.controls = new OrbitControls(this.camera, canvas);
+        this.controls.target.set(0, 0, 0.6);
+        this.controls.enableDamping = true;
+        this.controls.enablePan = false;
+        this.controls.minDistance = 1.6;
+        this.controls.maxDistance = 9;
+        this.controls.maxPolarAngle = Math.PI * 0.49;  // stay above the floor
+        // The wheel scrolls the page; pinching (ctrl + wheel on trackpads) zooms
+        canvas.addEventListener('wheel', e => { if (!e.ctrlKey) e.stopImmediatePropagation(); }, { capture: true });
         const sky = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
         sky.position.set(0, 0, 1);
         scene.add(sky);
@@ -140,7 +153,6 @@ export class BodyRenderer {
         this.target = new THREE.Vector3();
         this.yaw = 0;
         this.camYaw = 0;
-        this.camPos = null;
         this.setWorld({ friction: MU_RUBBER, leg: 1, pack: 0 });
         this.resize();
     }
@@ -202,17 +214,19 @@ export class BodyRenderer {
     }
 
     render() {
-        // Follow from behind and to the side, with a little lag
-        // Behind and to the side of the way it faces; the heading eases slowly so sway doesn't shake the view
+        // Follow the robot: the view moves with it and turns with its heading, which eases
+        // slowly so sway doesn't shake it. Dragging orbits around it, and the orbit is kept.
         const dyaw = Math.atan2(Math.sin(this.yaw - this.camYaw), Math.cos(this.yaw - this.camYaw));
-        this.camYaw += 0.03 * dyaw;
-        const c = Math.cos(this.camYaw), s = Math.sin(this.camYaw);
-        const want = new THREE.Vector3(this.target.x - 2.0 * c + 2.8 * s, this.target.y - 2.0 * s - 2.8 * c, 1.5);
+        const look = this.controls.target, cam = this.camera.position;
+        const ahead = yaw => new THREE.Vector3(this.target.x + 0.3 * Math.cos(yaw), this.target.y + 0.3 * Math.sin(yaw), 0.6);
         // Ease while walking; snap when far behind (fast forward, or a new episode)
-        if (!this.camPos || this.camPos.distanceTo(want) > 3) { this.camPos = want.clone(); this.camYaw = this.yaw; }
-        else this.camPos.lerp(want, 0.12);
-        this.camera.position.copy(this.camPos);
-        this.camera.lookAt(this.target.x + 0.3 * c, this.target.y + 0.3 * s, 0.6);
+        const snap = look.distanceTo(ahead(this.camYaw)) > 3;
+        const turn = snap ? dyaw : 0.03 * dyaw;
+        this.camYaw += turn;
+        const offset = cam.clone().sub(look).applyAxisAngle(UP, turn);
+        look.lerp(ahead(this.camYaw), snap ? 1 : 0.12);
+        cam.copy(look).add(offset);
+        this.controls.update();
         this.floorGroup.position.set(Math.round(this.target.x), Math.round(this.target.y), 0);
         this.sun.position.set(this.target.x + 3, this.target.y - 2, 6);
         this.sun.target.position.copy(this.target);
