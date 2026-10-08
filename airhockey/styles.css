@@ -96,8 +96,9 @@ button {
     transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, opacity 160ms ease;
 }
 
-button:hover {
-    transform: translateY(-1px);
+@media (hover: hover) {
+    button:hover { transform: translateY(-1px); }
+    .swap-button:hover:not(:disabled) { border-color: #9ca9af; background: #eaf0f2; }
 }
 
 button:focus-visible {
@@ -184,11 +185,6 @@ button:focus-visible {
     font-weight: 650;
 }
 
-.swap-button:hover:not(:disabled) {
-    border-color: #9ca9af;
-    background: #eaf0f2;
-}
-
 .swap-button:disabled {
     cursor: not-allowed;
     opacity: .42;
@@ -209,6 +205,10 @@ button:focus-visible {
 canvas {
     border: 1px solid #ddd;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
 
 section {
@@ -216,7 +216,10 @@ section {
 }
 
 @media (max-width: 640px) {
-    body { padding: 24px 12px; }
-    canvas { width: 100%; height: auto; }
+    body { padding: 16px 12px; }
+    h1 { font-size: 2rem; }
+    .header { margin-bottom: 16px; }
+    .game-container { margin: 16px 0 32px; }
+    canvas { width: min(100%, 60svh); height: auto; }
     .game-controls { width: 100%; }
 }

@@ -2,7 +2,7 @@ let env, agent, mouseX = 0, mouseY = 0, aiOnTop = true, selfPlay = false, lastTi
 const STEP = 1000 / 60;
 
 function updateModeHint() {
-    document.getElementById('modeHint').textContent = selfPlay ? 'The policy plays both sides.' : 'Move your paddle with the pointer.';
+    document.getElementById('modeHint').textContent = selfPlay ? 'The policy plays both sides.' : 'Move your paddle with the mouse or a finger.';
 }
 
 function resetMatch() {
@@ -35,11 +35,13 @@ function initializeGame() {
     env = new AirHockeyEnvironment(canvas);
     mouseX = env.playerPaddle.x;
     mouseY = env.playerPaddle.y;
-    canvas.addEventListener('mousemove', e => {
+    const aim = e => {
         const rect = canvas.getBoundingClientRect();
         mouseX = (e.clientX - rect.left) * canvas.width / rect.width;
         mouseY = (e.clientY - rect.top) * canvas.height / rect.height;
-    });
+    };
+    canvas.addEventListener('pointermove', aim);   // mouse, pen or finger; touch-action: none keeps a drag from scrolling
+    canvas.addEventListener('pointerdown', aim);
 }
 
 function moveAgentPaddle(paddle, action, isTopPlayer) {

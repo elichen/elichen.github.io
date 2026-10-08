@@ -2,8 +2,9 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Air Hockey RL Agent</title>
-    <link rel="stylesheet" href="styles.css?v=physics-1">
+    <link rel="stylesheet" href="styles.css?v=touch-1">
 </head>
 <body>
     <article>
@@ -24,12 +25,12 @@
                 </button>
                 <button id="swapBtn" class="swap-button" type="button" onclick="swapAI()">Swap sides</button>
             </div>
-            <p id="modeHint" class="mode-hint" aria-live="polite">Move your paddle with the pointer.</p>
+            <p id="modeHint" class="mode-hint" aria-live="polite">Move your paddle with the mouse or a finger.</p>
         </div>
 
         <section>
             <h2>The game</h2>
-            <p>The puck slides with little friction, bounces off the walls, and reflects off the paddles the way it does off a real mallet: the faster the paddle moves into it, the harder it comes back. Both paddles have the same top speed, and your paddle follows the pointer through the same smoothing as the AI's. The physics runs at a fixed 60 steps per second.</p>
+            <p>The puck slides with little friction, bounces off the walls, and reflects off the paddles the way it does off a real mallet: the faster the paddle moves into it, the harder it comes back. Both paddles have the same top speed, and your paddle follows your mouse or finger through the same smoothing as the AI's. The physics runs at a fixed 60 steps per second.</p>
 
             <h2>How it was trained</h2>
             <p>The browser physics was ported to JAX and checked against this page frame by frame, then trained on one laptop GPU at about 600,000 game steps per second.</p>
@@ -64,8 +65,8 @@
         </section>
     </article>
 
-    <script src="environment.js?v=physics-1"></script>
-    <script src="ppo_agent.js?v=physics-1"></script>
-    <script src="game.js?v=physics-1"></script>
+    <script src="environment.js?v=touch-1"></script>
+    <script src="ppo_agent.js?v=touch-1"></script>
+    <script src="game.js?v=touch-1"></script>
 </body>
 </html>
