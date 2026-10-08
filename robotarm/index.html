@@ -2,369 +2,77 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PPO Robot Arm</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Robot Arm</title>
+    <meta name="description" content="A simulated Franka Panda robot arm, trained with reinforcement learning, picks up a box and throws it as far as it can. Grab the box and drop it anywhere; the arm goes and gets it.">
+    <link rel="stylesheet" href="styles.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
         }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: #fff;
-            padding: 40px 20px;
-        }
-
-        .container {
-            max-width: 760px;
-            margin: 0 auto;
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            font-weight: 300;
-            letter-spacing: -0.02em;
-            margin-bottom: 0.5rem;
-            text-align: center;
-        }
-
-        .subtitle {
-            font-size: 1.1rem;
-            color: #666;
-            margin-bottom: 3rem;
-            font-weight: 300;
-            text-align: center;
-        }
-
-        #canvas-container {
-            position: relative;
-            margin: 2rem 0;
-            display: flex;
-            justify-content: center;
-        }
-
-        canvas {
-            border: 1px solid #e0e0e0;
-            border-radius: 2px;
-        }
-
-        #success-message {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 3rem;
-            font-weight: 300;
-            color: #4CAF50;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            pointer-events: none;
-        }
-
-        #success-message.show {
-            opacity: 1;
-        }
-
-        .controls {
-            display: flex;
-            gap: 12px;
-            margin: 2rem 0;
-            justify-content: center;
-        }
-
-        button {
-            padding: 10px 24px;
-            font-size: 0.95rem;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            cursor: pointer;
-            background: white;
-            color: #333;
-            font-weight: 400;
-            transition: all 0.2s;
-        }
-
-        button:hover {
-            background: #f8f8f8;
-            border-color: #999;
-        }
-
-        button:active {
-            background: #f0f0f0;
-        }
-
-        .stats {
-            display: flex;
-            gap: 2rem;
-            margin: 2rem 0;
-            padding: 1.5rem;
-            background: #fafafa;
-            border-radius: 2px;
-            justify-content: center;
-            font-size: 0.9rem;
-        }
-
-        .stat {
-            text-align: center;
-        }
-
-        .stat-value {
-            display: block;
-            font-size: 1.8rem;
-            font-weight: 300;
-            color: #000;
-            margin-bottom: 0.25rem;
-        }
-
-        .stat-label {
-            color: #666;
-            font-size: 0.85rem;
-        }
-
-        .section {
-            margin: 3rem 0;
-        }
-
-        .section h2 {
-            font-size: 1.4rem;
-            font-weight: 400;
-            margin-bottom: 1rem;
-            letter-spacing: -0.01em;
-        }
-
-        .section p {
-            color: #555;
-            margin-bottom: 0.8rem;
-        }
-
-        .section ul {
-            list-style: none;
-            padding-left: 0;
-        }
-
-        .section li {
-            padding-left: 1.5rem;
-            margin-bottom: 0.5rem;
-            position: relative;
-            color: #555;
-        }
-
-        .section li:before {
-            content: "•";
-            position: absolute;
-            left: 0.5rem;
-            color: #999;
-        }
-
-        .note {
-            padding: 1rem 1.5rem;
-            background: #f9f9f9;
-            border-left: 3px solid #ddd;
-            margin: 1.5rem 0;
-            font-size: 0.9rem;
-            color: #666;
-        }
-    </style>
+    }
+    </script>
+    <script type="module" src="main.js"></script>
 </head>
 <body>
-    <div class="container">
-        <h1>Robot Arm Control with PPO</h1>
-        <p class="subtitle">Proximal Policy Optimization for robotic manipulation</p>
+    <nav class="site"><a href="../index.html">elichen.github.io</a></nav>
 
-        <div id="canvas-container">
-            <canvas id="canvas" width="600" height="400"></canvas>
-            <div id="success-message">Success</div>
+    <header class="title">
+        <h1>Robot Arm</h1>
+        <p class="description">A simulated Franka Panda arm, trained with reinforcement learning, picks up a box and throws it as far as it can. Grab the box and drop it anywhere, and the arm goes and gets it.</p>
+    </header>
+
+    <section class="demo" aria-label="Live demo">
+        <div class="viewport">
+            <canvas id="view" aria-label="The robot arm and the box, in 3D. Drag the box to pick it up and drop it; drag elsewhere to turn the view."></canvas>
+            <div class="status" id="status">Loading the physics engine and the trained policy…</div>
+            <div class="note" id="note" role="status" aria-live="polite" hidden></div>
+            <p class="hint">Grab the box and drop it anywhere · drag elsewhere to turn the view</p>
         </div>
 
-        <div class="controls">
-            <button id="reset">Reset Environment</button>
-        </div>
-
-        <div class="stats">
-            <div class="stat">
-                <span class="stat-value" id="episode-count">0</span>
-                <span class="stat-label">Episodes</span>
+        <div class="panel">
+            <div class="readouts">
+                <div class="readout"><span class="value" id="throws">0</span><span class="label">Throws</span></div>
+                <div class="readout"><span class="value" id="last-throw">–</span><span class="label">Last</span></div>
+                <div class="readout"><span class="value" id="best-throw">–</span><span class="label">Best</span></div>
             </div>
-            <div class="stat">
-                <span class="stat-value" id="success-rate">0%</span>
-                <span class="stat-label">Success Rate</span>
+            <div class="controls">
+                <button type="button" id="new-box">New box</button>
+                <label class="switch"><input type="checkbox" id="slow"> Slow motion</label>
             </div>
         </div>
+    </section>
 
-        <div class="section">
-            <h2>How it works</h2>
-            <p>This demo showcases a Proximal Policy Optimization (PPO) agent trained with Stable Baselines3 to control a two-segment robot arm. The agent autonomously:</p>
-            <ul>
-                <li>Navigates the arm to reach the red block</li>
-                <li>Closes the claw to securely grasp the block</li>
-                <li>Lifts the block above the green target line</li>
-            </ul>
-            <p>The model was trained for 3M timesteps using PPO, a state-of-the-art policy gradient method. The trained PyTorch model was exported to TensorFlow.js for browser-based inference.</p>
-        </div>
+    <article class="prose">
+        <h2>How it works</h2>
+        <p>The arm is the Franka Emika Panda model from MuJoCo Menagerie, set up as in the PandaPickCube task of MuJoCo Playground. Your browser simulates it with MuJoCo compiled to WebAssembly, in 5 ms physics steps. Every 20 ms a policy, a small neural network, reads the joint angles and speeds and where the box is, and moves each joint's position target by up to 0.04 radians.</p>
+        <p>Two policies take turns. The pick policy lifts the box. When the box has stayed within 5 cm of the gripper and 10 cm up for 0.2 s, the throw policy takes over and throws it toward the arrow, which points a new random way each time. A throw ends where the box first touches the floor. Its length is measured from the robot's base along the arrow.</p>
 
-        <div class="note">
-            <strong>Technical details:</strong> The agent receives 11-dimensional observations (joint angles, block position, claw state, and valid action masks) and outputs discrete actions to control the arm. PPO's clipped objective ensures stable learning while maximizing task completion rewards.
-        </div>
-    </div>
+        <h2>Training</h2>
+        <p>Both policies were trained with PPO, using Brax and MJX (the GPU version of MuJoCo), on a laptop with an RTX 5050. It simulated 2,048 copies of the scene at once, about 120,000 steps per second.</p>
+        <ul>
+            <li><strong>Picking</strong>: 124 million steps, about 20 minutes. This is Playground's task, changed so that the box can land on any side, is sometimes dropped from up to 25 cm, and can reappear somewhere else in the middle of an attempt. That is why the arm goes after a box you drop.</li>
+            <li><strong>Throwing</strong>: 213 million steps, about 30 minutes. Each attempt starts from one of 22,096 moments where the pick policy had just lifted the box. The reward is how far the box gets along a random direction before it first touches the floor, minus how far it lands to the side of that line. There were no demonstrations; the throwing motion came from the reward alone.</li>
+        </ul>
 
-    <!-- Load the robot arm components -->
-    <script src="js/physics.js"></script>
-    <script src="js/robotArm.js"></script>
-    <script src="js/environment.js"></script>
-    <script src="js/trainedAgent.js"></script>
+        <h2>Measured</h2>
+        <p>The policies were trained on MJX, but this page runs them on MuJoCo's regular CPU engine, which computes contacts differently. So I measured them with the same WebAssembly build and the same code as this page: 1,200 rounds, with a new box after each one.</p>
+        <ul>
+            <li>1,182 boxes were picked up and thrown. 15 were not picked up within 12 s, and 3 were picked up but never thrown.</li>
+            <li>Throws went 1.90 m on average (median 2.03 m, best 2.64 m). 59 of them (5%) were fumbles that dropped the box within 0.5 m of the base.</li>
+            <li>The median landing spot was 5° off the arrow.</li>
+            <li>In MJX, the same throw policy averages 2.05 m and almost never fumbles. Most of the difference is boxes slipping out of the gripper early.</li>
+        </ul>
 
-    <script>
-        class DemoApp {
-            constructor() {
-                this.canvas = document.getElementById('canvas');
-                this.ctx = this.canvas.getContext('2d');
-
-                // Initialize modules
-                this.physics = new Physics();
-                this.robotArm = new RobotArm();
-                this.environment = new Environment(this.canvas.width, this.canvas.height);
-                this.agent = new TrainedAgent();
-
-                this.isRunning = false;
-                this.episodeCount = 0;
-                this.successCount = 0;
-                this.lastTimestamp = 0;
-                this.isResetting = false;
-                this.successShown = false;
-
-                this.setupEventListeners();
-            }
-
-            setupEventListeners() {
-                document.getElementById('reset').addEventListener('click', () => {
-                    this.reset();
-                });
-
-                // Auto-load model and start demo on page load
-                this.autoStart();
-            }
-
-            async autoStart() {
-                console.log('Loading model and starting demo...');
-                await this.loadModel();
-                setTimeout(() => {
-                    if (this.agent.isLoaded) {
-                        this.start();
-                        console.log('Demo started');
-                    }
-                }, 100);
-            }
-
-            async loadModel() {
-                try {
-                    await this.agent.loadModel('./models/tfjs/model.json');
-                    console.log('Model loaded successfully');
-                } catch (error) {
-                    console.error('Error loading model:', error);
-                }
-            }
-
-            reset() {
-                this.environment.reset();
-                this.robotArm.reset();
-                this.render();
-            }
-
-            updateStats() {
-                document.getElementById('episode-count').textContent = this.episodeCount;
-
-                const successRate = this.episodeCount > 0
-                    ? ((this.successCount / this.episodeCount) * 100).toFixed(0)
-                    : '0';
-                document.getElementById('success-rate').textContent = `${successRate}%`;
-            }
-
-            async animate(timestamp = 0) {
-                if (!this.isRunning) return;
-
-                const deltaTime = timestamp - this.lastTimestamp;
-                this.lastTimestamp = timestamp;
-
-                // Update robot arm physics
-                this.robotArm.update();
-
-                // Get current state
-                const state = this.environment.getState(this.robotArm);
-
-                // Get action from trained model
-                const action = await this.agent.selectAction(state);
-
-                // Execute action
-                this.agent.executeAction(action, this.robotArm);
-
-                // Update physics
-                this.physics.update(this.robotArm, this.environment, deltaTime);
-
-                // Check if task is complete
-                const { reward, done } = this.environment.calculateReward(this.robotArm);
-
-                if (done && !this.isResetting) {
-                    this.isResetting = true;
-                    this.episodeCount++;
-
-                    if (reward > 50 && !this.successShown) {
-                        this.successCount++;
-                        this.showSuccess();
-                        this.successShown = true;
-                    }
-
-                    this.updateStats();
-
-                    // Reset after a short delay
-                    setTimeout(() => {
-                        this.environment.reset();
-                        this.robotArm.reset();
-                        this.isResetting = false;
-                        this.successShown = false;
-                    }, 1500);
-                }
-
-                // Render
-                this.render();
-
-                // Continue animation
-                requestAnimationFrame((t) => this.animate(t));
-            }
-
-            showSuccess() {
-                const msg = document.getElementById('success-message');
-                msg.classList.add('show');
-                setTimeout(() => {
-                    msg.classList.remove('show');
-                }, 1500);
-            }
-
-            render() {
-                // Clear canvas
-                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-                // Render environment and robot
-                this.environment.render(this.ctx);
-                this.robotArm.render(this.ctx);
-            }
-
-            start() {
-                this.isRunning = true;
-                this.reset();
-                this.render();
-                this.animate();
-            }
-        }
-
-        // Start the application when the window loads
-        window.onload = () => {
-            const app = new DemoApp();
-        };
-    </script>
+        <h2>Limits</h2>
+        <ul>
+            <li>Playground's Panda model has no collisions between the robot's own parts. A penalty keeps the hand away from the base, and I have not seen the arm pass through itself, but nothing physically stops it.</li>
+            <li>Position targets move at most 2 radians per second, close to the real Panda's joint speed limits of 2.2 to 2.6. Throws behind the robot go farther (median about 2.2 m) than throws in front of it (about 1.8 m).</li>
+            <li>Sometimes the arm pushes the box out of reach instead of picking it up. After 1.5 s a new box drops.</li>
+        </ul>
+        <p class="credits">Panda model: MuJoCo Menagerie (Apache 2.0). Task based on MuJoCo Playground's PandaPickCube (Apache 2.0). Colors sampled from Mary Mark Ockerbloom's photo <a href="https://commons.wikimedia.org/wiki/File:Alphabet_Blocks.jpg">Alphabet Blocks</a>.</p>
+    </article>
 </body>
 </html>

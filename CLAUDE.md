@@ -110,6 +110,21 @@ node tools/export-run.mjs tour             # CSV -> data/tour.json for the artic
 
 Testing: a hidden or background Chrome tab runs the worker ~6x slower and pauses requestAnimationFrame, so measure speed in a visible tab.
 
+## Robot Arm (`/robotarm/`)
+
+A Franka Panda (MuJoCo Menagerie, as set up in MuJoCo Playground's PandaPickCube) picks up a box and throws it, simulated by MuJoCo's WebAssembly build (`@mujoco/mujoco` 3.14 from jsDelivr) on the main thread. Two Brax PPO policies trained on Nitro with MJX-Warp (see `../mjx-rl-experiments/NITRO_MJX_TRAINING_PLAYBOOK.md`): pick lifts the box; once it has stayed within 5 cm of the gripper, 10 cm up, for 0.2 s, throw takes over and throws along a random heading (an input).
+
+- `panda-env.js` is shared by the page and `tools/eval.mjs`: env, both observations (pick 66, throw 59), and the `Throws` loop (handover and landing rules). `policy.js` is the MLP (swish, tanh of the mean). `main.js` page + mouse grab (spring via `xfrc_applied`), `render.js` three.js.
+- `robot/` is packed by `tools/pack_panda.py` (decimated visual STLs, convex hulls for the never-colliding collision meshes; physics bitwise identical to the original).
+- `training/`: `panda_live.py` (pick task: random faces/drops, target jumps, mid-episode respawns), `panda_throw.py` (starts from `collect_grasps.py` handover states; reward = progress along heading − sideways), `train.py`, `export.py` (→ `model/{pick,throw}/policy.{json,bin}` + `test.json`), `eval_mjx.py`, `job.sh`. The handover rule in `collect_grasps.py` must match `HANDOVER` in `panda-env.js`.
+
+```bash
+cd robotarm && npm install                  # MuJoCo for Node (tools only)
+node tools/eval.mjs --throws 400            # wasm: handovers, throw distances, angle off the arrow
+```
+
+Training on Nitro (code in `~/play/robotarm`, venv `.venv-jax011-cu13-braxmain-mj311`, outputs `/mnt/c/w/robotarm`): write the settings to `jobs/current.env` and start `job.sh` with `C:\w\gns\launch.ps1 -Job ../robotarm/job.sh -TaskName RobotArm`. Shipped: pick = `live1` (`TASK=live POLICY=256,256,128`, 131M steps) at 124.5M; grasps from `collect_grasps.py` on it; throw = `throw1` (`TASK=throw DISCOUNTING=0.99`, 123M) → `throw2` (`LATERAL=5 LEARNING_RATE=0.0003`, restored, 66M) → `throw3` (same, 5 cm grasps) at 24.6M. Pick checkpoints by `tools/eval.mjs` on 1,200 rounds, not by the training reward. On wasm the final pair throws 1.90 m on average (MJX: 2.05 m); most of the gap is fumbles right after the handover.
+
 ## Air Hockey (`/airhockey/`)
 
 Human vs a policy trained on Nitro with JAX (~600k steps/s): DAgger clone of a scripted expert, then PPO league self-play (PFSP snapshot pool, exploiters, scripted bots with human reaction delays). Details, commands and findings are in `airhockey/CLAUDE.md`.

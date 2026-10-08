@@ -1,0 +1,178 @@
+/* Every color is sampled from Mary Mark Ockerbloom's photo "Alphabet Blocks"
+   (Wikimedia Commons, CC BY-SA 4.0): carved pine blocks with painted letters on a
+   slate board. Slate for the page, the sky and the floor markings, pine for the
+   text and the floor (pine in shade, so the white robot stands out), and the
+   letter paints for the box (red S), the aim and landing marks (blue P, also the
+   buttons) and the best throw (green B). The robot keeps its own colors. */
+:root {
+    --bg: #2a3440;           /* slate in shadow */
+    --text: #eddbbd;         /* lit pine */
+    --text-2: #d9bd8c;       /* pine */
+    --text-3: rgba(237, 219, 189, 0.6);
+    --hairline: #5a6470;     /* slate */
+    --sky: #67727f;          /* slate where the light falls */
+    --floor: #806a41;        /* pine in shade, so the white arm stands out */
+    --rings: #2a3440;        /* slate: distance rings and the drop area */
+    --block: #e63128;        /* red S */
+    --aim: #46549b;          /* blue P: the arrow */
+    --mark: #46549b;         /* and where throws landed */
+    --best: #498a86;         /* green B: the longest throw */
+    --accent: #46549b;       /* blue P: controls */
+    --accent-ink: #eddbbd;
+    --overlay: rgba(42, 52, 64, 0.85);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --text-col: 648px;
+    --page-col: 984px;
+    color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 17px/1.65 var(--font);
+}
+
+a { color: inherit; text-underline-offset: 2px; }
+
+nav.site, .title, .prose {
+    max-width: var(--text-col);
+    margin-left: auto;
+    margin-right: auto;
+}
+
+nav.site {
+    max-width: var(--page-col);
+    padding: 14px 16px 0;
+    font-size: 13px;
+}
+
+nav.site a { color: var(--text-3); text-decoration: none; }
+nav.site a:hover { color: var(--text); }
+
+.title { padding: 48px 16px 24px; }
+
+.title h1 {
+    margin: 0 0 10px;
+    font-size: clamp(34px, 6vw, 48px);
+    line-height: 1.1;
+}
+
+.description {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--text-2);
+}
+
+/* --- Demo */
+
+.demo {
+    max-width: var(--page-col);
+    margin: 0 auto;
+    padding: 0 16px;
+}
+
+.viewport {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: var(--sky);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+#view {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: grab;
+}
+
+#view.can-grab { cursor: pointer; }
+#view.grabbing { cursor: grabbing; }
+
+.status, .note {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 12px;
+    border-radius: 4px;
+    background: var(--overlay);
+    color: var(--text);
+    font-size: 14px;
+    pointer-events: none;
+}
+
+.status { top: 45%; }
+.note { top: 14px; }
+
+.hint {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: rgba(42, 52, 64, 0.8);   /* slate, over the pine floor */
+    text-align: center;
+    pointer-events: none;
+}
+
+.panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 24px;
+    padding: 14px 0 0;
+}
+
+.readouts { display: flex; gap: 28px; }
+
+.readout { display: flex; flex-direction: column; }
+.readout .value { font-size: 24px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.readout .label { font-size: 13px; color: var(--text-3); }
+
+.controls { display: flex; align-items: center; gap: 16px; }
+
+button {
+    font: inherit;
+    font-size: 15px;
+    padding: 7px 16px;
+    border: none;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    cursor: pointer;
+}
+
+button:hover { filter: brightness(1.08); }
+button:focus-visible, .switch input:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; color: var(--text-2); cursor: pointer; }
+.switch input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+
+/* --- Prose */
+
+.prose { padding: 40px 16px 80px; color: var(--text-2); }
+.prose h2 { color: var(--text); }
+.prose h2 { font-size: 24px; margin: 36px 0 8px; line-height: 1.3; }
+.prose p { margin: 0 0 16px; }
+.prose ul { margin: 0 0 16px; padding-left: 22px; }
+.prose li { margin: 0 0 8px; }
+.prose strong { color: var(--text); }
+.prose .credits { margin-top: 36px; font-size: 14px; color: var(--text-3); }
+
+@media (max-width: 640px) {
+    body { font-size: 16px; }
+    .title { padding-top: 32px; }
+    .description { font-size: 18px; }
+    .viewport { aspect-ratio: 4 / 3.4; }
+    .hint { font-size: 12px; }
+}
