@@ -1,102 +1,34 @@
 class PPOAgent {
-    constructor(stateSize, actionSize) {
-        this.stateSize = stateSize;
-        this.actionSize = actionSize;
-        this.onnxSession = null;
-        this.league = [];
-        this.activePolicy = 0;
+    async load(path) {
+        const w = new Float32Array(await (await fetch(path)).arrayBuffer());
+        const sizes = Array.from(w.subarray(1, 1 + w[0]));
+        let o = 1 + w[0];
+        this.layers = sizes.slice(1).map((n, i) => {
+            const m = sizes[i], W = w.subarray(o, o + n * m), b = w.subarray(o + n * m, o + n * m + n);
+            o += n * m + n;
+            return { W, b, m, n };
+        });
     }
 
-    async loadONNXModel(modelPath) {
-        await this.loadONNXLeague([{ path: modelPath, name: 'Policy', weight: 1 }]);
-        return true;
+    act(state) {
+        let x = Float32Array.from(state, v => v * 2 - 1);
+        this.layers.forEach(({ W, b, m, n }, l) => {
+            const y = new Float32Array(n);
+            for (let j = 0; j < n; j++) {
+                let s = b[j];
+                for (let i = 0; i < m; i++) s += W[j * m + i] * x[i];
+                y[j] = l < this.layers.length - 1 ? Math.tanh(s) : Math.max(-1, Math.min(1, s));
+            }
+            x = y;
+        });
+        return [x[0], x[1]];
     }
 
-    async loadONNXLeague(models) {
-        this.league = await Promise.all(models.map(async model => ({
-            ...model,
-            weight: Math.max(0, Number(model.weight) || 0),
-            session: await ort.InferenceSession.create(model.path)
-        })));
-        if (!this.league.length || !this.league.some(model => model.weight > 0)) {
-            throw new Error('The policy league needs at least one positive-weight model.');
-        }
-        this.onnxSession = this.league[0].session;
-        this.activePolicy = this.samplePolicy();
-        return true;
-    }
-
-    get policyCount() {
-        return this.league.length;
-    }
-
-    samplePolicy(exclude = null) {
-        const eligible = this.league.map((model, index) => ({ model, index }))
-            .filter(({ index }) => index !== exclude || this.league.length === 1);
-        const total = eligible.reduce((sum, { model }) => sum + model.weight, 0);
-        if (total <= 0) return eligible[Math.floor(Math.random() * eligible.length)].index;
-        let draw = Math.random() * total;
-        for (const { model, index } of eligible) {
-            draw -= model.weight;
-            if (draw <= 0) return index;
-        }
-        return eligible[eligible.length - 1].index;
-    }
-
-    getPolicyName(index) {
-        return this.league[index]?.name || `Policy ${index + 1}`;
-    }
-
-    async act(state, policyIndex = this.activePolicy) {
-        const inputTensor = new ort.Tensor('float32', new Float32Array(state), [1, this.stateSize]);
-        const feeds = { observation: inputTensor };
-        const session = this.league[policyIndex]?.session || this.onnxSession;
-        const output = await session.run(feeds);
-        let action = Array.from(output.action.data);
-        action = action.map(a => Math.max(-1, Math.min(1, a)));
-        return { action: action, value: 0, logProb: 0 };
-    }
-
-    getState(puck, playerPaddle, aiPaddle, isTopPlayer, canvasWidth, canvasHeight) {
-        const ownPaddle = isTopPlayer ? aiPaddle : playerPaddle;
-        const opponentPaddle = isTopPlayer ? playerPaddle : aiPaddle;
-        const maxSpeed = 25;
-
-        // Match Python's 12 features. Slicing keeps old 8-input models usable.
-        if (isTopPlayer) {
-            // Player 2 (top): flip perspective to match training
-            const paddle_x = ownPaddle.x / canvasWidth;
-            const paddle_y = ownPaddle.y / canvasHeight;
-            const puck_x = puck.x / canvasWidth;
-            const puck_y = puck.y / canvasHeight;
-            const paddle_dx = Math.max(-1, Math.min(1, (ownPaddle.dx || 0) / maxSpeed)) * 0.5 + 0.5;
-            const paddle_dy = Math.max(-1, Math.min(1, (ownPaddle.dy || 0) / maxSpeed)) * 0.5 + 0.5;
-            const puck_dx = Math.max(-1, Math.min(1, puck.dx / maxSpeed)) * 0.5 + 0.5;
-            const puck_dy = Math.max(-1, Math.min(1, puck.dy / maxSpeed)) * 0.5 + 0.5;
-            const opponent_x = opponentPaddle.x / canvasWidth;
-            const opponent_y = opponentPaddle.y / canvasHeight;
-            const opponent_dx = Math.max(-1, Math.min(1, (opponentPaddle.dx || 0) / maxSpeed)) * 0.5 + 0.5;
-            const opponent_dy = Math.max(-1, Math.min(1, (opponentPaddle.dy || 0) / maxSpeed)) * 0.5 + 0.5;
-
-            return [paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy,
-                opponent_x, opponent_y, opponent_dx, opponent_dy].slice(0, this.stateSize);
-        } else {
-            // Player 1 (bottom): use coordinates as-is with flipped Y perspective
-            const paddle_x = ownPaddle.x / canvasWidth;
-            const paddle_y = (canvasHeight - ownPaddle.y) / canvasHeight;
-            const puck_x = puck.x / canvasWidth;
-            const puck_y = (canvasHeight - puck.y) / canvasHeight;
-            const paddle_dx = Math.max(-1, Math.min(1, (ownPaddle.dx || 0) / maxSpeed)) * 0.5 + 0.5;
-            const paddle_dy = Math.max(-1, Math.min(1, -(ownPaddle.dy || 0) / maxSpeed)) * 0.5 + 0.5;
-            const puck_dx = Math.max(-1, Math.min(1, puck.dx / maxSpeed)) * 0.5 + 0.5;
-            const puck_dy = Math.max(-1, Math.min(1, -puck.dy / maxSpeed)) * 0.5 + 0.5;
-            const opponent_x = opponentPaddle.x / canvasWidth;
-            const opponent_y = (canvasHeight - opponentPaddle.y) / canvasHeight;
-            const opponent_dx = Math.max(-1, Math.min(1, (opponentPaddle.dx || 0) / maxSpeed)) * 0.5 + 0.5;
-            const opponent_dy = Math.max(-1, Math.min(1, -(opponentPaddle.dy || 0) / maxSpeed)) * 0.5 + 0.5;
-
-            return [paddle_x, paddle_y, puck_x, puck_y, paddle_dx, paddle_dy, puck_dx, puck_dy,
-                opponent_x, opponent_y, opponent_dx, opponent_dy].slice(0, this.stateSize);
-        }
+    // 12 features from the player's own side: own paddle, puck, opponent paddle (positions, then velocities); y=0 is the own goal line.
+    getState(puck, playerPaddle, aiPaddle, isTopPlayer, W, H) {
+        const own = isTopPlayer ? aiPaddle : playerPaddle, opp = isTopPlayer ? playerPaddle : aiPaddle, s = isTopPlayer ? 1 : -1;
+        const p = o => [o.x / W, isTopPlayer ? o.y / H : (H - o.y) / H];
+        const v = (dx, dy) => [dx, s * dy].map(c => Math.max(-1, Math.min(1, c / 25)) * 0.5 + 0.5);
+        return [...p(own), ...p(puck), ...v(own.dx, own.dy), ...v(puck.dx, puck.dy), ...p(opp), ...v(opp.dx, opp.dy)];
     }
 }

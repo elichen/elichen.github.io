@@ -1,4 +1,4 @@
-const GOAL_WIDTH = 200, GOAL_POSTS = 20, friction = 0.98, maxSpeed = 25;
+const GOAL_WIDTH = 200, GOAL_POSTS = 20, friction = 0.997, maxSpeed = 30, wallBounce = 0.9, paddleBounce = 0.8, substeps = 4;
 
 class AirHockeyEnvironment {
     constructor(canvas) {
@@ -6,11 +6,7 @@ class AirHockeyEnvironment {
         this.ctx = canvas.getContext('2d');
         this.canvas.width = 600;
         this.canvas.height = 800;
-
-        this.state = { playerScore: 0, aiScore: 0, lastPuckPos: {x:0,y:0}, samePositionTime: 0, sideWallTime: 0, roundFrames: 0 };
-        this.playerPaddle = { x: canvas.width/2, y: canvas.height-50, radius: 20, color: '#3498db', speed: 10 };
-        this.aiPaddle = { x: canvas.width/2, y: 50, radius: 20, color: '#2ecc71', speed: 10 };
-        this.puck = { x: canvas.width/2, y: canvas.height/2, radius: 15, dx: 0, dy: 0, color: '#e74c3c', isStuck: false, stuckEffectSize: 0 };
+        this.reset();
     }
 
     drawTableMarkings() {
@@ -46,14 +42,8 @@ class AirHockeyEnvironment {
     }
 
     resetPaddles() {
-        this.playerPaddle.x = this.canvas.width / 2;
-        this.playerPaddle.y = this.canvas.height - 50;
-        this.playerPaddle.dx = 0;
-        this.playerPaddle.dy = 0;
-        this.aiPaddle.x = this.canvas.width / 2;
-        this.aiPaddle.y = 50;
-        this.aiPaddle.dx = 0;
-        this.aiPaddle.dy = 0;
+        Object.assign(this.playerPaddle, { x: this.canvas.width/2, y: this.canvas.height - 50, dx: 0, dy: 0 });
+        Object.assign(this.aiPaddle, { x: this.canvas.width/2, y: 50, dx: 0, dy: 0 });
     }
 
     resetPuck(scoredOnTop = null, resetPlayers = false) {
@@ -62,10 +52,7 @@ class AirHockeyEnvironment {
         this.puck.dx = 0;
         this.puck.dy = 0;
         this.puck.y = scoredOnTop === true ? this.canvas.height/4 : scoredOnTop === false ? this.canvas.height*3/4 : this.canvas.height/2;
-        this.state.samePositionTime = 0;
-        this.state.sideWallTime = 0;
         this.state.roundFrames = 0;
-        this.state.lastPuckPos = {x: this.puck.x, y: this.puck.y};
     }
 
     isInGoal() {
@@ -76,100 +63,60 @@ class AirHockeyEnvironment {
     }
 
     handleWallCollision() {
-        if (this.puck.x - this.puck.radius < 0) { this.puck.x = this.puck.radius; this.puck.dx *= -0.8; }
-        if (this.puck.x + this.puck.radius > this.canvas.width) { this.puck.x = this.canvas.width - this.puck.radius; this.puck.dx *= -0.8; }
+        const p = this.puck, r = p.radius;
+        if (p.x - r < 0) { p.x = r; p.dx = Math.abs(p.dx) * wallBounce; }
+        if (p.x + r > this.canvas.width) { p.x = this.canvas.width - r; p.dx = -Math.abs(p.dx) * wallBounce; }
         if (!this.isInGoal()) {
-            if (this.puck.y - this.puck.radius < 0) { this.puck.y = this.puck.radius; this.puck.dy *= -0.8; }
-            if (this.puck.y + this.puck.radius > this.canvas.height) { this.puck.y = this.canvas.height - this.puck.radius; this.puck.dy *= -0.8; }
+            if (p.y - r < 0) { p.y = r; p.dy = Math.abs(p.dy) * wallBounce; }
+            if (p.y + r > this.canvas.height) { p.y = this.canvas.height - r; p.dy = -Math.abs(p.dy) * wallBounce; }
         }
     }
 
-    handlePaddleCollision(paddle) {
-        const dx = this.puck.x - paddle.x, dy = this.puck.y - paddle.y;
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist < paddle.radius + this.puck.radius) {
-            const angle = Math.atan2(dy, dx);
-            const minDist = paddle.radius + this.puck.radius;
-            this.puck.x = paddle.x + Math.cos(angle) * minDist;
-            this.puck.y = paddle.y + Math.sin(angle) * minDist;
-
-            this.puck.dx = (paddle.dx || 0) * 1.8;
-            this.puck.dy = (paddle.dy || 0) * 1.8;
-
-            const speed = Math.sqrt(this.puck.dx*this.puck.dx + this.puck.dy*this.puck.dy);
-            if (speed < 5) {
-                const scale = 5 / (speed || 1);
-                this.puck.dx *= scale;
-                this.puck.dy *= scale;
-            }
-            if (speed > maxSpeed) {
-                const scale = maxSpeed / speed;
-                this.puck.dx *= scale;
-                this.puck.dy *= scale;
-            }
+    // Paddle is hand-driven (infinite mass): reflect the puck's velocity relative to the paddle along the contact normal.
+    handlePaddleCollision(paddle, frac) {
+        const px = paddle.x - (paddle.dx || 0) * (1 - frac), py = paddle.y - (paddle.dy || 0) * (1 - frac);
+        const dx = this.puck.x - px, dy = this.puck.y - py, dist = Math.sqrt(dx*dx + dy*dy), minDist = paddle.radius + this.puck.radius;
+        if (dist >= minDist || dist === 0) return;
+        const nx = dx / dist, ny = dy / dist;
+        this.puck.x = px + nx * minDist;
+        this.puck.y = py + ny * minDist;
+        const vn = (this.puck.dx - (paddle.dx || 0)) * nx + (this.puck.dy - (paddle.dy || 0)) * ny;
+        if (vn < 0) {
+            this.puck.dx -= (1 + paddleBounce) * vn * nx;
+            this.puck.dy -= (1 + paddleBounce) * vn * ny;
         }
-    }
-
-    isPuckStuck() {
-        const isSlowMoving = Math.abs(this.puck.dx) < 0.1 && Math.abs(this.puck.dy) < 0.1;
-        const inSideWallZone = this.puck.x < this.puck.radius + 60 ||
-                               this.puck.x > this.canvas.width - this.puck.radius - 60;
-        this.state.sideWallTime = inSideWallZone ? this.state.sideWallTime + 1 : 0;
-        const nearWall = this.puck.x - this.puck.radius < 10 || this.puck.x + this.puck.radius > this.canvas.width - 10 ||
-                        (this.puck.y - this.puck.radius < 10 && !this.isInGoal()) ||
-                        (this.puck.y + this.puck.radius > this.canvas.height - 10 && !this.isInGoal());
-
-        if (!nearWall) return this.state.sideWallTime > 180;
-
-        const distFromLast = Math.sqrt(Math.pow(this.puck.x - this.state.lastPuckPos.x, 2) + Math.pow(this.puck.y - this.state.lastPuckPos.y, 2));
-        if (distFromLast < 1) {
-            this.state.samePositionTime++;
-        } else {
-            this.state.samePositionTime = 0;
-            this.state.lastPuckPos = {x: this.puck.x, y: this.puck.y};
-        }
-        return isSlowMoving || this.state.samePositionTime > 30 || this.state.sideWallTime > 180;
-    }
-
-    unstickPuck() {
-        this.puck.x = Math.random() * (this.canvas.width - 240) + 120;
-        this.puck.y = Math.random() * (this.canvas.height - 400) + 200;
-        this.puck.dx = (Math.random() - 0.5) * 5;
-        this.puck.dy = (Math.random() - 0.5) * 5;
-        this.state.samePositionTime = 0;
-        this.state.sideWallTime = 0;
-        this.state.lastPuckPos = {x: this.puck.x, y: this.puck.y};
-        this.puck.isStuck = true;
-        this.puck.stuckEffectSize = 20;
+        const speed = Math.sqrt(this.puck.dx*this.puck.dx + this.puck.dy*this.puck.dy);
+        if (speed > maxSpeed) { this.puck.dx *= maxSpeed / speed; this.puck.dy *= maxSpeed / speed; }
     }
 
     reset() {
-        this.state = { playerScore: 0, aiScore: 0, lastPuckPos: {x:0,y:0}, samePositionTime: 0, sideWallTime: 0, roundFrames: 0 };
+        this.state = { playerScore: 0, aiScore: 0, roundFrames: 0 };
         this.playerPaddle = { x: this.canvas.width/2, y: this.canvas.height-50, radius: 20, color: '#3498db', speed: 10, dx: 0, dy: 0 };
         this.aiPaddle = { x: this.canvas.width/2, y: 50, radius: 20, color: '#2ecc71', speed: 10, dx: 0, dy: 0 };
-        this.puck = { x: this.canvas.width/2, y: this.canvas.height/2, radius: 15, dx: 0, dy: 0, color: '#e74c3c', isStuck: false, stuckEffectSize: 0 };
+        this.puck = { x: this.canvas.width/2, y: this.canvas.height/2, radius: 15, dx: 0, dy: 0, color: '#e74c3c' };
     }
 
+    // Paddles have already moved this frame; sweep them and the puck together in substeps.
     update() {
         this.state.roundFrames++;
-        this.puck.x += this.puck.dx;
-        this.puck.y += this.puck.dy;
+        let goalHit = false;
+        for (let s = 1; s <= substeps && !goalHit; s++) {
+            this.puck.x += this.puck.dx / substeps;
+            this.puck.y += this.puck.dy / substeps;
+            this.handlePaddleCollision(this.playerPaddle, s / substeps);
+            this.handlePaddleCollision(this.aiPaddle, s / substeps);
+            this.handleWallCollision();
+            goalHit = this.isInGoal();
+        }
         this.puck.dx *= friction;
         this.puck.dy *= friction;
 
-        this.handleWallCollision();
-        this.handlePaddleCollision(this.playerPaddle);
-        this.handlePaddleCollision(this.aiPaddle);
-
-        const goalHit = this.isInGoal();
         if (goalHit === 'top') {
             this.state.playerScore++;
             this.resetPuck(true, true);
         } else if (goalHit === 'bottom') {
             this.state.aiScore++;
             this.resetPuck(false, true);
-        } else if (this.isPuckStuck()) {
-            this.unstickPuck();
         } else if (this.state.roundFrames >= 1200) {
             this.resetPuck(null, true);
             return 'timeout';
@@ -190,15 +137,5 @@ class AirHockeyEnvironment {
         this.drawCircle(this.playerPaddle.x, this.playerPaddle.y, this.playerPaddle.radius, this.playerPaddle.color);
         this.drawCircle(this.aiPaddle.x, this.aiPaddle.y, this.aiPaddle.radius, this.aiPaddle.color);
         this.drawCircle(this.puck.x, this.puck.y, this.puck.radius, this.puck.color);
-
-        if (this.puck.isStuck) {
-            this.ctx.beginPath();
-            this.ctx.arc(this.puck.x, this.puck.y, this.puck.radius + this.puck.stuckEffectSize, 0, Math.PI*2);
-            this.ctx.strokeStyle = `rgba(255, 255, 255, ${this.puck.stuckEffectSize/20})`;
-            this.ctx.lineWidth = 2;
-            this.ctx.stroke();
-            this.puck.stuckEffectSize *= 0.9;
-            if (this.puck.stuckEffectSize < 0.5) this.puck.isStuck = false;
-        }
     }
 }

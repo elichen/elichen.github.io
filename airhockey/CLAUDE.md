@@ -44,85 +44,43 @@
 ### Web App (Minimal)
 ```
 index.html         - Basic UI, no frills
-game.js           - Core game loop, <100 lines ideal
-environment.js    - Game physics only
-ppo_agent.js      - ONNX inference only
-styles.css        - Minimal styling
+game.js            - Game loop (fixed 60 Hz), human paddle, self-play jitter
+environment.js     - Game physics only
+ppo_agent.js       - Pure-JS MLP inference + 12-feature observation
+model/policy.bin   - float32 [n, sizes..., per layer W (out x in), b]
 ```
 
-### Training Scripts
+### Training (`training/`, JAX on the GPU)
 ```
-air_hockey_env.py    - Gym environment (8 features: puck-focused, dense rewards)
-train_selfplay.py    - Training script with self-play + parallel envs
-export_to_onnx.py    - ONNX export (auto-detects obs dimension)
-evaluate_model.py    - CRITICAL: Validate model actually plays
-gradient_monitor.py  - Track gradient clipping during training
-```
-
-### Models (Single)
-```
-model/ppo_selfplay_final.onnx  - Current production model
+hockey.py       - physics port of environment.js + game.js moveAgentPaddle, scripted players, MLP, match helpers
+parity.mjs/.py  - frame-by-frame parity of hockey.step against the browser (must print PASS)
+bc.py           - DAgger clone of the scripted expert (the starting policy)
+league.py       - PPO league: latest self, PFSP snapshot pool, fixed opponents (--vs), scripted bots
+final_eval.py   - continuous browser-style matches, goals per minute
 ```
 
-## What to Remove
-- Difficulty selection
-- Multiple AI strategies
-- Fallback mechanisms
-- Error recovery code
-- Verbose documentation
-- Unused functions
-- Alternative implementations
-- Console logging (except critical)
-- Input validation
-- Helper functions that are used once
-
-## Training Philosophy
-- Dense reward shaping REQUIRED to break defensive Nash equilibrium
-- Puck-focused observations (8 features: paddle pos/vel, puck pos/vel)
-- Self-play with 20-opponent frozen pool
-- Parallel training: batch_size scales with n_envs (160 for 10 envs)
+## Physics
+Puck reflects off paddles as off a hand-held mallet (kinematic, restitution 0.8), walls 0.9, friction 0.997/frame, max 30 px/frame, 4 substeps. Paddles: 10 px/frame, 0.6/0.4 smoothing, own half only. 1200-frame (20 s) point timeout; conceder serves. Any change to environment.js must be mirrored in hockey.py and re-checked with parity.
 
 ## Training & Deployment
-
+Runs on Nitro (`~/play/airhockey`, `~/play/cloth-venv`), ~600k steps/s.
 ```bash
-# Train
 cd training
-python train_selfplay.py --timesteps 10000000 --n_envs 10
-
-# Evaluate (CRITICAL - training metrics LIE)
-python evaluate_model.py --model models/ppo_selfplay_final.zip --episodes 100
-
-# Deploy
-python export_to_onnx.py --model models/ppo_selfplay_final.zip
-cp models/onnx/ppo_selfplay_final.onnx ../model/
+node parity.mjs > parity.json && python parity.py parity.json      # physics parity, needs PASS
+python bc.py --out bc.pkl                                            # ~5 min
+python league.py --name L --init bc.pkl --logstd -1.2 --warmup 30 --lr 1e-4 --shape .2 --shape_end 600 --draw -.2
+python league.py --name E --init F.pkl --vs F.pkl --vs_blocks 12 --self_blocks 0 --bots 0 ...   # exploiter vs frozen F
+python league.py --name H --init F.pkl --vs F.pkl --vs_blocks 8 --delay 12 --motor .15 ...       # human-limited best response
+python final_eval.py F.pkl --vs bot:12:6 late:12:.15:H/ckpt.pkl                                   # goals per minute
+cp runs/<run>/policy_XXXXX.bin ../model/policy.bin
 ```
 
-Success criteria:
-- >70% win rate vs random (24% baseline with dense rewards)
-- >0.5 goals/game (0.24 baseline)
-- <50% timeout rate (75% baseline - still high)
-
 ## Experimental Findings
-
-1. **Dense Rewards Break Defensive Deadlock**:
-   - Sparse rewards (2/3, -1, -1/3) create defensive Nash equilibrium
-   - Dense shaping needed: +0.001*puck_speed, +0.01 offensive positioning, -0.005*dist_to_puck
-   - Result: 3x improvement (8% → 24% win rate vs random)
-
-2. **Opponent Observations Harm Offensive Play**:
-   - WITH opponent tracking: Agent shadows opponent instead of attacking puck
-   - WITHOUT opponent: Forces puck engagement
-   - 8-feature puck-focused > 16-feature with opponent velocity
-
-3. **Parallel Training Optimization**:
-   - batch_size MUST scale with n_envs: `int(64 * n_envs / 4)`
-   - Without scaling: 10 envs = 1.2x speedup (bottlenecked by training phase)
-   - With scaling: 10 envs = 1.95x speedup
-   - Optimal: 10 envs on 14-CPU system (~2,900 FPS)
-
-4. **Fictitious Self-Play REQUIRED**:
-   - 20-opponent frozen pool (checkpoints every 50k steps)
-   - Prevents overfitting to single strategy
+1. **From scratch, sparse reward: the agent hides in a corner.** With real collisions, random touches score more own goals than goals. Cloning the scripted expert first fixes it; PPO then improves fast (beats the expert ~95% of points within ~100M steps).
+2. **Critic warm-up** (`--warmup`, actor frozen) before PPO touches a cloned actor.
+3. **Strength plateaus around 600M steps, then cycles.** Longer runs (L4, L5) beat the exploiters more but lose to their own starting point; pick the deployed policy by round-robin, not by latest checkpoint.
+4. **Same-budget exploiters** reach ~0.58 match score against the deployed policy from random starts. Human-limited best responses (200 ms delay) lose ~90% of points.
+5. Deterministic policy vs itself replays one point forever; the page adds small action jitter in self-play mode.
 
 ## When Asked to Modify
 1. First remove before adding

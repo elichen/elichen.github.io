@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <title>Air Hockey RL Agent</title>
-    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=league-3">
+    <link rel="stylesheet" href="styles.css?v=physics-1">
 </head>
 <body>
     <article>
         <div class="header">
             <h1>Air Hockey RL Agent</h1>
-            <p class="subtitle">Payoff-matrix PSRO + sampled league self-play</p>
+            <p class="subtitle">Imitation, then league self-play on a GPU</p>
         </div>
 
         <div class="game-container">
@@ -29,37 +28,44 @@
         </div>
 
         <section>
-            <h2>Training Methodology</h2>
-            <p>The agent was initialized from the deterministic incumbent, then trained from randomized sides with stochastic PPO best responses against a payoff-matrix league. Prioritized fictitious self-play emphasizes both the approximate Nash mixture and difficult opponents, while dedicated exploiters expose weaknesses for later rounds. The web opponent samples from three frozen league policies after each goal, and self-play assigns a different sampled policy to each side.</p>
+            <h2>The game</h2>
+            <p>The puck slides with little friction, bounces off the walls, and reflects off the paddles the way it does off a real mallet: the faster the paddle moves into it, the harder it comes back. Both paddles have the same top speed, and your paddle follows the pointer through the same smoothing as the AI's. The physics runs at a fixed 60 steps per second.</p>
 
-            <h3>Observation Space (12 features)</h3>
+            <h2>How it was trained</h2>
+            <p>The browser physics was ported to JAX and checked against this page frame by frame, then trained on one laptop GPU at about 600,000 game steps per second.</p>
+            <ol>
+                <li><strong>Copy an expert.</strong> A scripted player predicts the puck's path, blocks, and lines up shots. The network first learns to imitate it (DAgger). Starting from scratch, the agent learned to hide in a corner, because random touches score more own goals than goals.</li>
+                <li><strong>League self-play.</strong> PPO then trains the network against its current self, earlier snapshots (picked more often when they beat it), an exploiter trained only to beat it, and scripted players with human reaction delays.</li>
+            </ol>
+
+            <h3>What it sees (12 numbers)</h3>
             <ul>
-                <li>Own paddle: position (x, y), velocity (dx, dy)</li>
-                <li>Puck: position (x, y), velocity (dx, dy)</li>
-                <li>Opponent paddle: position (x, y), velocity (dx, dy)</li>
+                <li>Its own paddle: position and velocity</li>
+                <li>The puck: position and velocity</li>
+                <li>Your paddle: position and velocity</li>
             </ul>
 
             <h3>Results</h3>
+            <p>Measured in 5-minute matches with the same rules as this page.</p>
             <ul>
-                <li><strong>72–28</strong> with 100 draws against the incumbent over 200 side-balanced games</li>
-                <li><strong>61.0% match score</strong>, with a 95% interval of 56.3–65.7%</li>
-                <li><strong>66.3%</strong> against random and <strong>40.6%</strong> against the scripted baseline, versus the incumbent's 63.1% and 25.0%</li>
-                <li><strong>16/24 bank shots saved</strong>, matching the incumbent while passing all six adversarial promotion gates</li>
-                <li>Wall-clipped paddle velocity, side-wall wedges, and scoreless self-play rounds now have explicit recovery behavior</li>
+                <li><strong>Against human-limited networks: 37 to 1.</strong> These were trained the same way, specifically to beat this policy, but they see the puck 200 ms late (a typical human reaction time) and their aim wobbles. They score 0.2 goals a minute to its 7.4. With a quicker 133 ms reaction and steadier aim it is still 9 to 1.</li>
+                <li><strong>Against a scripted expert with human reaction time:</strong> 15.4 goals a minute for, 0.15 against. Against the same expert with no delay, 26 to 0.5.</li>
+                <li><strong>It is not unbeatable.</strong> A network trained only to beat it, with no handicap, wins 49% of points from random positions and loses 32%.</li>
             </ul>
 
             <h3>Code</h3>
             <p>
-                <a href="training/train_psro.py">Training Script</a> |
-                <a href="training/air_hockey_env.py">Environment</a> |
-                <a href="training/evaluate_adversarial.py">Adversarial Evaluation</a> |
-                <a href="ppo_agent.js">Web Inference</a>
+                <a href="training/hockey.py">Physics and scripted players</a> |
+                <a href="training/bc.py">Imitation</a> |
+                <a href="training/league.py">League training</a> |
+                <a href="training/final_eval.py">Evaluation</a> |
+                <a href="ppo_agent.js">Web inference</a>
             </p>
         </section>
     </article>
 
-    <script src="environment.js?v=league-3"></script>
-    <script src="ppo_agent.js?v=league-3"></script>
-    <script src="game.js?v=league-3"></script>
+    <script src="environment.js?v=physics-1"></script>
+    <script src="ppo_agent.js?v=physics-1"></script>
+    <script src="game.js?v=physics-1"></script>
 </body>
 </html>

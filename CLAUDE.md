@@ -110,6 +110,13 @@ node tools/export-run.mjs tour             # CSV -> data/tour.json for the artic
 
 Testing: a hidden or background Chrome tab runs the worker ~6x slower and pauses requestAnimationFrame, so measure speed in a visible tab.
 
+## Air Hockey (`/airhockey/`)
+
+Human vs a policy trained on Nitro with JAX (~600k steps/s): DAgger clone of a scripted expert, then PPO league self-play (PFSP snapshot pool, exploiters, scripted bots with human reaction delays). Details, commands and findings are in `airhockey/CLAUDE.md`.
+
+- Physics in `environment.js` was rewritten 2026-10-08 to be physical (puck reflects off paddles, low friction, substeps, fixed 60 Hz in `game.js`); `training/hockey.py` mirrors it and `training/parity.mjs` + `parity.py` must print PASS after any physics change.
+- `ppo_agent.js` is a pure-JS MLP reading `model/policy.bin` (no ONNX runtime).
+
 ## Path Tracer (`/pathtracer/`)
 
 WebGPU path tracer: one WGSL megakernel (`trace.wgsl`) over per-mesh BVHs built in a worker (`bvh.js`, `mesh.js`), placed by instances (`assemble.js`).
