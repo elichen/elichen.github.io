@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Army Ant Bridge</title>
+    <meta name="description" content="Army ants build a bridge out of their own bodies across the fork of a twig, then move it, without any ant knowing where the bridge is.">
+    <link rel="stylesheet" href="styles.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="main.js"></script>
+</head>
+<body>
+    <nav class="site"><a href="../index.html">elichen.github.io</a></nav>
+
+    <header class="title">
+        <h1>Army Ant Bridge</h1>
+        <p class="description">Army ants build a bridge out of their own bodies across the fork of a twig, then slide it into the gap to shorten their trail. No ant knows where the bridge is.</p>
+    </header>
+
+    <section class="demo" aria-label="Live demo">
+        <div class="viewport">
+            <canvas id="view" aria-label="A column of army ants crossing a forked twig, in 3D. Drag to turn the view, scroll or pinch to zoom."></canvas>
+            <div class="status" id="status">Loading the forest…</div>
+            <div class="note" id="note" role="status" aria-live="polite" hidden></div>
+            <p class="hint">Drag to look around · scroll or pinch to zoom</p>
+        </div>
+
+        <div class="panel">
+            <div class="readouts">
+                <div class="readout"><span class="value" id="ants">0</span><span class="label">Ants in the bridge</span></div>
+                <div class="readout"><span class="value" id="moved">–</span><span class="label">Bridge moved</span></div>
+                <div class="readout"><span class="value" id="saved">–</span><span class="label">Trail shortened</span></div>
+                <div class="readout"><span class="value" id="clock">0:00</span><span class="label">Time</span></div>
+            </div>
+            <div class="controls">
+                <div class="group" role="group" aria-label="Angle of the fork">
+                    <span class="group-label">Fork</span>
+                    <button type="button" data-angle="12" aria-pressed="false">12°</button>
+                    <button type="button" data-angle="20" aria-pressed="false">20°</button>
+                    <button type="button" data-angle="40" aria-pressed="true">40°</button>
+                    <button type="button" data-angle="60" aria-pressed="false">60°</button>
+                </div>
+                <label class="slider">Traffic <input type="range" id="traffic" min="0" max="300" step="10" value="200"> <output id="traffic-value">200</output> ants/min</label>
+                <div class="group" role="group" aria-label="Speed">
+                    <span class="group-label">Speed</span>
+                    <button type="button" data-speed="1" aria-pressed="true">1×</button>
+                    <button type="button" data-speed="4" aria-pressed="false">4×</button>
+                    <button type="button" data-speed="16" aria-pressed="false">16×</button>
+                </div>
+                <button type="button" id="restart">Restart</button>
+            </div>
+        </div>
+    </section>
+
+    <article class="prose">
+        <h2>What you are watching</h2>
+        <p>A raiding column of <em>Eciton hamatum</em> army ants runs both ways over a forked twig, about 200 ants a minute. The trail bends sharply at the fork. Soon an ant reaching across the narrow gap near the fork stops, gets walked over, and locks in place. Others lock onto it. The bridge then moves out into the gap, away from the fork, getting longer as it goes, and stops partway. Ants heading home carry pupae taken in the raid. The big porters and soldiers never join.</p>
+        <p>There is no code for a bridge here. Nothing tells the ants where to build it, how long to make it or when to move it. Its position and size come from each ant reacting to what is under its feet.</p>
+
+        <h2>The rules</h2>
+        <p>Each ant follows three rules, taken from field studies of <em>Eciton</em>:</p>
+        <ol>
+            <li><strong>Walk.</strong> Head for the far end of the trail by the shortest way over whatever footing there is, bark or ants in the bridge, at about 8 cm/s. This stands in for the pheromone trail.</li>
+            <li><strong>Hold on when your footing is poor.</strong> If your body hangs over air, because you are stretched across a gap or have walked off the edge of the bridge, stop for up to 1.5 seconds. Each ant that walks over you then locks you in place with a 70% chance (a little more for the smallest workers), less if the footing under you sags. A locked ant grips the bark or the bodies within reach of its legs. Garnier and colleagues found that ants slowed at a gap freeze when they are walked over, and Lutz and colleagues found that ants that slip join the structure.</li>
+            <li><strong>Let go when the traffic stops.</strong> A locked ant leaves when few ants have walked over it in the last few seconds. Ants held by more neighbors stay longer, and no ant leaves while others hang from it. Garnier and colleagues measured both effects.</li>
+        </ol>
+
+        <h2>Why the bridge moves</h2>
+        <p>This is the explanation Reid and colleagues proposed, and here it happens without being programmed. Ants taking the shortest way cross on the side of the bridge nearer the straight line between the tine ends, so that side gets the most traffic. Ants that walk off that edge join there. Ants on the far side, near the fork, are walked over less and let go. The bridge grows on one side and shrinks on the other, so it moves.</p>
+
+        <h2>Why it stops</h2>
+        <p>In the field, bridges stop before they reach the shortest possible path. They go farther at narrow forks and when traffic is heavy. Reid and colleagues showed that the stopping point matches a trade-off for the colony: a shorter trail saves time for every ant, but every ant in the bridge is one not raiding. They measured this trade-off, but not the rule in each ant that produces it, and suggested that the forces on the ants' legs may matter. Here the sag term in rule 2 does it. A longer span sags more, so fewer ants lock onto it, and growth at the front slows until ants leaving at the back balance it. More traffic means more chances to lock, so the bridge goes farther. In a wider fork the span grows faster as the bridge moves, so it stops sooner.</p>
+
+        <h2>Try it</h2>
+        <ul>
+            <li><strong>Fork</strong>: 12°, 20°, 40° and 60°, the angles of Reid's experiment.</li>
+            <li><strong>Traffic</strong>: 0 to 300 ants a minute. Turn it to 0 and the bridge comes apart. Turn it back up and the ants build a new one at the fork.</li>
+            <li><strong>Speed</strong>: a bridge takes minutes to move. 4× and 16× speed up time.</li>
+        </ul>
+
+        <h2>Measured</h2>
+        <p>Distance the bridge moved from the fork after 30 simulated minutes, the average of 4 runs at each setting (<code>tools/sweep.mjs</code>). A dash means no bridge was left at the end.</p>
+        <table>
+            <thead><tr><th>Fork</th><th>50 ants/min</th><th>100</th><th>200</th><th>300</th></tr></thead>
+            <tbody>
+                <tr><td>12°</td><td>4.0 cm</td><td>4.7 cm</td><td>7.5 cm</td><td>10.4 cm</td></tr>
+                <tr><td>20°</td><td>–</td><td>3.3 cm</td><td>5.9 cm</td><td>7.9 cm</td></tr>
+                <tr><td>40°</td><td>–</td><td>3.1 cm</td><td>3.5 cm</td><td>5.9 cm</td></tr>
+                <tr><td>60°</td><td>–</td><td>2.3 cm</td><td>2.7 cm</td><td>4.1 cm</td></tr>
+            </tbody>
+        </table>
+        <ul>
+            <li>In Reid's experiment, bridges moved about 1.5 cm at 50 ants a minute and 5.5 cm at 200, farther at small angles than at large ones, and most of the movement came in the first 10 minutes. The simulation agrees on all three. Its bridges at 12° move farther than the real ones, and at 50 ants a minute it rarely keeps a bridge at all.</li>
+            <li>At 200 ants a minute, bridges held about 5 ants at 20°, 19 at 40° and 22 at 60° (average over minutes 8 to 10, 3 runs each).</li>
+            <li>With the traffic stopped, the bridge was gone after 18 to 61 seconds (9 runs). Real bridges come apart within a few seconds.</li>
+            <li>Minor workers were 25% of the bridge ants and 22% of the column. Garnier measured 32% and 22% in <em>Eciton burchellii</em>.</li>
+        </ul>
+
+        <h2>How it is built</h2>
+        <ul>
+            <li><strong>Footing</strong>: the twig and the bridge are mapped onto a grid of 1.25 mm cells. Each walking ant follows the shortest walking distance to its end of the trail, recomputed every 0.4 s as the bridge changes. A bridge ant adds footing under its body and spread legs.</li>
+            <li><strong>The bridge</strong>: each locked ant is two points, head end and tail end, joined by its body and tied by its legs to the bark or the ants it gripped. Position-based dynamics lets the bridge sag under its own weight and the ants on it. A leg pulled too far lets go.</li>
+            <li><strong>The column</strong>: castes in the proportions Garnier counted in raids: 22% minors, 75% medias, and 3.5% porters and soldiers, from 4.6 mm to 10 mm long. About a third of the ants heading home carry a pupa.</li>
+            <li><strong>Rendering</strong>: three.js. Each ant is 33 instanced parts, with legs placed by inverse kinematics in a tripod gait. The camera has the shallow depth of field of a macro lens, and the light comes from a photographed rainforest sky.</li>
+        </ul>
+
+        <h2>Limits</h2>
+        <ul>
+            <li>Bridges here are one layer of ants, all held level. Real bridges are tangles, with ants hanging at every angle, and many layers deep over big gaps.</li>
+            <li>A walking ant knows the shortest route over the footing that exists. Real ants follow a pheromone trail.</li>
+            <li>Bridges come apart more slowly than in the field.</li>
+            <li>The sag term is my guess at the rule behind the trade-off. The field studies show the trade-off, not this rule.</li>
+            <li>The ants cross a twig 1 cm thick, not Reid's 3D-printed platforms, which were 3.3 cm wide.</li>
+        </ul>
+
+        <p class="credits">Research: C. R. Reid, M. J. Lutz, S. Powell, A. B. Kao, I. D. Couzin and S. Garnier, <a href="https://doi.org/10.1073/pnas.1512241112">Army ants dynamically adjust living bridges in response to a cost–benefit trade-off</a>, PNAS 2015. S. Garnier, T. Murphy, M. Lutz, E. Hurme, S. Leblanc and I. D. Couzin, <a href="https://doi.org/10.1371/journal.pcbi.1002984">Stability and responsiveness in a self-organized living architecture</a>, PLOS Computational Biology 2013. M. J. Lutz, C. R. Reid, C. J. Lustri, A. B. Kao, S. Garnier and I. D. Couzin, <a href="https://doi.org/10.1073/pnas.2013741118">Individual error correction drives responsive self-assembly of army ant scaffolds</a>, PNAS 2021. Ant colors from Brian Gratwicke's photo <a href="https://commons.wikimedia.org/wiki/File:Army_Ants_Genus-_Eciton_(11057740974).jpg">Army Ants Genus: Eciton</a> (CC BY 2.0); body shape after Will Ericson's AntWeb photo <a href="https://commons.wikimedia.org/wiki/File:Casent0612205_p_1_high.jpg">CASENT0612205</a> (CC BY 4.0). Sky, bark, moss and leaf litter from Poly Haven (CC0): Rainforest Trail by Dimitrios Savva and Jarod Guest, Bark Willow, Moss Wood by Rob Tuytel, Dry Decay Leaves by Amal Kumar.</p>
+    </article>
+</body>
+</html>

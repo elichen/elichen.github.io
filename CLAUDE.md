@@ -132,6 +132,22 @@ Human vs a policy trained on Nitro with JAX (~600k steps/s): DAgger clone of a s
 - Physics in `environment.js` was rewritten 2026-10-08 to be physical (puck reflects off paddles, low friction, substeps, fixed 60 Hz in `game.js`); `training/hockey.py` mirrors it and `training/parity.mjs` + `parity.py` must print PASS after any physics change.
 - `ppo_agent.js` is a pure-JS MLP reading `model/policy.bin` (no ONNX runtime).
 
+## Army Ant Bridge (`/ant-bridge/`)
+
+*Eciton hamatum* cross a forked twig and build a living bridge that slides into the gap (Reid et al. 2015 PNAS, Garnier et al. 2013, Lutz et al. 2021). Replaced the old `neural-bridge/` (now a redirect). No bridge logic anywhere: three per-ant rules in `sim.js` (walk the shortest way over footing; hold when footing is poor and lock if walked over, less on sagging footing; leave when traffic over you drops, never while others hang from you).
+
+- `sim.js` is shared by the page and the Node tools: 1.25 mm footing grid, Dijkstra path fields every 0.4 s, bridge ants as two-particle PBD bodies with leg constraints. `render.js` (instanced ants, leg IK, half-res gather DOF + ACES), `ant-model.js` (procedural worker), `main.js`.
+- Calibrated against Reid's Fig. 2 (distance moved vs angle and traffic) by sweeps; the article's "Measured" table is `node tools/sweep.mjs --angles 12,20,40,60 --traffics 50,100,200,300 --seeds 4 --minutes 30`. Re-run it after changing any parameter in `PARAMS` and update the table.
+- Joining must only come from walking off the bridge's edge (tail on bridge ants, centre ≥ `barkMargin` from bark) or spanning a bark gap; any looser rule grows ribbons of ants along the tines. `tools/snap.mjs` draws top-down PNGs for checking this by eye.
+- Testing: a background Chrome tab pauses requestAnimationFrame; `antBridge.advance(seconds)` in the console steps the sim and renders. Python's http.server lets Chrome cache modules, so serve with no-cache headers.
+
+```bash
+cd ant-bridge
+node tools/run.mjs --angle 20 --traffic 200 --minutes 30 [--stop 10]   # one run; --stop times how long the bridge takes to come apart
+node tools/sweep.mjs --angles 12,20,40,60 --traffics 100,200 --seeds 3 --minutes 20 [--params '{"lockChance":0.5}']
+node tools/snap.mjs --angle 40 --at 60,300,900 --out /tmp/snap
+```
+
 ## Path Tracer (`/pathtracer/`)
 
 WebGPU path tracer: one WGSL megakernel (`trace.wgsl`) over per-mesh BVHs built in a worker (`bvh.js`, `mesh.js`), placed by instances (`assemble.js`).
