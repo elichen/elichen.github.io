@@ -65,7 +65,7 @@ export class Transmitter {
 export class Telemetry {
     constructor(container, rows) {
         const box = document.createElement('div');
-        box.className = 'telemetry';
+        box.className = 'telemetry glass';
         box.innerHTML = '<div class="telemetry-title">Telemetry</div>';
         const dl = document.createElement('dl');
         this.values = {};

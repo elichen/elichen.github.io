@@ -3,14 +3,42 @@
 // dome: from the pilot's spot it is exactly the photo, and the chase and FPV
 // cameras still see the runway pass beneath them. A sun light matched to the
 // photo casts the drone's and the rings' shadows onto the photographed ground.
+// Hedges, reeds and tree lines stand up as walls at their distance in the photo, so
+// the field still holds together when the free camera moves away from the pilot.
 import * as THREE from 'three';
 import { EYE_HEIGHT } from './layout.js';
 
-const FIELD_RADIUS = 220;                 // m, ground disc and dome around the pilot
+const FIELD_RADIUS = 220;                 // m, sky dome around the pilot
+// Distance (m) from the photographer to the foot of the hedges, reeds and tree lines,
+// read off the panorama by column (of 4096; 150 = the far tree line). The ground stops
+// there and a wall carries the rest of the photo, with its sky cut out.
+const PHOTO_WALLS = [[0, 150], [40, 150], [48, 63], [150, 63], [162, 150], [200, 150], [212, 28],
+    [250, 17], [285, 19], [330, 23], [512, 27], [560, 40], [588, 150], [925, 150], [935, 99],
+    [1110, 110], [1122, 150], [1700, 150], [1712, 56], [1760, 30], [1900, 30], [2000, 33],
+    [2012, 99], [2180, 99], [2200, 63], [2240, 36], [2330, 45], [2420, 56], [2560, 60],
+    [2800, 40], [3072, 33], [3584, 45], [3800, 50], [3822, 150], [4096, 150]];
+const WALL_SEGMENTS = 720;
+const BACKDROP = 190;                     // m, a last wall behind everything, for the far tree line
+const WALL_TOP = Math.tan(60 * Math.PI / 180);   // walls reach 60° above the pilot's eye (or the dome)
+const COURSE_CLEARANCE = 8;               // m, walls stand at least this far behind any gate
 const PHOTO_SUN = { u: 0.6035, elevation: 18.6 * Math.PI / 180 };  // where the sun is in the panorama
 const PHOTO_VIEW_U = 330 / 360;           // panorama column the pilot faces (down the runway)
 const RING_TUBE = 0.075;                  // tube radius, as in the collision model
 const ORANGE = '#ff4808', WHITE = '#f5f5eb';  // the RealFlight tube ring's safety bands
+const CHASE = { distance: Math.hypot(1.3, 0.42), elevation: Math.atan2(0.42, 1.3) };  // 1.3 m behind, 0.42 m up
+// The photo holds together up to about spectator height; above that its grass smears
+const FREE = { fov: 50, minDistance: 0.6, maxDistance: 60, maxHeight: 6, minCameraHeight: 0.12,
+    maxCameraHeight: 6, wallMargin: 2 };
+const Z = new THREE.Vector3(0, 0, 1);
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+// Camera position for an orbit { target, azimuth, elevation, distance } (z-up)
+function orbitPosition(o, out) {
+    const c = Math.cos(o.elevation);
+    return out.set(c * Math.cos(o.azimuth), c * Math.sin(o.azimuth), Math.sin(o.elevation))
+        .multiplyScalar(o.distance).add(o.target);
+}
+const wrapAngle = a => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
 
 const fieldVertex = /* glsl */`
     varying vec3 vWorld;
@@ -33,7 +61,22 @@ const fieldFragment = /* glsl */`
         float ua = fract(u + 0.5) - 0.5;
         vec2 gx = vec2(abs(dFdx(uv.x)) < abs(dFdx(ua)) ? dFdx(uv.x) : dFdx(ua), dFdx(uv.y));
         vec2 gy = vec2(abs(dFdy(uv.x)) < abs(dFdy(ua)) ? dFdy(uv.x) : dFdy(ua), dFdy(uv.y));
+        // Seen from away from the pilot, a photo pixel of ground at distance r is r / eye height
+        // times longer than it is wide, so the grass smears into streaks pointing at the pilot.
+        // Blur it sideways to match there (the pilot's own view is untouched).
+        if (vWorld.z < 0.01) {
+            float away = min(distance(cameraPosition, eye) / 8.0, 1.0);
+            float r = length(vWorld.xy - eye.xy);
+            float blur = away * min(0.7 * r / eye.z, 48.0) / float(textureSize(map, 0).x);
+            gx.x = sign(gx.x) * max(abs(gx.x), blur);
+        }
         gl_FragColor = textureGrad(map, uv, gx, gy);
+        #ifdef CUTOUT
+        // walls: let the sky through to the dome behind (same photo pixel from the pilot's eye)
+        vec3 c = gl_FragColor.rgb;
+        float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        if ((c.b > c.g + 0.015 && lum > 0.42) || min(c.r, min(c.g, c.b)) > 0.72) discard;
+        #endif
         #include <colorspace_fragment>
     }`;
 
@@ -167,12 +210,20 @@ export class View {
             vertexShader: fieldVertex, fragmentShader: fieldFragment,
             side: THREE.DoubleSide, toneMapped: false, depthWrite: true,
         });
-        this.ground = new THREE.Mesh(new THREE.CircleGeometry(FIELD_RADIUS, 160), this.fieldMaterial);
+        this.wallMaterial = new THREE.ShaderMaterial({
+            uniforms: this.fieldMaterial.uniforms, defines: { CUTOUT: '' },
+            vertexShader: fieldVertex, fragmentShader: fieldFragment,
+            side: THREE.DoubleSide, toneMapped: false,
+        });
+        // Ground out to the backdrop; the walls stand on it
+        this.ground = new THREE.Mesh(new THREE.CircleGeometry(BACKDROP, 160), this.fieldMaterial);
+        this.walls = new THREE.Mesh(new THREE.BufferGeometry(), this.wallMaterial);
+        this.wallDistance = new Float32Array(WALL_SEGMENTS);
         const domeGeom = new THREE.SphereGeometry(FIELD_RADIUS, 160, 48, 0, Math.PI * 2, 0, Math.PI / 2);
         domeGeom.rotateX(Math.PI / 2);   // pole to +z
         this.dome = new THREE.Mesh(domeGeom, this.fieldMaterial);
         this.field = new THREE.Group();
-        this.field.add(this.ground, this.dome);
+        this.field.add(this.ground, this.walls, this.dome);
         this.field.visible = false;
         scene.add(this.field);
 
@@ -222,6 +273,13 @@ export class View {
         this.lookVel = new THREE.Vector3();
         this.fov = 50;
         this.chasePos = null;
+        // Chase: an orbit around the drone, relative to straight behind it
+        this.chaseGoal = { azimuth: 0, elevation: CHASE.elevation, distance: CHASE.distance };
+        this.chaseNow = { ...this.chaseGoal };
+        // Free: an orbit around a point on the field; inputs move the goal, the camera eases to it
+        this.freeGoal = { target: new THREE.Vector3(), azimuth: 0, elevation: 0.45, distance: 30 };
+        this.freeNow = { target: new THREE.Vector3(), azimuth: 0, elevation: 0.45, distance: 30 };
+        this.freeUp = new THREE.Vector3(0, 0, 1);
         this.resize();
         new ResizeObserver(() => this.resize()).observe(canvas);
     }
@@ -257,7 +315,8 @@ export class View {
         if (!this.layout || !this.fieldMaterial.uniforms.map.value) return;
         const pmrem = this.pmrem ??= new THREE.PMREMGenerator(this.renderer);
         const envScene = new THREE.Scene();
-        envScene.add(new THREE.Mesh(this.ground.geometry, this.fieldMaterial), new THREE.Mesh(this.dome.geometry, this.fieldMaterial));
+        envScene.add(new THREE.Mesh(this.ground.geometry, this.fieldMaterial), new THREE.Mesh(this.walls.geometry, this.wallMaterial),
+            new THREE.Mesh(this.dome.geometry, this.fieldMaterial));
         envScene.children.forEach(m => m.position.copy(this.field.position));
         const c = this.layout.center;
         const target = pmrem.fromScene(envScene, 0.02, 0.1, FIELD_RADIUS * 3, { position: new THREE.Vector3(c[0], c[1], 3) });
@@ -282,9 +341,16 @@ export class View {
         this.sun.target.position.set(cx, cy, 0);
         this.sun.position.set(cx, cy, 0).addScaledVector(sunDir, 80);
         this.shadowCatcher.position.set(cx, cy, 0.003);
+        const c = flight.course;
+        this.buildField(yaw, [...c.centers, flight.pad]);
 
         this.course.clear();
-        const c = flight.course;
+        let reach = 0, height = 0;
+        for (let i = 0; i < c.count; i++) {
+            reach = Math.max(reach, Math.hypot(c.centers[i][0] - cx, c.centers[i][1] - cy));
+            height += c.centers[i][2] / c.count;
+        }
+        this.courseSize = { reach, height };
         const ringMat = new THREE.MeshStandardMaterial({ map: this.ringTexture, roughness: 0.55, metalness: 0.0 });
         for (let i = 0; i < c.count; i++) {
             const major = 0.5 * (c.inner_radius[i] + c.outer_radius[i]);
@@ -308,12 +374,170 @@ export class View {
         this.lookVel.set(0, 0, 0);
         this.chasePos = null;
         this.updateEnvironment();
+        if (this.mode === 'free') this.freeOverview(false);
     }
 
-    setMode(mode) { this.mode = mode; this.chasePos = null; }
+    // Walls around the pilot (the field group's origin), and the backdrop behind them
+    buildField(yaw, keep) {
+        const n = WALL_SEGMENTS, D = this.wallDistance, [px, py] = this.layout.pilot;
+        for (let i = 0; i < n; i++) {
+            const u = (((yaw - 2 * Math.PI * i / n) / (2 * Math.PI)) % 1 + 1) % 1 * 4096;
+            let k = 1;
+            while (PHOTO_WALLS[k][0] < u) k++;
+            const [u0, d0] = PHOTO_WALLS[k - 1], [u1, d1] = PHOTO_WALLS[k];
+            D[i] = d0 + (d1 - d0) * (u - u0) / (u1 - u0);
+        }
+        // Push walls back behind the course where the photo's hedges would cut through it
+        for (const [x, y] of keep) {
+            const r = Math.hypot(x - px, y - py), a = Math.atan2(y - py, x - px);
+            const half = Math.atan2(COURSE_CLEARANCE, r);
+            for (let j = Math.floor((a - half) / (2 * Math.PI) * n); j <= Math.ceil((a + half) / (2 * Math.PI) * n); j++) {
+                const i = ((j % n) + n) % n;
+                D[i] = Math.min(Math.max(D[i], r + COURSE_CLEARANCE), BACKDROP - 10);
+            }
+        }
+        const wall = [], index = [];
+        const ring = (dist, skipJumps) => {
+            const base = wall.length / 3;
+            for (let i = 0; i <= n; i++) {
+                const a = 2 * Math.PI * i / n, d = dist(i % n), x = d * Math.cos(a), y = d * Math.sin(a);
+                wall.push(x, y, 0, x, y, Math.min(EYE_HEIGHT + d * WALL_TOP, Math.sqrt(FIELD_RADIUS ** 2 - d * d) - 1));
+                // no wall across a jump in distance: from the side it would be one pixel column stretched
+                if (i < n && !(skipJumps && Math.abs(dist((i + 1) % n) - d) > 3)) {
+                    const k = base + 2 * i;
+                    index.push(k, k + 2, k + 1, k + 1, k + 2, k + 3);
+                }
+            }
+        };
+        ring(i => D[i], true);
+        ring(() => BACKDROP, false);
+        this.walls.geometry.dispose();
+        const g = this.walls.geometry = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(wall, 3));
+        g.setIndex(index);
+        g.computeBoundingSphere();
+    }
 
-    // pose: { p, q (w,x,y,z), v, thrust[4] (N), hover (N per rotor) }
-    draw(pose, dt) {
+    // How far (m) a point is inside the walls
+    insideWalls(x, y) {
+        const [px, py] = this.layout.pilot, n = WALL_SEGMENTS;
+        const a = Math.atan2(y - py, x - px), f = ((a / (2 * Math.PI) * n) % n + n) % n;
+        const i = Math.floor(f), t = f - i, D = this.wallDistance;
+        return D[i] + (D[(i + 1) % n] - D[i]) * t - Math.hypot(x - px, y - py);
+    }
+
+    // keepCamera: start the free camera from the current view instead of the course overview
+    setMode(mode, keepCamera = false) {
+        if (mode === 'free') {
+            if (keepCamera) this.freeFromCamera();
+            else this.freeOverview(this.mode !== 'free' && !reducedMotion.matches);
+        }
+        if (mode === 'chase' && this.mode !== 'chase') {
+            Object.assign(this.chaseGoal, { azimuth: 0, elevation: CHASE.elevation, distance: CHASE.distance });
+            Object.assign(this.chaseNow, this.chaseGoal);
+            this.chasePos = null;
+        }
+        this.mode = mode;
+    }
+
+    // Free camera orbiting the point straight ahead, at the drone's distance
+    freeFromCamera() {
+        const cam = this.camera, ahead = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+        const d = THREE.MathUtils.clamp(ahead.dot(this.drone.position.clone().sub(cam.position)), 2, FREE.maxDistance);
+        const o = this.freeNow;
+        o.target.copy(cam.position).addScaledVector(ahead, d);
+        const v = cam.position.clone().sub(o.target);
+        o.distance = d;
+        o.elevation = Math.asin(THREE.MathUtils.clamp(v.z / d, -1, 1));
+        o.azimuth = Math.atan2(v.y, v.x);
+        this.freeGoal.target.copy(o.target);
+        Object.assign(this.freeGoal, { azimuth: o.azimuth, elevation: o.elevation, distance: o.distance });
+        this.clampFree();
+        this.freeUp.set(0, 1, 0).applyQuaternion(cam.quaternion);
+        this.fov = cam.fov;
+    }
+
+    // The whole course from above the pilot's side; `sweep` flies there from the current view
+    freeOverview(sweep) {
+        if (sweep) this.freeFromCamera();
+        const [cx, cy] = this.layout.center, g = this.freeGoal;
+        g.target.set(cx, cy, Math.min(this.courseSize.height, 3));
+        g.distance = THREE.MathUtils.clamp(this.courseSize.reach * 2 + 6, 12, 55);
+        g.elevation = Math.asin((FREE.maxCameraHeight - 1 - g.target.z) / g.distance);
+        g.azimuth = this.layout.heading + Math.PI + 0.35;
+        this.clampFree();
+        if (sweep) g.azimuth = this.freeNow.azimuth + wrapAngle(g.azimuth - this.freeNow.azimuth);
+        else {
+            this.freeNow.target.copy(g.target);
+            Object.assign(this.freeNow, { azimuth: g.azimuth, elevation: g.elevation, distance: g.distance });
+            this.freeUp.copy(Z);
+            this.fov = FREE.fov;
+        }
+    }
+
+    // Keep the free camera's point and the camera inside the walls and above the ground
+    clampFree() {
+        const g = this.freeGoal, t = g.target, [px, py] = this.layout.pilot;
+        const over = FREE.wallMargin + 2 - this.insideWalls(t.x, t.y);
+        if (over > 0) {
+            const r = Math.hypot(t.x - px, t.y - py), k = Math.max(r - over, 0) / r;
+            t.x = px + (t.x - px) * k; t.y = py + (t.y - py) * k;
+        }
+        t.z = THREE.MathUtils.clamp(t.z, 0, FREE.maxHeight);
+        g.distance = THREE.MathUtils.clamp(g.distance, FREE.minDistance, FREE.maxDistance);
+        const low = Math.asin(THREE.MathUtils.clamp((FREE.minCameraHeight - t.z) / g.distance, -1, 1));
+        const high = Math.asin(THREE.MathUtils.clamp((FREE.maxCameraHeight - t.z) / g.distance, -1, 1));
+        g.elevation = THREE.MathUtils.clamp(g.elevation, Math.max(low, -1.3), Math.min(high, 1.5));
+        const cam = this.scratch ??= new THREE.Vector3();
+        for (let i = 0; i < 20 && this.insideWalls(orbitPosition(g, cam).x, cam.y) < FREE.wallMargin; i++) {
+            g.distance = Math.max(g.distance * 0.85, FREE.minDistance);
+        }
+    }
+
+    // Drag: swing around the drone (chase) or the free camera's point
+    orbit(dx, dy) {
+        const k = 1.2 * Math.PI / Math.max(this.canvas.clientHeight, 1);
+        const o = this.mode === 'chase' ? this.chaseGoal : this.freeGoal;
+        o.azimuth -= dx * k;
+        o.elevation += dy * k;
+        if (this.mode === 'chase') o.elevation = THREE.MathUtils.clamp(o.elevation, -0.35, 1.45);
+        else this.clampFree();
+    }
+
+    // Right-drag or two fingers: drag the field along the ground
+    pan(dx, dy) {
+        const g = this.freeGoal, h = Math.max(this.canvas.clientHeight, 1);
+        const s = g.distance * 2 * Math.tan(this.camera.fov * Math.PI / 360) / h;
+        const along = s / Math.max(Math.sin(g.elevation), 0.35);
+        const sa = Math.sin(g.azimuth), ca = Math.cos(g.azimuth);
+        g.target.x += sa * dx * s - ca * dy * along;
+        g.target.y += -ca * dx * s - sa * dy * along;
+        this.clampFree();
+    }
+
+    zoom(factor) {
+        if (this.mode === 'chase') {
+            this.chaseGoal.distance = THREE.MathUtils.clamp(this.chaseGoal.distance * factor, 0.45, 8);
+        } else {
+            this.freeGoal.distance *= factor;
+            this.clampFree();
+        }
+    }
+
+    // Keys: move [right, forward, up] in -1..1; faster when zoomed out
+    fly(move, dt) {
+        if (!move[0] && !move[1] && !move[2]) return;
+        const g = this.freeGoal, speed = THREE.MathUtils.clamp(g.distance * 0.8, 2.5, 18) * dt;
+        const sa = Math.sin(g.azimuth), ca = Math.cos(g.azimuth);
+        g.target.x += (-sa * move[0] - ca * move[1]) * speed;
+        g.target.y += (ca * move[0] - sa * move[1]) * speed;
+        g.target.z += move[2] * speed * 0.6;
+        this.clampFree();
+    }
+
+    // pose: { p, q (w,x,y,z), v, thrust[4] (N), hover (N per rotor) }; dt is simulated
+    // time (slower in slow motion), realDt wall-clock time for the viewer's camera moves
+    draw(pose, dt, realDt = dt) {
         const { drone, camera } = this;
         drone.position.set(pose.p[0], pose.p[1], pose.p[2]);
         drone.quaternion.set(pose.q[1], pose.q[2], pose.q[3], pose.q[0]);
@@ -350,14 +574,29 @@ export class View {
             const fwd = new THREE.Vector3(pose.v[0], pose.v[1], 0);
             if (fwd.length() < 1) fwd.set(1, 0, 0).applyQuaternion(drone.quaternion).setZ(0);
             fwd.normalize();
-            const want = p.clone().addScaledVector(fwd, -1.3).add(new THREE.Vector3(0, 0, 0.42));
+            const o = this.chaseNow, k = 1 - Math.exp(-realDt * 12);
+            for (const key of ['azimuth', 'elevation', 'distance']) o[key] += (this.chaseGoal[key] - o[key]) * k;
+            const az = Math.atan2(fwd.y, fwd.x) + Math.PI + o.azimuth, ce = Math.cos(o.elevation);
+            const want = new THREE.Vector3(ce * Math.cos(az), ce * Math.sin(az), Math.sin(o.elevation))
+                .multiplyScalar(o.distance).add(p);
             want.z = Math.max(want.z, 0.25);
             if (!this.chasePos) this.chasePos = want.clone();
             this.chasePos.lerp(want, 1 - Math.exp(-dt * 6));
             camera.position.copy(this.chasePos);
             camera.up.set(0, 0, 1);
-            camera.lookAt(p.clone().addScaledVector(fwd, 1.8));
+            // look a little ahead of the drone when behind it, straight at it from the side
+            camera.lookAt(p.clone().addScaledVector(fwd, 1.8 * Math.max(Math.cos(o.azimuth), 0)));
             camera.fov = 75;
+        } else if (this.mode === 'free') {
+            const o = this.freeNow, g = this.freeGoal, k = 1 - Math.exp(-realDt * 10);
+            o.target.lerp(g.target, k);
+            for (const key of ['azimuth', 'elevation', 'distance']) o[key] += (g[key] - o[key]) * k;
+            orbitPosition(o, camera.position);
+            camera.position.z = Math.max(camera.position.z, 0.08);
+            camera.up.copy(this.freeUp.lerp(Z, 1 - Math.exp(-realDt * 6)).normalize());
+            camera.lookAt(o.target);
+            this.fov += (FREE.fov - this.fov) * (1 - Math.exp(-realDt * 4));
+            camera.fov = this.fov;
         } else {
             // FPV: the drone's camera, 25° up-tilt
             const offset = new THREE.Vector3(0.08, 0, 0.03).applyQuaternion(drone.quaternion);

@@ -1,5 +1,6 @@
 // Page: loads the policy and courses, runs the flight at 62.5 Hz policy ticks,
-// and draws the field, the radio, telemetry and sound each frame.
+// and draws the field, the radio, telemetry and sound each frame. Dragging the view
+// moves the camera anywhere on the field.
 import { TICK, MISS, GROUND, BOUNDS, INVERSION, STRIKE } from './sim.js';
 import { Flight } from './flight.js';
 import { loadPolicy } from './policy.js';
@@ -7,10 +8,24 @@ import { pilotSpot } from './layout.js';
 import { View } from './render.js';
 import { Transmitter, Telemetry } from './hud.js';
 import { MotorSound } from './audio.js';
+import { CameraInput } from './controls.js';
 
 const COURSES = ['uzh_swift_race_v1', 'uzh_big_s_v2', 'uzh_kidney_v1', 'uzh_figure_eight_v1', 'uzh_multistory_slalom_v1'];
 const CRASH = { [STRIKE]: 'hit a ring', [MISS]: 'missed a ring', [GROUND]: 'hit the ground',
     [BOUNDS]: 'left the field', [INVERSION]: 'flipped over' };
+const VIEWS = ['pilot', 'chase', 'fpv', 'free'];
+const touch = matchMedia('(hover: none) and (pointer: coarse)').matches;
+const VIEW_NOTES = touch ? {
+    pilot: 'Where the pilot stands. Drag to move the camera.',
+    chase: 'Behind the drone. Drag to circle it, pinch to zoom.',
+    fpv: 'The drone’s own camera, tilted up 25°.',
+    free: 'Drag to orbit. Two fingers move and zoom.',
+} : {
+    pilot: 'Where the pilot stands. Drag to move the camera anywhere.',
+    chase: 'Following the drone. Drag to swing around it, scroll to zoom.',
+    fpv: 'The drone’s own camera, tilted up 25° as racers mount them.',
+    free: 'Drag to orbit, right-drag to move, scroll to zoom, WASD and Q/E to fly.',
+};
 const $ = id => document.getElementById(id);
 
 const status = $('status');
@@ -19,7 +34,7 @@ const say = text => {
     status.hidden = !text;
 };
 
-let track, policy, view, radio, telemetry, sound, flight, layout;
+let track, policy, view, radio, telemetry, sound, flight, layout, input;
 let simTime = 0, last = performance.now(), slow = false;
 const prev = { p: new Float64Array(3), q: new Float64Array(4) };
 const pose = { p: [0, 0, 0], q: [1, 0, 0, 0], v: [0, 0, 0], thrust: new Float64Array(4), hover: 2.147 };
@@ -48,13 +63,27 @@ async function init() {
     }
     document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
     $('sound').addEventListener('click', toggleSound);
-    $('slow').addEventListener('change', e => { slow = e.target.checked; });
+    $('slow').addEventListener('click', () => {
+        slow = !slow;
+        $('slow').setAttribute('aria-pressed', slow);
+    });
+    setupAbout();
+    setupFullscreen();
+    // Grabbing the view switches to the free camera from where it is; in chase, dragging
+    // and zooming swing around the drone instead
+    input = new CameraInput($('view'), {
+        begin(kind) {
+            if (view.mode === 'free' || (view.mode === 'chase' && (kind === 'orbit' || kind === 'zoom'))) return;
+            setView('free', true);
+        },
+        orbit: (dx, dy) => view.orbit(dx, dy),
+        pan: (dx, dy) => view.pan(dx, dy),
+        zoom: f => view.zoom(f),
+    });
     addEventListener('keydown', e => {
-        if (e.target.closest?.('input, textarea')) return;
-        if (e.key === 'v' || e.key === 'V') {
-            const modes = ['pilot', 'chase', 'fpv'];
-            setView(modes[(modes.indexOf(view.mode) + 1) % modes.length]);
-        }
+        if (e.target.closest?.('input, textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+        if (e.key === 'v' || e.key === 'V') setView(VIEWS[(VIEWS.indexOf(view.mode) + 1) % VIEWS.length]);
+        if ((e.key === 'f' || e.key === 'F') && document.fullscreenEnabled) toggleFullscreen();
     });
     setCourse(COURSES[0]);
     setView('pilot');
@@ -75,15 +104,45 @@ function setCourse(id) {
         (data.open ? ', flown as a loop from the finish back to the first gate' : '');
 }
 
-function setView(mode) {
-    view.setMode(mode);
+// keepCamera: the free camera starts from the current view (when the viewer grabs it)
+function setView(mode, keepCamera = false) {
+    view.setMode(mode, keepCamera);
     document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === mode));
+    $('camera-note').textContent = VIEW_NOTES[mode];
 }
 
 function toggleSound() {
     if (sound.running) sound.stop(); else sound.start();
     $('sound').setAttribute('aria-pressed', sound.running);
-    $('sound').textContent = sound.running ? 'Sound on' : 'Sound off';
+}
+
+// "How it works" slides in over the left of the view; the race keeps running
+function setupAbout() {
+    const panel = $('about'), opener = $('about-open');
+    const show = open => {
+        panel.classList.toggle('open', open);
+        panel.inert = !open;
+        opener.setAttribute('aria-expanded', open);
+        if (open) panel.querySelector('h2').focus({ preventScroll: true });
+        else if (panel.contains(document.activeElement)) opener.focus();
+    };
+    panel.querySelector('h2').tabIndex = -1;
+    opener.addEventListener('click', () => show(!panel.classList.contains('open')));
+    $('about-close').addEventListener('click', () => show(false));
+    addEventListener('keydown', e => { if (e.key === 'Escape' && panel.classList.contains('open')) show(false); });
+}
+
+function setupFullscreen() {
+    const button = $('fullscreen');
+    if (!document.fullscreenEnabled) return;
+    button.hidden = false;
+    button.addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', () => button.setAttribute('aria-pressed', !!document.fullscreenElement));
+}
+
+function toggleFullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
 }
 
 function savePrev() {
@@ -132,12 +191,13 @@ function frame(now) {
 
 function update(dt) {
     advance(slow ? dt * 0.25 : dt);
+    if (view.mode === 'free') view.fly(input.move, dt);
     const a = Math.min(simTime / TICK, 1), plant = flight.plant;
     for (let i = 0; i < 3; i++) pose.p[i] = prev.p[i] + (plant.p[i] - prev.p[i]) * a;
     slerp(prev.q, plant.q, a, pose.q);
     pose.v = plant.v;
     pose.thrust.set(plant.thrust);
-    view.draw(pose, slow ? dt * 0.25 : dt);
+    view.draw(pose, slow ? dt * 0.25 : dt, dt);
 
     // Radio: throttle shown linear in thrust, as on a real transmitter
     const s = flight.stick;

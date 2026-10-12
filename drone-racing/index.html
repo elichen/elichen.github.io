@@ -2,9 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Drone Racing</title>
     <meta name="description" content="A racing drone flown by a neural network trained with reinforcement learning laps five UZH race tracks on a photographed airfield, with its radio sticks, telemetry and motor sound, like the RealFlight simulator it was tested in.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600&display=swap">
     <link rel="stylesheet" href="styles.css">
     <script type="importmap">
     {
@@ -17,61 +20,77 @@
     <script type="module" src="main.js"></script>
 </head>
 <body>
-    <nav class="site"><a href="../index.html">elichen.github.io</a></nav>
+    <main class="sim">
+        <canvas id="view" aria-label="The drone racing through the rings on the airfield, in 3D. Drag to move the camera."></canvas>
 
-    <header class="title">
-        <h1>Drone Racing</h1>
-        <p class="description">A racing drone flown by a neural network laps the race tracks of the University of Zurich's drone racing lab on a photographed airfield. It was trained with reinforcement learning and tested in the RealFlight simulator; this page recreates that setup, with the radio sticks it moves, its telemetry and its motors' sound.</p>
-    </header>
+        <div class="hud-layer">
+            <header class="title-card glass">
+                <a class="site" href="../index.html">elichen.github.io</a>
+                <h1>Drone Racing</h1>
+                <p class="description">A neural network trained with reinforcement learning flies this racing drone around five University of Zurich race tracks.</p>
+                <button type="button" class="link" id="about-open" aria-expanded="false" aria-controls="about">How it works</button>
+            </header>
 
-    <section class="demo" aria-label="Live demo">
-        <div class="viewport">
-            <canvas id="view" aria-label="The drone racing through the rings on the airfield, in 3D"></canvas>
             <div class="status" id="status" role="status" aria-live="polite"></div>
             <div class="hud" id="hud"></div>
+
+            <div class="dock glass">
+                <div class="row">
+                    <span class="row-label" id="track-label">Track</span>
+                    <div class="choices" id="courses" role="group" aria-labelledby="track-label"></div>
+                </div>
+                <p class="note" id="course-note"></p>
+                <div class="row">
+                    <span class="row-label" id="camera-label">Camera</span>
+                    <div class="choices" role="group" aria-labelledby="camera-label">
+                        <button type="button" data-view="pilot">Pilot</button>
+                        <button type="button" data-view="chase">Chase</button>
+                        <button type="button" data-view="fpv">FPV</button>
+                        <button type="button" data-view="free">Free</button>
+                    </div>
+                </div>
+                <p class="note" id="camera-note"></p>
+                <div class="row toggles">
+                    <button type="button" id="sound" aria-pressed="false">Sound</button>
+                    <button type="button" id="slow" aria-pressed="false">Slow motion</button>
+                    <button type="button" id="fullscreen" aria-pressed="false" hidden>Full screen</button>
+                </div>
+            </div>
+
             <div class="radio-box" id="radio"></div>
-            <div class="views" role="group" aria-label="Camera">
-                <button type="button" data-view="pilot">Pilot</button>
-                <button type="button" data-view="chase">Chase</button>
-                <button type="button" data-view="fpv">FPV</button>
-            </div>
         </div>
+    </main>
 
-        <div class="panel">
-            <div class="courses" id="courses" role="group" aria-label="Track"></div>
-            <div class="controls">
-                <button type="button" id="sound" class="sound" aria-pressed="false">Sound off</button>
-                <label class="switch"><input type="checkbox" id="slow"> Slow motion</label>
-            </div>
+    <aside class="about" id="about" aria-label="How it works" inert>
+        <button type="button" class="close" id="about-close" aria-label="Close">&times;</button>
+        <div class="prose">
+            <p class="lede">A racing drone flown by a neural network laps the race tracks of the University of Zurich's drone racing lab on a photographed airfield. It was trained with reinforcement learning and tested in the RealFlight simulator; this page recreates that setup, with the radio sticks it moves, its telemetry and its motors' sound. Watch from the pilot's spot, chase it, ride along on its camera, or drag the view to move the camera anywhere on the field.</p>
+            <h2>How it works</h2>
+            <p>The drone is a 0.88 kg, 5-inch racing quad. Its policy is a small neural network that reads the drone's attitude, velocity and rotation rates, where the next two gates are relative to it, and its own previous command. Every 16 ms it sets the throttle and the three rotation rates (roll, pitch and yaw), the same commands a pilot gives with the sticks in acro mode. The radio in the corner shows them: left stick throttle and yaw, right stick pitch and roll.</p>
+            <p>Your browser simulates the drone in 4 ms steps. A flight controller turns the commanded rates into motor commands, and the motors spin up with a lag. The model also includes drag and the thrust lost to airspeed and to air flowing through the propellers. These numbers were fitted to dozens of flights in RealFlight. The simulation is a JavaScript port of the MuJoCo MJX environment the policy was trained in. Started from the same state, the browser's flight stays within a few micrometres of the original's for the first 1.6 seconds, and every race ends within a tick of the original.</p>
+            <p>As in the RealFlight tests, a simple scripted autopilot takes off, flies to a spot behind the first gate and hands over 2.5 m before it at 2.7 m/s. From then on the policy flies, lap after lap. It never sees a lap counter or gate number, only the next two gates, so it can keep lapping indefinitely.</p>
+
+            <h2>Training</h2>
+            <p>The policy was trained with PPO on a laptop RTX 5050, using Brax and MJX, simulating 1,024 drones at once. It came out of a chain of runs, each starting from the last one's policy: first the Swift track, then a mix of six courses, then a drone model refitted to RealFlight flights, then two-lap races. The final run took about a billion simulated steps, or five hours. Episodes started anywhere along a course at 1.8 to 5.2 m/s. To keep it from relying on any one model of the drone, the mass, motor speed, drag and thrust were varied in each episode. The reward was progress around the course, a bonus for each gate passed (more for passing near its center) and a large bonus for finishing two laps, minus a small cost for time. Hitting a gate or the ground ended the episode.</p>
+            <p>The tracks are from the University of Zurich's Robotics and Perception Group. Swift is the track on which their Swift drone beat human world champions (Kaufmann et al., <i>Nature</i> 2023). Its gate positions come from the paper's released data. Multistory comes from their open-source planner, and Big-S, Kidney and Figure-8 are reconstructed from figures in Wang et al. (2025). The gates are circular here, about the size of the square gates they replace.</p>
+
+            <h2>Measured</h2>
+            <p>In RealFlight, this checkpoint (159 million steps into its last training run) completed 20 of 20 races on the five courses. In this browser simulation, starting from the takeoff, it flew 100 laps of each course without a crash:</p>
+            <ul>
+                <li><strong>Swift</strong>: 6.90 s laps (Swift itself: 5.52 s, on a lighter, stronger drone)</li>
+                <li><strong>Big-S</strong>: 4.82 s</li>
+                <li><strong>Kidney</strong>: 2.93 s</li>
+                <li><strong>Figure-8</strong>: 2.77 s</li>
+                <li><strong>Multistory</strong>: 7.03 s. It was trained to fly this one once, from start to finish; here it is closed into a loop, and the policy finds its way back from the finish to the first gate.</li>
+            </ul>
+
+            <h2>The look and sound</h2>
+            <p>RealFlight's own photos, sounds and graphics can't be shared, so they are recreated here. The airfield is a 360° photo, projected from the pilot's eye onto the ground, onto walls standing where the hedges, reeds and tree lines meet the ground in the photo, and onto a distant dome for the sky. From the pilot's spot this is exactly the photo; elsewhere the field still holds together, though the photo only saw the grass from one spot, so far from the pilot it is blurred. The sun light is placed where the sun is in the photo, so the drone and the rings cast shadows on the photographed runway. The rings use the orange and white bands of the ones built for the RealFlight tests.</p>
+            <p>The motor sound is synthesized from the simulation. Each motor's speed follows from its thrust, using RealFlight's measured thrust coefficient: about 11,000 rpm in a hover and 23,000 at full power. Each motor is an oscillator at its rotation rate, with overtones for the blade passes (three per turn) and the electrical whine. The four motors run at slightly different speeds and beat against each other. From the pilot's spot, the sound fades with distance, loses its high frequencies over distance, and drops in pitch as the drone flies away (the Doppler effect).</p>
+
+            <p class="credits">Airfield panorama: <a href="https://polyhaven.com/a/derelict_airfield_01">Derelict Airfield 01</a> by Alexander Scholten, Poly Haven (CC0). Drone colors from <a href="https://commons.wikimedia.org/wiki/File:Racing_Drone.jpg">Racing Drone</a> (Wikimedia Commons, CC BY-SA 4.0). Tracks: Kaufmann et al., <i>Champion-level drone racing using deep reinforcement learning</i>, Nature 2023; Penicka et al., UZH-RPG <a href="https://github.com/uzh-rpg/sb_min_time_quadrotor_planning">sb_min_time_quadrotor_planning</a>; Wang et al., arXiv:2410.22308. Built with <a href="https://threejs.org">three.js</a>.</p>
+    
         </div>
-        <p class="course-note" id="course-note"></p>
-    </section>
-
-    <article class="prose">
-        <h2>How it works</h2>
-        <p>The drone is a 0.88 kg, 5-inch racing quad. Its policy is a small neural network that reads the drone's attitude, velocity and rotation rates, where the next two gates are relative to it, and its own previous command. Every 16 ms it sets the throttle and the three rotation rates (roll, pitch and yaw), the same commands a pilot gives with the sticks in acro mode. The radio in the corner shows them: left stick throttle and yaw, right stick pitch and roll.</p>
-        <p>Your browser simulates the drone in 4 ms steps. A flight controller turns the commanded rates into motor commands, and the motors spin up with a lag. The model also includes drag and the thrust lost to airspeed and to air flowing through the propellers. These numbers were fitted to dozens of flights in RealFlight. The simulation is a JavaScript port of the MuJoCo MJX environment the policy was trained in. Started from the same state, the browser's flight stays within a few micrometres of the original's for the first 1.6 seconds, and every race ends within a tick of the original.</p>
-        <p>As in the RealFlight tests, a simple scripted autopilot takes off, flies to a spot behind the first gate and hands over 2.5 m before it at 2.7 m/s. From then on the policy flies, lap after lap. It never sees a lap counter or gate number, only the next two gates, so it can keep lapping indefinitely.</p>
-
-        <h2>Training</h2>
-        <p>The policy was trained with PPO on a laptop RTX 5050, using Brax and MJX, simulating 1,024 drones at once. It came out of a chain of runs, each starting from the last one's policy: first the Swift track, then a mix of six courses, then a drone model refitted to RealFlight flights, then two-lap races. The final run took about a billion simulated steps, or five hours. Episodes started anywhere along a course at 1.8 to 5.2 m/s. To keep it from relying on any one model of the drone, the mass, motor speed, drag and thrust were varied in each episode. The reward was progress around the course, a bonus for each gate passed (more for passing near its center) and a large bonus for finishing two laps, minus a small cost for time. Hitting a gate or the ground ended the episode.</p>
-        <p>The tracks are from the University of Zurich's Robotics and Perception Group. Swift is the track on which their Swift drone beat human world champions (Kaufmann et al., <i>Nature</i> 2023). Its gate positions come from the paper's released data. Multistory comes from their open-source planner, and Big-S, Kidney and Figure-8 are reconstructed from figures in Wang et al. (2025). The gates are circular here, about the size of the square gates they replace.</p>
-
-        <h2>Measured</h2>
-        <p>In RealFlight, this checkpoint (159 million steps into its last training run) completed 20 of 20 races on the five courses. In this browser simulation, starting from the takeoff, it flew 100 laps of each course without a crash:</p>
-        <ul>
-            <li><strong>Swift</strong>: 6.90 s laps (Swift itself: 5.52 s, on a lighter, stronger drone)</li>
-            <li><strong>Big-S</strong>: 4.82 s</li>
-            <li><strong>Kidney</strong>: 2.93 s</li>
-            <li><strong>Figure-8</strong>: 2.77 s</li>
-            <li><strong>Multistory</strong>: 7.03 s. It was trained to fly this one once, from start to finish; here it is closed into a loop, and the policy finds its way back from the finish to the first gate.</li>
-        </ul>
-
-        <h2>The look and sound</h2>
-        <p>RealFlight's own photos, sounds and graphics can't be shared, so they are recreated here. The airfield is a 360° photo, projected from the pilot's eye onto the ground and a distant dome. The sun light is placed where the sun is in the photo, so the drone and the rings cast shadows on the photographed runway. The rings use the orange and white bands of the ones built for the RealFlight tests.</p>
-        <p>The motor sound is synthesized from the simulation. Each motor's speed follows from its thrust, using RealFlight's measured thrust coefficient: about 11,000 rpm in a hover and 23,000 at full power. Each motor is an oscillator at its rotation rate, with overtones for the blade passes (three per turn) and the electrical whine. The four motors run at slightly different speeds and beat against each other. From the pilot's spot, the sound fades with distance, loses its high frequencies over distance, and drops in pitch as the drone flies away (the Doppler effect).</p>
-
-        <p class="credits">Airfield panorama: <a href="https://polyhaven.com/a/derelict_airfield_01">Derelict Airfield 01</a> by Alexander Scholten, Poly Haven (CC0). Drone colors from <a href="https://commons.wikimedia.org/wiki/File:Racing_Drone.jpg">Racing Drone</a> (Wikimedia Commons, CC BY-SA 4.0). Tracks: Kaufmann et al., <i>Champion-level drone racing using deep reinforcement learning</i>, Nature 2023; Penicka et al., UZH-RPG <a href="https://github.com/uzh-rpg/sb_min_time_quadrotor_planning">sb_min_time_quadrotor_planning</a>; Wang et al., arXiv:2410.22308. Built with <a href="https://threejs.org">three.js</a>.</p>
-    </article>
+    </aside>
 </body>
 </html>
