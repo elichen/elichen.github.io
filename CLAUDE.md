@@ -161,3 +161,22 @@ node pathtracer/tools/check_scenes.mjs   # builds every scene, validates buffers
 - Meshes: `tools/pack_mesh.py` packs Stanford PLY scans into gzipped `model/*.mesh`
 - `tools/compare.html`: benchmark against three-gpu-pathtracer (dev only, loads it from a CDN)
 - In the console, `pathtracer.run(n)` renders n frames even when the tab is in the background
+
+## Drone Racing (`/drone-racing/`)
+
+The pure-RL racing quad from `../mjx-rl-experiments/drone/racing` (RealFlight Tempest v7 plant, checkpoint `gen-all5-seg3` 159M, which flew 20/20 on RealFlight's Flight School) laps five UZH courses on a photographed airfield, with a RealFlight-style radio overlay, telemetry and synthesized motor sound. RealFlight's own assets are proprietary, so the field (Poly Haven `derelict_airfield_01`, CC0), radio and sound are recreations.
+
+- `sim.js` is a JS port of `RingRace` in qualification mode (shared by page and tools): MuJoCo Euler free body at 4 ms, rate loop on a filtered gyro, attitude-priority mixer, motor lag, inflow/airspeed thrust loss, swept-sphere ring strikes, the 204-value observation with the detector dropout model. The MJX body uses the MJCF inertia (0.0025, 0.0021, 0.0043); the config's fitted `nominal_inertia_diag_kg_m2` never reaches the rigid body, so the port doesn't use it either.
+- `flight.js`: scripted ferry (takeoff from a pad under the staging point, launch to the trained handoff 2.5 m before gate 0 at 2.7 m/s), then the policy laps until a crash (`course.laps = Infinity`; the policy sees no lap counter). Open Multistory is closed from its finish plane back to gate 0 (extrapolation, 0 crashes in 100 laps). Split-S is Multistory's geometry and isn't exported.
+- `render.js`: the panorama is projected from the pilot's eye (`EYE_HEIGHT` in `layout.js`) onto a ground disc and dome, so the pilot view is exactly the photo and chase/FPV still get ground parallax; sun light placed at the photo's sun (u 0.6035, 18.6°); a second near-zero-intensity sun carries a tight shadow map that follows the drone. `layout.js` puts the pilot behind the pad.
+- `audio.js`: one oscillator per motor at its rotation rate (rpm from thrust, k = 1.682e-8 N/rpm²) with blade-pass/electrical harmonics; band levels were tuned against an onboard recording (Commons "The Sound of Drone Racing", CC BY 3.0) with an OfflineAudioContext.
+- `tools/export.py` (needs a JAX/MJX/Brax venv and the mjx-rl-experiments checkout) writes `model/policy.{json,bin}`, `model/track.json` and `model/test.json` (MJX reference episodes).
+
+```bash
+cd drone-racing
+python tools/export.py ../../mjx-rl-experiments <params_step_000158597120> model   # checkpoint + .contract.json from Nitro
+node tools/parity.mjs        # JS vs MJX: teacher-forced ticks + closed loop; must print PASS after any sim.js change
+node tools/eval.mjs --flights 10 --laps 10   # takeoff → handoff → laps; numbers in the article's "Measured"
+```
+
+Testing: a background Chrome tab pauses requestAnimationFrame; `droneRacing.run(seconds)` in the console steps and draws.
