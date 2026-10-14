@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Concepts parity test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js"></script>
+    <script src="../../lucid/robust-resnet.js"></script>
+    <script src="../sae.js"></script>
+</head>
+<body>
+<pre id="log">loading…</pre>
+<script>
+// Dev check: the browser network + SAE must match PyTorch's references in test/test.json
+// (training/export_app.py writes them with the same int8 weights). Keep the tab in front: WebGPU stalls in background tabs.
+const log = s => { document.getElementById('log').textContent += '\n' + s; console.log(s); };
+
+function overlap(a, b) {
+    return a.filter(x => b.includes(x)).length;
+}
+
+// The n largest of [index, value] pairs.
+function topn(pairs, n) {
+    return [...pairs].sort((a, b) => b[1] - a[1]).slice(0, n);
+}
+
+async function loadImage(url) {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return tf.tidy(() => tf.browser.fromPixels(img).toFloat().div(255).expandDims(0));
+}
+
+(async () => {
+    await tf.setBackend(new URLSearchParams(location.search).get('backend') || 'webgpu');
+    await tf.ready();
+    log(`backend ${tf.getBackend()}`);
+    const [resnet, sae, cases] = await Promise.all([
+        RobustResNet50.load('../../lucid/robust-resnet50/'),
+        ConceptDictionary.load('../model/'),
+        fetch('test/test.json').then(r => r.json())
+    ]);
+    log(`SAE ${sae.layer}: ${sae.size} concepts, k ${sae.k}`);
+    const fc = await resnet.weights['fc/kernel'].data();
+    for (const c of cases) {
+        const x = await loadImage(`test/${c.image}`);
+        const t0 = performance.now();
+        const [acts, logits] = resnet.execute(x, [sae.layer, 'logits']);
+        const logitValues = await logits.data();
+        const t1 = performance.now();
+        const code = await sae.encode(acts);
+        const t2 = performance.now();
+        const top = topn(sae.means(code).entries(), 10);
+        const contrib = sae.contributions(code, fc, c.class);
+        const topC = topn(contrib.entries(), 10);
+        const top5 = topn(logitValues.entries(), 5).map(e => e[0]);
+        const total = [...contrib.values()].reduce((a, b) => a + b, 0);
+        const t3 = performance.now();
+        const maxDiff = (a, b) => Math.max(...b.map((v, i) => Math.abs(a[i] - v)));
+        log(`${c.image}: top5 ${top5} vs ${c.top5} | concepts overlap ${overlap(top.map(e => e[0]), c.concepts)}/10, ` +
+            `means diff ${maxDiff(top.map(e => e[1]), c.concept_means).toFixed(3)} | contrib overlap ` +
+            `${overlap(topC.map(e => e[0]), c.contrib_concepts)}/10, diff ${maxDiff(topC.map(e => e[1]), c.contrib_values).toFixed(3)}, ` +
+            `total ${total.toFixed(2)} vs ${c.contrib_total.toFixed(2)} | resnet ${(t1 - t0).toFixed(0)} ms, ` +
+            `encode ${(t2 - t1).toFixed(0)} ms, cpu ${(t3 - t2).toFixed(0)} ms`);
+        tf.dispose([x, acts, logits]);
+    }
+    log(`tensors left ${tf.memory().numTensors}`);
+})().catch(e => log('ERROR ' + e.stack));
+</script>
+</body>
+</html>

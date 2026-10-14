@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Concept Dictionary</title>
+    <meta name="description" content="A sparse autoencoder learns 6,132 concepts inside an adversarially robust ResNet-50. See which ones the network finds in a photo, why it settles on its answer, and paint concepts into the photo.">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js"></script>
+    <script src="../lucid/robust-resnet.js"></script>
+    <script src="sae.js"></script>
+    <script src="painter.js"></script>
+    <script src="app.js" defer></script>
+</head>
+<body>
+    <header class="d-title l-text">
+        <h1>The Concept Dictionary of a Robust ResNet-50</h1>
+        <p>A sparse autoencoder finds 6,132 concepts inside an image classifier. Here you can see which of them the network finds in a photo, which ones decide its answer, and what happens when you paint one in.</p>
+    </header>
+
+    <div class="d-byline l-text">
+        <div><h3>Author</h3><p>Eli Chen</p></div>
+        <div><h3>Affiliation</h3><p>AI Fund</p></div>
+        <div><h3>Published</h3><p>October 2026</p></div>
+    </div>
+
+    <div class="d-article l-text">
+        <p>Every image classifier carries around its own vocabulary, the things it has learned to look for on the way to deciding that a photo shows a golden retriever and not a German shepherd, and I've always wanted to be able to read that vocabulary directly. The explorer below is my attempt. It takes the last block of an adversarially robust ResNet-50, splits what the network sees into 6,132 concepts with a sparse autoencoder, and lets you watch which concepts it finds in a photo, which ones push it toward its answer, and what happens when you paint one in yourself.</p>
+    </div>
+
+    <figure class="explorer l-page" id="explorer">
+        <div class="explorer-top">
+            <div class="photo-column">
+                <div class="photo-wrap">
+                    <canvas id="photo" width="448" height="448" aria-label="The photo. Hover to see the concepts at a spot, click to pick one, drag to paint the picked concept."></canvas>
+                    <div class="status" id="status">Loading the network and the dictionary (about 75 MB)…</div>
+                </div>
+                <p class="photo-hint">Hover to see the concepts at a spot · click to pick one · drag to paint it in</p>
+                <div class="photo-tools">
+                    <button id="another" type="button">Another photo</button>
+                    <label class="button">Your photo<input id="file" type="file" accept="image/*" hidden></label>
+                    <button id="undo" type="button" disabled>Undo</button>
+                    <button id="reset" type="button" disabled>Reset</button>
+                </div>
+            </div>
+
+            <div class="side-column">
+                <input id="search" type="search" placeholder="Search concepts: pineapple, cloud, #1586" autocomplete="off">
+                <div class="prediction" id="prediction"></div>
+                <div class="list-head">
+                    <h4 id="list-title"></h4>
+                    <p id="list-note"></p>
+                </div>
+                <div class="concept-grid" id="concept-list"></div>
+                <div class="list-head against-head" id="against-head" hidden>
+                    <h4>Against</h4>
+                    <p>Concepts in this photo that lower the score most.</p>
+                </div>
+                <div class="concept-grid" id="against-list"></div>
+            </div>
+        </div>
+
+        <div class="detail" id="detail" hidden>
+            <div class="detail-render">
+                <img id="detail-render" alt="">
+                <p class="small">What the network would draw for this concept: the photo that excites it most, found by gradient ascent.</p>
+            </div>
+            <div class="detail-info">
+                <h4 id="detail-title"></h4>
+                <p class="small" id="detail-stats"></p>
+                <div class="examples" id="examples"></div>
+                <div class="detail-rows">
+                    <div><h5>Pushes the network toward</h5><p id="pushes"></p></div>
+                    <div><h5>Nearest concepts</h5><div class="neighbours" id="neighbours"></div></div>
+                </div>
+            </div>
+        </div>
+        <figcaption class="l-text">
+            The network is an adversarially robust ResNet-50; every concept is a direction in its last block's
+            2048 channels, found by a sparse autoencoder. Concepts are listed by how much they add to the
+            network's score for its answer; click another class to ask why not that one.
+        </figcaption>
+    </figure>
+
+    <article class="d-article l-text" id="article">
+        <h2>Neurons, concepts and a dictionary</h2>
+        <p>Why not just look at the neurons? The network's last block has 2,048 channels at each of the 7&times;7 spots it divides a photo into, and you can certainly look at what makes each channel fire, but many of them respond to several unrelated things at once, because a network that has to tell a thousand classes apart packs more ideas into those 2,048 numbers than it has numbers to spare. A sparse autoencoder undoes some of that packing. It learns a dictionary of directions in those channels and rewrites the activation at every spot as a sum of just 32 of them, so that each direction gets to mean one thing, and it's trained only to make that rewrite faithful, which means nobody ever tells it what the concepts should be.</p>
+        <p>I trained one with 16,384 directions on about 250,000 ImageNet training photos, using the TopK recipe from Gao et al.<sup><a href="#ref-gao">4</a></sup> About half of those directions ended up firing almost never, so the dictionary here keeps the 6,132 that fire on at least one patch in 10,000, and dropping the rest changes nothing I could measure. The rewrite isn't perfect: it captures about 75% of the variance in the network's activations, and if you swap it in for the real activations, the network still gets 61.4% of held-out ImageNet photos right against 64.1% on its own, and gives the same answer as before 86% of the time.</p>
+
+        <h2>Why a robust network</h2>
+        <p>The network is a ResNet-50 that Salman et al.<sup><a href="#ref-salman">7</a></sup> trained to resist adversarial examples, and that choice matters more than anything else here. An ordinary classifier can be pushed to any answer by changes too small to see, which means the directions it's sensitive to don't have to look like anything, and if you ask it to draw a concept you mostly get colored noise. Robust training closes that loophole, so the only way to excite a concept is to make the image actually look more like it, as Engstrom et al.<sup><a href="#ref-engstrom">8</a></sup> showed for single neurons.</p>
+        <p>That's why the render next to each concept shows recognizable pineapples and dog faces, and it's also what makes painting work. When you drag across the photo, the explorer runs gradient steps that raise the selected concept under your brush, drawn through the same smooth Fourier parameterization that Lucid uses for its renders, and on a robust network the cheapest way to raise a pineapple concept is to paint something that looks like pineapple. Santurkar et al.<sup><a href="#ref-santurkar">9</a></sup> built the first version of this paint tool on single neurons of a robust network, and here you get to paint with the dictionary's concepts instead.</p>
+
+        <h2>Reading the answer</h2>
+        <p>So how do we know which concepts decide the answer? Here the architecture does us a big favor, because the block the dictionary reads from is the network's last one: its output is averaged over the 49 spots and fed straight into a linear classifier. That means a concept's contribution to a class score is simply its average activation times the dot product of its direction with that class's classifier weights, with no gradients or approximations involved, and the explorer computes it exactly for every concept in the photo. Across 60 random validation photos, the concepts account for a median 94% of the top class's score above its baseline, the rest being whatever the autoencoder fails to reconstruct, and the ten strongest concepts carry about two thirds of that. Clicking another class in the top five reruns the same sum for that class, which turns out to be a lovely way to ask the network why it didn't say German shepherd.</p>
+
+        <h2>Naming 6,132 concepts</h2>
+        <p id="naming-text">A concept is only useful if you can tell what it is, so I gave Claude each concept's render next to the six validation photos where it fires hardest, darkened everywhere it's quiet, and asked for a short name and an honest grade: clear when five of the six photos share the named thing, mixed when about half do, and unclear when there's no common thread at all. That came out to 64% clear, 25% mixed and 12% unclear, and the unclear ones mostly respond to lighting or backgrounds, like dim scenes and blown-out patches, more than to any object. Some names repeat, such as four separate soccer ball concepts, because the autoencoder sometimes splits one idea across several directions, and you can usually see the siblings side by side under nearest concepts. Treat the names as one reading of the examples, and when in doubt trust the examples themselves, since Borowski et al.<sup><a href="#ref-borowski">10</a></sup> found that people predict what a unit responds to better from natural photos than from renders.</p>
+
+        <h2>Limits</h2>
+        <p>There's a lot this doesn't show. The dictionary only covers the last block, so it tells you what the network has concluded about each part of the photo while the steps that got it there stay hidden. The renders are what a concept would draw if nothing held it back, and they can exaggerate or mislead. Concepts that fire rarely tend to be muddled, which is why they were left out, and even among the ones kept, some are clearly two things sharing one name. And the robust network is a weaker classifier than an ordinary ResNet-50, about 64% top-1 against 76%, which is the price it pays for being readable.</p>
+
+        <h2>Related work</h2>
+        <p>This explorer leans on a lot of earlier work. Its layout comes from The Building Blocks of Interpretability<sup><a href="#ref-olah">1</a></sup>, which combined feature visualization, attribution and per-image groups of neurons for GoogLeNet, and the dictionary here plays the role of those neuron groups with one vocabulary shared by every photo. Sparse autoencoders took off for language models<sup><a href="#ref-bricken">2</a>,<a href="#ref-cunningham">3</a>,<a href="#ref-gao">4</a></sup>, Gorton<sup><a href="#ref-gorton">5</a></sup> applied them to InceptionV1 and found curve detectors that its neurons were missing, and closest to this project, Gorton and Lewis<sup><a href="#ref-gorton-lewis">6</a></sup> trained sparse autoencoders on robust ResNet-18s to study how adversarial training changes the way features share neurons.</p>
+        <p>What I love about this is how little of it is hidden. Every number in the explorer is computed live from the network in your browser, so when it says a concept added 0.7 to the score for golden retriever, that's exactly what happened, and you can go paint that concept onto something else and watch the answer move. It feels like a real step toward networks we can simply read, and I think that's a future worth being excited about.</p>
+    </article>
+
+    <section class="d-appendix l-text">
+        <h3>References</h3>
+        <ol class="references">
+            <li id="ref-olah">Olah, Satyanarayan, Johnson, Carter, Schubert, Ye and Mordvintsev. <a href="https://distill.pub/2018/building-blocks/">The Building Blocks of Interpretability</a>. Distill, 2018.</li>
+            <li id="ref-bricken">Bricken et al. <a href="https://transformer-circuits.pub/2023/monosemantic-features">Towards Monosemanticity: Decomposing Language Models With Dictionary Learning</a>. Transformer Circuits, 2023.</li>
+            <li id="ref-cunningham">Cunningham, Ewart, Riggs, Huben and Sharkey. <a href="https://arxiv.org/abs/2309.08600">Sparse Autoencoders Find Highly Interpretable Features in Language Models</a>. ICLR 2024.</li>
+            <li id="ref-gao">Gao et al. <a href="https://arxiv.org/abs/2406.04093">Scaling and Evaluating Sparse Autoencoders</a>. 2024.</li>
+            <li id="ref-gorton">Gorton. <a href="https://arxiv.org/abs/2406.03662">The Missing Curve Detectors of InceptionV1: Applying Sparse Autoencoders to InceptionV1 Early Vision</a>. ICML 2024 Mechanistic Interpretability Workshop.</li>
+            <li id="ref-gorton-lewis">Gorton and Lewis. <a href="https://arxiv.org/abs/2508.17456">Adversarial Examples Are Not Bugs, They Are Superposition</a>. 2025.</li>
+            <li id="ref-salman">Salman, Ilyas, Engstrom, Kapoor and Madry. <a href="https://arxiv.org/abs/2007.08489">Do Adversarially Robust ImageNet Models Transfer Better?</a> NeurIPS 2020. The network here is their ResNet-50 trained with an L2 budget of 3.</li>
+            <li id="ref-engstrom">Engstrom, Ilyas, Santurkar, Tsipras, Tran and Madry. <a href="https://arxiv.org/abs/1906.00945">Adversarial Robustness as a Prior for Learned Representations</a>. 2019.</li>
+            <li id="ref-santurkar">Santurkar, Tsipras, Tran, Ilyas, Engstrom and Madry. <a href="https://arxiv.org/abs/1906.09453">Image Synthesis with a Single (Robust) Classifier</a>. NeurIPS 2019.</li>
+            <li id="ref-borowski">Borowski, Zimmermann, Schepers, Geirhos, Wallis, Bethge and Brendel. <a href="https://arxiv.org/abs/2010.12606">Exemplary Natural Images Explain CNN Activations Better than State-of-the-Art Feature Visualization</a>. ICLR 2021.</li>
+        </ol>
+        <p>Photos are from the ImageNet validation set. The renders use Lucid's image parameterization and its direction objective with cosine similarity cubed.</p>
+    </section>
+</body>
+</html>

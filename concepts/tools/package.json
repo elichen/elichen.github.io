@@ -1,0 +1,9 @@
+{
+  "name": "concepts-tools",
+  "private": true,
+  "description": "Node parity check for the concept dictionary (tfjs CPU backend vs PyTorch references)",
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "pngjs": "^7.0.0"
+  }
+}

@@ -181,3 +181,18 @@ node tools/eval.mjs --flights 10 --laps 10   # takeoff → handoff → laps; num
 ```
 
 Testing: a background Chrome tab pauses requestAnimationFrame; `droneRacing.run(seconds)` in the console steps and draws.
+
+## Concept Dictionary (`/concepts/`)
+
+Distill-style article around an explorer of 6,132 concepts that a TopK sparse autoencoder found in the last block (`layer4.2`) of Lucid's robust ResNet-50 (`../lucid/robust-resnet.js`, `../lucid/robust-resnet50/`). A photo's concepts, their exact contributions to any top-5 class (layer4.2 feeds average pooling and the classifier, so contribution = mean activation × decoder row · classifier column × scale), examples, renders, and painting a concept into the photo.
+
+- `sae.js`: the dictionary. Only the encoder's matrix product runs on the GPU; top-k, contributions, class weights and neighbours are sparse/CPU (`model/`: int8 weights with one scale per concept). `painter.js`: painting = Adam on a Lucid-style Fourier delta added under the brush (raw-pixel steps leave rainbow fringes), ~40 ms/step on WebGPU. `app.js`: the explorer.
+- `data/concepts.json` (frequency, best activation, top-20 classes, example pool images at full/half/a fifth of best), `data/names.json` (names written by Claude subagents from contact sheets of render + 6 spotlighted examples, graded clear/mixed/unclear), `data/pool.json` + `pool/` (6,106 ImageNet val crops picked so 98.6% of concepts get 6 examples at ≥ half their best; Eli confirmed ImageNet crops may be hosted), `renders/` (direction × cos³, 128 steps).
+- `training/` runs on Nitro (`~/play/sae`, venv `~/play/torch-venv`, `job.sh` via `launch.ps1 -Job ../sae/job.sh -TaskName SAE`): `prep.py` (HF ImageNet parquet → 256 crops), `train.py` (run2: `--data train --layers layer4.1:16384,layer4.2:16384 --epochs 10 --lr 2.8e-4`, k 32), `mine.py`, `render.py run2 all:layer4.2:1e-4 0 dircos`, `codes.py`, `pool_stats.py` + `pool_cover.py`, `export_app.py` (CPU only; writes `model/`, `data/`, `pool/`, `renders/`, `tools/test/`), `pool_codes.py` + `tools/make_sheets.py` for naming sheets.
+- Half of run2's 16,384 latents died; keeping those with validation frequency > 1e-4 loses nothing (`subset.py`). layer4.2: FVU 0.252, spliced top-1 61.4% vs 64.1%, int8 changes 1.25% of top-k picks.
+
+```bash
+cd concepts/tools && npm install && node parity.js ../.. 2   # tfjs CPU vs PyTorch references; must match top-5 and top-10 concepts
+```
+
+Testing: open `tools/parity.html` for the WebGPU check. Keep the tab in front: in a background Chrome tab WebGPU work never runs and pages hang with nothing on the GPU. `window.conceptsApp` exposes state; `analyze()`, `select(j)`, `drawPhoto()` are globals.
