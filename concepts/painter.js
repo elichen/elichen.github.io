@@ -2,11 +2,13 @@
 //
 // The change is drawn in Lucid's image parameterization (as in lucid/script.js): a 1/f-scaled Fourier
 // spectrum in a decorrelated color space, here without the sigmoid, added to the photo inside the brushed
-// mask. Low frequencies take bigger steps than high ones, so the change grows as coherent texture and shape;
-// steps on raw pixels instead leave faint rainbow fringes for the same activation.
+// mask. On this robust network raw pixels reach about the same activation for the same change; the 1/f
+// scaling makes the change smooth and the decorrelated colors keep it natural instead of rainbow-speckled.
 
 const PAINT_SIZE = 224;
-const PAINT_LEARNING_RATE = 0.008;
+// At ~20 steps a second a drag shows the concept within about 2 s. Bigger steps paint faster but harshly,
+// crushing blacks and blowing out whites; 0.008 took about 4 s.
+const PAINT_LEARNING_RATE = 0.02;
 
 // Square root of ImageNet's color covariance, from lucid.optvis.param.color.
 const PAINT_COLOR_SQRT = [
@@ -60,13 +62,13 @@ class Painter {
     }
 
     // Starts a stroke on image x0 ([1, 224, 224, 3] in [0, 1]) that paints one concept.
-    begin(x0, concept) {
+    begin(x0, concept, learningRate = PAINT_LEARNING_RATE) {
         const { size, freqWidth } = this.basis;
         this.stroke = {
             x0: x0.clone(),
             real: tf.variable(tf.zeros([3, size, freqWidth])),
             imag: tf.variable(tf.zeros([3, size, freqWidth])),
-            optimizer: tf.train.adam(PAINT_LEARNING_RATE),
+            optimizer: tf.train.adam(learningRate),
             column: this.sae.W_enc.slice([0, concept], [-1, 1]),
             bias: this.sae.b_enc.slice([concept], [1]),
             maskData: new Float32Array(size * size),
