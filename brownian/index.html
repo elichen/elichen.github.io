@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Brownian Motion</title>
+    <meta name="description" content="Every molecule of this liquid is simulated on your GPU. Nothing in the code is random, yet the beads jiggle, because molecules keep hitting them.">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/contrib/auto-render.min.js"
+        onload="renderMathInElement(document.querySelector('.prose'), { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '\\(', right: '\\)', display: false }] })"></script>
+    <script type="module" src="main.js"></script>
+</head>
+<body>
+    <nav class="site"><a href="../index.html">elichen.github.io</a></nav>
+
+    <header class="title">
+        <h1>Brownian Motion</h1>
+        <p class="description">Every molecule of this liquid is simulated on your GPU. Nothing in the code is random, yet the beads jiggle, because molecules keep hitting them.</p>
+    </header>
+
+    <section class="demo" aria-label="Live simulation">
+        <div class="viewport" id="viewport">
+            <canvas id="view" aria-label="Thousands of molecules of a liquid, drawn as small discs, around five larger beads."></canvas>
+            <canvas id="overlay"></canvas>
+            <p class="hint">Drag a bead through the liquid</p>
+            <div class="status" id="status">Starting the simulation…</div>
+        </div>
+
+        <div class="panel">
+            <div class="controls">
+                <label class="slider"><span class="label">Speed</span>
+                    <input type="range" id="speed" min="0" max="100" step="1" value="87">
+                    <output id="speed-out"></output></label>
+                <label class="slider"><span class="label">Temperature</span>
+                    <input type="range" id="temp" min="0.5" max="2" step="0.05" value="1">
+                    <output id="temp-out"></output></label>
+                <button type="button" id="restart">Restart</button>
+            </div>
+
+            <div class="results">
+                <div class="chart">
+                    <div class="chart-head">
+                        <span class="chart-title">How far the beads wander</span>
+                        <span class="legend"><span class="dot">mean squared displacement</span><span class="dash">ballistic, 2kT/M·t²</span><span class="dots">diffusive, 4Dt</span></span>
+                    </div>
+                    <div class="chart-wrap"><canvas id="msd"></canvas></div>
+                </div>
+                <dl class="readouts">
+                    <div><dt>Liquid temperature</dt><dd id="ro-liquid">—</dd></div>
+                    <div><dt>Bead temperature</dt><dd id="ro-bead">—</dd></div>
+                    <div><dt>Diffusion</dt><dd id="ro-d">—</dd></div>
+                    <div><dt>Time steps</dt><dd id="ro-time">—</dd></div>
+                </dl>
+            </div>
+        </div>
+    </section>
+
+    <div class="byline">
+        <div><h3>Published</h3><p>October 15, 2026</p></div>
+        <div><h3>Liquid</h3><p>Molecular dynamics on WebGPU</p></div>
+        <div><h3>Experiment</h3><p>After Brown (1827), Einstein (1905) and Perrin (1909)</p></div>
+    </div>
+
+    <article class="prose">
+        <p class="lede">In the summer of 1827 the botanist Robert Brown put pollen of the wildflower <em>Clarkia pulchella</em> in water and looked at it under his microscope. Tiny particles from inside the grains were moving, in small jerks, and they never stopped <a href="#ref-1" class="cite">[1]</a>. Above, every molecule of a liquid is simulated: <span class="n-molecules">about 14,000</span> grey discs. The program draws no random numbers after it places them, yet the five magenta beads jiggle like Brown's particles, because molecules keep hitting them.</p>
+
+        <h2>What Brown saw</h2>
+        <p>Brown first suspected the particles were alive. Then he found the same motion in pollen that had been dried for a century, in powdered glass and minerals, and in dust from a fragment of the Sphinx. Whatever moved them was not life, and for decades nobody knew what it was.</p>
+        <p>The answer is that a liquid is made of molecules in constant motion, and a small particle is hit by them from every side. The hits never quite balance: at any instant more of them push one way than the other, so the particle moves a little, and a moment later it is pushed somewhere else. In 1905 Einstein worked out what this predicts <a href="#ref-2" class="cite">[2]</a>, and from 1908 Jean Perrin tested it under the microscope with tiny spheres of gamboge resin <a href="#ref-3" class="cite">[3]</a>.</p>
+
+        <h2>The simulation</h2>
+        <p>A molecule repels any other molecule that comes closer than about its own diameter, and otherwise moves in a straight line (this is the repulsive part of the Lennard-Jones potential, as used by Weeks, Chandler and Andersen <a href="#ref-4" class="cite">[4]</a>). The beads repel molecules the same way at their surface. At every time step the GPU adds up the forces on each molecule and bead and moves it by Newton's laws, using the leapfrog method common in molecular dynamics. To find each molecule's neighbors quickly, the molecules are sorted into a grid of cells about one molecule wide.</p>
+        <p>Lengths here are in molecule diameters, σ, and times in τ, roughly the time a molecule takes to cross its own width. If the molecules were argon atoms, σ would be 0.34 nm, τ would be 2.2 picoseconds, and a time step (0.005 τ) would be 11 femtoseconds. At normal speed, one second on this page is about 200 picoseconds in the liquid (the speed slider shows it).</p>
+        <p>Slow it down <button type="button" class="inline" data-speed="12">Slow motion</button> to watch single molecules hit each other and the beads. At normal speed <button type="button" class="inline" data-speed="87">Normal</button> the molecules blur and the beads' wandering shows.</p>
+
+        <h2>A bead is a big molecule</h2>
+        <p>Statistical mechanics predicts that in a liquid at temperature \(T\), every body has on average the same kinetic energy, \(kT/2\) for each direction it can move. This is called equipartition. A bead weighs as much as the liquid it displaces, 35 molecules, so its typical speed is \(\sqrt{35} \approx 6\) times lower than a molecule's, but its kinetic energy is the same. The readouts show both energies as temperatures: the liquid's from the molecules' speeds, the beads' from \(\tfrac12 M\langle v^2\rangle\). Over a run of 50,000 τ the beads measured 0.997 ± 0.002, against 1.000 for the liquid. Heat the liquid <button type="button" class="inline" data-temp="2">Temperature 2</button> and the beads heat up with it.</p>
+        <p>Einstein thought a Brownian particle's speed could never be measured, because the particle changes direction too quickly. In 2010 Raizen's group measured it for a glass bead held in air by laser light, and the speeds matched this prediction <a href="#ref-5" class="cite">[5]</a>.</p>
+
+        <h2>From flights to a random walk</h2>
+        <p>The chart below the simulation shows how far the beads move on average in a given time: the mean squared displacement \(\langle \Delta r^2 \rangle\) against the time lag \(t\), on log scales. Over short times a bead coasts, so \(\langle \Delta r^2 \rangle = (2kT/M)\,t^2\). That is the dashed line, and it has no fitted numbers. After a few τ the molecules have knocked the bead off course many times, and the displacement grows like a random walk:</p>
+        $$\langle \Delta r^2 \rangle = 4Dt$$
+        <p>in two dimensions (the dotted line), where \(D\) is the diffusion coefficient. The trails mark each bead's position every 50 τ, joined by straight lines, the way Perrin drew his particles' positions every 30 seconds.</p>
+
+        <h2>Jiggle and drag</h2>
+        <p>Drag a bead through the liquid and it lags behind the pointer, because the liquid resists. Einstein's insight was that this resistance and the jiggle come from the same collisions, so they are tied together. If a constant force \(F\) makes a bead drift at speed \(v = F/\gamma\), then</p>
+        $$D = \frac{kT}{\gamma}$$
+        <p>This is the Einstein relation. We measured both sides in this simulation. Pulling one bead at a time with a constant force (\(F = 0.5\) in the molecules' units, 20 pulls of 4,000 τ each) gave \(\gamma = 6.5 \pm 0.3\); half that force gave the same within the error (\(6.0 \pm 0.4\)). Watching the five beads jiggle freely for 50,000 τ gave \(D = 0.150 \pm 0.013\), from the slope of \(\langle \Delta r^2 \rangle\) between 300 and 3,000 τ. The product \(D\gamma\) is \(0.97 \pm 0.10\), against \(kT = 1.00\) for the liquid.</p>
+        <p>Perrin used the relation the other way round. For a sphere of radius \(a\) in a liquid of viscosity \(\eta\), Stokes's law gives \(\gamma = 6\pi\eta a\), so from how far his gamboge spheres wandered he could compute \(kT\), the energy of a single molecule. The gas constant \(R\), known from measurements on gases, divided by \(k\) is the number of molecules in a mole. Perrin found between 6 and 7 × 10²³ (today's value is 6.022 × 10²³), and with it convinced the remaining skeptics that atoms are real. He received the 1926 Nobel Prize in Physics.</p>
+
+        <h2>Where this liquid differs</h2>
+        <p>This liquid is two-dimensional, which changes one thing. A moving bead drags a swirl of liquid with it, and in two dimensions the swirl fades slowly, so the bead remembers its velocity for a long time: the memory decays as \(1/t\). Alder and Wainwright discovered these long-time tails in 1970, in computer simulations of discs much like these <a href="#ref-6" class="cite">[6]</a>. They make the paths here smoother than a real particle's over tens of τ, and \(\langle \Delta r^2 \rangle / 4t\) keeps creeping up: 0.089 at 100 τ, 0.115 at 300 τ, 0.138 at 1,000 τ and 0.147 at 3,000 τ. Because \(D\) and \(\gamma\) were measured in the same box, the Einstein relation still holds. In three dimensions the memory fades as \(t^{-3/2}\), and real particles settle into the random walk Einstein described.</p>
+        <p>The scales also differ. Perrin's grains were a few thousand molecules across and billions of times heavier than a molecule, and between his sketches, 30 seconds apart, each was knocked off course countless times. These beads are 8 molecules across and 35 times heavier, so the simulation can show both the coasting and the random walk in one picture.</p>
+    </article>
+
+    <footer class="appendix">
+        <h3>How this works</h3>
+        <p>The liquid runs in WebGPU compute shaders, two per time step. The first handles the molecules: forces from the 3 × 3 neighboring grid cells, a leapfrog step, and sorting each molecule into the grid for the next step. The second handles the beads, one workgroup per bead, and adds up the totals for the thermometer. On an Apple M4 Pro, Chrome advances 14,500 molecules by about 44,000 time steps per second, and normal speed uses 18,000 of them; on slower GPUs the page takes fewer steps per frame. A weak thermostat (time constant 20 τ) keeps the liquid at the temperature you set. It rescales the molecules' velocities relative to the liquid's mean flow, so it is deterministic and conserves momentum. Dragging a bead pushes back on the liquid by the same amount, so the liquid as a whole stays put.</p>
+        <p>Checks (in <code>tools/</code>): the shaders agree with a double-precision version of the same step (positions to 2 × 10⁻⁶ σ after one step); energy without the thermostat drifts by under 0.1% over 50,000 steps; total momentum stays at rounding level. <code>tools/einstein.mjs</code> produced the measurements above.</p>
+        <p>Colors are sampled from <a href="https://commons.wikimedia.org/wiki/File:Clarkia_pulchella_flower.jpg">Citron's photo of <em>Clarkia pulchella</em></a> (CC BY-SA 3.0).</p>
+        <h3>References</h3>
+        <ol class="refs">
+            <li id="ref-1">R. Brown. A brief account of microscopical observations made in the months of June, July and August, 1827, on the particles contained in the pollen of plants; and on the general existence of active molecules in organic and inorganic bodies. <em>Philosophical Magazine</em> 4, 161–173 (1828).</li>
+            <li id="ref-2">A. Einstein. Über die von der molekularkinetischen Theorie der Wärme geforderte Bewegung von in ruhenden Flüssigkeiten suspendierten Teilchen. <em>Annalen der Physik</em> 17, 549–560 (1905).</li>
+            <li id="ref-3">J. Perrin. Mouvement brownien et réalité moléculaire. <em>Annales de Chimie et de Physique</em> 18, 5–114 (1909). English translation by F. Soddy: <em>Brownian Movement and Molecular Reality</em> (1910).</li>
+            <li id="ref-4">J. D. Weeks, D. Chandler, H. C. Andersen. Role of repulsive forces in determining the equilibrium structure of simple liquids. <em>Journal of Chemical Physics</em> 54, 5237–5247 (1971).</li>
+            <li id="ref-5">T. Li, S. Kheifets, D. Medellin, M. G. Raizen. <a href="https://doi.org/10.1126/science.1189403">Measurement of the instantaneous velocity of a Brownian particle</a>. <em>Science</em> 328, 1673–1675 (2010).</li>
+            <li id="ref-6">B. J. Alder, T. E. Wainwright. <a href="https://doi.org/10.1103/PhysRevA.1.18">Decay of the velocity autocorrelation function</a>. <em>Physical Review A</em> 1, 18–21 (1970).</li>
+        </ol>
+    </footer>
+</body>
+</html>

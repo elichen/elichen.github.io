@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Node tools for checking and measuring the simulation (the page uses the browser's WebGPU)",
+  "devDependencies": {
+    "webgpu": "^0.6.1"
+  }
+}

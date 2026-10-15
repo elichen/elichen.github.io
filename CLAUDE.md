@@ -196,3 +196,21 @@ cd concepts/tools && npm install && node parity.js ../.. 2   # tfjs CPU vs PyTor
 ```
 
 Testing: open `tools/parity.html` for the WebGPU check. Keep the tab in front: in a background Chrome tab WebGPU work never runs and pages hang with nothing on the GPU. `window.conceptsApp` exposes state; `analyze()`, `select(j)`, `drawPhoto()` are globals.
+
+## Brownian Motion (`/brownian/`)
+
+Distill-style article around a 2D molecular dynamics liquid on WebGPU: ~14,000 WCA discs (density 0.7, T = 1, dt = 0.005 τ) and five beads (radius 4σ, mass 35 = the liquid they displace). No random numbers after the initial state; the beads' jiggle comes only from collisions. Draggable beads, Perrin-style trails, live mean squared displacement chart, equipartition readouts.
+
+- `sim.js` is shared by the page and the Node tools: two dispatches per step (molecules: cell-grid forces, leapfrog, insert into the next grid; beads: one workgroup each + the thermostat sums). Positions/state double-buffered, grid triple-buffered (count + 7 slots per cell). Weak Berendsen thermostat (τ_T = 20) relative to the liquid's mean flow; any force on a bead (drag spring, `pull`) is pushed back on the liquid so momentum stays zero. Bead records go to a GPU ring buffer that the page reads back each frame.
+- `render.js` draws discs straight from the GPU buffers (4 periodic images per disc); `main.js` page, readback, trails, dragging, adaptive steps per frame; `analysis.js` multiple-tau MSD; `chart.js`.
+- Bead size matters: radius 10σ beads in 2D keep their velocity for hundreds of τ (2D long-time tail), paths look like smooth drifting. Radius 3–5σ gives step correlation ~0.1 at 300 τ.
+- GPU safety: every shader loop has a fixed bound (see `pathtracer` note); run `node tools/check.mjs` after any change to `sim.js`.
+
+```bash
+cd brownian && npm install                # Dawn WebGPU for Node (tools only; keep the GPU object referenced or Dawn segfaults)
+node tools/check.mjs                       # GPU vs double-precision CPU step, energy, momentum, grid overflow; speed
+node tools/measure.mjs --a 4 --L 160,100 --beads 5 --time 4000    # MSD, VACF, step correlation of Perrin paths
+node tools/einstein.mjs --free 50000 --pulls 20 --force 0.5        # D from jiggling, γ from pulling: D·γ vs kT (article numbers)
+```
+
+Testing: a hidden Chrome tab pauses requestAnimationFrame; `brownian.advance(τ)` steps and draws, `brownian.colors({...})` tries a palette.
