@@ -50,7 +50,7 @@ class RobustResNet50 {
         const filter = this.weights[`${name}/kernel`];
         const pad = Math.floor(filter.shape[0] / 2);
         const padded = pad > 0 ? tf.pad(x, [[0, 0], [pad, pad], [pad, pad], [0, 0]]) : x;
-        return tf.fused.conv2d({
+        const y = tf.fused.conv2d({
             x: padded,
             filter,
             strides: stride,
@@ -58,14 +58,29 @@ class RobustResNet50 {
             bias: this.weights[`${name}/bias`],
             activation: relu ? 'relu' : 'linear'
         });
+        if (padded !== x) padded.dispose();
+        return y;
     }
 
+    // Frees its intermediates as it goes; the caller owns x.
     bottleneck(x, name, stride, downsample) {
-        let y = this.conv(x, `${name}.conv1`, 1, true);
-        y = this.conv(y, `${name}.conv2`, stride, true);
-        y = this.conv(y, `${name}.conv3`, 1, false);
+        const y1 = this.conv(x, `${name}.conv1`, 1, true);
+        const y2 = this.conv(y1, `${name}.conv2`, stride, true);
+        y1.dispose();
+        const y3 = this.conv(y2, `${name}.conv3`, 1, false);
+        y2.dispose();
         const shortcut = downsample ? this.conv(x, `${name}.downsample`, stride, false) : x;
-        return y.add(shortcut);
+        const out = y3.add(shortcut);
+        y3.dispose();
+        if (shortcut !== x) shortcut.dispose();
+        return out;
+    }
+
+    // One bottleneck block and its ReLU: output 'layerL.B' from the previous block's output.
+    block(x, name) {
+        const [layer, block] = name.slice('layer'.length).split('.').map(Number);
+        const stride = block === 0 ? RESNET50_STAGES[layer - 1].stride : 1;
+        return tf.tidy(() => tf.relu(this.bottleneck(x, name, stride, block === 0)));
     }
 
     execute(images, outputs = 'logits') {
@@ -78,27 +93,46 @@ class RobustResNet50 {
             return names.every(n => n in found);
         };
 
+        // Each activation is freed once the next layer has used it, unless it is an output, so a pass holds a
+        // few activations at a time instead of all of them (100 MB per image). Under a gradient tape this is
+        // safe: tfjs keeps its own references to what the backward pass needs.
+        const free = t => {
+            if (!Object.values(found).includes(t)) t.dispose();
+        };
+
         const results = tf.tidy(() => {
-            let x = images.sub(this.mean).div(this.std);
-            x = this.conv(x, 'conv1', 2, true);
+            const centered = images.sub(this.mean);
+            const normalized = centered.div(this.std);
+            centered.dispose();
+            let x = this.conv(normalized, 'conv1', 2, true);
+            normalized.dispose();
             let done = record('conv1', x);
 
             // The input is post-ReLU, so zero padding acts like PyTorch's -inf padding for max pooling.
-            x = tf.maxPool(tf.pad(x, [[0, 0], [1, 1], [1, 1], [0, 0]]), 3, 2, 'valid');
+            const padded = tf.pad(x, [[0, 0], [1, 1], [1, 1], [0, 0]]);
+            free(x);
+            x = tf.maxPool(padded, 3, 2, 'valid');
+            padded.dispose();
 
             for (const { layer, blocks, stride } of RESNET50_STAGES) {
                 for (let block = 0; block < blocks && !done; block++) {
                     const name = `layer${layer}.${block}`;
                     const preRelu = this.bottleneck(x, name, block === 0 ? stride : 1, block === 0);
+                    free(x);
                     record(`${name}/pre_relu`, preRelu);
                     x = tf.relu(preRelu);
+                    free(preRelu);
                     done = record(name, x);
                 }
             }
 
             if (!done) {
                 const pooled = tf.mean(x, [1, 2]);
-                record('logits', tf.matMul(pooled, this.weights['fc/kernel']).add(this.weights['fc/bias']));
+                free(x);
+                const logits = tf.matMul(pooled, this.weights['fc/kernel']);
+                pooled.dispose();
+                record('logits', logits.add(this.weights['fc/bias']));
+                logits.dispose();
             }
 
             const missing = names.filter(n => !(n in found));

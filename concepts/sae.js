@@ -41,8 +41,9 @@ class ConceptDictionary {
         this.W_enc = tf.tensor2d(W_enc, [d, m]);
         this.b_enc = tf.tensor1d(meta.b_enc);
         this.b_dec = tf.tensor1d(meta.b_dec);
-        this.W_dec = new Float32Array(m * d);  // row j is concept j's direction
-        for (let i = 0; i < m * d; i++) this.W_dec[i] = decoder[i] * meta.decoderScale[Math.floor(i / d)];
+        // Row j is concept j's direction, times decoderScale[j]. Kept as int8 (12 MB, not 48 as floats).
+        this.decoder = decoder;
+        this.decoderScale = Float32Array.from(meta.decoderScale);
     }
 
     // acts: [1, H, W, C] layer output. Resolves to the sparse code: for each position, the k largest
@@ -96,23 +97,25 @@ class ConceptDictionary {
     weight(concept, fc, classIndex, classes = 1000) {
         const row = concept * this.channels;
         let s = 0;
-        for (let i = 0; i < this.channels; i++) s += this.W_dec[row + i] * fc[i * classes + classIndex];
-        return s * this.scale;
+        for (let i = 0; i < this.channels; i++) s += this.decoder[row + i] * fc[i * classes + classIndex];
+        return s * this.decoderScale[concept] * this.scale;
     }
 
     // What one unit of concept j adds to every class's logit: Float32Array [classes].
     classWeights(concept, fc, classes = 1000) {
         const out = new Float32Array(classes), row = concept * this.channels;
+        const scale = this.decoderScale[concept] * this.scale;
         for (let i = 0; i < this.channels; i++) {
-            const w = this.W_dec[row + i] * this.scale;
+            const w = this.decoder[row + i] * scale;
             for (let c = 0, f = i * classes; c < classes; c++) out[c] += w * fc[f + c];
         }
         return out;
     }
 
     // The n concepts whose directions are closest to concept j's (cosine): [[concept, cosine], ...].
+    // Cosines don't depend on the rows' scales, so this works on the int8 rows directly.
     neighbours(concept, n) {
-        const d = this.channels, W = this.W_dec;
+        const d = this.channels, W = this.decoder;
         if (!this.norms) {
             this.norms = new Float32Array(this.size);
             for (let j = 0; j < this.size; j++) {

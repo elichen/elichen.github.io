@@ -433,18 +433,16 @@ async function renderExamples(j) {
     const imgs = await Promise.all(canvases.map(([, n]) => loadImage(`pool/${n}.jpg`)));
     if (token !== app.exampleToken) return;
     imgs.forEach((img, i) => canvases[i][0].getContext('2d').drawImage(img, 0, 0, 152, 152));
-    // Where the concept fires in each example: one batched pass through the network.
-    const values = new Float32Array(imgs.length * SIZE * SIZE * 3);
-    imgs.forEach((img, i) => values.set(imagePixels(img), i * SIZE * SIZE * 3));
-    const batch = tf.tensor4d(values, [imgs.length, SIZE, SIZE, 3]);
-    const acts = app.resnet.execute(batch, app.sae.layer);
-    const code = await app.sae.encode(acts);
-    tf.dispose([batch, acts]);
-    if (token !== app.exampleToken) return;
-    const map = app.sae.map(code, j);
-    canvases.forEach(([canvas], i) => {
-        drawSpotlight(canvas.getContext('2d'), map.subarray(i * GRID * GRID, (i + 1) * GRID * GRID), c.max, 152);
-    });
+    // Where the concept fires in each example, one image at a time: a batch of 16 would hold 16 times the
+    // memory, and single images reuse the GPU buffers of the photo's own pass.
+    for (const [i, img] of imgs.entries()) {
+        const x = tf.tensor4d(imagePixels(img), [1, SIZE, SIZE, 3]);
+        const acts = app.resnet.execute(x, app.sae.layer);
+        const code = await app.sae.encode(acts);
+        tf.dispose([x, acts]);
+        if (token !== app.exampleToken) return;
+        drawSpotlight(canvases[i][0].getContext('2d'), app.sae.map(code, j), c.max, 152);
+    }
 }
 
 // ---------- Photo tools ----------

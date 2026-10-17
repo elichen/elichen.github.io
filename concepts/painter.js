@@ -118,17 +118,36 @@ class Painter {
     }
 
     // One Adam step on the mean pre-activation of the concept over the positions under the brush.
+    //
+    // Backpropagating through the whole network at once holds every activation and its gradient (480 MB,
+    // too much for phones). Instead a plain forward pass keeps only each block's output, and the gradient goes
+    // back one block at a time, recomputing that block's activations: the same gradient for one more forward
+    // pass, in about 80 MB.
     step() {
         const s = this.stroke, sae = this.sae, mask = this.maskTensor();
+        const blocks = Object.keys(RobustResNet50.layerChannels()).filter(n => n.startsWith('layer'));
+        blocks.length = blocks.indexOf(sae.layer) + 1;
         const weights = tf.tidy(() => tf.avgPool(mask, 32, 32, 'valid').reshape([-1, 1]));
         const total = weights.sum();
-        const loss = s.optimizer.minimize(() => tf.tidy(() => {
-            const x = s.x0.add(this.delta().mul(mask)).clipByValue(0, 1);
-            const acts = this.resnet.execute(x, sae.layer).reshape([-1, sae.channels]);
-            const pre = tf.matMul(acts.div(sae.scale).sub(sae.b_dec), s.column).add(s.bias);
+        const image = () => s.x0.add(this.delta().mul(mask)).clipByValue(0, 1);
+        const x = tf.tidy(image);
+        const outputs = this.resnet.execute(x, blocks);
+        const { value: loss, grad: top } = tf.valueAndGrad(acts => tf.tidy(() => {
+            const pre = tf.matMul(acts.reshape([-1, sae.channels]).div(sae.scale).sub(sae.b_dec), s.column).add(s.bias);
             return pre.mul(weights).sum().div(total).neg();
-        }), true, [s.real, s.imag]);
-        tf.dispose([weights, total]);
+        }))(outputs.at(-1));
+        let dy = top;
+        for (let i = blocks.length - 1; i > 0; i--) {
+            const dx = tf.grad(a => this.resnet.block(a, blocks[i]))(outputs[i - 1], dy);
+            tf.dispose([dy, outputs[i]]);
+            dy = dx;
+        }
+        const dImage = tf.grad(img => this.resnet.execute(img, blocks[0]))(x, dy);
+        tf.dispose([dy, outputs[0], x]);
+        // The image's gradient, carried back to the spectrum: the gradient of sum(image * dImage).
+        const { value, grads } = tf.variableGrads(() => tf.tidy(() => image().mul(dImage).sum()), [s.real, s.imag]);
+        s.optimizer.applyGradients(grads);
+        tf.dispose([value, ...Object.values(grads), dImage, weights, total]);
         s.steps++;
         return loss;
     }
