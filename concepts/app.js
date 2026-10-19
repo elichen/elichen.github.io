@@ -8,19 +8,24 @@
 const SIZE = 224, GRID = 7, CELL = SIZE / GRID, VIEW = 448;
 const BRUSH_RADIUS = 22;   // image pixels
 const LIST_LENGTH = 15;
-const AGAINST_LENGTH = 5;
+const COMPARE_LENGTH = 9;   // concepts on each side of a comparison
 const UNDO_LIMIT = 12;
+const QUIET_GRAY = 0.6;     // where a concept is quiet, the photo loses this much of its color
+const QUIET_FADE = 0.1;     // and fades this far toward white
 
 const $ = id => document.getElementById(id);
 const els = {
-    photo: $('photo'), status: $('status'), another: $('another'), file: $('file'), undo: $('undo'), reset: $('reset'),
-    search: $('search'), prediction: $('prediction'), listTitle: $('list-title'), listNote: $('list-note'),
-    list: $('concept-list'), againstHead: $('against-head'), against: $('against-list'), detail: $('detail'), detailRender: $('detail-render'), detailTitle: $('detail-title'),
+    photo: $('photo'), spotLabel: $('spot-label'), spotName: $('spot-name'), unpick: $('unpick'), status: $('status'),
+    another: $('another'), file: $('file'), undo: $('undo'), reset: $('reset'),
+    search: $('search'), prediction: $('prediction'), listTitle: $('list-title'), unpin: $('unpin'), listNote: $('list-note'),
+    lists: $('lists'), listATitle: $('list-a-title'), list: $('concept-list'), listB: $('list-b'), listBTitle: $('list-b-title'),
+    versus: $('versus-list'), detail: $('detail'), detailRender: $('detail-render'), detailTitle: $('detail-title'),
     detailStats: $('detail-stats'), examples: $('examples'), pushes: $('pushes'), neighbours: $('neighbours')
 };
-const ctx = els.photo.getContext('2d');
+const ctx = els.photo.getContext('2d', { willReadFrequently: true });
 const scratch = Object.assign(document.createElement('canvas'), { width: SIZE, height: SIZE });
 const shade = Object.assign(document.createElement('canvas'), { width: GRID, height: GRID });
+const mask = document.createElement('canvas');
 
 const app = {
     resnet: null, sae: null, painter: null, concepts: null, pool: null, labels: null, fc: null,
@@ -28,10 +33,12 @@ const app = {
     image: null,         // the photo with any paint
     pixels: null,        // app.image's values, for drawing
     undo: [],
-    code: null, probs: null, top5: [], classIndex: null, contributions: [],
+    code: null, logits: null, probs: null, top5: [], contributions: [],
+    classIndex: null,    // the top class (why it won), or a runner-up to compare it with
     selected: null,      // the picked concept
     preview: null,       // a concept hovered in a list, shown on the photo until the pointer leaves it
     hover: null,         // the photo cell under the pointer
+    pinned: null,        // the photo cell whose concepts stay listed after a click
     pointer: null, painting: false, paintLoop: null, exampleToken: 0
 };
 window.conceptsApp = app;
@@ -80,6 +87,7 @@ async function setPhoto(img) {
     app.original = tf.tensor4d(imagePixels(img), [1, SIZE, SIZE, 3]);
     app.image = app.original.clone();
     app.classIndex = null;
+    app.pinned = null;
     await analyze();
 }
 
@@ -95,6 +103,7 @@ async function analyze() {
     app.code = await app.sae.encode(acts);
     tf.dispose([acts, logits]);
     app.pixels = pixels;
+    app.logits = logitValues;
     const peak = Math.max(...logitValues);
     const exps = logitValues.map(v => Math.exp(v - peak));
     const total = exps.reduce((a, b) => a + b, 0);
@@ -109,8 +118,10 @@ async function analyze() {
     renderList();
 }
 
+// What each concept adds to the top class's score, or with a runner-up picked, to the top class's lead over it.
 function computeContributions() {
-    app.contributions = [...app.sae.contributions(app.code, app.fc, app.classIndex)].sort((a, b) => b[1] - a[1]);
+    const top = app.top5[0], versus = app.classIndex === top ? null : app.classIndex;
+    app.contributions = [...app.sae.contributions(app.code, app.fc, top, versus)].sort((a, b) => b[1] - a[1]);
 }
 
 // ---------- Names ----------
@@ -153,30 +164,107 @@ function drawPhoto(pixels = app.pixels, spotlight = true) {
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(scratch, 0, 0, VIEW, VIEW);
     const concept = app.preview ?? app.selected;
-    if (spotlight && concept !== null && app.code) {
-        drawSpotlight(ctx, app.sae.map(app.code, concept), app.concepts[concept].max, VIEW);
-    }
-    if (spotlight && app.hover !== null) {
+    const lit = spotlight && concept !== null && app.code !== null;
+    if (lit) drawSpotlight(ctx, app.sae.map(app.code, concept), app.concepts[concept].max, VIEW);
+    els.spotLabel.hidden = !lit;
+    if (lit) els.spotName.textContent = conceptName(concept);
+    if (spotlight) {
         const s = VIEW / GRID;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect((app.hover % GRID) * s + 1, Math.floor(app.hover / GRID) * s + 1, s - 2, s - 2);
+        for (const [cell, alpha] of [[app.pinned, 0.95], [app.hover, 0.6]]) {
+            if (cell === null) continue;
+            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+            ctx.lineWidth = 2;
+            ctx.strokeRect((cell % GRID) * s + 1, Math.floor(cell / GRID) * s + 1, s - 2, s - 2);
+        }
     }
 }
 
-// Dims the image where the concept is quiet. Activations are measured against a share of the concept's best
-// on ImageNet, so a weak trace stays dim instead of being stretched to full brightness.
+// Shows where the concept fires without darkening the photo: a line around where it reaches half its peak, and
+// outside it the photo loses some color as the concept goes quiet. Activations are measured against a share of
+// the concept's best on ImageNet, so a weak trace gets a small line or none instead of being stretched.
 function drawSpotlight(target, map, best, size) {
     const peak = Math.max(...map);
     const norm = Math.max(peak, 0.3 * best, 1e-6);
+    // The 7x7 map, upsampled to the image and blurred to round off the grid's corners.
     const c = shade.getContext('2d');
     const data = c.createImageData(GRID, GRID);
     for (let p = 0; p < GRID * GRID; p++) {
-        data.data[p * 4 + 3] = 255 * 0.72 * (1 - Math.min(1, map[p] / norm));
+        data.data[p * 4 + 3] = 255 * Math.min(1, map[p] / norm);
     }
     c.putImageData(data, 0, 0);
-    target.imageSmoothingEnabled = true;
-    target.drawImage(shade, 0, 0, size, size);
+    if (mask.width !== size) mask.width = mask.height = size;
+    const m = mask.getContext('2d', { willReadFrequently: true });
+    m.clearRect(0, 0, size, size);
+    m.imageSmoothingEnabled = true;
+    m.drawImage(shade, 0, 0, size, size);
+    const alpha = m.getImageData(0, 0, size, size).data;
+    const field = new Float32Array(size * size);
+    for (let p = 0; p < field.length; p++) field[p] = alpha[p * 4 + 3] / 255;
+    boxBlur(field, size, Math.round(size / 28));
+
+    const image = target.getImageData(0, 0, size, size), rgb = image.data;
+    for (let p = 0, i = 0; p < field.length; p++, i += 4) {
+        const a = field[p], gray = 0.299 * rgb[i] + 0.587 * rgb[i + 1] + 0.114 * rgb[i + 2];
+        for (let ch = 0; ch < 3; ch++) {
+            const quiet = 255 * QUIET_FADE + (1 - QUIET_FADE) * (QUIET_GRAY * gray + (1 - QUIET_GRAY) * rgb[i + ch]);
+            rgb[i + ch] = a * rgb[i + ch] + (1 - a) * quiet;
+        }
+    }
+    target.putImageData(image, 0, 0);
+
+    target.save();
+    target.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+    target.lineWidth = 2;
+    target.lineJoin = target.lineCap = 'round';
+    target.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    target.shadowBlur = 3;
+    target.beginPath();
+    traceContour(target, field, size, 0.5, Math.max(1, Math.round(size / 112)));
+    target.stroke();
+    target.restore();
+}
+
+// Separable box blur, twice (close to a Gaussian), of a size x size field in place; edges are clamped.
+function boxBlur(field, size, r) {
+    const tmp = new Float32Array(field.length), at = i => Math.min(size - 1, Math.max(0, i));
+    for (let pass = 0; pass < 2; pass++) {
+        for (let y = 0; y < size; y++) {
+            const row = y * size;
+            let sum = 0;
+            for (let x = -r; x <= r; x++) sum += field[row + at(x)];
+            for (let x = 0; x < size; x++) {
+                tmp[row + x] = sum / (2 * r + 1);
+                sum += field[row + at(x + r + 1)] - field[row + at(x - r)];
+            }
+        }
+        for (let x = 0; x < size; x++) {
+            let sum = 0;
+            for (let y = -r; y <= r; y++) sum += tmp[at(y) * size + x];
+            for (let y = 0; y < size; y++) {
+                field[y * size + x] = sum / (2 * r + 1);
+                sum += tmp[at(y + r + 1) * size + x] - tmp[at(y - r) * size + x];
+            }
+        }
+    }
+}
+
+// Adds the line where the field crosses `level` to the current path (marching squares on a `step` grid).
+function traceContour(target, field, size, level, step) {
+    const at = (x, y) => field[Math.min(size - 1, y) * size + Math.min(size - 1, x)];
+    for (let y = 0; y < size - 1; y += step) {
+        for (let x = 0; x < size - 1; x += step) {
+            const a = at(x, y), b = at(x + step, y), c = at(x + step, y + step), d = at(x, y + step);
+            const cross = [];
+            if ((a >= level) !== (b >= level)) cross.push([x + step * (level - a) / (b - a), y]);
+            if ((b >= level) !== (c >= level)) cross.push([x + step, y + step * (level - b) / (c - b)]);
+            if ((d >= level) !== (c >= level)) cross.push([x + step * (level - d) / (c - d), y + step]);
+            if ((a >= level) !== (d >= level)) cross.push([x, y + step * (level - a) / (d - a)]);
+            for (let i = 0; i + 1 < cross.length; i += 2) {
+                target.moveTo(...cross[i]);
+                target.lineTo(...cross[i + 1]);
+            }
+        }
+    }
 }
 
 els.photo.addEventListener('pointerdown', event => {
@@ -208,9 +296,12 @@ els.photo.addEventListener('pointerup', event => {
     if (app.painting) {
         stopPainting();
     } else if (!pointer.moved) {
-        // A click picks the strongest concept in that cell.
-        const here = conceptsAt(pointer.cell);
+        // A click keeps that spot's concepts in the list and picks the strongest; clicking it again lets go.
+        app.pinned = app.pinned === pointer.cell ? null : pointer.cell;
+        renderList();
+        const here = app.pinned === null ? [] : conceptsAt(app.pinned);
         if (here.length) select(here[0][0]);
+        else drawPhoto();
     }
 });
 
@@ -221,10 +312,11 @@ els.photo.addEventListener('pointerleave', () => {
     renderList();
 });
 
+// The concepts active in a cell, each with its activation as a share of its best on ImageNet, strongest first.
 function conceptsAt(cell) {
     const { idx, val } = app.code, k = app.sae.k, out = [];
     for (let q = cell * k; q < (cell + 1) * k; q++) {
-        if (val[q] > 0) out.push([idx[q], val[q]]);
+        if (val[q] > 0) out.push([idx[q], val[q] / app.concepts[idx[q]].max]);
     }
     return out.sort((a, b) => b[1] - a[1]);
 }
@@ -267,7 +359,8 @@ async function stopPainting() {
 
 // ---------- Lists ----------
 
-function conceptButton(j, value, kind) {
+// A concept's render and name, with an optional number under it; tone 'plus' or 'minus' colors it by side.
+function conceptButton(j, value, tone = '') {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'concept' + (j === app.selected ? ' on' : '');
@@ -281,9 +374,8 @@ function conceptButton(j, value, kind) {
     b.append(img, name);
     if (value !== undefined) {
         const v = document.createElement('span');
-        v.className = 'value' + (kind === 'contribution' ? (value >= 0 ? ' plus' : ' minus') : '');
-        v.textContent = kind === 'contribution' ? `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(2)}`
-            : kind === 'activation' ? value.toFixed(1) : value;
+        v.className = `value ${tone}`;
+        v.textContent = value;
         b.append(v);
     }
     b.title = `#${j} ${conceptName(j)}`;
@@ -295,30 +387,50 @@ function conceptButton(j, value, kind) {
 
 function renderList() {
     const query = els.search.value.trim();
-    const items = [], against = [];
+    const cell = app.hover ?? app.pinned;
+    const top = app.top5[0];
+    const items = [], others = [];
+    let compare = false;
+    els.unpin.hidden = true;
     if (query) {
         const results = search(query);
         els.listTitle.textContent = `${results.length} concepts`;
         els.listNote.textContent = /^#?\d+$/.test(query) ? 'By number.'
             : `Concepts named “${query}”, then those whose top 20 images include it (how many of the 20).`;
         results.forEach(([j, n]) => items.push(conceptButton(j, n === null ? undefined : `${n}/20`)));
-    } else if (app.hover !== null) {
-        const here = conceptsAt(app.hover);
+    } else if (cell !== null) {
+        const here = conceptsAt(cell);
         els.listTitle.textContent = 'At this spot';
-        els.listNote.textContent = `The ${here.length} concepts active in this cell, strongest first.`;
-        here.forEach(([j, v]) => items.push(conceptButton(j, v, 'activation')));
-    } else {
-        const cls = className(app.classIndex);
+        els.unpin.hidden = app.pinned === null;
+        els.listNote.textContent = `The ${here.length} concepts active in this cell, strongest first. % is how hard each fires here, as a share of its best.`;
+        here.forEach(([j, share]) => items.push(conceptButton(j, `${Math.round(100 * share)}%`)));
+    } else if (app.classIndex === top) {
+        const cls = className(top);
         els.listTitle.textContent = `Why “${cls}”`;
-        els.listNote.textContent = `Concepts in this photo, by how much each adds to the network’s score for ${cls}.`;
+        els.listNote.textContent = `Concepts in this photo, by how much each adds to the network’s score for ${cls}. Pick a “vs” class above to see what tips the balance against a runner-up.`;
         app.contributions.slice(0, LIST_LENGTH).filter(([, v]) => v > 0)
-            .forEach(([j, v]) => items.push(conceptButton(j, v, 'contribution')));
-        app.contributions.filter(([, v]) => v < 0).slice(-AGAINST_LENGTH).reverse()
-            .forEach(([j, v]) => against.push(conceptButton(j, v, 'contribution')));
+            .forEach(([j, v]) => items.push(conceptButton(j, `+${v.toFixed(2)}`, 'plus')));
+    } else {
+        // Both sides of the gap between the two scores, each concept with what it adds to its side.
+        compare = true;
+        const a = className(top), b = className(app.classIndex);
+        const lead = app.logits[top] - app.logits[app.classIndex];
+        const net = app.contributions.reduce((sum, [, v]) => sum + v, 0);
+        const odds = Math.exp(lead);
+        els.listTitle.textContent = `${a} vs ${b}`;
+        els.listNote.textContent = `The network finds ${a} ${odds.toFixed(odds < 10 ? 1 : 0)}× as likely as ${b}, a lead of ${lead.toFixed(2)} in score. ` +
+            `Each number is how far a concept pushes the score toward its side, and they net out to ${net.toFixed(2)} (the difference is what the dictionary misses).`;
+        els.listATitle.textContent = `Toward ${a}`;
+        els.listBTitle.textContent = `Toward ${b}`;
+        app.contributions.filter(([, v]) => v > 0).slice(0, COMPARE_LENGTH)
+            .forEach(([j, v]) => items.push(conceptButton(j, `+${v.toFixed(2)}`, 'plus')));
+        app.contributions.filter(([, v]) => v < 0).slice(-COMPARE_LENGTH).reverse()
+            .forEach(([j, v]) => others.push(conceptButton(j, `+${(-v).toFixed(2)}`, 'minus')));
     }
     els.list.replaceChildren(...items);
-    els.against.replaceChildren(...against);
-    els.againstHead.hidden = against.length === 0;
+    els.versus.replaceChildren(...others);
+    els.lists.classList.toggle('two', compare);
+    els.listATitle.hidden = els.listB.hidden = !compare;
 }
 
 function renderPrediction() {
@@ -339,7 +451,7 @@ function renderPrediction() {
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'chip' + (c === app.classIndex ? ' on' : '');
-        chip.textContent = `${c === top ? 'why' : 'why not'} ${className(c)} · ${pct(c)}`;
+        chip.textContent = `${c === top ? 'why' : 'vs'} ${className(c)} · ${pct(c)}`;
         chip.addEventListener('click', () => {
             app.classIndex = c;
             computeContributions();
@@ -369,12 +481,22 @@ els.search.addEventListener('input', renderList);
 
 // ---------- The picked concept ----------
 
+// Picks concept j, or with null shows the plain photo.
 function select(j) {
     app.selected = j;
     for (const b of document.querySelectorAll('.side-column .concept')) b.classList.toggle('on', b.title.startsWith(`#${j} `));
     drawPhoto();
-    renderDetail(j);
+    if (j === null) els.detail.hidden = true;
+    else renderDetail(j);
 }
+
+els.unpick.addEventListener('click', () => select(null));
+
+els.unpin.addEventListener('click', () => {
+    app.pinned = null;
+    drawPhoto();
+    renderList();
+});
 
 function renderDetail(j) {
     const c = app.concepts[j];
@@ -392,7 +514,7 @@ function renderDetail(j) {
     els.detailStats.textContent = (quality === 'clear' ? '' : quality === 'mixed'
         ? 'A loose name: only about half its top examples fit it. '
         : 'No clear common thread in its top examples; the name is a guess. ') + `Fires on ${(c.freq * 100).toFixed(c.freq < 0.001 ? 3 : 2)}% of image patches in ImageNet` +
-        ` · in ${cells} of this photo’s 49 cells` + (cells ? ` (up to ${Math.max(...map).toFixed(1)}; its best is ${c.max.toFixed(1)})` : '');
+        ` · in ${cells} of this photo’s 49 cells` + (cells ? `, at up to ${Math.round(100 * Math.max(...map) / c.max)}% of its best` : '') + '.';
 
     const weights = app.sae.classWeights(j, app.fc);
     const order = [...weights.keys()].sort((a, b) => weights[b] - weights[a]);
@@ -402,20 +524,12 @@ function renderDetail(j) {
     renderExamples(j);
 }
 
-// Real examples from the pool, strongest first, each dimmed where the concept is quiet.
+// Real examples from the pool, strongest first, each faded where the concept is quiet.
 async function renderExamples(j) {
     const token = ++app.exampleToken;
     const c = app.concepts[j];
     const nodes = [], canvases = [];
-    let previous = null;
     for (const [n, value] of c.examples) {
-        const level = value >= 0.7 * c.max ? 0 : value >= 0.35 * c.max ? 1 : 2;
-        if (previous !== null && level !== previous) {
-            const gap = document.createElement('div');
-            gap.className = 'gap';
-            nodes.push(gap);
-        }
-        previous = level;
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'example';

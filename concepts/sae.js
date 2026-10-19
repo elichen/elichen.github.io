@@ -134,11 +134,12 @@ class ConceptDictionary {
         return scores.sort((a, b) => b[1] - a[1]).slice(0, n);
     }
 
-    // How much each active concept adds to a class logit: Map concept -> contribution.
-    contributions(code, fc, classIndex) {
+    // How much each active concept adds to a class logit, or with `versus` to the gap between two classes'
+    // logits (all the softmax cares about): Map concept -> contribution.
+    contributions(code, fc, classIndex, versus = null) {
         const means = this.means(code), out = new Map();
         means.forEach((v, j) => {
-            if (v > 0) out.set(j, v * this.weight(j, fc, classIndex));
+            if (v > 0) out.set(j, v * (this.weight(j, fc, classIndex) - (versus === null ? 0 : this.weight(j, fc, versus))));
         });
         return out;
     }
