@@ -1,6 +1,7 @@
 // Runs Gemma 3 270M + the layer-12 dictionary off the main thread.
 // in:  {type: 'read', text} | {type: 'write', prompt, concepts, scale, seed, tokens} | {type: 'stop'}
-// out: progress, ready, read results, streamed continuations (row 0 steered, row 1 the same draw unsteered)
+// out: progress, ready, read results, streamed continuations (row 0 steered, row 1 the same draw unsteered),
+//      then where each pinned concept fires in both. Writes and stops are numbered 1, 2, ... in the order sent.
 import { Gemma } from './gemma.js';
 import { Tokenizer } from './tokenizer.js';
 
@@ -136,8 +137,7 @@ function mulberry32(a) {
   };
 }
 
-async function write({ prompt, concepts, scale, seed, tokens = 48 }) {
-  const me = ++job;
+async function write({ prompt, concepts, scale, seed, tokens = 48, job: me }) {
   const vec = new Float32Array(640);
   for (const j of concepts) {
     const v = model.conceptVector(j, scale * strength[j] * best[j]);
@@ -168,12 +168,24 @@ async function write({ prompt, concepts, scale, seed, tokens = 48 }) {
     ms.forward += performance.now() - t0;
   }
   postMessage({ type: 'done', job: me, ms });
+  // re-read both continuations unsteered: where does each pinned concept fire in the new words
+  const rows = [];
+  for (const o of out) {
+    if (me !== job) return;
+    if (!o.length) { rows.push({ pieces: [], acts: concepts.map(() => []) }); continue; }
+    const { z } = await model.read(ids.concat(o));
+    rows.push({
+      pieces: o.map(id => tok.decode([id])),
+      acts: concepts.map(j => Array.from(o, (_, n) => z[(ids.length + n) * F + j] / best[j])),
+    });
+  }
+  if (me === job) postMessage({ type: 'scored', job: me, concepts, rows });
 }
 
 let queue = Promise.resolve();
 onmessage = e => {
   const m = e.data;
-  if (m.type === 'write' || m.type === 'stop') job++;   // stops the running write at its next token
+  if (m.type === 'write' || m.type === 'stop') m.job = ++job;   // stops the running write at its next token
   queue = queue.then(async () => {
     try {
       if (m.type === 'load') await load();

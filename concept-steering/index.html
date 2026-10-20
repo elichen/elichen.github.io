@@ -10,47 +10,158 @@
 </head>
 <body>
     <header class="d-title l-text">
-        <h1>Concept Steering</h1>
-        <p>A small language model reads your passage, and a sparse autoencoder names the concepts it lights up. Pin a few and the model writes something new with those concepts turned up.</p>
+        <h1>Reading and Steering the Concepts of a Small Language Model</h1>
+        <p>Gemma 3 270M reads your passage. A sparse autoencoder shows the concepts that the passage activates in the model. You can pin some of these concepts. The model then writes a new text with the pinned concepts added, next to a baseline text without them.</p>
     </header>
 
-    <div class="status l-page" id="status">Loading Gemma 3 270M and its concept dictionary (about 290 MB, kept for next time)…</div>
 
-    <section class="l-page panel">
-        <div class="step-head">
-            <h2><span class="step">1</span> Read a passage</h2>
+    <figure class="steer l-page" id="figure">
+        <div class="status" id="status">
+            <p id="status-text">Loading Gemma 3 270M and its concept dictionary (about 290 MB, kept for next time)…</p>
+            <div class="progress"><span id="progress"></span></div>
         </div>
-        <div class="reading">
-            <div>
+
+        <div class="read">
+            <div class="pane">
+                <h3 class="pane-title">The passage</h3>
                 <div class="editor">
                     <div class="backdrop" id="passage" aria-hidden="true"></div>
                     <textarea id="text" rows="3" spellcheck="false" aria-label="Passage"></textarea>
                 </div>
-                <p class="hint">Type or paste anything. Step through it word by word with ‹ › (or click a word) and pin the concepts you want; click a concept to see where it fires. Faded concepts are ones the model recognizes but can't be steered toward writing about, so they have no pin.</p>
+                <p class="note">Type or paste anything. Click a word, or use the arrow keys, to see the concepts at that word.</p>
             </div>
-            <div class="concepts">
-                <div class="list-head"><button id="prev" class="step-btn" type="button" aria-label="Previous word">‹</button><h4 id="list-title">Concepts at the first word</h4><button id="next" class="step-btn" type="button" aria-label="Next word">›</button><button id="list-all" class="link" type="button">whole passage</button></div>
-                <ol class="concept-list" id="concept-list"></ol>
-            </div>
-        </div>
-    </section>
 
-    <section class="l-page panel">
-        <div class="step-head">
-            <h2><span class="step">2</span> Write with the pinned concepts</h2>
+            <div class="pane">
+                <div class="concepts-head">
+                    <div class="seg" role="group" aria-label="Which concepts to list">
+                        <button id="view-word" type="button" aria-pressed="true">At one word</button>
+                        <button id="view-all" type="button" aria-pressed="false">Across the passage</button>
+                    </div>
+                    <div class="stepper" id="stepper">
+                        <button id="prev" type="button" aria-label="Previous word">‹</button>
+                        <span id="word"></span>
+                        <button id="next" type="button" aria-label="Next word">›</button>
+                    </div>
+                </div>
+                <ol class="concept-list" id="concept-list"></ol>
+                <div class="detail" id="detail" hidden></div>
+            </div>
         </div>
-        <div class="pinned" id="pinned"></div>
-        <div class="row controls">
-            <label class="prompt-label">Start with <input id="prompt" type="text" value="I went outside and" autocomplete="off" enterkeyhint="go"></label>
-            <label class="strength">Steering strength <input id="strength" type="range" min="0" max="3" step="0.05" value="1"> <output id="strength-out">1×</output></label>
-            <label class="strength">Max new tokens <select id="tokens"><option>32</option><option selected>64</option><option>128</option><option>256</option></select></label>
+
+        <div class="bridge">
+            <svg viewBox="0 0 24 40" aria-hidden="true"><path d="M12 2v32M5 27l7 8 7-8"/></svg>
+            <div class="pinned" id="pinned"></div>
+        </div>
+
+        <div class="composer">
+            <label class="prompt">Start with <input id="prompt" type="text" value="I went outside and" autocomplete="off" enterkeyhint="go"></label>
+            <label class="strength">Strength
+                <span class="slider">
+                    <input id="strength" type="range" min="0" max="3" step="0.05" value="1" list="ticks">
+                    <datalist id="ticks"><option value="0"></option><option value="1"></option><option value="2"></option><option value="3"></option></datalist>
+                </span>
+                <output id="strength-out">1×</output>
+            </label>
+            <label class="length">Length <select id="tokens"><option value="32">32 tokens</option><option value="64" selected>64 tokens</option><option value="128">128 tokens</option><option value="256">256 tokens</option></select></label>
             <button id="again" type="button" disabled>New seed</button>
         </div>
-        <div class="outputs">
-            <div class="out"><h4>Steered</h4><p id="out0" class="gen"></p></div>
-            <div class="out"><h4>Baseline: same seed, no steering</h4><p id="out1" class="gen muted"></p></div>
+
+        <div class="write">
+            <div class="out steered">
+                <h3 class="pane-title">Steered</h3>
+                <p id="out0" class="gen"></p>
+                <ul class="presence" id="pres0"></ul>
+            </div>
+            <div class="out baseline">
+                <h3 class="pane-title">Baseline <span>same random draw, no steering</span></h3>
+                <p id="out1" class="gen"></p>
+                <ul class="presence" id="pres1"></ul>
+            </div>
         </div>
-        <p class="small">Steering adds each pinned concept's decoder vector to the layer-12 residual stream. Strength 1× is set per concept: the smallest amount at which it clearly shows up in the model's writing while the text stays readable (measured on four prompts). Sampling: temperature 0.8, top-p 0.95. Gemma 3 270M (Google) · Gemma Scope 2 layer 12 dictionary (Google DeepMind, CC BY 4.0) · labels from <a href="https://www.neuronpedia.org/gemma-3-270m">Neuronpedia</a>.</p>
+
+        <figcaption class="l-text">
+            <b>Figure 1.</b> The list shows the activation of each concept as a percentage of its maximum activation.
+            Click a concept to show where it activates in the passage. Faded concepts have no pin. The model recognizes
+            them, but steering with them does not make the model write about them. When the two texts are complete,
+            the page reads them again and colors each token where a pinned concept activates.
+        </figcaption>
+    </figure>
+
+    <article class="d-article l-text">
+        <p>A language model does not keep a word such as “whale” in one location. At each token, the model has a list of 640 numbers. These numbers contain all the information that the model has about the text so far. For example, they show that the text is about the sea and that a verb is probably next. A sparse autoencoder changes these numbers into a short list of concepts that a person can read. The figure above reads these concepts with Gemma 3 270M<sup><a href="#ref-gemma">1</a></sup>, and it also adds concepts back to change the text.</p>
+        <p>All of the calculation runs on the GPU in this browser tab.</p>
+
+        <h2>Reading a passage</h2>
+        <p>The page reads the concepts after layer 12. The model has 18 layers. Google DeepMind trained a sparse autoencoder at this location for Gemma Scope 2<sup><a href="#ref-scope2">2</a></sup>. The autoencoder is a dictionary of 16,384 concepts, and each concept is a direction in the 640 numbers. At each token, the autoencoder writes the model state as a sum of approximately 60 concepts.</p>
+        <p>Nobody tells the autoencoder what the concepts mean. But most concepts have one meaning that a person can identify, for example fishing, ships or weather.<sup><a href="#ref-bricken">3</a>,<a href="#ref-templeton">4</a></sup></p>
+        <aside class="sidenote">The concept names are automatic explanations from Neuronpedia<sup><a href="#ref-neuronpedia">5</a></sup>. A language model wrote each name from the passages where the concept activates most. Most names are correct, but some are wrong.</aside>
+        <p>Each concept has a different range of activation. Thus, the figure shows each activation as a percentage of the maximum activation of that concept in a large sample of text. In the “Across the passage” view, the page sorts the concepts by their mean activation over all tokens. This sort puts topics at the top. A concept that activates through a full paragraph gets a higher mean than a concept that activates on one word.</p>
+        <p>The page does not show concepts that activate on more than 1 token in 100. Most of these concepts are for punctuation and the start of sentences.</p>
+
+        <h2>Steering</h2>
+        <p>Steering is the opposite of reading. Each concept has a direction that it adds to the model state. When you pin a concept, the page adds this direction after layer 12. It adds the direction at each token of the prompt and at each new token. Layers 13 to 18 then get a state that is closer to the concept, so the text moves toward the concept.</p>
+        <p>Turner et al.<sup><a href="#ref-turner">6</a></sup> call this method activation addition. Golden Gate Claude<sup><a href="#ref-templeton">4</a></sup> used a similar method on a much larger model.</p>
+
+        <figure class="diagram">
+            <svg viewBox="0 0 680 200" role="img" aria-label="The passage runs through layers 1 to 12; the dictionary reads concepts there; pinned concepts are added back; layers 13 to 18 write the next word.">
+                <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="d-head"/></marker></defs>
+                <g class="d-box"><rect x="4" y="40" width="112" height="44" rx="4"/><text x="60" y="58">your words</text><text x="60" y="74" class="d-sub">tokens</text></g>
+                <g class="d-box"><rect x="156" y="40" width="120" height="44" rx="4"/><text x="216" y="58">layers 1–12</text><text x="216" y="74" class="d-sub">of Gemma 3 270M</text></g>
+                <circle cx="340" cy="62" r="16" class="d-node"/><text x="340" y="67" class="d-plus">+</text>
+                <g class="d-box"><rect x="404" y="40" width="120" height="44" rx="4"/><text x="464" y="58">layers 13–18</text><text x="464" y="74" class="d-sub">see the leaning state</text></g>
+                <g class="d-box"><rect x="564" y="40" width="112" height="44" rx="4"/><text x="620" y="58">next word</text><text x="620" y="74" class="d-sub">sampled</text></g>
+                <g class="d-line" marker-end="url(#arrow)"><path d="M116 62H152"/><path d="M276 62H320"/><path d="M356 62H400"/><path d="M524 62H560"/></g>
+                <g class="d-box d-read"><rect x="196" y="140" width="128" height="44" rx="4"/><text x="260" y="158">dictionary</text><text x="260" y="174" class="d-sub">16,384 concepts</text></g>
+                <g class="d-box d-steer"><rect x="356" y="140" width="128" height="44" rx="4"/><text x="420" y="158">pinned concepts</text><text x="420" y="174" class="d-sub">× strength</text></g>
+                <path d="M300 62C300 100 280 110 270 136" class="d-line d-read-line" marker-end="url(#arrow)"/>
+                <path d="M410 140C400 110 360 96 348 80" class="d-line d-steer-line" marker-end="url(#arrow)"/>
+                <text x="250" y="118" class="d-label">read</text><text x="410" y="118" class="d-label">add</text>
+            </svg>
+            <figcaption><b>Figure 2.</b> The dictionary reads concepts from the model state after layer 12. The page adds the pinned concepts at the same location. Only layers 13 to 18 get the change.</figcaption>
+        </figure>
+
+        <p>The baseline shows the effect of the pins. The page writes the two texts in the same batch, from the same random numbers. Both texts use temperature 0.8 and top-p 0.95. Thus, the first token that is different is the location where the pins changed the choice of the model. All later differences follow from that token.</p>
+        <p>When the two texts are complete, the page reads them again through the dictionary. It colors each token where a pinned concept activates. This check shows if the steered text is about the concept, or if it is only different from the baseline.</p>
+
+        <h2>The 1× strength</h2>
+        <p>Each concept needs a different strength. If the strength is too low, the text does not change. If the strength is too high, the model repeats one word. Thus, I measured a strength for each of the 14,983 concepts that activate. For each concept, I tried strengths from 0.5 to 4 times its maximum activation, on four prompts with two seeds. I then read each result again through the dictionary.</p>
+        <p>The 1× strength of a concept is the lowest strength where these three conditions are true:</p>
+        <ul>
+            <li>The concept clearly activates in the new text.</li>
+            <li>The perplexity of the text for Gemma 3 1B is not more than 3 times the perplexity of the unsteered text.</li>
+            <li>At least 80% of the three-word sequences in the text are different from each other.</li>
+        </ul>
+        <aside class="sidenote">The strength slider multiplies the 1× strength of each pinned concept. At 2×, the page adds each concept at two times its 1× strength.</aside>
+        <p>Only 1,095 concepts (approximately 7%) have a 1× strength, and only these concepts have a pin. The model recognizes the other concepts when it reads. But when the page adds them, the text breaks before it is about their topic. For example, the whale concepts activate through the full example passage. At 13 times their maximum activation, they did not cause one sentence about whales.</p>
+        <p>Arad et al.<sup><a href="#ref-arad">7</a></sup> found the same result in larger models. Some concepts detect information in the input. Other concepts change the output. Few concepts do both.</p>
+
+        <h2>Limits</h2>
+        <ul>
+            <li>Gemma 3 270M is a very small model. Its text is often strange, also without steering.</li>
+            <li>The colors in the two texts come from the same dictionary that does the steering. They show that the model state moved toward the concept. This is evidence that the text is about the concept, but it is not proof.</li>
+            <li>When you pin many concepts, the page adds all of their directions. Each 1× strength was measured for one concept alone. Thus, three pins at 1× give text that is less fluent than one pin.</li>
+            <li>The weights use 8 bits. With these weights, the model selects the same next token as the full-precision model 95% of the time.</li>
+        </ul>
+
+        <h2>Related work</h2>
+        <p>This page uses the sparse autoencoders from Gemma Scope<sup><a href="#ref-scope">8</a></sup> and Gemma Scope 2, which are available for open models. It also uses Neuronpedia, which hosts these autoencoders and names their concepts. Bricken et al.<sup><a href="#ref-bricken">3</a></sup> and Cunningham et al.<sup><a href="#ref-cunningham">9</a></sup> applied sparse dictionaries to language models. Templeton et al.<sup><a href="#ref-templeton">4</a></sup> showed that these concepts can steer a large model. The <a href="../concepts/">Concept Dictionary</a> does the same type of reading for an image classifier.</p>
+        <p>You can check all of these results in this tab. Paste a passage, pin some of its concepts, and compare the steered text with the baseline.</p>
+    </article>
+
+    <section class="d-appendix l-text">
+        <h3>References</h3>
+        <ol class="references">
+            <li id="ref-gemma">Gemma Team. <a href="https://arxiv.org/abs/2503.19786">Gemma 3 Technical Report</a>. 2025. The page uses the pretrained 270M model under the <a href="https://ai.google.dev/gemma/terms">Gemma terms of use</a>.</li>
+            <li id="ref-scope2">Google DeepMind. <a href="https://huggingface.co/google/gemma-scope-2">Gemma Scope 2</a>. 2025. The dictionary here is the 16k residual-stream autoencoder at layer 12 of Gemma 3 270M (CC BY 4.0).</li>
+            <li id="ref-bricken">Bricken et al. <a href="https://transformer-circuits.pub/2023/monosemantic-features">Towards Monosemanticity: Decomposing Language Models With Dictionary Learning</a>. Transformer Circuits, 2023.</li>
+            <li id="ref-templeton">Templeton et al. <a href="https://transformer-circuits.pub/2024/scaling-monosemanticity/">Scaling Monosemanticity: Extracting Interpretable Features from Claude 3 Sonnet</a>. Transformer Circuits, 2024.</li>
+            <li id="ref-neuronpedia">Neuronpedia. <a href="https://www.neuronpedia.org/gemma-3-270m">Gemma 3 270M</a>. Concept names are its automatic explanations.</li>
+            <li id="ref-turner">Turner, Thiergart, Leech, Udell, Vazquez, Mini and MacDiarmid. <a href="https://arxiv.org/abs/2308.10248">Steering Language Models With Activation Engineering</a>. 2023.</li>
+            <li id="ref-arad">Arad, Mueller and Belinkov. <a href="https://arxiv.org/abs/2505.20063">SAEs Are Good for Steering – If You Select the Right Features</a>. EMNLP 2025.</li>
+            <li id="ref-scope">Lieberum et al. <a href="https://arxiv.org/abs/2408.05147">Gemma Scope: Open Sparse Autoencoders Everywhere All At Once on Gemma 2</a>. 2024.</li>
+            <li id="ref-cunningham">Cunningham, Ewart, Riggs, Huben and Sharkey. <a href="https://arxiv.org/abs/2309.08600">Sparse Autoencoders Find Highly Interpretable Features in Language Models</a>. ICLR 2024.</li>
+        </ol>
+        <p>The 8-bit model weights are on <a href="https://huggingface.co/eli-aifund/gemma-3-270m-scope-steering-int8">Hugging Face</a>. A WGSL forward pass, written for this page, runs them.</p>
     </section>
 </body>
 </html>
