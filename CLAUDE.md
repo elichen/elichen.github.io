@@ -214,3 +214,19 @@ node tools/einstein.mjs --free 50000 --pulls 20 --force 0.5        # D from jigg
 ```
 
 Testing: a hidden Chrome tab pauses requestAnimationFrame; `brownian.advance(τ)` steps and draws, `brownian.colors({...})` tries a palette.
+
+## Concept Steering (`/concept-steering/`)
+
+Gemma 3 270M (base) reads a passage; the Gemma Scope 2 layer-12 16k sparse autoencoder lists the concepts it lights up (ranked by mean act/best over the passage, 1e-6 < freq < 1e-2); pinned concepts are added at layer 12 (every position but `<bos>`) to write a new completion, next to the same random draw unsteered. Everything runs in the browser on WebGPU.
+
+- `gemma.js`: own forward pass (int8 weights with one scale per row, fp32 activations: the residual reaches ~15,000, past fp16), steered + unsteered rows batched, sequences capped at 512 tokens so sliding windows never slide. Every shader loop is bounded (see the `pathtracer` note). `tokenizer.js`: Gemma's BPE from `data/vocab.json` + `data/merges.bin`. `worker.js`: loading (Cache Storage), reading, exact top-p sampling on shared uniforms; markup tokens are never sampled. `app.js`: the page.
+- Weights live on Hugging Face (`eli-aifund/gemma-3-270m-scope-steering-int8`, public, pinned to a commit in `worker.js`), not on Pages; `model/` is gitignored. Labels in `data/names.json` are Neuronpedia's automatic explanations (S3 export `v1/gemma-3-270m/12-gemmascope-2-res-16k/explanations/`).
+- Strength: each concept's own limit, measured on Nitro for all 14,983 live concepts (largest strength with judge PPL <= 1.5x unsteered and distinct-3 >= 0.9, smoothed, two seeds pooled), times the slider (default 0.8, best in a blind test; a per-concept table beat one fixed vector size by +0.3 relevance). `data/stats.bin` = best, freq, strength (x best; 0 = dead), presence lift.
+
+```bash
+cd concept-steering
+python3 tools/export.py <strength table.json> <texts.json>   # model/, data/, tools/test/ref.json
+cd tools && npm install && node check-tokenizer.mjs && node parity.mjs   # must print PASS (Dawn WebGPU vs PyTorch)
+```
+
+Testing: a hidden Chrome tab throttles the worker (~10x slower sampling); time it in a visible tab. `window.steeringApp` exposes state and the worker.

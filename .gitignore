@@ -2,3 +2,4 @@
 .claude/settings.local.json
 output/agent-browser/
 __pycache__/
+concept-steering/model/
