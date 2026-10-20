@@ -16,18 +16,18 @@
 
     <div class="status l-page" id="status">Loading Gemma 3 270M and its concept dictionary (about 290 MB, kept for next time)…</div>
 
-    <section class="l-page panel" id="read-panel">
+    <section class="l-page panel">
         <div class="step-head">
             <h2><span class="step">1</span> Read a passage</h2>
-            <div class="presets" id="presets"></div>
-        </div>
-        <textarea id="text" rows="4" spellcheck="false"></textarea>
-        <div class="row">
-            <button id="read" type="button" disabled>Read</button>
-            <span class="hint" id="read-hint">Click a word to see its concepts. Click a concept to see where it fires.</span>
         </div>
         <div class="reading">
-            <div class="passage" id="passage"></div>
+            <div>
+                <div class="editor">
+                    <div class="backdrop" id="passage" aria-hidden="true"></div>
+                    <textarea id="text" rows="3" spellcheck="false" aria-label="Passage"></textarea>
+                </div>
+                <p class="hint">Type or paste anything. Click a word to see its concepts; click a concept to see where it fires.</p>
+            </div>
             <div class="concepts">
                 <div class="list-head"><h4 id="list-title">Concepts in this passage</h4><button id="list-back" class="link" type="button" hidden>× all</button></div>
                 <ol class="concept-list" id="concept-list"></ol>
@@ -35,23 +35,21 @@
         </div>
     </section>
 
-    <section class="l-page panel" id="write-panel">
+    <section class="l-page panel">
         <div class="step-head">
             <h2><span class="step">2</span> Write with the pinned concepts</h2>
         </div>
         <div class="pinned" id="pinned"></div>
         <div class="row controls">
-            <label class="prompt-label">Start with <input id="prompt" type="text" value="I went outside and" autocomplete="off"></label>
+            <label class="prompt-label">Start with <input id="prompt" type="text" value="I went outside and" autocomplete="off" enterkeyhint="go"></label>
             <label class="strength">Strength <input id="strength" type="range" min="0" max="1.5" step="0.05" value="0.8"> <output id="strength-out">0.8×</output></label>
-            <button id="write" type="button" disabled>Write</button>
             <button id="again" type="button" disabled>Another draw</button>
         </div>
-        <div class="openings" id="openings"></div>
         <div class="outputs">
             <div class="out"><h4>Steered</h4><p id="out0" class="gen"></p></div>
             <div class="out"><h4>Same draw, not steered</h4><p id="out1" class="gen muted"></p></div>
         </div>
-        <p class="small">Each concept is added at layer 12 of 18 at the largest strength that kept text fluent when it was measured alone (1.0× = that limit). Both columns use the same random numbers, so where they differ is the concepts' doing. Model: Gemma 3 270M (Google). Dictionary: Gemma Scope 2, layer 12, 16k concepts (Google DeepMind, CC BY 4.0). Concept labels: <a href="https://www.neuronpedia.org/gemma-3-270m">Neuronpedia</a>'s automatic explanations.</p>
+        <p class="small">Strength 1× is the most each concept can be turned up alone while the text stays fluent. Gemma 3 270M (Google) · Gemma Scope 2 layer 12 dictionary (Google DeepMind, CC BY 4.0) · labels from <a href="https://www.neuronpedia.org/gemma-3-270m">Neuronpedia</a>.</p>
     </section>
 </body>
 </html>

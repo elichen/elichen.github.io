@@ -61,27 +61,34 @@ button:hover:not(:disabled) { border-color: var(--faint); }
 button:disabled { color: var(--faint); cursor: default; }
 button.link { border: none; padding: 2px 4px; color: var(--muted); }
 button.link:hover { color: var(--text); }
-.presets, .openings { display: flex; flex-wrap: wrap; gap: 6px; }
-.openings { margin-top: 6px; }
 
 textarea, input[type="text"] {
     width: 100%; font-size: 15px; background: var(--bg); border: 1px solid var(--rule); border-radius: 3px; padding: 10px 12px; resize: vertical;
 }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 10px 0; }
-.hint { color: var(--muted); font-size: 13px; }
 
-.reading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 28px; margin-top: 16px; }
-.passage { font-family: var(--serif); font-size: 19px; line-height: 1.75; white-space: pre-wrap; }
-.tok { cursor: pointer; border-radius: 2px; }
-.tok:hover { box-shadow: inset 0 -2px 0 var(--faint); }
-.tok.lit { background: rgba(var(--lit), calc(0.12 + 0.6 * var(--a))); }
-.tok.sel { box-shadow: inset 0 -2px 0 var(--text); }
+.reading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 28px; }
+
+/* the passage: a textarea with transparent background over a backdrop that draws the highlights */
+.editor { position: relative; background: var(--bg); }
+.editor textarea, .backdrop {
+    font-family: var(--serif); font-size: 19px; line-height: 1.75; padding: 10px 12px; margin: 0;
+    white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; letter-spacing: normal;
+    border: 1px solid var(--rule); border-radius: 3px;
+}
+.editor textarea { position: relative; display: block; background: transparent; resize: none; overflow: hidden; min-height: 5em; }
+.editor textarea:focus { outline: none; border-color: var(--faint); }
+.backdrop { position: absolute; inset: 0; color: transparent; overflow: hidden; border-color: transparent; pointer-events: none; }
+.backdrop span { border-radius: 2px; }
+.backdrop .lit { background: rgba(var(--lit), calc(0.12 + 0.6 * var(--a))); }
+.backdrop .sel { box-shadow: inset 0 -2px 0 var(--text); }
+.hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
 
 .list-head { display: flex; align-items: baseline; gap: 8px; }
 .list-head h4 { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
 .concept-list { list-style: none; margin: 0; padding: 0; }
 .concept {
-    display: grid; grid-template-columns: 22px 56px minmax(0, 1fr) auto; align-items: center; gap: 8px;
+    display: grid; grid-template-columns: 22px 56px minmax(0, 1fr); align-items: center; gap: 8px;
     padding: 5px 6px; border-radius: 3px; cursor: pointer; font-size: 13px;
 }
 .concept:hover { background: var(--panel); }
@@ -90,16 +97,11 @@ textarea, input[type="text"] {
 .pin.on { color: var(--accent); }
 .bar { height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; }
 .bar span { display: block; height: 100%; background: var(--accent); }
-.what { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); display: flex; flex-direction: column; line-height: 1.35; }
-.what .name { color: var(--text); font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
-.what .ex { font-size: 11.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; }
-.ex mark { background: rgba(var(--lit), 0.35); color: var(--text); border-radius: 2px; padding: 0 1px; }
-.tag { font-size: 10.5px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.05em; }
-.tag.strong { color: var(--accent); }
+.what { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; }
 
 .pinned { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; font-size: 13px; }
 .chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; background: var(--panel); border-radius: 3px; padding: 3px 4px 3px 10px; color: var(--muted); }
-.chip .name, .chip .ex { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 360px; }
+.chip .name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 360px; }
 .chip button { border: none; background: none; padding: 0 6px; font-size: 15px; color: var(--muted); }
 .controls .prompt-label { flex: 1 1 280px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .controls .prompt-label input { flex: 1; }
@@ -117,5 +119,5 @@ textarea, input[type="text"] {
     .d-title h1 { font-size: 36px; }
     .d-title p { font-size: 18px; }
     .reading, .outputs { grid-template-columns: minmax(0, 1fr); }
-    .chip .name, .chip .ex { max-width: 220px; }
+    .chip .name { max-width: 220px; }
 }

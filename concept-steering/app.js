@@ -1,39 +1,24 @@
 // The page: passage -> concepts (worker), pins, steered vs unsteered continuations.
+// The passage box is a textarea over a backdrop that draws the highlights; a click picks the word under the caret.
 const $ = id => document.getElementById(id);
-const PRESETS = {
-    Whales: 'The humpback whale surfaced a few meters from our boat, blew a cloud of mist into the cold morning air, and slid back under the grey water. Somewhere below, its calf was singing.',
-    Grief: 'It has been a year since my father died. I still reach for the phone on Sunday evenings to call him, and for a second I forget that nobody will pick up.',
-    Recipe: 'Melt the butter in a heavy pan over medium heat, add the chopped onions and a pinch of salt, and stir until they turn soft and golden, about ten minutes. Then add the garlic.',
-    Space: "When the rocket's second stage ignited, the capsule was already above most of the atmosphere, and the astronauts could see the curve of the Earth against the black sky.",
-    Lease: 'The Tenant shall not sublet the Premises or assign this Agreement without the prior written consent of the Landlord, which consent shall not be unreasonably withheld.',
-};
-const OPENINGS = ['I went outside and', 'Yesterday I', 'My grandmother always said that', 'The city was quiet when', 'The best part of my job is'];
+const PASSAGE = 'The humpback whale surfaced a few meters from our boat, blew a cloud of mist into the cold morning air, and slid back under the grey water. Somewhere below, its calf was singing.';
 
 const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
-const state = { ready: false, reading: null, pinned: [], token: null, concept: null, seed: 1, job: 0 };
-let stats = null, examples = null, names = null;
+const state = { ready: false, reading: null, readText: null, pinned: [], token: null, concept: null, seed: 1, job: 0 };
+let examples = null, names = null;
 
-fetch('data/stats.bin').then(r => r.arrayBuffer()).then(b => { stats = new Float32Array(b); });
 fetch('data/examples.json').then(r => r.json()).then(e => { examples = e; render(); });
 fetch('data/names.json').then(r => r.json()).then(n => { names = n; render(); });
 
-const F = 16384;
-const lift = j => (stats ? stats[3 * F + j] : 0);
-
 function esc(s) { return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
-function show(s) { return esc(s).replace(/\n/g, '⏎'); }
 
-// a concept is shown by its Neuronpedia label and the passage where it fired hardest
-function snippet(j) {
+// a concept is shown by its Neuronpedia label; the passage where it fired hardest is its tooltip (or its label
+// when it has none)
+function example(j) {
     const ex = examples?.[j]?.[0];
-    if (!ex) return '';
-    const [l, t, r] = ex;
-    return `<span class="ex">…${show(l.slice(-48))}<mark>${show(t)}</mark>${show(r)}…</span>`;
+    return ex ? `…${ex[0].slice(-48)}[${ex[1]}]${ex[2]}…`.replace(/\n/g, ' ') : '';
 }
-function label(j) {
-    const n = names?.[j];
-    return n ? `<span class="name">${esc(n)}</span>` : snippet(j) || `<span class="muted">#${j}</span>`;
-}
+const label = j => names?.[j] || example(j) || `#${j}`;
 
 worker.onmessage = e => {
     const m = e.data;
@@ -41,9 +26,10 @@ worker.onmessage = e => {
     else if (m.type === 'ready') {
         state.ready = true;
         $('status').textContent = '';
-        $('read').disabled = $('write').disabled = $('again').disabled = false;
+        $('again').disabled = false;
         read();
     } else if (m.type === 'read') {
+        if (m.text !== $('text').value) return;           // typed since; a newer read is coming
         state.reading = m;
         state.token = state.concept = null;
         state.pinned = m.spread.slice(0, 3).map(([j]) => j);
@@ -61,8 +47,7 @@ worker.onmessage = e => {
 worker.postMessage({ type: 'load' });
 
 function read() {
-    if (!state.ready) return;
-    worker.postMessage({ type: 'read', text: $('text').value });
+    if (state.ready && $('text').value.trim()) worker.postMessage({ type: 'read', text: $('text').value });
 }
 
 function write() {
@@ -72,42 +57,63 @@ function write() {
     worker.postMessage({ type: 'write', prompt: state.prompt, concepts: state.pinned, scale: +$('strength').value, seed: state.seed });
 }
 
+// character range of each token in the passage (token 0 is <bos>)
+function offsets(tokens) {
+    const out = [];
+    let o = 0;
+    for (const t of tokens) { out.push([o, o + t.length]); o += t.length; }
+    out[0] = [0, 0];
+    return out;
+}
+
 function render() {
     const r = state.reading;
-    if (!r) return;
-    // passage: tokens shaded by the selected concept (or marked when clicked)
+    const text = $('text').value;
+    if (!r || r.text !== text) { $('passage').textContent = text + '\n'; return; }
     const ci = state.concept === null ? -1 : r.spread.findIndex(([j]) => j === state.concept);
     $('passage').innerHTML = r.tokens.map((t, n) => {
         if (n === 0) return '';
         let a = 0;
-        if (state.concept !== null) {
-            a = ci >= 0 ? r.acts[ci][n] : (r.perToken[n].find(([j]) => j === state.concept)?.[1] || 0);
-        }
-        const style = a > 0 ? ` style="--a:${Math.min(1, a).toFixed(2)}"` : '';
-        return `<span class="tok${a > 0 ? ' lit' : ''}${n === state.token ? ' sel' : ''}" data-n="${n}"${style}>${show(t)}</span>`;
-    }).join('') + (r.truncated ? '<span class="muted"> (first 512 tokens)</span>' : '');
-    // list: passage-wide, or one token's concepts
+        if (state.concept !== null) a = ci >= 0 ? r.acts[ci][n] : (r.perToken[n].find(([j]) => j === state.concept)?.[1] || 0);
+        const cls = (a > 0 ? ' lit' : '') + (n === state.token ? ' sel' : '');
+        return cls ? `<span class="${cls.trim()}"${a > 0 ? ` style="--a:${Math.min(1, a).toFixed(2)}"` : ''}>${esc(t)}</span>` : esc(t);
+    }).join('') + '\n';
     const items = state.token === null ? r.spread.slice(0, 16) : r.perToken[state.token];
     $('list-title').textContent = state.token === null ? 'Concepts in this passage' : `Concepts at “${r.tokens[state.token].trim()}”`;
     $('list-back').hidden = state.token === null;
     const maxv = Math.max(...items.map(([, v]) => v), 1e-6);
     $('concept-list').innerHTML = items.map(([j, v]) => `
-        <li class="concept${state.concept === j ? ' sel' : ''}" data-j="${j}">
-            <button class="pin${state.pinned.includes(j) ? ' on' : ''}" type="button" data-pin="${j}" aria-label="Pin">${state.pinned.includes(j) ? '●' : '○'}</button>
+        <li class="concept${state.concept === j ? ' sel' : ''}" data-j="${j}" title="${esc(example(j))}">
+            <button class="pin${state.pinned.includes(j) ? ' on' : ''}" type="button" data-pin="${j}" aria-label="${state.pinned.includes(j) ? 'Unpin' : 'Pin'}">${state.pinned.includes(j) ? '●' : '○'}</button>
             <span class="bar"><span style="width:${(100 * v / maxv).toFixed(0)}%"></span></span>
-            <span class="what">${label(j)}${names?.[j] ? snippet(j) : ''}</span>
-            <span class="tag${lift(j) >= 0.03 ? ' strong' : ''}" title="How visibly this concept shows up when it steers">${lift(j) >= 0.03 ? 'steers' : 'subtle'}</span>
+            <span class="what">${esc(label(j))}</span>
         </li>`).join('');
     $('pinned').innerHTML = state.pinned.length
-        ? state.pinned.map(j => `<span class="chip">${label(j)}<button type="button" data-unpin="${j}" aria-label="Unpin">×</button></span>`).join('')
-        : '<span class="muted">No concepts pinned: both columns are the plain model.</span>';
+        ? state.pinned.map(j => `<span class="chip"><span class="name">${esc(label(j))}</span><button type="button" data-unpin="${j}" aria-label="Unpin">×</button></span>`).join('')
+        : '<span class="muted">Nothing pinned: both columns are the plain model.</span>';
 }
 
-$('passage').addEventListener('click', e => {
-    const t = e.target.closest('.tok');
-    if (!t) return;
-    const n = +t.dataset.n;
-    state.token = state.token === n ? null : n;
+function fit() {
+    const t = $('text');
+    t.style.height = 'auto';
+    t.style.height = `${t.scrollHeight + 2}px`;
+}
+
+let readTimer;
+$('text').addEventListener('input', () => {
+    fit();
+    render();
+    clearTimeout(readTimer);
+    readTimer = setTimeout(read, 500);
+});
+$('text').addEventListener('scroll', () => { $('passage').scrollTop = $('text').scrollTop; });
+$('text').addEventListener('click', () => {
+    const r = state.reading;
+    const t = $('text');
+    if (!r || r.text !== t.value || t.selectionStart !== t.selectionEnd) return;
+    const c = t.selectionStart;
+    const n = offsets(r.tokens).findIndex(([a, b], i) => i > 0 && c >= a && c < b);
+    state.token = n > 0 && n !== state.token ? n : null;
     render();
 });
 $('list-back').addEventListener('click', () => { state.token = null; render(); });
@@ -128,21 +134,13 @@ $('pinned').addEventListener('click', e => {
     if (b) { state.pinned = state.pinned.filter(x => x !== +b.dataset.unpin); render(); write(); }
 });
 
-$('presets').innerHTML = Object.keys(PRESETS).map(k => `<button type="button" data-preset="${k}">${k}</button>`).join('');
-$('presets').addEventListener('click', e => {
-    const b = e.target.closest('[data-preset]');
-    if (b) { $('text').value = PRESETS[b.dataset.preset]; read(); }
-});
-$('openings').innerHTML = OPENINGS.map(o => `<button type="button" class="link" data-open="${esc(o)}">${esc(o)}…</button>`).join('');
-$('openings').addEventListener('click', e => {
-    const b = e.target.closest('[data-open]');
-    if (b) { $('prompt').value = b.dataset.open; write(); }
-});
-$('text').value = PRESETS.Whales;
-$('read').addEventListener('click', read);
-$('write').addEventListener('click', write);
+$('text').value = PASSAGE;
+fit();
+render();
+window.addEventListener('resize', fit);
 $('again').addEventListener('click', () => { state.seed++; write(); });
-$('prompt').addEventListener('keydown', e => { if (e.key === 'Enter') write(); });
+$('prompt').addEventListener('change', write);
+$('prompt').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
 $('strength').addEventListener('input', () => { $('strength-out').textContent = `${(+$('strength').value).toFixed(2).replace(/0$/, '')}×`; });
 $('strength').addEventListener('change', write);
 window.steeringApp = { state, worker };

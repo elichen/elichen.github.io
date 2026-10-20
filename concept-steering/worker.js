@@ -89,7 +89,7 @@ async function read(text) {
   top.sort((a, b) => b[1] - a[1]);
   const list = top.slice(0, 40);
   const acts = list.map(([j]) => Float32Array.from({ length: T }, (_, n) => z[n * F + j] / best[j]));
-  postMessage({ type: 'read', tokens: ids.map(id => tok.decode([id])), perToken, spread: list, acts, truncated: ids.length === 512 });
+  postMessage({ type: 'read', text, tokens: ids.map(id => tok.decode([id])), perToken, spread: list, acts, truncated: ids.length === 512 });
 }
 
 // top-p 0.95 at temperature 0.8 by inverse CDF on a shared uniform, so both rows use the same draw. Exact:
