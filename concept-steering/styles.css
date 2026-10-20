@@ -53,13 +53,14 @@ body { margin: 0; padding: 0 16px 80px; background: var(--bg); color: var(--text
 .step-head h2 { font-size: 22px; font-weight: 600; margin: 0; }
 .step { display: inline-block; width: 26px; height: 26px; line-height: 26px; text-align: center; border-radius: 50%; background: var(--text); color: var(--bg); font-size: 14px; margin-right: 6px; vertical-align: 2px; }
 
-button, input[type="text"], textarea { font: inherit; color: var(--text); }
+button, input[type="text"], textarea, select { font: inherit; color: var(--text); }
+select { font-size: 13px; background: var(--bg); border: 1px solid var(--rule); border-radius: 3px; padding: 4px 6px; }
 button {
     font-size: 13px; background: var(--bg); border: 1px solid var(--rule); border-radius: 3px; padding: 6px 12px; cursor: pointer;
 }
 button:hover:not(:disabled) { border-color: var(--faint); }
 button:disabled { color: var(--faint); cursor: default; }
-button.link { border: none; padding: 2px 4px; color: var(--muted); }
+button.link { border: none; padding: 2px 4px; color: var(--muted); margin-left: auto; }
 button.link:hover { color: var(--text); }
 
 textarea, input[type="text"] {
@@ -84,8 +85,9 @@ textarea, input[type="text"] {
 .backdrop .sel { box-shadow: inset 0 -2px 0 var(--text); }
 .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
 
-.list-head { display: flex; align-items: baseline; gap: 8px; }
-.list-head h4 { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.list-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.step-btn { padding: 0 9px; font-size: 16px; line-height: 24px; }
+.list-head h4 { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0; }
 .concept-list { list-style: none; margin: 0; padding: 0; }
 .concept {
     display: grid; grid-template-columns: 22px 56px minmax(0, 1fr); align-items: center; gap: 8px;
@@ -93,6 +95,7 @@ textarea, input[type="text"] {
 }
 .concept:hover { background: var(--panel); }
 .concept.sel { background: var(--panel); box-shadow: inset 2px 0 0 var(--accent); }
+.concept.faint .what, .concept.faint .bar { opacity: 0.45; }
 .pin { border: none; background: none; padding: 0; font-size: 15px; color: var(--faint); line-height: 1; }
 .pin.on { color: var(--accent); }
 .bar { height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; }

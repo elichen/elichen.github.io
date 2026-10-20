@@ -221,11 +221,13 @@ Gemma 3 270M (base) reads a passage; the Gemma Scope 2 layer-12 16k sparse autoe
 
 - `gemma.js`: own forward pass (int8 weights with one scale per row, fp32 activations: the residual reaches ~15,000, past fp16), steered + unsteered rows batched, sequences capped at 512 tokens so sliding windows never slide. Every shader loop is bounded (see the `pathtracer` note). `tokenizer.js`: Gemma's BPE from `data/vocab.json` + `data/merges.bin`. `worker.js`: loading (Cache Storage), reading, exact top-p sampling on shared uniforms; markup tokens are never sampled. `app.js`: the page.
 - Weights live on Hugging Face (`eli-aifund/gemma-3-270m-scope-steering-int8`, public, pinned to a commit in `worker.js`), not on Pages; `model/` is gitignored. Labels in `data/names.json` are Neuronpedia's automatic explanations (S3 export `v1/gemma-3-270m/12-gemmascope-2-res-16k/explanations/`).
-- Strength: each concept's own limit, measured on Nitro for all 14,983 live concepts (largest strength with judge PPL <= 1.5x unsteered and distinct-3 >= 0.9, smoothed, two seeds pooled), times the slider (default 0.8, best in a blind test; a per-concept table beat one fixed vector size by +0.3 relevance). `data/stats.bin` = best, freq, strength (x best; 0 = dead), presence lift.
+- Strength: measured on Nitro for all 14,983 live concepts at 0.5-4x best on 4 prompts (two seeds pooled). The slider multiplies each concept's own 1x: the smallest strength where it clearly shows up in the output (presence on re-read +0.08) with judge PPL <= 3x unsteered and distinct-3 >= 0.8 (`tools/defaults.py`). Only 1,095 concepts (7%) get there; the rest recognize a topic but steering them never writes about it (tested to 13x: junk repetition), so the page fades them and gives them no pin. `data/stats.bin` = best, freq, strength (x best; 0 = dead), presence lift at 1x (0 = not pinnable). The fluency-limit table (largest strength with PPL <= 1.5x, distinct-3 >= 0.9) is the input; 1x there was too weak (cats appear only above it).
+- A PyTorch steering hook must also add to the generated tokens: with the KV cache they arrive one at a time, so `h[:, 1:]` only steers the prompt.
 
 ```bash
 cd concept-steering
 python3 tools/export.py <strength table.json> <texts.json>   # model/, data/, tools/test/ref.json
+python3 tools/defaults.py <strength table.json> <calib dirs...>  # 1x per concept into data/stats.bin
 cd tools && npm install && node check-tokenizer.mjs && node parity.mjs   # must print PASS (Dawn WebGPU vs PyTorch)
 ```
 

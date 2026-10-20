@@ -1,5 +1,5 @@
 // Runs Gemma 3 270M + the layer-12 dictionary off the main thread.
-// in:  {type: 'read', text} | {type: 'write', prompt, concepts, scale, seed, tokens}
+// in:  {type: 'read', text} | {type: 'write', prompt, concepts, scale, seed, tokens} | {type: 'stop'}
 // out: progress, ready, read results, streamed continuations (row 0 steered, row 1 the same draw unsteered)
 import { Gemma } from './gemma.js';
 import { Tokenizer } from './tokenizer.js';
@@ -9,7 +9,7 @@ const MODEL = 'https://huggingface.co/eli-aifund/gemma-3-270m-scope-steering-int
 const DATA = new URL('./data/', import.meta.url).href;
 const CACHE = 'concept-steering-v1';
 
-let model, tok, best, freq, strength, F, banned = [], job = 0;
+let model, tok, best, freq, strength, lift, F, banned = [], job = 0;
 
 async function fetchCached(url, onBytes) {
   let cache = null;
@@ -51,17 +51,17 @@ async function load() {
   const files = {};
   const [vocab, merges, stats] = await Promise.all([
     fetch(DATA + 'vocab.json').then(r => r.json()),
-    fetchCached(DATA + 'merges.bin', () => {}),
-    fetchCached(DATA + 'stats.bin', () => {}),
+    fetch(DATA + 'merges.bin').then(r => r.arrayBuffer()),
+    fetch(DATA + 'stats.bin', { cache: 'no-cache' }).then(r => r.arrayBuffer()),   // revalidated: strengths get retuned
     ...Object.keys(man.files).map(async f => { files[f] = await fetchCached(MODEL + f, bump); }),
   ]);
   tok = new Tokenizer(vocab, merges);
   banned = vocab.added.filter(a => /^[<[]/.test(a.content) && a.id !== tok.eos).map(a => a.id);   // markup tokens a base model shouldn't write
   F = man.concepts;
   const s = new Float32Array(stats);
-  best = s.subarray(0, F); freq = s.subarray(F, 2 * F); strength = s.subarray(2 * F, 3 * F);
+  best = s.subarray(0, F); freq = s.subarray(F, 2 * F); strength = s.subarray(2 * F, 3 * F); lift = s.subarray(3 * F);
   model = await Gemma.create(device, man, files);
-  postMessage({ type: 'ready' });
+  postMessage({ type: 'ready', shows: Array.from(lift, l => l > 0) });
 }
 
 const usable = j => freq[j] > 1e-6 && freq[j] < 1e-2 && strength[j] > 0;
@@ -145,6 +145,7 @@ async function write({ prompt, concepts, scale, seed, tokens = 48 }) {
   }
   model.setSteer([concepts.length ? vec : null, null]);
   const ids = tok.encode(prompt).slice(0, 200);
+  tokens = Math.min(tokens, 512 - ids.length);       // sequences stay within the 512 positions the model is built for
   const rand = mulberry32(seed);
   const out = [[], []], done = [false, false];
   let logits = await model.forward([ids, ids], 0);
@@ -172,7 +173,7 @@ async function write({ prompt, concepts, scale, seed, tokens = 48 }) {
 let queue = Promise.resolve();
 onmessage = e => {
   const m = e.data;
-  if (m.type === 'write') job++;           // a newer request stops the running one at its next token
+  if (m.type === 'write' || m.type === 'stop') job++;   // stops the running write at its next token
   queue = queue.then(async () => {
     try {
       if (m.type === 'load') await load();

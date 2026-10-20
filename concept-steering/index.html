@@ -26,10 +26,10 @@
                     <div class="backdrop" id="passage" aria-hidden="true"></div>
                     <textarea id="text" rows="3" spellcheck="false" aria-label="Passage"></textarea>
                 </div>
-                <p class="hint">Type or paste anything. Click a word to see its concepts; click a concept to see where it fires.</p>
+                <p class="hint">Type or paste anything. Step through it word by word with ‹ › (or click a word) and pin the concepts you want; click a concept to see where it fires. Faded concepts are ones the model recognizes but can't be steered toward writing about, so they have no pin.</p>
             </div>
             <div class="concepts">
-                <div class="list-head"><h4 id="list-title">Concepts in this passage</h4><button id="list-back" class="link" type="button" hidden>× all</button></div>
+                <div class="list-head"><button id="prev" class="step-btn" type="button" aria-label="Previous word">‹</button><h4 id="list-title">Concepts at the first word</h4><button id="next" class="step-btn" type="button" aria-label="Next word">›</button><button id="list-all" class="link" type="button">whole passage</button></div>
                 <ol class="concept-list" id="concept-list"></ol>
             </div>
         </div>
@@ -42,14 +42,15 @@
         <div class="pinned" id="pinned"></div>
         <div class="row controls">
             <label class="prompt-label">Start with <input id="prompt" type="text" value="I went outside and" autocomplete="off" enterkeyhint="go"></label>
-            <label class="strength">Strength <input id="strength" type="range" min="0" max="1.5" step="0.05" value="0.8"> <output id="strength-out">0.8×</output></label>
-            <button id="again" type="button" disabled>Another draw</button>
+            <label class="strength">Steering strength <input id="strength" type="range" min="0" max="3" step="0.05" value="1"> <output id="strength-out">1×</output></label>
+            <label class="strength">Max new tokens <select id="tokens"><option>32</option><option selected>64</option><option>128</option><option>256</option></select></label>
+            <button id="again" type="button" disabled>New seed</button>
         </div>
         <div class="outputs">
             <div class="out"><h4>Steered</h4><p id="out0" class="gen"></p></div>
-            <div class="out"><h4>Same draw, not steered</h4><p id="out1" class="gen muted"></p></div>
+            <div class="out"><h4>Baseline: same seed, no steering</h4><p id="out1" class="gen muted"></p></div>
         </div>
-        <p class="small">Strength 1× is the most each concept can be turned up alone while the text stays fluent. Gemma 3 270M (Google) · Gemma Scope 2 layer 12 dictionary (Google DeepMind, CC BY 4.0) · labels from <a href="https://www.neuronpedia.org/gemma-3-270m">Neuronpedia</a>.</p>
+        <p class="small">Steering adds each pinned concept's decoder vector to the layer-12 residual stream. Strength 1× is set per concept: the smallest amount at which it clearly shows up in the model's writing while the text stays readable (measured on four prompts). Sampling: temperature 0.8, top-p 0.95. Gemma 3 270M (Google) · Gemma Scope 2 layer 12 dictionary (Google DeepMind, CC BY 4.0) · labels from <a href="https://www.neuronpedia.org/gemma-3-270m">Neuronpedia</a>.</p>
     </section>
 </body>
 </html>

@@ -4,8 +4,8 @@ const $ = id => document.getElementById(id);
 const PASSAGE = 'The humpback whale surfaced a few meters from our boat, blew a cloud of mist into the cold morning air, and slid back under the grey water. Somewhere below, its calf was singing.';
 
 const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
-const state = { ready: false, reading: null, readText: null, pinned: [], token: null, concept: null, seed: 1, job: 0 };
-let examples = null, names = null;
+const state = { ready: false, reading: null, readText: null, pinned: [], token: 1, concept: null, seed: 1, job: 0 };
+let examples = null, names = null, shows = [];
 
 fetch('data/examples.json').then(r => r.json()).then(e => { examples = e; render(); });
 fetch('data/names.json').then(r => r.json()).then(n => { names = n; render(); });
@@ -25,16 +25,16 @@ worker.onmessage = e => {
     if (m.type === 'progress') $('status').textContent = `Loading Gemma 3 270M and its concept dictionary: ${(m.loaded / 1e6).toFixed(0)} of ${(m.total / 1e6).toFixed(0)} MB…`;
     else if (m.type === 'ready') {
         state.ready = true;
+        shows = m.shows;                                   // does steering with it show up in the text
         $('status').textContent = '';
         $('again').disabled = false;
         read();
     } else if (m.type === 'read') {
         if (m.text !== $('text').value) return;           // typed since; a newer read is coming
         state.reading = m;
-        state.token = state.concept = null;
-        state.pinned = m.spread.slice(0, 3).map(([j]) => j);
+        state.token = m.tokens.length > 1 ? 1 : null;      // start at the first word; the user steps through
+        state.concept = null;
         render();
-        write();
     } else if (m.type === 'text') {
         if (m.job < state.job) return;
         state.job = m.job;
@@ -54,7 +54,8 @@ function write() {
     if (!state.ready) return;
     state.prompt = $('prompt').value;
     $('out0').innerHTML = $('out1').innerHTML = '';
-    worker.postMessage({ type: 'write', prompt: state.prompt, concepts: state.pinned, scale: +$('strength').value, seed: state.seed });
+    if (!state.pinned.length) { worker.postMessage({ type: 'stop' }); return; }
+    worker.postMessage({ type: 'write', prompt: state.prompt, concepts: state.pinned, scale: +$('strength').value, seed: state.seed, tokens: +$('tokens').value });
 }
 
 // character range of each token in the passage (token 0 is <bos>)
@@ -79,18 +80,20 @@ function render() {
         return cls ? `<span class="${cls.trim()}"${a > 0 ? ` style="--a:${Math.min(1, a).toFixed(2)}"` : ''}>${esc(t)}</span>` : esc(t);
     }).join('') + '\n';
     const items = state.token === null ? r.spread.slice(0, 16) : r.perToken[state.token];
-    $('list-title').textContent = state.token === null ? 'Concepts in this passage' : `Concepts at “${r.tokens[state.token].trim()}”`;
-    $('list-back').hidden = state.token === null;
+    $('list-title').textContent = state.token === null ? 'Concepts in the whole passage' : `Concepts at “${r.tokens[state.token].trim()}”`;
+    $('list-all').textContent = state.token === null ? 'one word at a time' : 'whole passage';
+    $('prev').disabled = state.token === null || state.token <= 1;
+    $('next').disabled = state.token === null || state.token >= r.tokens.length - 1;
     const maxv = Math.max(...items.map(([, v]) => v), 1e-6);
     $('concept-list').innerHTML = items.map(([j, v]) => `
-        <li class="concept${state.concept === j ? ' sel' : ''}" data-j="${j}" title="${esc(example(j))}">
-            <button class="pin${state.pinned.includes(j) ? ' on' : ''}" type="button" data-pin="${j}" aria-label="${state.pinned.includes(j) ? 'Unpin' : 'Pin'}">${state.pinned.includes(j) ? '●' : '○'}</button>
+        <li class="concept${state.concept === j ? ' sel' : ''}${shows[j] ? '' : ' faint'}" data-j="${j}" title="${esc(example(j))}${shows[j] ? '' : ' (steering with it does not make the model write about it)'}">
+            ${shows[j] ? `<button class="pin${state.pinned.includes(j) ? ' on' : ''}" type="button" data-pin="${j}" aria-label="${state.pinned.includes(j) ? 'Unpin' : 'Pin'}">${state.pinned.includes(j) ? '●' : '○'}</button>` : '<span></span>'}
             <span class="bar"><span style="width:${(100 * v / maxv).toFixed(0)}%"></span></span>
             <span class="what">${esc(label(j))}</span>
         </li>`).join('');
     $('pinned').innerHTML = state.pinned.length
         ? state.pinned.map(j => `<span class="chip"><span class="name">${esc(label(j))}</span><button type="button" data-unpin="${j}" aria-label="Unpin">×</button></span>`).join('')
-        : '<span class="muted">Nothing pinned: both columns are the plain model.</span>';
+        : '<span class="muted">Pin concepts with ○ above to generate with them.</span>';
 }
 
 function fit() {
@@ -113,10 +116,19 @@ $('text').addEventListener('click', () => {
     if (!r || r.text !== t.value || t.selectionStart !== t.selectionEnd) return;
     const c = t.selectionStart;
     const n = offsets(r.tokens).findIndex(([a, b], i) => i > 0 && c >= a && c < b);
-    state.token = n > 0 && n !== state.token ? n : null;
+    if (n > 0) { state.token = n; state.concept = null; }
     render();
 });
-$('list-back').addEventListener('click', () => { state.token = null; render(); });
+$('list-all').addEventListener('click', () => { state.token = state.token === null ? 1 : null; render(); });
+function step(d) {
+    const r = state.reading;
+    if (!r || state.token === null) return;
+    state.token = Math.min(r.tokens.length - 1, Math.max(1, state.token + d));
+    state.concept = null;
+    render();
+}
+$('prev').addEventListener('click', () => step(-1));
+$('next').addEventListener('click', () => step(1));
 $('concept-list').addEventListener('click', e => {
     const pin = e.target.closest('[data-pin]');
     if (pin) {
@@ -139,8 +151,14 @@ fit();
 render();
 window.addEventListener('resize', fit);
 $('again').addEventListener('click', () => { state.seed++; write(); });
+document.addEventListener('keydown', e => {
+    if (e.target.matches('textarea, input')) return;
+    if (e.key === 'ArrowLeft') step(-1);
+    else if (e.key === 'ArrowRight') step(1);
+});
 $('prompt').addEventListener('change', write);
 $('prompt').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
-$('strength').addEventListener('input', () => { $('strength-out').textContent = `${(+$('strength').value).toFixed(2).replace(/0$/, '')}×`; });
+$('strength').addEventListener('input', () => { $('strength-out').textContent = `${(+$('strength').value).toFixed(2).replace(/\.?0+$/, '')}×`; });
 $('strength').addEventListener('change', write);
+$('tokens').addEventListener('change', write);
 window.steeringApp = { state, worker };
