@@ -17,6 +17,6 @@
    "out": 4
   }
  ],
- "checkpoint": "dagger4_round_15.params",
- "sha256": "7550fe08dd867089f3f37806d057a87ff2ce4b853cde36738c15f0e464aedf31"
+ "checkpoint": "es1_best.params",
+ "sha256": "8a22424ca92449dc55b15f949755378b0f5acec3a3ccd806b5bc1abe50cc0d78"
 }
