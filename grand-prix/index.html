@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Grand Prix</title>
+    <meta name="description" content="Race a formula car against a neural network on 22 real circuits, in the same car on the same physics, in your browser.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap">
+    <link rel="stylesheet" href="styles.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="main.js"></script>
+</head>
+<body>
+    <canvas id="view" aria-label="The race in 3D"></canvas>
+
+    <div class="hud" id="hud" hidden>
+        <div class="lights" id="lights" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <ol class="tower" id="tower" aria-label="Positions"></ol>
+        <div class="message" id="message" role="status" aria-live="polite"></div>
+        <svg class="minimap" id="minimap" aria-hidden="true"></svg>
+        <div class="dash" id="dash">
+            <div class="speed"><span id="speed">0</span><small>km/h</small></div>
+            <div class="gear" id="gear">1</div>
+            <div class="pedals"><i id="throttle"></i><i id="brake"></i></div>
+            <div class="laptime" id="laptime"></div>
+        </div>
+        <div class="cams" role="group" aria-label="Camera">
+            <button type="button" data-cam="chase" aria-pressed="true">Chase</button>
+            <button type="button" data-cam="tv">TV</button>
+            <button type="button" data-cam="onboard">Onboard</button>
+            <button type="button" id="sound" aria-pressed="false">Sound</button>
+            <button type="button" id="quit">Tracks</button>
+        </div>
+        <div class="touch" id="touch">
+            <div class="steer" data-touch="steer"><span class="knob"></span></div>
+            <button type="button" class="pedal brake" data-touch="brake">Brake</button>
+            <button type="button" class="pedal gas" data-touch="gas">Gas</button>
+        </div>
+    </div>
+
+    <section class="picker" id="picker" aria-labelledby="title">
+        <header class="brand">
+            <a class="site" href="../index.html">elichen.github.io</a>
+            <h1 id="title">Grand Prix</h1>
+            <p>Race a neural network around 22 real circuits. It learned to drive this car by imitating a racing controller over millions of situations of its own making; you drive the same car, on the same physics.</p>
+            <button type="button" class="link" id="about-open">How it works</button>
+        </header>
+        <ul class="tracks" id="tracks" aria-label="Circuits"></ul>
+        <div class="go" id="go">
+            <div class="go-name">
+                <h2 id="go-title"></h2>
+                <p id="go-meta"></p>
+            </div>
+            <div class="laps" role="group" aria-label="Laps">
+                <span>Laps</span>
+                <button type="button" data-laps="1" aria-pressed="true">1</button>
+                <button type="button" data-laps="3">3</button>
+                <button type="button" data-laps="5">5</button>
+            </div>
+            <button type="button" class="start" id="start" disabled>Loading…</button>
+            <button type="button" class="watch" id="watch" disabled>Watch the AI</button>
+            <p class="keys" id="keys">Arrow keys or WASD, a gamepad, or touch. C changes the camera.</p>
+        </div>
+    </section>
+
+    <section class="results" id="results" hidden aria-labelledby="results-title">
+        <h2 id="results-title"></h2>
+        <table id="results-table"></table>
+        <div class="results-actions">
+            <button type="button" class="start" id="again">Race again</button>
+            <button type="button" id="back">Choose a circuit</button>
+        </div>
+    </section>
+
+    <aside class="about" id="about" aria-label="How it works" inert>
+        <button type="button" class="close" id="about-close" aria-label="Close">&times;</button>
+        <div class="prose" id="about-prose"></div>
+    </aside>
+</body>
+</html>

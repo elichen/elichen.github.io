@@ -1,0 +1,35 @@
+<p class="lede">You race a neural network around 22 real circuits. It drives the same car as you, on the same physics, in your browser. It reads the road ahead, the way a map would show it, and sets the steering and one pedal 50 times a second. Nobody tells it where to brake.</p>
+
+<h2>The car</h2>
+<p>Both cars are a 2020 Formula 1 car reduced to its essentials: 746 kg, 744 kW, downforce and drag that grow with the square of speed, weight that shifts forward under braking and back under power, and a steering wheel, throttle and brake that take a moment to move. It reaches 200 km/h in 4 s, tops out at 332 km/h, and stops from 300 to 80 km/h in 88 m. In fast corners the downforce lets it corner at over 4 g.</p>
+<p>Each axle's tires can give only so much grip, shared between braking or accelerating and turning, and the grip is load-sensitive: twice the load on a tire gives it less than twice the grip, and its stiffness levels off. The model this project started from, from an earlier experiment, gave its tires grip in exact proportion to their load. That made the car spin under braking at speed: at 300 km/h, a steering angle of 0.002 radians under full brake turned it around. With realistic tires it brakes straight.</p>
+
+<h2>What the network sees</h2>
+<p>It reads 73 numbers: the car's speed, sideways slide and rotation, where it sits on the track, its last command, and the road ahead as a map would describe it: points along the racing line up to 520 m ahead, how much the road curves and how wide it is there, and how slow the next corners are. It is never told which circuit it is on. It is a small network: two layers of 512 neurons, about 300,000 numbers. Your browser runs it in a fraction of a millisecond.</p>
+
+<h2>How it learned</h2>
+<p>It learned by imitation, from a teacher it could watch but not copy. The teacher is a classic racing controller of the kind autonomous race cars use. First it works out, for each circuit, the fastest speed the car could hold at every point of the racing line: how fast each corner can be taken, accelerating out of it at full power, and braking for the next as late as the tires allow. It aims for 90% of the cornering speed that limit allows. Then it steers along the line, and holds the throttle back when the rear tires have no grip to spare. On its own it laps all 22 circuits.</p>
+<p>The teacher needs the map and its plan of the whole lap; the network has only its 73 numbers. To learn to drive without them, the network drove itself, thousands of cars at once, and the teacher said what it would have done in every situation the network got itself into, including the mistakes. Then the network was trained on all of those answers, and drove again. This is called DAgger (Ross et al., 2011). Copying only the teacher's own laps fails: the first small error takes the copy somewhere the teacher never was. After 16 rounds, about 20 million answers and 20 minutes on a laptop GPU, the network drives as well as its teacher: on average within 0.03 s a lap.</p>
+<p>The network's weights started from an earlier network trained on these circuits with reinforcement learning, which lifted off on the straights: its teachers had aimed for at most 263 km/h. Reinforcement learning alone, rewarding progress around the track, could not teach it to drive faster: going faster means braking later, and until it braked later, going faster only meant crashing.</p>
+
+<h2>Measured</h2>
+<p id="measured">From a rolling start, the network laps all 22 circuits in 1,887 s, 15% faster than the earlier network on the same car (2,211 s), with full throttle on the straights. It drove three laps of every circuit without a crash. Its laps, against recent pole positions in Formula 1 (with the caveats below):</p>
+<table>
+<tr><th>Circuit</th><th>Network</th><th>Earlier network</th><th>F1 pole</th></tr>
+<tr><td>Suzuka</td><td>1:35.9</td><td>1:54.6</td><td>1:27.1 (2019)</td></tr>
+<tr><td>Monza</td><td>1:26.9</td><td>1:44.2</td><td>1:18.9 (2020)</td></tr>
+<tr><td>Spa-Francorchamps</td><td>1:52.3</td><td>2:16.2</td><td>1:41.3 (2020)</td></tr>
+<tr><td>Silverstone</td><td>1:35.0</td><td>1:54.4</td><td>1:24.3 (2020)</td></tr>
+<tr><td>Interlagos</td><td>1:14.9</td><td>1:32.4</td><td>1:07.5 (2019)</td></tr>
+</table>
+<p>A lap at the full limit of this car's tires would be about 8% faster than the network's. The circuits here are flat and the car has no gearbox, tire temperatures or kerbs, so these are not like-for-like with real cars.</p>
+
+<h2>Racing it</h2>
+<p>The network starts on pole on the racing line, you start alongside one row back, and the race begins rolling, as it was trained to start. The cars pass through each other: the network has never seen another car, so it would not know to avoid you, and you could not block it fairly.</p>
+<p>The network drives with smooth inputs; a key is all or nothing, and at the limit that spins you. So your inputs get help the network drives without. A full key asks for the steering at which this car corners hardest at its current speed (measured from the simulation, minus 5%), so it turns as hard as the network does. When you brake and steer at once, the brake eases off to leave the tires the grip your steering asks for, so you can trail-brake into a corner. The throttle has traction control: out of slow corners, full power would overwhelm the rear tires. And your steering counter-steers for you when the car slides beyond the slip of normal cornering at the limit. With these, a scripted driver pressing keys along the network's line spun 7 times in the 22 circuits; without them, 861 times. Your car's physics are exactly the network's.</p>
+<p>Off the asphalt the grass has less grip and slows you down; spin, stop, or hit the wall and you are put back on the track after a moment.</p>
+
+<h2>The circuits</h2>
+<p>The circuits come from the TUM racetrack database (Technical University of Munich): each is a centerline with the width of the asphalt on either side, measured from satellite images, and a minimum-curvature racing line. They are flat: Spa has no Eau Rouge climb here, and at Suzuka the crossover is a crossing.</p>
+
+<p class="credits">Circuits: <a href="https://github.com/TUMFTM/racetrack-database">TUMFTM/racetrack-database</a> (LGPL-3.0). Car parameters from <a href="https://github.com/juanmanzanero/fastest-lap">fastest-lap</a>'s 2020 car. DAgger: Ross, Gordon and Bagnell, <i>A Reduction of Imitation Learning and Structured Prediction to No-Regret Online Learning</i>, AISTATS 2011. Colors sampled from <a href="https://commons.wikimedia.org/wiki/File:Lotus_72_JPS.jpg">Lotus 72 JPS</a> by John Chapman (Pyrope), Wikimedia Commons, CC BY-SA 3.0: the network's car is the black and gold Lotus, yours the yellow McLaren M19 beside it. Built with <a href="https://threejs.org">three.js</a>.</p>

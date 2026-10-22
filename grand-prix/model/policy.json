@@ -1,0 +1,22 @@
+{
+ "obs": 73,
+ "act": 2,
+ "activation": "swish",
+ "output": "tanh(loc)",
+ "layers": [
+  {
+   "in": 73,
+   "out": 512
+  },
+  {
+   "in": 512,
+   "out": 512
+  },
+  {
+   "in": 512,
+   "out": 4
+  }
+ ],
+ "checkpoint": "dagger4_round_15.params",
+ "sha256": "7550fe08dd867089f3f37806d057a87ff2ce4b853cde36738c15f0e464aedf31"
+}

@@ -1,0 +1,236 @@
+{
+ "fields": [
+  "x",
+  "y",
+  "center_x",
+  "center_y",
+  "center_tangent_x",
+  "center_tangent_y",
+  "width_right",
+  "width_left",
+  "tangent_x",
+  "tangent_y",
+  "heading",
+  "curvature",
+  "legacy_target_speed",
+  "target_speed",
+  "target_accel",
+  "s"
+ ],
+ "profile_speed_scale": 0.76,
+ "plant": {
+  "CONTROL_DT": 0.02,
+  "MAX_STEER_RAD": 0.38,
+  "MAX_STEER_RATE_RAD_S": 1.8,
+  "TRACK_LIMIT_CENTER_ALLOWANCE_M": 1.2,
+  "TRACK_LIMIT_MAP_TOLERANCE_M": 0.15,
+  "AERO_BALANCE_OFFSET_M": 0.09244576459714433,
+  "AIR_DENSITY_KG_M3": 1.2,
+  "BRAKE_BIAS_FRONT": 0.57415530188439,
+  "BRAKE_EFFICIENCY": 0.98,
+  "COG_HEIGHT_M": 0.3,
+  "DRAG_COEFFICIENT": 0.995174643413709,
+  "FRONTAL_AREA_M2": 1.5,
+  "FRONT_LATERAL_GRIP_SCALE": 0.96,
+  "GRAVITY_M_S2": 9.81,
+  "IZZ_KG_M2": 850.0,
+  "LF_M": 2.0215318733873717,
+  "LIFT_COEFFICIENT": 2.96587468449029,
+  "LR_M": 1.704468126612628,
+  "MASS_KG": 746.0,
+  "MAX_DRIVE_FORCE_N": 18500.0,
+  "MU_X": 1.86,
+  "MU_Y": 1.82,
+  "POWER_W": 743700.9898646144,
+  "REAR_LATERAL_GRIP_SCALE": 1.05,
+  "ROLLING_RESISTANCE_COEFFICIENT": 0.015,
+  "WHEELBASE_M": 3.726
+ },
+ "tires": {
+  "FZ0": 6000.0,
+  "LOAD_SENSITIVITY": 0.15,
+  "STIFFNESS_PEAK_LOAD": 1.6,
+  "SLIP_STIFFNESS": 12.0,
+  "BRAKE_BIAS_FRONT": 0.6
+ },
+ "tracks": [
+  {
+   "center_count": 2754,
+   "name": "Austin",
+   "count": 1805,
+   "length": 5414.9296875,
+   "spacing": 2.9999608993530273
+  },
+  {
+   "center_count": 2188,
+   "name": "Budapest",
+   "count": 1439,
+   "length": 4317.50048828125,
+   "spacing": 3.000347852706909
+  },
+  {
+   "center_count": 2325,
+   "name": "Catalunya",
+   "count": 1524,
+   "length": 4572.5244140625,
+   "spacing": 3.0003440380096436
+  },
+  {
+   "center_count": 2285,
+   "name": "Hockenheim",
+   "count": 1508,
+   "length": 4523.7978515625,
+   "spacing": 2.999865770339966
+  },
+  {
+   "center_count": 2011,
+   "name": "IMS",
+   "count": 1331,
+   "length": 3993.578369140625,
+   "spacing": 3.000434637069702
+  },
+  {
+   "center_count": 2149,
+   "name": "MexicoCity",
+   "count": 1414,
+   "length": 4243.087890625,
+   "spacing": 3.00076961517334
+  },
+  {
+   "center_count": 2179,
+   "name": "Montreal",
+   "count": 1437,
+   "length": 4311.04833984375,
+   "spacing": 3.000033378601074
+  },
+  {
+   "center_count": 2895,
+   "name": "Monza",
+   "count": 1919,
+   "length": 5757.9755859375,
+   "spacing": 3.0005083084106445
+  },
+  {
+   "center_count": 2032,
+   "name": "MoscowRaceway",
+   "count": 1325,
+   "length": 3974.852294921875,
+   "spacing": 2.9998884201049805
+  },
+  {
+   "center_count": 1148,
+   "name": "Norisring",
+   "count": 753,
+   "length": 2260.2822265625,
+   "spacing": 3.0017030239105225
+  },
+  {
+   "center_count": 2572,
+   "name": "Nuerburgring",
+   "count": 1689,
+   "length": 5065.78466796875,
+   "spacing": 2.9992804527282715
+  },
+  {
+   "center_count": 1846,
+   "name": "Oschersleben",
+   "count": 1211,
+   "length": 3631.631103515625,
+   "spacing": 2.9988696575164795
+  },
+  {
+   "center_count": 2703,
+   "name": "Sakhir",
+   "count": 1785,
+   "length": 5355.42919921875,
+   "spacing": 3.0002403259277344
+  },
+  {
+   "center_count": 2152,
+   "name": "SaoPaulo",
+   "count": 1411,
+   "length": 4233.10498046875,
+   "spacing": 3.0000743865966797
+  },
+  {
+   "center_count": 2769,
+   "name": "Sepang",
+   "count": 1813,
+   "length": 5439.50244140625,
+   "spacing": 3.000277280807495
+  },
+  {
+   "center_count": 2723,
+   "name": "Shanghai",
+   "count": 1780,
+   "length": 5340.77001953125,
+   "spacing": 3.0004327297210693
+  },
+  {
+   "center_count": 2943,
+   "name": "Silverstone",
+   "count": 1933,
+   "length": 5799.8076171875,
+   "spacing": 3.000417947769165
+  },
+  {
+   "center_count": 2921,
+   "name": "Sochi",
+   "count": 1930,
+   "length": 5789.14697265625,
+   "spacing": 2.9995579719543457
+  },
+  {
+   "center_count": 3500,
+   "name": "Spa",
+   "count": 2313,
+   "length": 6938.25244140625,
+   "spacing": 2.9996767044067383
+  },
+  {
+   "center_count": 2158,
+   "name": "Spielberg",
+   "count": 1428,
+   "length": 4284.7548828125,
+   "spacing": 3.000528573989868
+  },
+  {
+   "center_count": 2901,
+   "name": "Suzuka",
+   "count": 1916,
+   "length": 5747.39599609375,
+   "spacing": 2.9996848106384277
+  },
+  {
+   "center_count": 2773,
+   "name": "YasMarina",
+   "count": 1823,
+   "length": 5470.46826171875,
+   "spacing": 3.000805377960205
+  }
+ ],
+ "ai_laps": {
+  "Austin": 101.43498992919922,
+  "Budapest": 86.05757141113281,
+  "Catalunya": 86.41751098632812,
+  "Hockenheim": 79.6386489868164,
+  "IMS": 45.720855712890625,
+  "MexicoCity": 82.1582260131836,
+  "Montreal": 78.75879669189453,
+  "Monza": 86.87743377685547,
+  "MoscowRaceway": 85.0777359008789,
+  "Norisring": 42.50078201293945,
+  "Nuerburgring": 94.09622192382812,
+  "Oschersleben": 70.020263671875,
+  "Sakhir": 94.9560775756836,
+  "SaoPaulo": 74.87944793701172,
+  "Sepang": 97.8355941772461,
+  "Shanghai": 99.35533905029297,
+  "Silverstone": 95.01606750488281,
+  "Sochi": 100.61512756347656,
+  "Spa": 112.31316375732422,
+  "Spielberg": 71.14007568359375,
+  "Suzuka": 95.9359130859375,
+  "YasMarina": 106.25418090820312
+ }
+}

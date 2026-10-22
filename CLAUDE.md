@@ -232,3 +232,23 @@ cd tools && npm install && node check-tokenizer.mjs && node parity.mjs   # must 
 ```
 
 Testing: a hidden Chrome tab throttles the worker (~10x slower sampling); time it in a visible tab. `window.steeringApp` exposes state and the worker.
+
+## Grand Prix (`/grand-prix/`)
+
+Race a neural network around 22 TUM circuits (the 22 training tracks of `../mjx-rl-experiments/racecar`), same car and physics for both; ghost cars (the policy has never seen another car), rolling start, 1/3/5 laps; "Watch the AI" runs the race with your car hidden (`Race` option `watch`). Full-window three.js scene. Palette A: sampled from a Commons photo of a Lotus 72 (JPS) beside a McLaren M19. The old `/racer/` demo is separate and stays.
+
+- `sim.js` (shared by page and tools): JS port of the repo's `MultiTrackRaceCar` (track state, the 73-input observation, failure rules) on the **load-sensitive plant** of `training/plant.py`, plus the policy MLP. `race.js` race logic and your input aids, `input.js` keyboard/gamepad/touch, `scene.js` circuit builder (TUM centerline + widths), `render.js` cameras, `car-model.js`, `audio.js`, `main.js` (picker, HUD, palettes `PALETTES` + `grandPrix.colors('B')`).
+- **The plant was changed on purpose (2026-10-22).** The repo's tires had grip and cornering stiffness exactly proportional to load, so braking at speed made the car unstable (0.002 rad steer spun it at 300 km/h). `training/plant.py`: load-sensitive grip, Pacejka-saturating stiffness, ~5-6° peak slip, brake force limited by tire capacity, 60% front bias. `plant.use()` patches `racecar.env.integrate` so the repo env runs on it. `python training/check_plant.py` compares old vs new figures.
+- **Policy:** DAgger (`training/dagger.py`) from a path-following teacher (`training/teacher.py`: curvature feedforward + heading/Stanley/yaw-damping steering, gains grid-searched; pedal tracking `training/speed_profile.py`'s minimum-time profile at 0.9 corner speed, throttle capped by `plant.throttle_limit`). Started from the repo's `fastest_racer.params`; 16 rounds, ~20 min on Nitro. Result: 22/22, 1,887 s (teacher 1,886 s; repo policy on this plant 2,211 s; full-limit QSS 1,736 s), straight pedal 0.96.
+- What failed (don't retry blindly): PPO with progress reward from the repo policy (old and new plant), PPO with reference starts on the repo's CEM laps, BC on CEM laps (never brakes), DAgger around CEM laps (jittery at-the-limit labels), a geometric teacher with untuned gains (oscillates; also NaN from `sqrt` of a fused negative).
+- Your car only gets input aids: a full key = 95% of the steering for the most steady cornering at that speed (`CORNERING` in sim.js, from `node tools/corner-table.mjs`; re-run after plant changes), a brake that leaves the grip the steering asks for (`brakeLimit`, friction circle: trail braking; a steering cut under braking blocked it), traction control, counter-steer beyond 0.1 rad of slip (`COUNTER`). `node tools/turning.mjs` compares key vs AI cornering g by speed (keys now match); `node tools/keyboard.mjs` counts spins for a scripted key driver (7 with aids, 861 without).
+
+```bash
+cd grand-prix
+python tools/export.py ../../mjx-rl-experiments <params> model   # needs a JAX/Brax venv; weights, tracks, reference laps
+node tools/parity.mjs        # JS vs JAX on all 22: must print PASS after any sim.js / plant change
+node tools/eval.mjs --laps 3 # lap times, top speed, crashes in JS
+node tools/keyboard.mjs      # scripted keyboard driver, aids on/off
+```
+
+Training on Nitro (code in `~/play/grand-prix`, outputs `/mnt/c/w/grand_prix/<run>`, `base.params` = repo policy): `python training/speed_profile.py --scale 0.9` (slow, pure Python) → `teacher_job.sh` (gain search) → `dagger_job.sh`. Shipped: `dagger4/dagger_round_15` (sha256 7550fe08...).
