@@ -17,6 +17,6 @@
    "out": 4
   }
  ],
- "checkpoint": "es1_best.params",
- "sha256": "8a22424ca92449dc55b15f949755378b0f5acec3a3ccd806b5bc1abe50cc0d78"
+ "checkpoint": "es2_gen_0450.params",
+ "sha256": "ee01ee8b82dd2a8288a36ccc3e40fd862104baefe8a6d3c31468ed2e4053bc66"
 }

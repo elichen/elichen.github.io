@@ -31,6 +31,7 @@ parser.add_argument("out")
 parser.add_argument("--generations", type=int, default=300)
 parser.add_argument("--pairs", type=int, default=64)
 parser.add_argument("--sigma", type=float, default=0.002)
+parser.add_argument("--sigma-end", type=float, default=None, help="shrink sigma geometrically to this by the last generation")
 parser.add_argument("--lr", type=float, default=5e-4)
 parser.add_argument("--steps", type=int, default=6000)  # 120 s; the slowest lap is ~113 s
 args = parser.parse_args()
@@ -119,17 +120,18 @@ log = []
 for gen in range(args.generations):
     t0 = time.time()
     key, k = jax.random.split(key)
+    sigma = args.sigma if args.sigma_end is None else args.sigma * (args.sigma_end / args.sigma) ** (gen / max(args.generations - 1, 1))
     eps = jax.random.normal(k, (args.pairs, flat.size))
-    cands = jnp.concatenate([flat + args.sigma * eps, flat - args.sigma * eps])
+    cands = jnp.concatenate([flat + sigma * eps, flat - sigma * eps])
     lap, done = laps_many(cands)
     f = centered_ranks(score(lap, done))
-    grad = -(f[:args.pairs] - f[args.pairs:]) @ eps / (2 * args.pairs * args.sigma)  # ascent -> minimize
+    grad = -(f[:args.pairs] - f[args.pairs:]) @ eps / (2 * args.pairs * sigma)  # ascent -> minimize
     updates, ostate = opt.update(grad, ostate, flat)
     flat = optax.apply_updates(flat, updates)
     c_lap, _ = jax.device_get(laps_one(flat))
     finished = int((c_lap > 0).sum())
     total = float(c_lap.sum()) if finished == len(STARTS) else None
-    row = {"gen": gen, "s": round(time.time() - t0, 1), "finished": finished,
+    row = {"gen": gen, "s": round(time.time() - t0, 1), "sigma": round(float(sigma), 5), "finished": finished,
            "rolling": float(c_lap[:T].sum()) if (c_lap[:T] > 0).all() else None,
            "total": total, "pop_finished": float((np.asarray(lap) > 0).mean())}
     if total is not None and total < best:
