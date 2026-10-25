@@ -1,0 +1,268 @@
+{
+ "games": [
+  {
+   "id": "space_invaders",
+   "title": "Space Invaders",
+   "human": 1668.7,
+   "random": 148.0,
+   "paper": {
+    "mean": 944,
+    "min": 435,
+    "max": 1497
+   },
+   "snapshots": [
+    {
+     "step": 10000,
+     "eval": 163,
+     "evalGames": 20
+    },
+    {
+     "step": 20000,
+     "eval": 314,
+     "evalGames": 20
+    },
+    {
+     "step": 30000,
+     "eval": 384,
+     "evalGames": 20
+    },
+    {
+     "step": 40000,
+     "eval": 222,
+     "evalGames": 20
+    },
+    {
+     "step": 50000,
+     "eval": 670,
+     "evalGames": 20
+    },
+    {
+     "step": 60000,
+     "eval": 713,
+     "evalGames": 20
+    },
+    {
+     "step": 70000,
+     "eval": 1020,
+     "evalGames": 20
+    },
+    {
+     "step": 80000,
+     "eval": 680,
+     "evalGames": 20
+    },
+    {
+     "step": 90000,
+     "eval": 781,
+     "evalGames": 20
+    },
+    {
+     "step": 100000,
+     "eval": 734,
+     "evalGames": 20
+    }
+   ],
+   "final": {
+    "score": 841.95
+   }
+  },
+  {
+   "id": "ms_pacman",
+   "title": "Ms. Pac-Man",
+   "human": 6951.6,
+   "random": 307.3,
+   "paper": {
+    "mean": 2218,
+    "min": 1640,
+    "max": 4829
+   },
+   "snapshots": [
+    {
+     "step": 10000,
+     "eval": 1070,
+     "evalGames": 20
+    },
+    {
+     "step": 20000,
+     "eval": 754,
+     "evalGames": 20
+    },
+    {
+     "step": 30000,
+     "eval": 1048,
+     "evalGames": 20
+    },
+    {
+     "step": 40000,
+     "eval": 1232,
+     "evalGames": 20
+    },
+    {
+     "step": 50000,
+     "eval": 950,
+     "evalGames": 20
+    },
+    {
+     "step": 60000,
+     "eval": 1883,
+     "evalGames": 20
+    },
+    {
+     "step": 70000,
+     "eval": 1362,
+     "evalGames": 20
+    },
+    {
+     "step": 80000,
+     "eval": 1730,
+     "evalGames": 20
+    },
+    {
+     "step": 90000,
+     "eval": 1810,
+     "evalGames": 20
+    },
+    {
+     "step": 100000,
+     "eval": 1273,
+     "evalGames": 20
+    }
+   ],
+   "final": {
+    "score": 1257.7
+   }
+  },
+  {
+   "id": "qbert",
+   "title": "Q*bert",
+   "human": 13455,
+   "random": 163.9,
+   "paper": {
+    "mean": 3245,
+    "min": 451,
+    "max": 4719
+   },
+   "snapshots": [
+    {
+     "step": 10000,
+     "eval": 425,
+     "evalGames": 20
+    },
+    {
+     "step": 20000,
+     "eval": 1304,
+     "evalGames": 20
+    },
+    {
+     "step": 30000,
+     "eval": 824,
+     "evalGames": 20
+    },
+    {
+     "step": 40000,
+     "eval": 882,
+     "evalGames": 20
+    },
+    {
+     "step": 50000,
+     "eval": 860,
+     "evalGames": 20
+    },
+    {
+     "step": 60000,
+     "eval": 825,
+     "evalGames": 20
+    },
+    {
+     "step": 70000,
+     "eval": 750,
+     "evalGames": 20
+    },
+    {
+     "step": 80000,
+     "eval": 1076,
+     "evalGames": 20
+    },
+    {
+     "step": 90000,
+     "eval": 831,
+     "evalGames": 20
+    },
+    {
+     "step": 100000,
+     "eval": 4732,
+     "evalGames": 20
+    }
+   ],
+   "final": {
+    "score": 4710.75
+   }
+  },
+  {
+   "id": "kung_fu_master",
+   "title": "Kung-Fu Master",
+   "human": 22736.3,
+   "random": 258.5,
+   "paper": {
+    "mean": 16617,
+    "min": 10532,
+    "max": 26806
+   },
+   "snapshots": [
+    {
+     "step": 10000,
+     "eval": 110,
+     "evalGames": 20
+    },
+    {
+     "step": 20000,
+     "eval": 1485,
+     "evalGames": 20
+    },
+    {
+     "step": 30000,
+     "eval": 3815,
+     "evalGames": 20
+    },
+    {
+     "step": 40000,
+     "eval": 6515,
+     "evalGames": 20
+    },
+    {
+     "step": 50000,
+     "eval": 7990,
+     "evalGames": 20
+    },
+    {
+     "step": 60000,
+     "eval": 12935,
+     "evalGames": 20
+    },
+    {
+     "step": 70000,
+     "eval": 8725,
+     "evalGames": 20
+    },
+    {
+     "step": 80000,
+     "eval": 8910,
+     "evalGames": 20
+    },
+    {
+     "step": 90000,
+     "eval": 10955,
+     "evalGames": 20
+    },
+    {
+     "step": 100000,
+     "eval": 10640,
+     "evalGames": 20
+    }
+   ],
+   "final": {
+    "score": 14770.0
+   }
+  }
+ ]
+}

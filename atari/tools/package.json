@@ -1,0 +1,1 @@
+{"private":true,"type":"module","dependencies":{"@farama/ale-wasm":"^0.12.0","@tensorflow/tfjs":"^4.22.0"}}

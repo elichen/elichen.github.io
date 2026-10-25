@@ -253,3 +253,22 @@ node tools/keyboard.mjs      # scripted keyboard driver, aids on/off
 ```
 
 Training on Nitro (code in `~/play/grand-prix`, outputs `/mnt/c/w/grand_prix/<run>`, `base.params` = repo policy): `python training/speed_profile.py --scale 0.9` (slow, pure Python) → `teacher_job.sh` (gain search) → `dagger_job.sh` → `es_job.sh`.
+
+## Two Hours of Atari (`/atari/`)
+
+BBF (Schwarzer et al. 2023, `configs/BBF.gin`: replay ratio 64 = 2 updates per move) trained on Atari 100k (100,000 moves = 1 h 51 min of play, about the 2 hours of practice behind DQN's human scores) for Space Invaders, Ms. Pac-Man, Q*bert and Kung-Fu Master, one seed each. The page is an arcade cabinet: the wasm ALE (`@farama/ale-wasm` 0.12.0 in `vendor/`, with its ROMs) plays each game with the policy at any 10k-move snapshot (practice lever); the article is in the Menu dialog, in Simplified Technical English.
+
+- `game.js` (ALE + Dopamine's preprocessing: frame skip 4, max-pool, INTER_AREA 84×84 in `preprocess.js`, 4-frame stack, life loss clears the stack, 0-29 no-ops), `policy.js` (BBF's network in tfjs from int8 dense / f16 conv weights), `app.js` (page, curve, sound, `atari.evaluate(n, seed)`).
+- Weights live on Hugging Face (`eli-aifund/bbf-atari100k-tfjs`, pinned to a commit in `MODEL` in `app.js`; re-pin after each `hf upload`), not on Pages; `model/` is gitignored. int4 lost 1.5-4k points late in training, so it is int8.
+- `data/manifest.json`: per game the paper's 14-seed RR2 numbers, human/random, our run's final (BBF's own 100-game evaluation), and each snapshot's score over 20 games (`eval_ref.py` on Nitro's CPU). The page opens each game on its best-scoring snapshot.
+- Sound: ALE's SDL audio through WebAudio. SDL asks for a 64-sample ScriptProcessor (browsers need ≥ 256) and ~3% of slices come back as garbage, so `app.js` shims `createScriptProcessor`. SDL opens audio once per wasm module, so each game on screen gets a new module (~6 ms); dispose the old `Game` first. Sound does not change emulation.
+
+```bash
+cd atari/tools && npm install
+node parity.mjs            # wasm ALE vs native ale-py (parity_ref.py): every frame's screen, RAM, reward, lives
+node game_check.mjs        # game.js vs Dopamine's AtariPreprocessing (game_ref.py)
+node resize_check.mjs      # preprocess.js vs cv2 INTER_AREA (test data from resize_ref.py, gitignored)
+node policy_check.mjs ../model/<game>/<step>   # tfjs vs JAX on the exported weights: must print PASS
+```
+
+Training on Nitro (BBF checkout + shims in `~/play/bbf/work`, venv `~/play/bbf/.venv`, outputs `/mnt/c/w/bbf/<run>`): add `<run> <Game> <seed> 100000` to `~/play/bbf/queue.txt` and start `job2.sh` with `C:\w\gns\launch.ps1 -Job ../bbf/job2.sh -TaskName BBF`. One run at a time (two at once run ~4x slower each); ~6 h per game on the RTX 5050. `tools/follow.sh` fetches snapshots as they appear (`fetch.sh` exports on Nitro, then copies), `evals.sh`/`evalq.sh` score them on Nitro. Results: Space Invaders 842 (paper 944, 435-1,497), Ms. Pac-Man 1,258 (below all 14 paper seeds: 1,640-4,829), Q*bert 4,711 (451-4,719), Kung-Fu Master 14,770 (10,532-26,806).
