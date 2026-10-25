@@ -34,7 +34,7 @@ const ACTION_NAMES = ['NOOP', 'FIRE', 'UP', 'RIGHT', 'LEFT', 'DOWN', 'UPRIGHT', 
   'UPFIRE', 'RIGHTFIRE', 'LEFTFIRE', 'DOWNFIRE', 'UPRIGHTFIRE', 'UPLEFTFIRE', 'DOWNRIGHTFIRE', 'DOWNLEFTFIRE'];
 const ARROWS = { UP: '↑', DOWN: '↓', LEFT: '←', RIGHT: '→', UPRIGHT: '↗', UPLEFT: '↖', DOWNRIGHT: '↘', DOWNLEFT: '↙' };
 // Weights live on Hugging Face, pinned to a commit (model/ is the local copy, not on Pages).
-const MODEL = 'https://huggingface.co/eli-aifund/bbf-atari100k-tfjs/resolve/6bfc00ab3fda2a999e9a6794f7955e1814b00595/';
+const MODEL = 'https://huggingface.co/eli-aifund/bbf-atari100k-tfjs/resolve/5efff679fb754c5469034350f26f9b32b06945bb/';
 const MOVES_PER_MINUTE = 60 * 60 / 4;  // 4 frames per move at 60 frames a second
 
 const $ = id => document.getElementById(id);

@@ -79,57 +79,57 @@
    "snapshots": [
     {
      "step": 10000,
-     "eval": 1070,
+     "eval": 829,
      "evalGames": 20
     },
     {
      "step": 20000,
-     "eval": 754,
+     "eval": 1423,
      "evalGames": 20
     },
     {
      "step": 30000,
-     "eval": 1048,
+     "eval": 824,
      "evalGames": 20
     },
     {
      "step": 40000,
-     "eval": 1232,
+     "eval": 900,
      "evalGames": 20
     },
     {
      "step": 50000,
-     "eval": 950,
+     "eval": 1521,
      "evalGames": 20
     },
     {
      "step": 60000,
-     "eval": 1883,
+     "eval": 1197,
      "evalGames": 20
     },
     {
      "step": 70000,
-     "eval": 1362,
+     "eval": 1692,
      "evalGames": 20
     },
     {
      "step": 80000,
-     "eval": 1730,
+     "eval": 1979,
      "evalGames": 20
     },
     {
      "step": 90000,
-     "eval": 1810,
+     "eval": 1300,
      "evalGames": 20
     },
     {
      "step": 100000,
-     "eval": 1273,
+     "eval": 1984,
      "evalGames": 20
     }
    ],
    "final": {
-    "score": 1257.7
+    "score": 2053.3
    }
   },
   {
