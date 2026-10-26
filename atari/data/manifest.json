@@ -79,57 +79,88 @@
    "snapshots": [
     {
      "step": 10000,
-     "eval": 829,
+     "eval": 1852,
      "evalGames": 20
     },
     {
      "step": 20000,
-     "eval": 1423,
+     "eval": 1070,
      "evalGames": 20
     },
     {
      "step": 30000,
-     "eval": 824,
+     "eval": 1846,
      "evalGames": 20
     },
     {
      "step": 40000,
-     "eval": 900,
+     "eval": 860,
      "evalGames": 20
     },
     {
      "step": 50000,
-     "eval": 1521,
+     "eval": 752,
      "evalGames": 20
     },
     {
      "step": 60000,
-     "eval": 1197,
+     "eval": 1646,
      "evalGames": 20
     },
     {
      "step": 70000,
-     "eval": 1692,
+     "eval": 1802,
      "evalGames": 20
     },
     {
      "step": 80000,
-     "eval": 1979,
+     "eval": 1833,
      "evalGames": 20
     },
     {
      "step": 90000,
-     "eval": 1300,
+     "eval": 1318,
      "evalGames": 20
     },
     {
      "step": 100000,
-     "eval": 1984,
+     "eval": 2000,
+     "evalGames": 20
+    },
+    {
+     "step": 150000,
+     "eval": 1620,
+     "evalGames": 20
+    },
+    {
+     "step": 200000,
+     "eval": 2081,
+     "evalGames": 20
+    },
+    {
+     "step": 250000,
+     "eval": 2568,
+     "evalGames": 20
+    },
+    {
+     "step": 300000,
+     "eval": 1950,
+     "evalGames": 20
+    },
+    {
+     "step": 350000,
+     "eval": 2345,
+     "evalGames": 20
+    },
+    {
+     "step": 400000,
+     "eval": 2682,
      "evalGames": 20
     }
    ],
    "final": {
-    "score": 2053.3
+    "score": 2000,
+    "games": 20
    }
   },
   {

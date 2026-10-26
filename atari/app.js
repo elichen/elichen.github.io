@@ -34,7 +34,7 @@ const ACTION_NAMES = ['NOOP', 'FIRE', 'UP', 'RIGHT', 'LEFT', 'DOWN', 'UPRIGHT', 
   'UPFIRE', 'RIGHTFIRE', 'LEFTFIRE', 'DOWNFIRE', 'UPRIGHTFIRE', 'UPLEFTFIRE', 'DOWNRIGHTFIRE', 'DOWNLEFTFIRE'];
 const ARROWS = { UP: '↑', DOWN: '↓', LEFT: '←', RIGHT: '→', UPRIGHT: '↗', UPLEFT: '↖', DOWNRIGHT: '↘', DOWNLEFT: '↙' };
 // Weights live on Hugging Face, pinned to a commit (model/ is the local copy, not on Pages).
-const MODEL = 'https://huggingface.co/eli-aifund/bbf-atari100k-tfjs/resolve/5efff679fb754c5469034350f26f9b32b06945bb/';
+const MODEL = 'https://huggingface.co/eli-aifund/bbf-atari100k-tfjs/resolve/8576883fcc0f7b277c9470c603d94beb527642eb/';
 const MOVES_PER_MINUTE = 60 * 60 / 4;  // 4 frames per move at 60 frames a second
 
 const $ = id => document.getElementById(id);
@@ -160,11 +160,15 @@ function drawCurve() {
   const e = app.entry, svg = $('curve'), sel = +$('practice').value;
   const pts = [{ step: 0, eval: e.random }, ...e.snapshots].filter(s => s.eval != null);
   const W = 520, H = 110, L = 40, B = 18, T = 6;
-  const xmax = 100000, ymax = Math.max(e.human, ...pts.map(p => p.eval)) * 1.1;
+  const xmax = Math.max(100000, ...e.snapshots.map(s => s.step)), ymax = Math.max(e.human, ...pts.map(p => p.eval)) * 1.1;
   const x = s => L + (W - L - 4) * s / xmax, y = v => T + (H - B - T) * (1 - v / ymax);
   const k = v => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`;
   let h = `<line class="axis" x1="${L}" y1="${H - B}" x2="${W - 4}" y2="${H - B}"/>`;
-  for (const m of [0, 30, 60, 90]) h += `<text x="${x(m * MOVES_PER_MINUTE)}" y="${H - 4}" text-anchor="middle">${m ? `${m} min` : '0'}</text>`;
+  const ticks = xmax > 100000 ? [0, 60, 120, 180, 240, 300, 360, 420] : [0, 30, 60, 90];
+  for (const m of ticks) h += `<text x="${x(m * MOVES_PER_MINUTE)}" y="${H - 4}" text-anchor="middle">${!m ? '0' : xmax > 100000 ? `${m / 60} h` : `${m} min`}</text>`;
+  // a run with more practice than Atari 100k: mark where the tester's practice ends
+  if (xmax > 100000) h += `<line class="human" x1="${x(100000)}" x2="${x(100000)}" y1="${T}" y2="${H - B}"/>`
+    + `<text x="${x(100000) + 4}" y="${y(ymax * 0.62)}">end of the</text><text x="${x(100000) + 4}" y="${y(ymax * 0.62) + 13}">tester's practice</text>`;
   h += `<line class="human" x1="${L}" x2="${W - 4}" y1="${y(e.human)}" y2="${y(e.human)}"/>`;
   h += `<text x="${W - 4}" y="${y(e.human) - 4}" text-anchor="end">human tester, ${Math.round(e.human).toLocaleString()}</text>`;
   for (const v of [0, ymax / 2]) h += `<text x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${k(Math.round(v / 1000) * 1000)}</text>`;
@@ -316,12 +320,13 @@ app.evaluate = async (n = 10, seed = 1000) => {
 function renderResults() {
   const n = v => Math.round(v).toLocaleString();
   const rows = app.manifest.games.map(g => `<tr><td>${g.title}</td>
-      ${g.final ? `<td class="ours">${n(g.final.score)}</td>` : '<td class="dim">training</td>'}
+      ${g.final ? `<td class="ours">${n(g.final.score)}${g.final.games ? `*` : ''}</td>` : '<td class="dim">training</td>'}
       <td>${n(g.paper.mean)} <span class="dim">(${n(g.paper.min)}–${n(g.paper.max)})</span></td>
       <td>${n(g.human)}</td><td>${n(g.random)}</td></tr>`).join('');
   $('results-table').innerHTML = `<table class="results"><thead><tr><th>Game</th><th>Our run<br>1 seed</th>
     <th>Paper, 14 seeds<br>mean (range)</th><th>Human</th><th>Random</th></tr></thead><tbody>${rows}</tbody></table>
-    <p>Each score is the average of 100 games after 100,000 moves of practice. The paper's scores are for BBF with two updates per move, the same setting as our run.</p>`;
+    <p>Each score is the average of 100 games after 100,000 moves of practice. The paper's scores are for BBF with two updates per move, the same setting as our run.</p>
+    <p>* Our Ms. Pac-Man run continued to 400,000 moves, or 7 hours and 24 minutes of game time. Its score after 100,000 moves is the average of 20 games. After 400,000 moves, it scored 2,527 in 100 games. Two other runs that stopped at 100,000 moves scored 1,258 and 2,053. Thus the difference between two runs can be as large as the gain from four times the practice.</p>`;
 }
 
 // ---------- Sound: on by default; browsers start audio only after a click or tap ----------
