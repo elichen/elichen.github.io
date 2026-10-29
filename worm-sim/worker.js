@@ -77,14 +77,15 @@ function restartClock() {
 
 function post() {
   const nv = w.n_vertices();
-  const x = new Float32Array(new Float64Array(mem(), w.positions(), nv * 3));
+  const p = w.positions();
+  const x = new Float32Array(new Float64Array(mem(), p, nv * 3));
   const muscle = new Float32Array(shown.muscle);
   const { motor, soma, nodes } = shown;
   const now = performance.now();
   const wall = (now - lastPost) / 1000;
   postMessage(
     {
-      type: 'state', x, muscle, motor, soma, nodes,
+      type: 'state', epoch, x, muscle, motor, soma, nodes,
       stimulus: shown.stimulus, time: simTime, steps: stepsSincePost,
       // how much body time one wall second buys at full speed (body side)
       capacity: stepsSincePost ? (stepsSincePost * CONTROL_DT) / (busyMs / 1000) : 0,
@@ -107,8 +108,6 @@ function loop() {
     // while the brain has nothing ready (starting up after a restart) the clock waits
     if (!frames.length) (wallStart = t0), (simStart = simTime);
     const due = simStart + ((t0 - wallStart) / 1000) * speed;
-    // never fall further behind than a few steps: a slow machine runs slower than real time
-    if (due - simTime > 4 * CONTROL_DT) (simTime = due - 4 * CONTROL_DT), (simStart = simTime), (wallStart = t0);
     let used = 0;
     while (frames.length && simTime + CONTROL_DT <= due + 1e-9 && performance.now() - t0 < 40) {
       const f = frames.shift();
@@ -121,6 +120,9 @@ function loop() {
       shown = f;
       used++;
     }
+    // never fall further behind than a few steps: a slow machine runs slower than real time
+    // (the clock starts again from where the body is; it never skips body time)
+    if (due - simTime > 4 * CONTROL_DT) (simStart = simTime), (wallStart = performance.now() - (4 * CONTROL_DT * 1000) / speed);
     if (used) brain.postMessage({ type: 'credit', n: used });
     busyMs += performance.now() - t0;
     if (stepsSincePost && shown) post();
@@ -133,7 +135,7 @@ onmessage = (e) => {
   if (m.type === 'gain') brain.postMessage(m);
   if (!w) return;
   if (m.type === 'reset') {
-    epoch++;
+    epoch = m.epoch;
     frames.length = 0;
     w.reset();
     brain.postMessage({ type: 'reset', epoch });

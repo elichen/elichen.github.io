@@ -7,6 +7,8 @@ let w = null;
 let credit = AHEAD;
 let epoch = 0;
 const mem = () => w.memory.buffer;
+// views take the buffer after the export has returned its pointer (an export may grow memory)
+const f64 = (p, n) => new Float64Array(mem(), p, n);
 
 async function bytes(url) {
   const r = await fetch(url);
@@ -39,10 +41,11 @@ function loop() {
   while (credit > 0 && performance.now() - t0 < 30) {
     w.think();
     credit--;
-    const muscle = new Float64Array(new Float64Array(mem(), w.muscles(), 96));
-    const motor = new Float32Array(new Float64Array(mem(), w.motor_v(), 80));
-    const soma = new Float32Array(new Float64Array(mem(), w.soma_v(), 136));
-    const nodes = new Float32Array(mem(), w.node_v(), 24496).slice();
+    const muscle = new Float64Array(f64(w.muscles(), 96));
+    const motor = new Float32Array(f64(w.motor_v(), 80));
+    const soma = new Float32Array(f64(w.soma_v(), 136));
+    const p = w.node_v();
+    const nodes = new Float32Array(mem(), p, 24496).slice();
     postMessage({ type: 'frame', epoch, muscle, motor, soma, nodes, stimulus: w.stimulus() }, [muscle.buffer, motor.buffer, soma.buffer, nodes.buffer]);
   }
   setTimeout(loop, credit > 0 ? 0 : 4);

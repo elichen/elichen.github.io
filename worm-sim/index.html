@@ -87,7 +87,7 @@
       <label for="gap"><span>Gap junctions</span><output id="gap-out">100%</output></label>
       <input id="gap" type="range" min="0" max="100" step="5" value="100">
     </div>
-    <p class="note">The gait needs both. Take away half of the gap junctions and the worm stops swimming.</p>
+    <p class="note">The gait needs both. At half strength for the gap junctions, the worm swims at about 1/20 of its normal speed.</p>
     <div class="row">
       <button id="reset">Restart</button>
       <button id="about-open">How it works</button>
@@ -121,16 +121,16 @@
       <li>Water pushes on each of the 1,466 surface triangles with SoftCon's drag and lift.</li>
       <li>8 steps of 1/240 s for every 100 ms of brain time, as in BAAIWorm.</li>
     </ul>
-    <p>Check: given the same muscle signals, this body and BAAIWorm's own body code stay within 0.0000001 units of each other for 20 s. (The worm is 0.54 units long.)</p>
+    <p>Check: given the same muscle signals, no vertex of this body is more than 0.0000002 units from the same vertex in BAAIWorm's own body code during 20 s. (The worm is 0.63 units long.)</p>
 
     <h4>The whole loop, against the original</h4>
-    <p>BAAIWorm's own code also runs here, outside the browser: its NEURON model and its SoftCon body, built without its CUDA viewer. Started the same way, the two runs give the same muscle signals to within 0.00003 for all 20 s (the range is 0 to 0.8). The two bodies stay within 1/40 of a body length of each other for 10 s. Then the small differences in the brain grow, as they do between any two runs of a swimming body, and the paths separate.</p>
+    <p>BAAIWorm's own code also runs here, outside the browser: its NEURON model and its SoftCon body, built without its CUDA viewer. Started the same way, the two runs give the same muscle signals to within 0.0001 at every step for 20 s (the range is 0 to 0.8). For the first 10 s, no vertex of the two bodies is more than 0.02 units apart (3% of the body length). Then the small differences in the brain grow, as they do between any two runs of a swimming body, and the paths separate.</p>
 
     <h4>The input</h4>
     <p>15 sensory neurons get a current clamp. Here it plays the 2 s pattern that BAAIWorm's readout was fit on. That is the pattern of the original's own demo. In the paper, this current comes from the change in odor at the head. That closed loop also runs here. With food placed 2 units away in 10 directions, the worm ended farther from the food after 60 s in all 10 runs. BAAIWorm's own code did the same in all 10, so this page does not use the closed loop.</p>
 
     <h4>Cutting the wiring</h4>
-    <p>The sliders scale every chemical synapse or every gap junction. The paper removed them in the same way. With either set gone, the motor neurons lose their wave and the worm stops. The readout was fit to the intact circuit, so this shows the effect of the cut. It does not show how a real worm adapts.</p>
+    <p>The sliders scale the strength of every chemical synapse or every gap junction. At 0% every connection of that kind is gone, as in the paper's experiments that removed them. Weaker connections in between are this page's addition. With all chemical synapses gone, the worm no longer swims forward and drifts slowly backward. With the gap junctions at half strength, it swims at about 1/20 of its normal speed. The readout was fit to the intact circuit, so this shows the effect of the cut. It does not show how a real worm adapts.</p>
 
     <h4>What is not real</h4>
     <ul>

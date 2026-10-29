@@ -269,6 +269,7 @@ let latest = null;
 let centroid = new THREE.Vector3();
 let followed = null;
 const speedTrack = [];
+let epoch = 0; // bumped by Restart; states from an earlier run are dropped
 
 const worker = new Worker('worker.js');
 worker.onmessage = (e) => {
@@ -276,7 +277,7 @@ worker.onmessage = (e) => {
   if (m.type === 'progress') $('loading-text').textContent = m.text + '…';
   else if (m.type === 'error') $('loading-text').textContent = 'Could not start: ' + m.text;
   else if (m.type === 'ready') $('loading').classList.add('done');
-  else if (m.type === 'state') {
+  else if (m.type === 'state' && m.epoch === epoch) {
     latest = m;
     // history for the panels: the newest step stands for all steps of this batch
     for (let s = 0; s < Math.max(1, m.steps); s++) {
@@ -373,9 +374,12 @@ function sendGain() {
 $('syn').addEventListener('input', sendGain);
 $('gap').addEventListener('input', sendGain);
 $('reset').addEventListener('click', () => {
-  worker.postMessage({ type: 'reset' });
+  epoch++;
+  worker.postMessage({ type: 'reset', epoch });
   speedTrack.length = 0;
   rateTrack.length = 0;
+  motorHist.fill(-65);
+  inputHist.fill(-0.08);
   followed = null;
 });
 $('about-open').addEventListener('click', () => $('about').showModal());

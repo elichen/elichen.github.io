@@ -79,7 +79,7 @@ fn main() {
         lo = lo.min(w.stimulus);
         hi = hi.max(w.stimulus);
         if let Some(f) = dump.as_mut() {
-            writeln!(f, "{}", w.muscle.iter().map(|x| format!("{:.5}", x)).collect::<Vec<_>>().join(" ")).unwrap();
+            writeln!(f, "{}", w.muscle.iter().map(|x| format!("{:.9}", x)).collect::<Vec<_>>().join(" ")).unwrap();
         }
         let t = Instant::now();
         w.moving();

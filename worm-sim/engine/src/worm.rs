@@ -15,10 +15,13 @@ use crate::brain::Brain;
 pub const INPUT: [&str; 15] = ["AWAL", "AWAR", "AWCL", "AWCR", "ASKL", "ASKR", "ALNL", "ALNR", "PLML", "PHAL", "PHAR", "URYDL", "URYDR", "URYVL", "URYVR"];
 pub const OUTPUT: [&str; 80] = ["RIML", "RIMR", "RMEL", "RMER", "RMED", "RMEV", "RMDDL", "RMDDR", "RMDL", "RMDR", "RMDVL", "RMDVR", "RIVL", "RIVR", "SMDDL", "SMDDR", "SMDVL", "SMDVR", "SMBDL", "SMBDR", "SMBVL", "SMBVR", "DA01", "DA02", "DA03", "DA04", "DA05", "DA06", "DA07", "DA08", "DA09", "DB01", "DB02", "DB03", "DB04", "DB05", "DB06", "DB07", "DD01", "DD02", "DD03", "DD04", "DD05", "DD06", "VA01", "VA02", "VA03", "VA04", "VA05", "VA06", "VA07", "VA08", "VA09", "VA10", "VA11", "VA12", "VB01", "VB02", "VB03", "VB04", "VB05", "VB06", "VB07", "VB08", "VB09", "VB10", "VB11", "VD01", "VD02", "VD03", "VD04", "VD05", "VD06", "VD07", "VD08", "VD09", "VD10", "VD11", "VD12", "VD13"];
 
-/// The recorded input the circuit's readout was fit on (forfigure_input.txt), one 2 s cycle.
+/// The recorded input the circuit's readout was fit on, one 2 s cycle: the float32 values
+/// that `worm_in_env.py` puts on the current clamps (step k gets CYCLE[(k - 1) % 20]).
 pub const CYCLE: [f64; 20] = [
-    -0.080620, -0.074593, 0.022032, 0.022032, -0.017174, -0.055962, -0.055962, -0.045709, -0.064428, -0.072575, -0.046820, -0.034368, -0.034368, -0.029772,
-    -0.027130, -0.023020, -0.038887, -0.010831, -0.065437, -0.080620,
+    -0.08061953634023666, -0.07459264993667603, 0.02203226462006569, 0.02203226462006569, -0.01717396453022957,
+    -0.05596160143613815, -0.05596160143613815, -0.045708924531936646, -0.06442750245332718, -0.07257529348134995,
+    -0.04681995511054993, -0.034368038177490234, -0.034368038177490234, -0.02977166697382927, -0.027129650115966797,
+    -0.02301965281367302, -0.038886744529008865, -0.010831352323293686, -0.0654366984963417, -0.08061953634023666,
 ];
 
 pub const NEURAL_STEPS: usize = 60;
@@ -91,7 +94,7 @@ impl Worm {
         self.body.reset();
         self.step_count = 0;
         self.history = [0.0; HISTORY];
-        self.concentration = self.concentration_at(self.head());
+        self.concentration = self.concentration_at([0.0; 3]); // as set_food before the first step
         for m in self.muscle.iter_mut() {
             *m = 0.0;
         }
