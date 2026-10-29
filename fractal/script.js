@@ -77,6 +77,45 @@ void main() {
 }
 `;
 
+// Shared by both fractal shaders (after complexMul and the Newton root helpers).
+// z -> 2z/3 + 1/(3z^2) for z^3 = 1. Next to the pole at 0 a step lands at about 1/(3z^2), far out,
+// and then only shrinks by 2/3 per step for a long way, so that stretch is jumped over in log space
+// (it can't overflow, and costs one loop pass instead of hundreds).
+const NEWTON_GLSL = `
+vec4 newtonRootColor(int rootIndex, int steps) {
+    float normalized = min(float(steps) / float(u_maxIterations), 1.0);
+    float fade = 0.25 + (0.75 * pow(1.0 - normalized, 0.35));
+    float band = 0.9 + (0.1 * cos((18.0 * normalized) + (float(rootIndex) * 2.0943951)));
+    return vec4(getNewtonRootColor(rootIndex) * fade * band, 1.0);
+}
+
+// Advances z and returns how many Newton iterations that was, or 0 if z is too close to 0 to go on.
+int newtonAdvance(inout vec2 z) {
+    float largest = max(abs(z.x), abs(z.y));
+    if (largest < 1e-37) {
+        return 0;
+    }
+    if (largest < 1e-4) {
+        // |z|^2 can underflow here, so take log|z| from the larger component
+        float ratio = min(abs(z.x), abs(z.y)) / largest;
+        float logFar = -log(3.0) - 2.0 * (log(largest) + 0.5 * log(1.0 + ratio * ratio));
+        float shrinkSteps = max(0.0, ceil((logFar - log(1e4)) / log(1.5)));
+        float angle = -2.0 * atan(z.y, z.x);
+        z = exp(logFar - shrinkSteps * log(1.5)) * vec2(cos(angle), sin(angle));
+        return 1 + int(shrinkSteps);
+    }
+    if (largest > 1e8) {
+        // the 1/(3z^2) term is below float precision: only the 2/3 shrink is left
+        float shrinkSteps = ceil(log(largest / 1e4) / log(1.5));
+        z *= exp(-shrinkSteps * log(1.5));
+        return int(shrinkSteps);
+    }
+    vec2 inverse = vec2(z.x, -z.y) / dot(z, z);
+    z = (2.0 / 3.0) * z + (1.0 / 3.0) * complexMul(inverse, inverse);
+    return 1;
+}
+`;
+
 const simpleFragmentShaderSource = `#version 300 es
 precision highp float;
 
@@ -151,30 +190,19 @@ int getNearestNewtonRootIndex(vec2 z) {
     return bestIndex;
 }
 
-vec2 newtonStep(vec2 z) {
-    vec2 z2 = complexMul(z, z);
-    float denominator = dot(z2, z2);
-    if (denominator < 1e-12) {
-        return vec2(1e20, 1e20);
-    }
-    vec2 z3 = complexMul(z2, z);
-    return z - complexDiv(z3 - vec2(1.0, 0.0), 3.0 * z2);
-}
-
+${NEWTON_GLSL}
+// Jumps past the pole count toward the shading, not toward the iteration budget.
 vec4 newtonColor(vec2 z) {
+    int steps = 0;
     for (int i = 0; i < ${MAX_GPU_ITERATIONS}; ++i) {
         if (i >= u_maxIterations) break;
-        z = newtonStep(z);
-        if (dot(z, z) > 1e30) {
-            return vec4(0.0, 0.0, 0.0, 1.0);
-        }
+        int advanced = newtonAdvance(z);
+        if (advanced == 0) break;
+        steps += advanced;
         int rootIndex = getNearestNewtonRootIndex(z);
         float distanceSquared = dot(z - getNewtonRoot(rootIndex), z - getNewtonRoot(rootIndex));
         if (distanceSquared < 1e-12) {
-            float normalized = float(i + 1) / float(u_maxIterations);
-            float fade = 0.25 + (0.75 * pow(1.0 - normalized, 0.35));
-            float band = 0.9 + (0.1 * cos((18.0 * normalized) + (float(rootIndex) * 2.0943951)));
-            return vec4(getNewtonRootColor(rootIndex) * fade * band, 1.0);
+            return newtonRootColor(rootIndex, steps);
         }
     }
     return vec4(0.0, 0.0, 0.0, 1.0);
@@ -382,8 +410,42 @@ float juliaPerturbation(vec2 deltaPixels) {
     return 0.0;
 }
 
+${NEWTON_GLSL}
+// Plain float Newton steps from a point already 'steps' iterations in.
+vec4 newtonDirectColor(vec2 start, int steps) {
+    vec2 z = start;
+    int n = steps;
+    for (int k = 0; k < ${MAX_GPU_ITERATIONS}; ++k) {
+        int rootIndex = getNearestNewtonRootIndex(z);
+        float distanceSquared = dot(z - getNewtonRoot(rootIndex), z - getNewtonRoot(rootIndex));
+        if (distanceSquared < 1e-12) {
+            outMask = 0.0;
+            return newtonRootColor(rootIndex, n);
+        }
+        if (steps + k >= u_maxIterations) break;
+        int advanced = newtonAdvance(z);
+        if (advanced == 0) {
+            outMask = 1.0;
+            return vec4(0.0, 0.0, 0.0, 1.0);
+        }
+        n += advanced;
+    }
+    outMask = 0.0;
+    return vec4(0.0, 0.0, 0.0, 1.0);
+}
+
+// Plain float steps are only safe while neighboring pixels stay distinct in float32: their spacing,
+// about |offset| / (pixels from the reference), must be well above float32's resolution at |z|.
+// Sizes are compared by their largest component, since squaring values near 1e-19 underflows.
+bool newtonDirectResolves(vec2 offset, vec2 z, float pixelDistance) {
+    float offsetSize = max(abs(offset.x), abs(offset.y));
+    float zSize = max(abs(z.x), abs(z.y));
+    return offsetSize > 1e-6 * zSize * pixelDistance;
+}
+
 vec4 newtonPerturbationColor(vec2 deltaPixels) {
     vec2 scaledDelta = deltaPixels;
+    float pixelDistance = max(length(deltaPixels), 1.0);
 
     for (int i = 0; i < ${MAX_GPU_ITERATIONS}; ++i) {
         if (i >= u_maxIterations) break;
@@ -402,6 +464,10 @@ vec4 newtonPerturbationColor(vec2 deltaPixels) {
         vec2 shifted = reference + (u_pixelScale * scaledDelta);
         vec2 denominator = 3.0 * complexMul(referenceSquared, complexMul(shifted, shifted));
         if (dot(denominator, denominator) < 1e-18) {
+            // next to the pole at 0 the difference formula divides by almost nothing
+            if (newtonDirectResolves(u_pixelScale * scaledDelta, shifted, pixelDistance)) {
+                return newtonDirectColor(shifted, i);
+            }
             outMask = 1.0;
             return vec4(0.0, 0.0, 0.0, 1.0);
         }
@@ -410,6 +476,14 @@ vec4 newtonPerturbationColor(vec2 deltaPixels) {
             + complexMul((u_pixelScale * ((4.0 * referenceCubed) - vec2(1.0, 0.0))), scaledDeltaSquared)
             + complexMul(((2.0 * u_pixelScale) * u_pixelScale) * referenceSquared, scaledDeltaCubed);
         vec2 nextScaledDelta = complexDiv(numerator, denominator);
+        // Once the pixel has gone well away from the reference (past the pole, toward another
+        // root), float32 holds it fine on its own: finish with plain Newton steps.
+        vec2 offset = u_pixelScale * nextScaledDelta;
+        float offsetSquared = dot(offset, offset);
+        if (offsetSquared > 1e-4 && offsetSquared < 1e30
+            && newtonDirectResolves(offset, nextReference + offset, pixelDistance)) {
+            return newtonDirectColor(nextReference + offset, i + 1);
+        }
         if (any(greaterThan(abs(nextScaledDelta), vec2(1e12)))) {
             outMask = 1.0;
             return vec4(0.0, 0.0, 0.0, 1.0);
@@ -424,11 +498,8 @@ vec4 newtonPerturbationColor(vec2 deltaPixels) {
         int rootIndex = getNearestNewtonRootIndex(z);
         float distanceSquared = dot(z - getNewtonRoot(rootIndex), z - getNewtonRoot(rootIndex));
         if (distanceSquared < 1e-12) {
-            float normalized = float(i + 1) / float(u_maxIterations);
-            float fade = 0.25 + (0.75 * pow(1.0 - normalized, 0.35));
-            float band = 0.9 + (0.1 * cos((18.0 * normalized) + (float(rootIndex) * 2.0943951)));
             outMask = 0.0;
-            return vec4(getNewtonRootColor(rootIndex) * fade * band, 1.0);
+            return newtonRootColor(rootIndex, i + 1);
         }
 
         scaledDelta = nextScaledDelta;
@@ -2626,6 +2697,24 @@ function divDecimalComplex(ax, ay, bx, by) {
 }
 
 function computeNewtonStepDecimal(zr, zi) {
+    const size = (zr < 0n ? -zr : zr) > (zi < 0n ? -zi : zi) ? (zr < 0n ? -zr : zr) : (zi < 0n ? -zi : zi);
+    if (size === 0n) {
+        return null;
+    }
+    if (size < decimalScale / 1000n) {
+        // Next to the pole at 0 the usual formula divides by |3z^2|^2, which rounds to zero. Use
+        // z -> (2z + (1/z)^2) / 3 instead, with 1/z taken on z rescaled to about 1.
+        const shift = 10n ** BigInt(decimalDigits - size.toString().length);
+        const inverse = divDecimalComplex(decimalScale, 0n, zr * shift, zi * shift);
+        const inverseX = inverse.x * shift;
+        const inverseY = inverse.y * shift;
+        const inverseSquared = mulDecimalComplex(inverseX, inverseY, inverseX, inverseY);
+        return {
+            x: ((2n * zr) + inverseSquared.x) / 3n,
+            y: ((2n * zi) + inverseSquared.y) / 3n,
+        };
+    }
+
     const z2 = mulDecimalComplex(zr, zi, zr, zi);
     const z3 = mulDecimalComplex(z2.x, z2.y, zr, zi);
     const fraction = divDecimalComplex(
@@ -3404,9 +3493,29 @@ function setWorkingFramebufferDrawBuffers(writeMask = true) {
     gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
 }
 
+// A Newton reference that reached a root stays there (a root is a fixed point), so its orbit can
+// go on as the root for pixels that need more iterations; otherwise the shader runs out of orbit
+// and flags them all as glitched.
+function getUploadOrbitLength(type, reference, maxIterations) {
+    if (type !== 'newton' || !reference.escapedEarly || reference.escapeIteration === 0) {
+        return reference.orbitLength;
+    }
+
+    const length = Math.min(maxIterations + 1, MAX_ORBIT_TEXTURE_LENGTH);
+    const root = getNewtonRoots()[getNearestNewtonRootIndex(reference.exactZr, reference.exactZi)];
+    const rootX = decimalToNumber(root.x);
+    const rootY = decimalToNumber(root.y);
+    for (let index = reference.orbitLength; index < length; index += 1) {
+        reference.orbitData[index * 4] = rootX;
+        reference.orbitData[(index * 4) + 1] = rootY;
+    }
+    return Math.max(length, reference.orbitLength);
+}
+
 function renderDeepPass(type, reference, tile, writeMask = true, cameraOverride = null) {
     const camera = cameraOverride || getDeepCamera(type);
-    uploadReferenceOrbit(reference.orbitData, reference.orbitLength);
+    const orbitLength = getUploadOrbitLength(type, reference, camera.maxIterations);
+    uploadReferenceOrbit(reference.orbitData, orbitLength);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, mandelbrotWorkingFramebuffer);
     setWorkingFramebufferDrawBuffers(writeMask);
@@ -3423,7 +3532,7 @@ function renderDeepPass(type, reference, tile, writeMask = true, cameraOverride 
         deepProgramInfo.uniforms.u_deepFractalType,
         type === 'julia' ? 1 : type === 'newton' ? 2 : 0
     );
-    gl.uniform1i(deepProgramInfo.uniforms.u_referenceOrbitLength, reference.orbitLength);
+    gl.uniform1i(deepProgramInfo.uniforms.u_referenceOrbitLength, orbitLength);
     gl.uniform1i(deepProgramInfo.uniforms.u_referenceOrbit, 0);
     gl.uniform1i(deepProgramInfo.uniforms.u_maxIterations, camera.maxIterations);
 
