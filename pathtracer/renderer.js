@@ -3,6 +3,7 @@
 const FRAME_BYTES = 192;
 const VIEW_BYTES = 64;
 const NONE = 0xffffffff;
+const DENOISE_STEPS = [1, 2, 4, 8];
 
 export class Renderer {
   static async create(canvas) {
@@ -15,11 +16,11 @@ export class Renderer {
         maxBufferSize: adapter.limits.maxBufferSize,
       },
     });
-    const [trace, display] = await Promise.all(['trace.wgsl', 'display.wgsl'].map(f => fetch(f).then(r => r.text())));
-    return new Renderer(canvas, device, adapter, trace, display);
+    const [trace, display, denoise] = await Promise.all(['trace.wgsl', 'display.wgsl', 'denoise.wgsl'].map(f => fetch(f).then(r => r.text())));
+    return new Renderer(canvas, device, adapter, trace, display, denoise);
   }
 
-  constructor(canvas, device, adapter, traceCode, displayCode) {
+  constructor(canvas, device, adapter, traceCode, displayCode, denoiseCode) {
     this.canvas = canvas;
     this.device = device;
     this.adapterInfo = adapter.info || {};
@@ -29,7 +30,10 @@ export class Renderer {
 
     const traceModule = device.createShaderModule({ code: traceCode, label: 'trace' });
     const displayModule = device.createShaderModule({ code: displayCode, label: 'display' });
-    this.compileInfo = Promise.all([traceModule, displayModule].map(m => m.getCompilationInfo()));
+    const denoiseModule = device.createShaderModule({ code: denoiseCode, label: 'denoise' });
+    this.compileInfo = Promise.all([traceModule, displayModule, denoiseModule].map(m => m.getCompilationInfo()));
+    this.demodulatePipeline = device.createComputePipeline({ layout: 'auto', compute: { module: denoiseModule, entryPoint: 'demodulate' } });
+    this.atrousPipeline = device.createComputePipeline({ layout: 'auto', compute: { module: denoiseModule, entryPoint: 'atrous' } });
     this.tracePipeline = device.createComputePipeline({ layout: 'auto', compute: { module: traceModule, entryPoint: 'trace' } });
     this.pickPipeline = device.createComputePipeline({ layout: 'auto', compute: { module: traceModule, entryPoint: 'pick' } });
     this.displayPipeline = device.createRenderPipeline({
@@ -42,6 +46,8 @@ export class Renderer {
     const U = GPUBufferUsage;
     this.frameBuf = device.createBuffer({ size: FRAME_BYTES, usage: U.UNIFORM | U.COPY_DST });
     this.viewBuf = device.createBuffer({ size: VIEW_BYTES, usage: U.UNIFORM | U.COPY_DST });
+    // one uniform block per denoiser pass: demodulate, then à-trous steps of 1, 2, 4, 8 pixels
+    this.denoiseBufs = [0, ...DENOISE_STEPS].map(() => device.createBuffer({ size: 16, usage: U.UNIFORM | U.COPY_DST }));
     this.statsBuf = device.createBuffer({ size: 32, usage: U.STORAGE | U.COPY_SRC | U.COPY_DST });
     this.statsRead = device.createBuffer({ size: 32, usage: U.MAP_READ | U.COPY_DST });
     this.statsBusy = false;
@@ -94,8 +100,10 @@ export class Renderer {
   resize(width, height) {
     if (width === this.fullWidth && height === this.fullHeight) return;
     this.fullWidth = width; this.fullHeight = height;
-    this.buffers.accum?.destroy();
-    this.buffers.accum = this.device.createBuffer({ size: width * height * 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+    for (const [name, bytes] of [['accum', 32], ['denoiseA', 16], ['denoiseB', 16]]) {
+      this.buffers[name]?.destroy();
+      this.buffers[name] = this.device.createBuffer({ size: width * height * bytes, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC, label: name });
+    }
     this.bindGroups = null;
     this.setPreview(this.preview);
   }
@@ -128,9 +136,22 @@ export class Renderer {
       pick: d.createBindGroup({ layout: this.pickPipeline.getBindGroupLayout(0), entries: entries.filter(e => pickUses.has(e.binding)) }),
       display: d.createBindGroup({
         layout: this.displayPipeline.getBindGroupLayout(0),
-        entries: [{ binding: 0, resource: { buffer: this.viewBuf } }, { binding: 1, resource: { buffer: b.accum } }],
+        entries: [
+          { binding: 0, resource: { buffer: this.viewBuf } }, { binding: 1, resource: { buffer: b.accum } },
+          { binding: 2, resource: { buffer: b.denoiseA } },
+        ],
       }),
     };
+    // ping-pong so the last pass writes denoiseA, which the display reads
+    const denoiseGroup = (pipeline, k, src, dst) => d.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this.denoiseBufs[k] } }, { binding: 1, resource: { buffer: b.accum } },
+        ...(src ? [{ binding: 2, resource: { buffer: src } }] : []), { binding: 3, resource: { buffer: dst } },
+      ],
+    });
+    this.bindGroups.denoise = [denoiseGroup(this.demodulatePipeline, 0, null, b.denoiseA),
+      ...DENOISE_STEPS.map((_, k) => denoiseGroup(this.atrousPipeline, k + 1, k % 2 ? b.denoiseB : b.denoiseA, k % 2 ? b.denoiseA : b.denoiseB))];
   }
 
   writeFrame(cam, o) {
@@ -164,6 +185,7 @@ export class Renderer {
       pass.dispatchWorkgroups(Math.ceil(this.width / 8), Math.ceil(this.height / 4));
       pass.end();
     }
+    if (o.denoise > 0) this.encodeDenoise(enc, o.samples);
     const measure = o.spp > 0 && !this.statsBusy && o.measure;
     if (measure) enc.copyBufferToBuffer(this.statsBuf, 0, this.statsRead, 0, 32);
 
@@ -171,7 +193,7 @@ export class Renderer {
     v[0] = this.width; v[1] = this.height; v[2] = this.canvas.width; v[3] = this.canvas.height;
     vf[4] = o.samples; vf[5] = o.exposure; v[6] = o.mode; v[7] = o.selected ?? NONE;
     vf.set(o.accent, 8);
-    vf[12] = o.look?.[0] ?? 1; vf[13] = o.look?.[1] ?? 1;
+    vf[12] = o.look?.[0] ?? 1; vf[13] = o.look?.[1] ?? 1; vf[14] = o.denoise ?? 0;
     d.queue.writeBuffer(this.viewBuf, 0, this.viewData);
     const rp = enc.beginRenderPass({
       colorAttachments: [{ view: this.context.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }],
@@ -197,9 +219,27 @@ export class Renderer {
     return { done, rays };
   }
 
-  // For debugging from the console: the raw accumulation buffer (rgb sums, material id bits in w).
+  encodeDenoise(enc, samples) {
+    const p = new ArrayBuffer(16), u = new Uint32Array(p), f = new Float32Array(p);
+    u[0] = this.width; u[1] = this.height; f[3] = samples;
+    [0, ...DENOISE_STEPS].forEach((step, k) => { u[2] = step; this.device.queue.writeBuffer(this.denoiseBufs[k], 0, p); });
+    const pass = enc.beginComputePass();
+    const groups = [Math.ceil(this.width / 8), Math.ceil(this.height / 8)];
+    pass.setPipeline(this.demodulatePipeline);
+    pass.setBindGroup(0, this.bindGroups.denoise[0]);
+    pass.dispatchWorkgroups(...groups);
+    pass.setPipeline(this.atrousPipeline);
+    for (let k = 1; k <= DENOISE_STEPS.length; k++) {
+      pass.setBindGroup(0, this.bindGroups.denoise[k]);
+      pass.dispatchWorkgroups(...groups);
+    }
+    pass.end();
+  }
+
+  // For debugging from the console: the raw accumulation buffer, 8 floats per pixel
+  // (rgb sums, material id bits, then the denoiser's guide; see Pixel in trace.wgsl).
   async readAccum() {
-    const size = this.width * this.height * 16;
+    const size = this.width * this.height * 32;
     const read = this.device.createBuffer({ size, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
     const enc = this.device.createCommandEncoder();
     enc.copyBufferToBuffer(this.buffers.accum, 0, read, 0, size);

@@ -158,6 +158,7 @@ node pathtracer/tools/check_scenes.mjs   # builds every scene, validates buffers
 ```
 `validateScene` in `assemble.js` must keep rejecting trees where an inner child doesn't come after its parent. Keep every shader loop bounded (traversal has a 2048-step cap; real rays need < 300).
 
+- `denoise.wgsl`: edge-aware à-trous filter (normal, depth, material, brightness vs noise) on the first-hit guide that `trace.wgsl` stores next to each pixel's sum; it only shows while there are few samples (dragging) and fades out by 256. The trace pass is at WebGPU's default 8 storage buffers, which is why the guide shares the accumulation buffer.
 - Meshes: `tools/pack_mesh.py` packs Stanford PLY scans into gzipped `model/*.mesh`
 - `tools/compare.html`: benchmark against three-gpu-pathtracer (dev only, loads it from a CDN)
 - In the console, `pathtracer.run(n)` renders n frames even when the tab is in the background

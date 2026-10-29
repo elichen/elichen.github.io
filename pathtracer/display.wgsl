@@ -5,11 +5,14 @@ struct View {
   width: u32, height: u32, canvasW: u32, canvasH: u32,
   samples: f32, exposure: f32, mode: u32, selected: u32,
   accent: vec3f, pad: f32,
-  lookPower: f32, lookSaturation: f32, pad1: f32, pad2: f32,
+  lookPower: f32, lookSaturation: f32, denoise: f32, pad2: f32,
 }
 
 @group(0) @binding(0) var<uniform> V: View;
-@group(0) @binding(1) var<storage, read> accum: array<vec4f>;
+struct Pixel { sum: vec4f, guide: vec4f }    // see trace.wgsl
+
+@group(0) @binding(1) var<storage, read> accum: array<Pixel>;
+@group(0) @binding(2) var<storage, read> denoised: array<vec4f>;   // lighting divided by color
 
 const NONE = 0xffffffffu;
 
@@ -21,7 +24,18 @@ fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
 
 fn texel(p: vec2i) -> vec4f {
   let q = clamp(p, vec2i(0), vec2i(i32(V.width) - 1, i32(V.height) - 1));
-  return accum[u32(q.y) * V.width + u32(q.x)];
+  return accum[u32(q.y) * V.width + u32(q.x)].sum;
+}
+
+// the pixel's average so far, blended toward the denoised image while there are few samples
+fn color(p: vec2i) -> vec3f {
+  let q = clamp(p, vec2i(0), vec2i(i32(V.width) - 1, i32(V.height) - 1));
+  let i = u32(q.y) * V.width + u32(q.x);
+  let c = accum[i].sum.xyz / max(V.samples, 1.0);
+  let g = accum[i].guide;
+  if (V.denoise <= 0.0 || g.y < 0.0) { return c; }
+  let a = max(unpack4x8unorm(bitcast<u32>(g.z)).xyz, vec3f(0.01));
+  return mix(c, denoised[i].xyz * a, V.denoise);
 }
 
 // AgX base look, polynomial fit by Benjamin Wrensch (iolite)
@@ -61,9 +75,9 @@ fn fs(@builtin(position) pos: vec4f) -> @location(0) vec4f {
   let rp = pos.xy * vec2f(f32(V.width), f32(V.height)) / vec2f(f32(V.canvasW), f32(V.canvasH)) - 0.5;
   let i0 = vec2i(floor(rp));
   let f = rp - floor(rp);
-  let top = mix(texel(i0).xyz, texel(i0 + vec2i(1, 0)).xyz, f.x);
-  let bottom = mix(texel(i0 + vec2i(0, 1)).xyz, texel(i0 + vec2i(1, 1)).xyz, f.x);
-  var c = mix(top, bottom, f.y) / max(V.samples, 1.0);
+  let top = mix(color(i0), color(i0 + vec2i(1, 0)), f.x);
+  let bottom = mix(color(i0 + vec2i(0, 1)), color(i0 + vec2i(1, 1)), f.x);
+  var c = mix(top, bottom, f.y);
   if (V.mode == 0u) { c = agx(c * V.exposure); }    // the X-ray view is already display-ready
   if (V.selected != NONE) {
     let p = vec2i(round(rp));

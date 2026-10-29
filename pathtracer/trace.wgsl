@@ -16,6 +16,11 @@ struct Frame {
   groundIrradiance: vec3f, pad3: f32,
 }
 
+// per pixel: rgb sum of samples + material id bits, and the first hit for the denoiser
+// (facing normal as octahedral snorm16x2 bits, view depth or -1 for sky, color + blur as unorm8x4 bits,
+// depth-of-field blur radius in pixels)
+struct Pixel { sum: vec4f, guide: vec4f }
+
 struct Instance {
   r0: vec4f, r1: vec4f, r2: vec4f,     // world -> object affine rows
   bmin: vec3f, root: u32,
@@ -39,7 +44,7 @@ struct Material {
 @group(0) @binding(6) var<storage, read> envCdf: array<f32>;
 @group(0) @binding(7) var envTex: texture_2d<f32>;
 @group(0) @binding(8) var envSamp: sampler;
-@group(0) @binding(9) var<storage, read_write> accum: array<vec4f>;
+@group(0) @binding(9) var<storage, read_write> accum: array<Pixel>;
 @group(0) @binding(10) var<storage, read_write> stats: array<atomic<u32>, 8>;
 
 const PI = 3.14159265359;
@@ -55,6 +60,7 @@ var<private> rng: u32;
 var<private> visits: u32;
 var<private> rays: u32;
 var<private> primaryMat: u32;
+var<private> primaryGuide: vec4f;
 
 fn hash(v: u32) -> u32 {
   let s = v * 747796405u + 2891336453u;
@@ -216,6 +222,12 @@ fn octDecode(packed: u32) -> vec3f {
   n.x += select(t, -t, n.x >= 0.0);
   n.y += select(t, -t, n.y >= 0.0);
   return normalize(n);
+}
+
+fn octEncode(n: vec3f) -> u32 {
+  var e = n.xy / (abs(n.x) + abs(n.y) + abs(n.z));
+  if (n.z < 0.0) { e = (1.0 - abs(e.yx)) * select(vec2f(-1.0), vec2f(1.0), e >= vec2f(0.0)); }
+  return pack2x16snorm(e);
 }
 
 fn normalToWorld(I: Instance, n: vec3f) -> vec3f {
@@ -562,6 +574,17 @@ fn radiance(ro0: vec3f, rd0: vec3f) -> vec3f {
     let ng = select(-s.ng, s.ng, front);       // both normals on the side the ray came from
     var ns = select(-s.ns, s.ns, front);
     if (dot(ns, wo) <= 1e-4) { ns = ng; }
+    if (events == 1u) {
+      // what the denoiser needs to know about the pixel: facing normal, depth, color, and
+      // how much it may be blurred (sharp reflections and refractions hardly at all)
+      let mirror = M.metallic > 0.5 || (M.transmission > 0.5 && M.scatter <= 0.0);
+      let blur = select(1.0, clamp(M.roughness * 5.0, 0.0, 1.0), mirror);
+      let z = dot(s.p - F.camPos, F.camFwd);
+      let coc = F.lensRadius * abs(z - F.focusDist) / z * f32(F.height) / (2.0 * F.focusDist * F.tanHalfFov);
+      // well out of focus the pixel averages many surfaces, so this one's color would be wrong to divide by
+      let color = mix(M.color, vec3f(1.0), clamp((coc - 1.0) / 2.0, 0.0, 1.0));
+      primaryGuide = vec4f(bitcast<f32>(octEncode(ns)), z, bitcast<f32>(pack4x8unorm(vec4f(color, blur))), coc);
+    }
 
     if (M.transmission > 0.5 && M.scatter > 0.0 && !front) {
       // Leaving a scattering medium: treat the exit as diffuse transmission, as random-walk
@@ -695,23 +718,25 @@ fn trace(@builtin(global_invocation_id) gid: vec3u, @builtin(local_invocation_in
     rng = hash(idx ^ hash(F.frame * 0x9e3779b9u));
     var sum = vec3f(0.0);
     var id = NONE;
+    var g = vec4f(0.0, -1.0, 0.0, 0.0);
     for (var s = 0u; s < F.spp; s++) {
       // the first sample of a fresh image records which material the pixel shows,
       // for the selection outline
       let first = s == 0u && F.accumulate == 0u;
       let r = cameraRay(vec2f(gid.xy) + vec2f(rand(), rand()), true);
       primaryMat = NONE;
+      primaryGuide = vec4f(0.0, -1.0, 0.0, 0.0);      // sky
       var c: vec3f;
       if (F.mode == 0u) { c = radiance(r.o, r.d); } else { c = xray(r.o, r.d); }
-      if (first) { id = primaryMat; }
+      if (first) { id = primaryMat; g = primaryGuide; }
       let bits = bitcast<vec3u>(c) & vec3u(0x7f800000u);
       if (!any(bits == vec3u(0x7f800000u))) { sum += c; }    // drop NaN and infinite samples
     }
     if (F.accumulate == 0u) {
-      accum[idx] = vec4f(sum, bitcast<f32>(id));
+      accum[idx] = Pixel(vec4f(sum, bitcast<f32>(id)), g);
     } else {
-      let prev = accum[idx];
-      accum[idx] = vec4f(prev.xyz + sum, prev.w);
+      let prev = accum[idx].sum;
+      accum[idx].sum = vec4f(prev.xyz + sum, prev.w);
     }
   }
   atomicAdd(&groupRays, rays);

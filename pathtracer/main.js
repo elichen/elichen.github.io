@@ -8,6 +8,7 @@ const NONE = 0xffffffff;
 const MAX_SAMPLES = 16384;
 const TARGET_MS = 22;            // GPU time per frame while converging
 const MOVING_MS = 14;            // and while the camera moves
+const DENOISE_UNTIL = 256;       // samples per pixel by which the denoiser has faded out
 const STALL_MS = 1000;           // a frame this slow pauses rendering rather than risk starving the display
 const MAX_BOUNCES = 12;
 const CLAMP = 40;                // firefly clamp on indirect light
@@ -191,7 +192,7 @@ function tick() {
   if (measure) state.measureAt = now;
   const opts = {
     ...renderOptions(), spp, seed: state.seed++, accumulate: state.samples > 0,
-    samples: state.samples + spp, exposure: state.exposure, selected: state.selected,
+    samples: state.samples + spp, exposure: state.exposure, denoise: denoiseAmount(state.samples + spp), selected: state.selected,
     accent: SELECT_COLOR, measure, look: LOOK,
   };
   state.inFlight = true;
@@ -213,6 +214,12 @@ function tick() {
     if (rays) rays.then(n => { state.mrays = n / ms / 1000; });
     updateStats();
   });
+}
+
+// Blur while the image is still mostly noise, then hand over to plain averaging.
+function denoiseAmount(samples) {
+  if (state.xray || state.denoise === false) return 0;
+  return Math.max(0, 1 - Math.sqrt(samples / DENOISE_UNTIL));
 }
 
 function updateStats() {
