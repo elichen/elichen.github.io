@@ -1,5 +1,5 @@
 // Runs the wasm engine in Node: speed of the brain and body halves of a control step.
-// usage: node tools/bench.mjs [seconds of body time]
+// usage: node tools/bench.mjs [seconds of body time] [agar]  (agar: crawling and food seeking, 100 ms of body per step)
 import { readFileSync } from 'node:fs';
 const dir = new URL('..', import.meta.url).pathname;
 const bytes = (f) => readFileSync(dir + f);
@@ -21,8 +21,11 @@ let t = performance.now();
 w.warm_up(20);
 console.log('warm-up 2 s of brain:', ((performance.now() - t) / 1000).toFixed(2), 's');
 const secs = Number(process.argv[2] || 5);
+const agar = process.argv[3] === 'agar';
+if (agar) w.agar_on(3, -4, 1);
+const perSec = agar ? 10 : 30;
 let tb = 0, tn = 0;
-for (let k = 0; k < secs * 30; k++) {
+for (let k = 0; k < secs * perSec; k++) {
   let a = performance.now(); w.think(); tn += performance.now() - a;
   a = performance.now(); w.moving(); tb += performance.now() - a;
 }

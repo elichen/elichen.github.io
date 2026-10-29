@@ -2,11 +2,17 @@
 //! brain.bin / body.bin / the readout into buffers from `alloc`, calls `init`,
 //! then reads state straight out of linear memory through the pointer getters.
 #![allow(static_mut_refs, clippy::missing_safety_doc)]
-use crate::{body::Body, brain::Brain, worm::Worm};
+use crate::{
+    behavior::{Mode, Params, Seek, GAIT_TRIM},
+    body::Body,
+    brain::Brain,
+    worm::Worm,
+};
 
 static mut WORM: Option<Worm> = None;
 static mut SOMA: Vec<f64> = Vec::new();
 static mut NODE_V: Vec<f32> = Vec::new();
+static mut SEEK: [f64; 8] = [0.0; 8];
 
 fn worm() -> &'static mut Worm {
     unsafe { WORM.as_mut().expect("init first") }
@@ -40,7 +46,13 @@ pub unsafe extern "C" fn set_readout(wout: *const f64) {
 
 #[no_mangle]
 pub extern "C" fn reset() {
-    worm().reset();
+    let w = worm();
+    w.reset();
+    if let Some(s) = w.seek.as_mut() {
+        let mut fresh = Seek::new(s.food, s.p, s.seed + 1);
+        fresh.trim = s.trim;
+        *s = fresh;
+    }
 }
 
 #[no_mangle]
@@ -149,4 +161,52 @@ pub extern "C" fn stimulus() -> f64 {
 #[no_mangle]
 pub extern "C" fn iterations() -> usize {
     worm().body.iterations
+}
+
+/// Crawl on agar with both clocks in step (100 ms of body per control step) and seek
+/// food at (x, z) on the plate. Call once after init; `seek_food` moves the food.
+#[no_mangle]
+pub extern "C" fn agar_on(x: f64, z: f64, seed: f64) {
+    let w = worm();
+    w.body_steps = 24;
+    w.body.set_agar(Some((0.003, 0.09)));
+    w.body.balance_muscles();
+    let mut s = Seek::new([x, 0.0, z], Params::default(), seed as u64);
+    s.trim = GAIT_TRIM;
+    w.seek = Some(s);
+}
+
+#[no_mangle]
+pub extern "C" fn seek_food(x: f64, z: f64) {
+    if let Some(s) = worm().seek.as_mut() {
+        s.food = [x, 0.0, z];
+    }
+}
+
+/// [mode (0 forward, 1 reversal, 2 omega), concentration (mM), smoothed dC/dt (mM/s),
+///  turn rate (per s), head bias, turns so far, nose x, nose z]
+#[no_mangle]
+pub extern "C" fn seek_state() -> *const f64 {
+    unsafe {
+        let w = worm();
+        let h = w.head();
+        SEEK = match w.seek.as_ref() {
+            Some(s) => [
+                match s.mode {
+                    Mode::Forward => 0.0,
+                    Mode::Reverse => 1.0,
+                    Mode::Omega => 2.0,
+                },
+                s.c,
+                s.dcdt_slow,
+                s.turn_rate(s.dcdt_slow),
+                s.bias + s.wander,
+                s.turns as f64,
+                h[0],
+                h[2],
+            ],
+            None => [0.0; 8],
+        };
+        SEEK.as_ptr()
+    }
 }

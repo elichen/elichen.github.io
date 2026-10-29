@@ -1,8 +1,10 @@
 // The brain half of BAAIWorm, started by worker.js. With the recorded sensory
 // cycle as input the brain never needs the body, so it runs up to AHEAD control
 // steps in front of it; each result is the same as in a strictly serial loop.
+// It starts 3 s in: from v = -65 mV the first seconds swing the head round by 130°.
 
 const AHEAD = 8;
+const SETTLE = 30; // control steps of brain before the body moves
 let w = null;
 let credit = AHEAD;
 let epoch = 0;
@@ -32,6 +34,7 @@ async function load() {
   ]);
   w = wasm.instance.exports;
   w.init(put(brain), brain.length, put(body), body.length, put(wout), put(new Float64Array([...meta.input, ...meta.output])));
+  w.warm_up(SETTLE);
   postMessage({ type: 'ready' });
   loop();
 }
@@ -63,6 +66,7 @@ onmessage = (e) => {
     epoch = m.epoch;
     credit = AHEAD;
     w.reset();
+    w.warm_up(SETTLE);
   }
 };
 

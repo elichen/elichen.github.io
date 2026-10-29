@@ -8,15 +8,15 @@ const $ = (id) => document.getElementById(id);
 // Palettes sampled from photographs of C. elegans on Wikimedia Commons
 const PALETTES = {
   // A: Bob Goldstein's DIC micrograph (UNC Chapel Hill, CC BY-SA 3.0)
-  A: { name: 'DIC', bg: '#66847a', bg2: '#97b0a3', body: '#dfe8e0', rim: '#f0f5ef', shade: '#263832', rest: '#3e564e', active: '#f0f5ef', muscle: '#263832', speck: '#b4c7bc', ui: '#1f2f2a', uiDim: '#3e564e', panel: 'rgba(151,176,163,0.82)', accent: '#263832', additive: false },
+  A: { name: 'DIC', agar: '#8ea597', agar2: '#7a9387', tint: '#d4e4d8', lawn: '#eef2ea', trail: '#263832', bg: '#66847a', bg2: '#97b0a3', body: '#dfe8e0', rim: '#f0f5ef', shade: '#263832', rest: '#3e564e', active: '#f0f5ef', muscle: '#263832', ui: '#1f2f2a', uiDim: '#3e564e', panel: 'rgba(151,176,163,0.82)', accent: '#263832', additive: false },
   // B: confocal image of a PVM neuron (Guasp, CC BY 4.0): mCherry, GFP, DAPI
-  B: { name: 'Confocal', bg: '#0a0002', bg2: '#140210', body: '#0c023a', rim: '#2603dc', shade: '#0a0002', rest: '#71060a', active: '#a3ff46', muscle: '#fa0407', speck: '#26036a', ui: '#f7f9f7', uiDim: '#9a8f96', panel: 'rgba(20,2,16,0.78)', accent: '#67f514', additive: true },
+  B: { name: 'Confocal', agar: '#14060f', agar2: '#0b0308', tint: '#3d0b66', lawn: '#6b7a2e', trail: '#9a8f96', bg: '#0a0002', bg2: '#140210', body: '#0c023a', rim: '#2603dc', shade: '#0a0002', rest: '#71060a', active: '#a3ff46', muscle: '#fa0407', ui: '#f7f9f7', uiDim: '#9a8f96', panel: 'rgba(20,2,16,0.78)', accent: '#67f514', additive: true },
   // C: DAPI-stained worms (HoPo, CC BY-SA 3.0)
-  C: { name: 'DAPI', bg: '#04050a', bg2: '#050712', body: '#07113b', rim: '#406dcc', shade: '#030207', rest: '#12318a', active: '#a6d4ff', muscle: '#64aaed', speck: '#0c216c', ui: '#dfe8f7', uiDim: '#7c8db0', panel: 'rgba(5,7,18,0.8)', accent: '#64aaed', additive: true },
+  C: { name: 'DAPI', agar: '#080b18', agar2: '#04050a', tint: '#173a80', lawn: '#46598a', trail: '#7c8db0', bg: '#04050a', bg2: '#050712', body: '#07113b', rim: '#406dcc', shade: '#030207', rest: '#12318a', active: '#a6d4ff', muscle: '#64aaed', ui: '#dfe8f7', uiDim: '#7c8db0', panel: 'rgba(5,7,18,0.8)', accent: '#64aaed', additive: true },
   // D: worms on an agar plate through a microscope (Gannu03, CC BY-SA 4.0)
-  D: { name: 'Agar plate', bg: '#c4c2b4', bg2: '#dfdfd2', body: '#a3a092', rim: '#4a4945', shade: '#030305', rest: '#757268', active: '#030305', muscle: '#030305', speck: '#a3a092', ui: '#0f0f11', uiDim: '#4a4945', panel: 'rgba(223,223,210,0.85)', accent: '#030305', additive: false },
+  D: { name: 'Agar plate', agar: '#cfccbc', agar2: '#bab7a6', tint: '#ead9a0', lawn: '#f1e8c9', trail: '#4a4945', bg: '#c4c2b4', bg2: '#dfdfd2', body: '#a3a092', rim: '#4a4945', shade: '#030305', rest: '#757268', active: '#030305', muscle: '#030305', ui: '#0f0f11', uiDim: '#4a4945', panel: 'rgba(223,223,210,0.85)', accent: '#030305', additive: false },
 };
-let pal = PALETTES.B;
+let pal = PALETTES.D;
 
 // ---------- data shared with the worker ----------
 async function f64(url) {
@@ -46,12 +46,12 @@ canvas.addEventListener('webglcontextlost', () => {
 });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(38, 1, 0.005, 50);
-camera.position.set(0.36, 0.24, -0.3);
+const camera = new THREE.PerspectiveCamera(38, 1, 0.005, 400);
+camera.position.set(0.25, 0.42, -0.3);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.minDistance = 0.08;
-controls.maxDistance = 4;
+controls.maxDistance = 90;
 
 // body surface
 const bodyGeo = new THREE.BufferGeometry();
@@ -145,16 +145,110 @@ somas.frustumCulled = false;
 somas.renderOrder = 3;
 scene.add(somas);
 
-// specks in the water, wrapped around the view so the motion reads
-const NSPECK = 1400, BOX = 2.4;
-const speckBase = new Float32Array(NSPECK * 3).map(() => (Math.random() - 0.5) * BOX);
-const speckPos = new Float32Array(NSPECK * 3);
-const speckGeo = new THREE.BufferGeometry();
-speckGeo.setAttribute('position', new THREE.BufferAttribute(speckPos, 3));
-const speckMat = new THREE.PointsMaterial({ size: 0.004, map: dot, transparent: true, depthWrite: false, opacity: 0.7 });
-const specks = new THREE.Points(speckGeo, speckMat);
-specks.frustumCulled = false;
-scene.add(specks);
+// ---------- the agar plate ----------
+// 9 cm Petri dish (0.63 units = 1 mm); the worm lies on its left side on the agar
+const MM = 0.63;
+const PLATE_R = 45 * MM;
+const PLATE_Y = -0.0185;
+const SIGMA = 6.3; // the attractant hill (behavior.rs Params::sigma)
+const LAWN_R = 1.0 * MM;
+const plateMat = new THREE.ShaderMaterial({
+  uniforms: { agar: { value: new THREE.Color() }, agar2: { value: new THREE.Color() }, tint: { value: new THREE.Color() }, food: { value: new THREE.Vector2() }, sigma: { value: SIGMA }, radius: { value: PLATE_R } },
+  vertexShader: `
+    varying vec2 vP;
+    void main() { vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform vec3 agar; uniform vec3 agar2; uniform vec3 tint; uniform vec2 food; uniform float sigma; uniform float radius;
+    varying vec2 vP;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float noise(vec2 p) {
+      vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+    }
+    void main() {
+      float r = length(vP);
+      vec3 c = mix(agar, agar2, smoothstep(0.0, radius, r) * 0.6);
+      // fine grain in the agar, so the crawl reads up close
+      float g = noise(vP * 60.0) * 0.6 + noise(vP * 240.0) * 0.4;
+      c *= 0.94 + 0.1 * g;
+      // the attractant, faintly
+      float d = length(vP - food);
+      c = mix(c, tint, 0.28 * exp(-d * d / (2.0 * sigma * sigma)));
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+});
+const plate = new THREE.Mesh(new THREE.CircleGeometry(PLATE_R, 128).rotateX(-Math.PI / 2), plateMat);
+plate.position.y = PLATE_Y;
+scene.add(plate);
+const rimMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5, depthTest: false });
+const rim = new THREE.Mesh(new THREE.RingGeometry(PLATE_R, PLATE_R + 0.6 * MM, 128).rotateX(-Math.PI / 2), rimMat);
+rim.position.y = PLATE_Y + 0.001;
+rim.renderOrder = 0.5;
+scene.add(rim);
+
+// the bacterial lawn: a thin cream disc, denser at its edge as real lawns are
+const lawnMat = new THREE.ShaderMaterial({
+  uniforms: { lawn: { value: new THREE.Color() } },
+  depthTest: false,
+  vertexShader: `varying vec2 vU; void main() { vU = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform vec3 lawn; varying vec2 vU;
+    void main() {
+      float r = length(vU) / ${LAWN_R.toFixed(4)};
+      float a = (0.45 + 0.4 * smoothstep(0.75, 0.97, r)) * (1.0 - smoothstep(0.97, 1.0, r));
+      gl_FragColor = vec4(lawn, a);
+    }`,
+  transparent: true,
+  depthWrite: false,
+});
+const lawn = new THREE.Mesh(new THREE.CircleGeometry(LAWN_R, 64).rotateX(-Math.PI / 2), lawnMat);
+lawn.position.y = PLATE_Y + 0.002;
+lawn.renderOrder = 0.5;
+scene.add(lawn);
+const food = new THREE.Vector2(3.0, -4.0); // worker.js FOOD
+function placeFood(x, z) {
+  food.set(x, z);
+  lawn.position.x = x;
+  lawn.position.z = z;
+  plateMat.uniforms.food.value.copy(food);
+}
+placeFood(food.x, food.y);
+
+// the head's track on the agar, colored by what the worm was doing
+const TRACK = 12000; // control steps (20 min)
+const trackPos = new Float32Array(TRACK * 3);
+const trackCol = new Float32Array(TRACK * 3);
+const trackGeo = new THREE.BufferGeometry();
+trackGeo.setAttribute('position', new THREE.BufferAttribute(trackPos, 3));
+trackGeo.setAttribute('color', new THREE.BufferAttribute(trackCol, 3));
+trackGeo.setDrawRange(0, 0);
+const trackMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.75, depthWrite: false, depthTest: false });
+const track = new THREE.Line(trackGeo, trackMat);
+track.frustumCulled = false;
+track.renderOrder = 0.5;
+scene.add(track);
+let trackN = 0;
+const modeColor = [new THREE.Color(), new THREE.Color('#c0392b'), new THREE.Color('#2e6fb7')];
+function addTrack(x, z, mode) {
+  if (trackN === TRACK) {
+    trackPos.copyWithin(0, 3);
+    trackCol.copyWithin(0, 3);
+    trackN--;
+  }
+  const o = trackN * 3, c = modeColor[mode] || modeColor[0];
+  trackPos[o] = x; trackPos[o + 1] = PLATE_Y + 0.003; trackPos[o + 2] = z;
+  trackCol[o] = c.r; trackCol[o + 1] = c.g; trackCol[o + 2] = c.b;
+  trackN++;
+  trackGeo.setDrawRange(0, trackN);
+  trackGeo.attributes.position.needsUpdate = true;
+  trackGeo.attributes.color.needsUpdate = true;
+}
+
+// a ring that marks the worm when the camera is far away
+const markerMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, depthTest: false });
+const marker = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 48).rotateX(-Math.PI / 2), markerMat);
+marker.renderOrder = 0.5;
+scene.add(marker);
 
 const cRest = new THREE.Color(), cActive = new THREE.Color(), cTmp = new THREE.Color();
 function applyPalette(key) {
@@ -168,7 +262,13 @@ function applyPalette(key) {
   nerveMat.blending = blend;
   somaMat.blending = blend;
   nerveMat.needsUpdate = somaMat.needsUpdate = true;
-  speckMat.color.set(pal.speck);
+  plateMat.uniforms.agar.value.set(pal.agar);
+  plateMat.uniforms.agar2.value.set(pal.agar2);
+  plateMat.uniforms.tint.value.set(pal.tint);
+  lawnMat.uniforms.lawn.value.set(pal.lawn);
+  rimMat.color.set(pal.uiDim);
+  markerMat.color.set(pal.accent);
+  modeColor[0].set(pal.trail);
   cRest.set(pal.rest);
   cActive.set(pal.active);
   const root = document.documentElement.style;
@@ -183,9 +283,10 @@ function applyPalette(key) {
 const muscleCanvas = $('muscles');
 const rasterCanvas = $('raster');
 const inputCanvas = $('input');
-const HISTORY = 300; // control steps shown (10 s)
+const HISTORY = 300; // control steps shown (30 s)
 const motorHist = new Float32Array(80 * HISTORY).fill(-65);
-const inputHist = new Float32Array(HISTORY).fill(-0.08);
+const smellHist = new Float32Array(HISTORY).fill(NaN); // mM at the nose
+const modeHist = new Uint8Array(HISTORY);
 let histHead = 0;
 
 // voltage → 0..1
@@ -248,20 +349,38 @@ function drawRaster() {
   }
 }
 
+// the attractant at the nose over the last 30 s, with reversals and omega turns shaded
 function drawInput() {
   const g = inputCanvas.getContext('2d');
   const W = inputCanvas.width, H = inputCanvas.height;
   g.clearRect(0, 0, W, H);
+  let lo = Infinity, hi = -Infinity;
+  for (const v of smellHist) if (v === v) (lo = Math.min(lo, v)), (hi = Math.max(hi, v));
+  if (!(hi >= lo)) return;
+  const pad = Math.max(0.002, (hi - lo) * 0.15);
+  (lo -= pad), (hi += pad);
+  const bw = W / HISTORY;
+  for (let k = 0; k < HISTORY; k++) {
+    const md = modeHist[(histHead + k) % HISTORY];
+    if (md) {
+      g.fillStyle = '#' + modeColor[md].getHexString() + '55';
+      g.fillRect(k * bw, 0, bw + 1, H);
+    }
+  }
   g.strokeStyle = pal.accent;
   g.lineWidth = 1.5 * devicePixelRatio;
   g.beginPath();
+  let started = false;
   for (let k = 0; k < HISTORY; k++) {
-    const v = inputHist[(histHead + k) % HISTORY];
-    const x = (k / (HISTORY - 1)) * W;
-    const y = H - ((v + 0.09) / 0.12) * H;
-    k ? g.lineTo(x, y) : g.moveTo(x, y);
+    const v = smellHist[(histHead + k) % HISTORY];
+    if (v !== v) continue;
+    const x = (k / (HISTORY - 1)) * W, y = H - ((v - lo) / (hi - lo)) * H;
+    started ? g.lineTo(x, y) : g.moveTo(x, y);
+    started = true;
   }
   g.stroke();
+  $('smell-lo').textContent = `${lo.toFixed(3)} mM`;
+  $('smell-hi').textContent = `${hi.toFixed(3)} mM`;
 }
 
 // ---------- state from the worker ----------
@@ -280,10 +399,13 @@ worker.onmessage = (e) => {
   else if (m.type === 'state' && m.epoch === epoch) {
     latest = m;
     // history for the panels: the newest step stands for all steps of this batch
+    const mode = m.seek[0];
     for (let s = 0; s < Math.max(1, m.steps); s++) {
       for (let r = 0; r < 80; r++) motorHist[r * HISTORY + histHead] = m.motor[r];
-      inputHist[histHead] = m.stimulus;
+      smellHist[histHead] = m.seek[1];
+      modeHist[histHead] = mode;
       histHead = (histHead + 1) % HISTORY;
+      addTrack(m.seek[6], m.seek[7], mode);
     }
     let cx = 0, cy = 0, cz = 0;
     for (let i = 0; i < nv; i++) (cx += m.x[i * 3]), (cy += m.x[i * 3 + 1]), (cz += m.x[i * 3 + 2]);
@@ -364,6 +486,33 @@ function hover() {
   tip.style.top = mouse[1] + 10 + 'px';
 }
 
+// ---------- food: click the agar to move it ----------
+const ray = new THREE.Raycaster();
+let down = null;
+canvas.addEventListener('pointerdown', (e) => (down = [e.clientX, e.clientY]));
+canvas.addEventListener('pointerup', (e) => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+  ray.setFromCamera(new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
+  const hit = ray.intersectObject(plate)[0];
+  if (!hit || Math.hypot(hit.point.x, hit.point.z) > PLATE_R - LAWN_R) return;
+  placeFood(hit.point.x, hit.point.z);
+  worker.postMessage({ type: 'food', x: hit.point.x, z: hit.point.z });
+});
+
+// ---------- camera: close up on the worm, or the whole plate from above ----------
+let fly = null;
+function flyTo(dist, elev) {
+  const off = camera.position.clone().sub(controls.target);
+  const az = Math.atan2(off.x, off.z);
+  const to = new THREE.Vector3(Math.sin(az) * Math.cos(elev), Math.sin(elev), Math.cos(az) * Math.cos(elev)).multiplyScalar(dist);
+  fly = { from: off, to, t: 0 };
+}
+$('overview').addEventListener('click', () => {
+  const far = camera.position.distanceTo(controls.target) > 6;
+  flyTo(far ? 0.55 : 2.6 * PLATE_R * (innerWidth < innerHeight ? 1.6 : 1), far ? 0.85 : 1.45);
+  $('overview').textContent = far ? 'Whole plate' : 'Close up';
+});
+
 // ---------- controls ----------
 function sendGain() {
   const syn = $('syn').value / 100, gap = $('gap').value / 100;
@@ -379,7 +528,10 @@ $('reset').addEventListener('click', () => {
   speedTrack.length = 0;
   rateTrack.length = 0;
   motorHist.fill(-65);
-  inputHist.fill(-0.08);
+  smellHist.fill(NaN);
+  modeHist.fill(0);
+  trackN = 0;
+  trackGeo.setDrawRange(0, 0);
   followed = null;
 });
 $('about-open').addEventListener('click', () => $('about').showModal());
@@ -421,6 +573,11 @@ function frame() {
       $('speed').textContent = `${(p1.distanceTo(p0) / Math.max(1e-6, t1 - t0) / bodyLength).toFixed(2)} lengths/s`;
     }
     $('rate').textContent = rate > 0.95 ? 'real time' : `${rate.toFixed(2)}× real time`;
+    const sk = latest.seek;
+    $('doing').textContent = ['crawling forward', 'reversing', 'omega turn'][sk[0]] || '';
+    const d = Math.hypot(sk[6] - food.x, sk[7] - food.y) / MM;
+    $('food-dist').textContent = d < LAWN_R / MM ? 'on the food' : `${d.toFixed(1)} mm to food`;
+    $('turn-rate').textContent = `${(sk[3] * 60).toFixed(1)} turns/min`;
   }
   // follow the worm, keeping the visitor's view angle
   if (latest) {
@@ -436,22 +593,26 @@ function frame() {
     controls.target.add(d);
     camera.position.add(d);
   }
-  controls.update();
-  const t = controls.target;
-  for (let i = 0; i < NSPECK; i++) {
-    for (let k = 0; k < 3; k++) {
-      const c = k === 0 ? t.x : k === 1 ? t.y : t.z;
-      let p = speckBase[i * 3 + k] - c;
-      p -= Math.round(p / BOX) * BOX;
-      speckPos[i * 3 + k] = c + p;
-    }
+  if (fly) {
+    fly.t = Math.min(1, fly.t + 0.025);
+    const e = fly.t * fly.t * (3 - 2 * fly.t);
+    camera.position.copy(controls.target).add(fly.from.clone().lerp(fly.to, e));
+    if (fly.t === 1) fly = null;
   }
-  speckGeo.attributes.position.needsUpdate = true;
+  controls.update();
+  // the marker ring around the worm grows with the camera's distance, so it stays visible
+  const dist = camera.position.distanceTo(controls.target);
+  // keep the depth range in step with the zoom
+  const near = Math.max(0.005, dist * 0.01);
+  if (Math.abs(camera.near - near) > near * 0.05) (camera.near = near), camera.updateProjectionMatrix();
+  marker.position.set(centroid.x, PLATE_Y + 0.004, centroid.z);
+  marker.scale.setScalar(Math.max(0.5, dist * 0.03));
+  markerMat.opacity = Math.min(0.9, Math.max(0, (dist - 3) / 6));
   hover();
   renderer.render(scene, camera);
 }
 
-applyPalette(new URLSearchParams(location.search).get('palette') || 'B');
+applyPalette(new URLSearchParams(location.search).get('palette') || 'D');
 resize();
 frame();
 

@@ -62,20 +62,22 @@
 
   <div id="intro" class="card">
     <h1>BAAIWorm, live</h1>
-    <p>A model <i>C. elegans</i>: 136 neurons with their real shapes and connections drive 96 muscles in a soft body that swims in water. Your browser computes all of it, every step.</p>
-    <p class="long">The lines inside the body are the neurons, colored by their voltage. Hover a dot to name a cell. Drag to look around.</p>
+    <p>A model <i>C. elegans</i> crawls on agar toward food. 136 neurons with their real shapes and connections drive 96 muscles in a soft body. It smells the food at its nose and steers the way real worms do. Your browser computes all of it, every step.</p>
+    <p class="long">Click the agar to move the food. The lines inside the body are the neurons, colored by their voltage. Hover a dot to name a cell. Drag to look around.</p>
     <div class="stats"><span id="t">0.0 s</span><span id="speed">—</span><span id="rate">—</span></div>
+    <div class="stats"><span id="doing">—</span><span id="food-dist">—</span><span id="turn-rate">—</span></div>
   </div>
 
   <div id="side" class="card">
     <h2>Muscles, head → tail</h2>
     <canvas id="muscles" class="panel"></canvas>
     <div class="charts">
-    <h2>Motor neurons, last 10 s</h2>
+    <h2>Motor neurons, last 30 s</h2>
     <canvas id="raster" class="panel"></canvas>
-    <div class="axis"><span>−10 s</span><span>−60 mV … −20 mV</span><span>now</span></div>
-    <h2>Sensory input (15 cells)</h2>
+    <div class="axis"><span>−30 s</span><span>−60 mV … −20 mV</span><span>now</span></div>
+    <h2>Smell at the nose, last 30 s</h2>
     <canvas id="input" class="panel"></canvas>
+    <div class="axis"><span id="smell-lo">—</span><span><span style="color:#c0392b">reversal</span> · <span style="color:#2e6fb7">omega turn</span></span><span id="smell-hi">—</span></div>
     </div>
 
     <h2>Cut the wiring</h2>
@@ -87,9 +89,10 @@
       <label for="gap"><span>Gap junctions</span><output id="gap-out">100%</output></label>
       <input id="gap" type="range" min="0" max="100" step="5" value="100">
     </div>
-    <p class="note">The gait needs both. At half strength for the gap junctions, the worm swims at about 1/20 of its normal speed.</p>
+    <p class="note">The gait needs both. With the gap junctions at half strength, the worm hardly moves.</p>
     <div class="row">
       <button id="reset">Restart</button>
+      <button id="overview">Whole plate</button>
       <button id="about-open">How it works</button>
     </div>
   </div>
@@ -101,6 +104,7 @@
     <button class="close" id="about-close">Close</button>
     <h3>How it works</h3>
     <p>This page runs <a href="https://www.nature.com/articles/s43588-024-00738-w">BAAIWorm</a> (Zhao et al., <i>Nature Computational Science</i> 2024), a model of <i>C. elegans</i> that connects a detailed brain to a soft body in water. The original runs on a Linux workstation with NEURON and a CUDA viewer. Here both halves are new code, compiled to WebAssembly, and checked against the original's own data.</p>
+    <p>BAAIWorm swims and does not find food. On this page the same brain and body crawl on agar and find food. The parts that make this possible are ours, not BAAIWorm's. They are described under <a href="#crawl">Crawling on agar</a> and <a href="#seek">Finding food</a>, with the measurements they were fit to.</p>
 
     <h4>The brain</h4>
     <ul>
@@ -118,26 +122,60 @@
     <ul>
       <li>A finite-element mesh with 984 vertices and 3,341 tetrahedra, solved with projective dynamics, the method of SoftCon (Min et al. 2019) that BAAIWorm uses.</li>
       <li>Each muscle segment pulls through about 50 fiber constraints inside the tetrahedra. A muscle with activation <i>a</i> wants its fibers shortened to (1 − <i>a</i>) of their length.</li>
-      <li>Water pushes on each of the 1,466 surface triangles with SoftCon's drag and lift.</li>
-      <li>8 steps of 1/240 s for every 100 ms of brain time, as in BAAIWorm.</li>
+      <li>In BAAIWorm, water pushes on each of the 1,466 surface triangles with SoftCon's drag and lift, and the body takes 8 steps of 1/240 s for every 100 ms of brain time.</li>
     </ul>
-    <p>Check: given the same muscle signals, no vertex of this body is more than 0.0000002 units from the same vertex in BAAIWorm's own body code during 20 s. (The worm is 0.63 units long.)</p>
+    <p>Check: in water, given the same muscle signals, no vertex of this body is more than 0.0000002 units from the same vertex in BAAIWorm's own body code during 20 s. (The worm is 0.63 units long, so 1 mm = 0.63 units.)</p>
 
     <h4>The whole loop, against the original</h4>
     <p>BAAIWorm's own code also runs here, outside the browser: its NEURON model and its SoftCon body, built without its CUDA viewer. Started the same way, the two runs give the same muscle signals to within 0.0001 at every step for 20 s (the range is 0 to 0.8). For the first 10 s, no vertex of the two bodies is more than 0.02 units apart (3% of the body length). Then the small differences in the brain grow, as they do between any two runs of a swimming body, and the paths separate.</p>
 
     <h4>The input</h4>
-    <p>15 sensory neurons get a current clamp. Here it plays the 2 s pattern that BAAIWorm's readout was fit on. That is the pattern of the original's own demo. In the paper, this current comes from the change in odor at the head. That closed loop also runs here, and we ran it in BAAIWorm's own code too. It does not find food. In 100 runs with the food 2 units away in different directions, after 60 s the worm was no closer to its own food than to the food of the other runs. The reason is in the input: each step's change in odor is scaled by the range of the last 11 changes, so swimming toward the food and swimming away from it at the same speed give the same current. The readout was also fit to one forward gait, not to turning. The paper shows one closed-loop run and does not test reaching food. This page therefore plays the recorded pattern.</p>
+    <p>15 sensory neurons get a current clamp. Here it plays the 2 s pattern that BAAIWorm's readout was fit on. That is the pattern of the original's own demo, and it sets the rhythm of the gait. In the paper, this current comes from the change in odor at the head. That closed loop also runs here, and we ran it in BAAIWorm's own code too. It does not find food. In 100 runs with the food 2 units away in different directions, after 60 s the worm was no closer to its own food than to the food of the other runs. The reason is in the input: each step's change in odor is scaled by the range of the last 11 changes, so swimming toward the food and swimming away from it at the same speed give the same current. The readout was also fit to one forward gait, not to turning. The paper shows one closed-loop run and does not test reaching food.</p>
+
+    <h4 id="crawl">Crawling on agar (ours)</h4>
+    <p>Real worms are studied on agar plates, where they crawl on their side in a shallow groove. Three changes put BAAIWorm's worm on agar:</p>
+    <ul>
+      <li><b>One clock.</b> BAAIWorm runs 100 ms of brain for every 33 ms of body, so its body moves three times too fast for its brain. Its 1.5 Hz gait is the recorded 2 s input played at that speed. Here the body also takes 100 ms per step. The gait is then 0.5 Hz.</li>
+      <li><b>Agar drag.</b> Each vertex is pulled back to where it was, 30 times more strongly across the body than along it, as in the resistive-force models of crawling. The drag is part of the solver, so the matrix is still factored only once. The body is also held on the plane of the plate.</li>
+      <li><b>Even muscles.</b> In SoftCon's mesh, the dorsal and ventral muscle fibers of a segment can differ in strength by up to 20%. That bends the body into a fixed curve, so the worm crawled in circles. Here each segment's four quadrants pull with the same total strength.</li>
+    </ul>
+    <table>
+      <tr><th></th><th>This page</th><th>Real worms on agar</th></tr>
+      <tr><td>Undulation</td><td>0.50 Hz</td><td>0.30 Hz (Fang-Yen et al. 2010); 0.55 Hz (Sawin et al. 2000)</td></tr>
+      <tr><td>Wavelength</td><td>0.65 body lengths</td><td>0.65 (Fang-Yen et al. 2010)</td></tr>
+      <tr><td>Speed</td><td>0.13 mm/s</td><td>0.12–0.15 mm/s (Iino &amp; Yoshida 2009; Pierce-Shimomura et al. 1999)</td></tr>
+    </table>
+    <p>The body is BAAIWorm's coarse mesh, which is not a mirror image of itself. Even a perfectly symmetric wave makes it curve slowly to one side, about 1° per second. A small constant bend in the head cancels this. We set it so the worm keeps its heading on average.</p>
+
+    <h4 id="seek">Finding food (ours)</h4>
+    <p>The food is a lawn of bacteria. Around it the attractant forms a hill: 2 mM on the open plate, rising to 6 mM at the food, about 1 cm wide. This is the radial gradient of Pierce-Shimomura et al. (1999). The worm senses the concentration at its nose. A layer between the brain's muscle signals and the body steers with the two strategies that real worms use, at the rates measured in them:</p>
+    <ul>
+      <li><b>Pirouettes</b> (Pierce-Shimomura et al. 1999). When the concentration falls, the worm turns more often. The rate per second is Iino and Yoshida's fit, 0.023 / (0.40 + e<sup>140 dC/dt</sup>) + 0.0033. Each turn is a reversal: the brain's gait runs tail first and the worm backs up. Half of the reversals end in an omega turn, a deep ventral bend that points the worm in a new direction. Durations are from Zhao et al. (2003): 2.3 s, or 3.4 s before an omega turn.</li>
+      <li><b>Weathervaning</b> (Iino &amp; Yoshida 2009). While the head sweeps to one side, a rising concentration bends it further to that side, so the path curves up the gradient. The gain is set so the path curves 12.7°/mm for each mM/mm of gradient across the heading, as Iino and Yoshida measured. On top of that, the heading wanders at random by 32°/mm, as theirs did.</li>
+    </ul>
+    <p>The brain keeps making the forward gait. It does not make these decisions. Making them inside the circuit is our next step.</p>
+    <p><b>Test.</b> We repeated Pierce-Shimomura's assay: worms start 22 mm from the peak, at 48 different headings, and we count how many reach the 5 mm zone around it within 20 minutes.</p>
+    <table id="seek-table">
+      <tr><th></th><th>Reached the peak zone</th><th>Pierce-Shimomura et al. 1999</th></tr>
+      <tr><td>Both strategies</td><td>69% (33 of 48)</td><td>56–60%</td></tr>
+      <tr><td>No gradient (control)</td><td>8% (4 of 48)</td><td>8.3%</td></tr>
+      <tr><td>Pirouettes only</td><td>62% (15 of 24)</td><td>—</td></tr>
+      <tr><td>Weathervaning only</td><td>8% (2 of 24)</td><td>—</td></tr>
+    </table>
+    <p>In this shallow gradient, the pirouettes do most of the work, as Pierce-Shimomura et al. found. Iino and Yoshida's weathervane gain gives only 1–3°/mm of curving here, much less than the random wander. Their plates had steeper salt gradients.</p>
 
     <h4>Cutting the wiring</h4>
-    <p>The sliders scale the strength of every chemical synapse or every gap junction. At 0% every connection of that kind is gone, as in the paper's experiments that removed them. Weaker connections in between are this page's addition. With all chemical synapses gone, the worm no longer swims forward and drifts slowly backward. With the gap junctions at half strength, it swims at about 1/20 of its normal speed. The readout was fit to the intact circuit, so this shows the effect of the cut. It does not show how a real worm adapts.</p>
+    <p>The sliders scale the strength of every chemical synapse or every gap junction. At 0% every connection of that kind is gone, as in the paper's experiments that removed them. Weaker connections in between are this page's addition. On agar the intact worm crawls forward at 0.135 body lengths per second. With the gap junctions at half strength it almost stops (0.008). With them gone, or with the chemical synapses at half strength, it drifts backward. With no chemical synapses it does not move forward. The readout was fit to the intact circuit, so this shows the effect of the cut. It does not show how a real worm adapts.</p>
 
     <h4>What is not real</h4>
     <ul>
       <li>BAAIWorm models only 136 of the 302 neurons. The others are not in this circuit.</li>
       <li>The input current is large for the small sensory cells. Some of them, such as URYVL, go several hundred millivolts below rest. This is a property of BAAIWorm's model, and the page keeps it.</li>
-      <li>The body and water are BAAIWorm's. The drag grows with the square of the speed, as for a large, fast swimmer. A real worm is 1 mm long, and in water viscosity controls its motion.</li>
-      <li>Every neuron starts at −65 mV, as in BAAIWorm. In the first half second the brain settles and the head swings round. BAAIWorm's own run does the same.</li>
+      <li>The gait comes from BAAIWorm's recorded input, played in a loop, and its fitted readout. The brain does not make the rhythm by itself, and it does not feel the body bend.</li>
+      <li>The steering is a layer outside the brain, fit to the behavior of real worms (see above). The sensory neurons in the circuit still get the recorded input.</li>
+      <li>The body is BAAIWorm's coarse mesh. It shortens by up to a third as it bends, and a real worm does not.</li>
+      <li>On the food the worm does not slow down or start feeding, as real worms do.</li>
+      <li>Every neuron starts at −65 mV, as in BAAIWorm. The body waits 3 s while the brain settles, because before that the head swings round by 130°.</li>
       <li>The neurons are drawn by fitting the NeuroML coordinates into the mesh, so their place in the body is approximate.</li>
     </ul>
   </dialog>

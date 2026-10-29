@@ -1,9 +1,12 @@
 // Runs BAAIWorm's body (engine.wasm) off the main thread, paced to real time, and
 // starts brain-worker.js for the brain. One control step = 100 ms of brain (done
-// ahead in the brain worker), then 1/30 s of body here. After each batch of steps
-// it posts the mesh, muscles and voltages to the page.
+// ahead in the brain worker), then 100 ms of body crawling on agar here, with the
+// food-seeking layer (behavior.rs) between the two. After each batch of steps it
+// posts the mesh, muscles, voltages and what the worm smells to the page.
 
-const CONTROL_DT = 1 / 30; // body seconds per control step
+const CONTROL_DT = 0.1; // body seconds per control step
+const FADE = 10; // control steps over which the muscles fade in after a start
+const FOOD = [3.0, -4.0]; // where the food starts: 8 mm from the worm, ahead and to the dorsal side
 
 let w = null;
 const mem = () => w.memory.buffer;
@@ -22,6 +25,7 @@ let busyMs = 0;
 let iterSum = 0;
 let shown = null; // brain data of the last step taken
 let muscleBuf = 0;
+let stepsTaken = 0;
 
 async function bytes(url) {
   const r = await fetch(url);
@@ -57,6 +61,7 @@ async function load() {
   w = wasm.instance.exports;
   w.init(put(brainData), brainData.length, put(body), body.length, put(wout), put(new Float64Array([...meta.input, ...meta.output])));
   muscleBuf = w.alloc(96);
+  w.agar_on(FOOD[0], FOOD[1], (Math.random() * 1e9) | 0);
   postMessage({ type: 'progress', text: 'Warming up the brain' });
   maybeStart();
 }
@@ -81,11 +86,12 @@ function post() {
   const x = new Float32Array(new Float64Array(mem(), p, nv * 3));
   const muscle = new Float32Array(shown.muscle);
   const { motor, soma, nodes } = shown;
+  const seek = new Float64Array(mem(), w.seek_state(), 8).slice();
   const now = performance.now();
   const wall = (now - lastPost) / 1000;
   postMessage(
     {
-      type: 'state', epoch, x, muscle, motor, soma, nodes,
+      type: 'state', epoch, x, muscle, motor, soma, nodes, seek,
       stimulus: shown.stimulus, time: simTime, steps: stepsSincePost,
       // how much body time one wall second buys at full speed (body side)
       capacity: stepsSincePost ? (stepsSincePost * CONTROL_DT) / (busyMs / 1000) : 0,
@@ -111,7 +117,9 @@ function loop() {
     let used = 0;
     while (frames.length && simTime + CONTROL_DT <= due + 1e-9 && performance.now() - t0 < 40) {
       const f = frames.shift();
-      new Float64Array(mem(), muscleBuf, 96).set(f.muscle);
+      const fade = Math.min(1, stepsTaken / FADE);
+      new Float64Array(mem(), muscleBuf, 96).set(fade < 1 ? f.muscle.map((a) => a * fade) : f.muscle);
+      stepsTaken++;
       w.set_muscles(muscleBuf);
       w.moving();
       iterSum += w.iterations();
@@ -134,9 +142,12 @@ onmessage = (e) => {
   const m = e.data;
   if (m.type === 'gain') brain.postMessage(m);
   if (!w) return;
-  if (m.type === 'reset') {
+  if (m.type === 'food') {
+    w.seek_food(m.x, m.z);
+  } else if (m.type === 'reset') {
     epoch = m.epoch;
     frames.length = 0;
+    stepsTaken = 0;
     w.reset();
     brain.postMessage({ type: 'reset', epoch });
     simTime = 0;
