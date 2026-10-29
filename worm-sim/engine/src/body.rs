@@ -309,7 +309,6 @@ pub struct Body {
     pub fluid: f64,
     /// None = SoftCon's water; Some = crawling on agar (resistive force theory)
     agar: Option<Agar>,
-    entries: Vec<(usize, usize, f64)>,
     slice: Vec<usize>, // vertex -> slice along the body, for the centerline
 }
 
@@ -324,6 +323,8 @@ struct Agar {
 }
 
 const SLICES: usize = 40;
+/// fraction of a vertex's distance from the plate plane closed per body step on agar
+const PLATE: f64 = 0.05;
 
 impl Body {
     pub fn new(data: &[f64]) -> Body {
@@ -386,29 +387,9 @@ impl Body {
             perm[vtx] = row;
         }
         let m_dt2 = MASS / nv as f64 / (DT * DT);
-        let mut entries = Vec::new();
-        for i in 0..nv {
-            entries.push((i, i, m_dt2));
-        }
-        for t in &tets {
-            let w = t.w_dev + t.w_vol;
-            for a in 0..4 {
-                for b in 0..4 {
-                    entries.push((perm[t.idx[a] as usize], perm[t.idx[b] as usize], w * dot(t.g[a], t.g[b])));
-                }
-            }
-        }
-        for f in &fibers {
-            for a in 0..4 {
-                for b in 0..4 {
-                    entries.push((perm[f.idx[a] as usize], perm[f.idx[b] as usize], f.w * f.a[a] * f.a[b]));
-                }
-            }
-        }
-        let chol = Profile::new(nv, &entries);
         let (z0, z1) = (0..nv).map(|i| rest[i * 3 + 2]).fold((f64::MAX, f64::MIN), |(a, b), z| (a.min(z), b.max(z)));
         let slice = (0..nv).map(|i| (((rest[i * 3 + 2] - z0) / (z1 - z0) * SLICES as f64) as usize).min(SLICES - 1)).collect();
-        Body {
+        let mut body = Body {
             nv,
             x: rest.clone(),
             v: vec![0.0; nv * 3],
@@ -422,29 +403,65 @@ impl Body {
             contour,
             act: vec![0.0; 96],
             perm,
-            chol,
+            chol: Profile { n: 0, first: Vec::new(), start: Vec::new(), l: Vec::new() },
             m_dt2,
             scratch: vec![0.0; nv * 3],
             xk: vec![0.0; nv * 3],
             iterations: 0,
             fluid: 1.0,
             agar: None,
-            entries,
             slice,
+        };
+        body.refactor();
+        body
+    }
+
+    /// the system matrix (M/dt² + Σ w AᵀA, plus the agar drag) in factor order, factored
+    fn refactor(&mut self) {
+        let perm = &self.perm;
+        let mut e = Vec::new();
+        for i in 0..self.nv {
+            e.push((i, i, self.m_dt2 + self.agar.map_or(0.0, |a| a.w_n)));
         }
+        for t in &self.tets {
+            let w = t.w_dev + t.w_vol;
+            for a in 0..4 {
+                for b in 0..4 {
+                    e.push((perm[t.idx[a] as usize], perm[t.idx[b] as usize], w * dot(t.g[a], t.g[b])));
+                }
+            }
+        }
+        for f in &self.fibers {
+            for a in 0..4 {
+                for b in 0..4 {
+                    e.push((perm[f.idx[a] as usize], perm[f.idx[b] as usize], f.w * f.a[a] * f.a[b]));
+                }
+            }
+        }
+        self.chol = Profile::new(self.nv, &e);
+    }
+
+    /// Scales the muscle fibers so that, in every segment, the four quadrants pull with the
+    /// same total strength (their mean). SoftCon's mesh has segments whose dorsal and
+    /// ventral fibers differ by up to 20%, which bends the body into a fixed curve whatever
+    /// the activation; a real worm's four muscle quadrants are close to mirror images.
+    pub fn balance_muscles(&mut self) {
+        let mut sum = [[0.0f64; 4]; 24];
+        for f in &self.fibers {
+            sum[f.seg as usize % 24][f.seg as usize / 24] += f.w;
+        }
+        for f in self.fibers.iter_mut() {
+            let s = sum[f.seg as usize % 24];
+            f.w *= s.iter().sum::<f64>() / 4.0 / s[f.seg as usize / 24];
+        }
+        self.refactor();
     }
 
     /// Crawl on agar with per-vertex drag coefficients c_t (along the body) and c_n
     /// (across it), or swim in SoftCon's water with None.
     pub fn set_agar(&mut self, c: Option<(f64, f64)>) {
         self.agar = c.map(|(ct, cn)| Agar { w_t: ct / DT, w_n: cn / DT });
-        let mut e = self.entries.clone();
-        if let Some(a) = self.agar {
-            for i in 0..self.nv {
-                e.push((i, i, a.w_n));
-            }
-        }
-        self.chol = Profile::new(self.nv, &e);
+        self.refactor();
     }
 
     /// the centroid of each of the 40 slices along the body (head = -z end first)
@@ -571,7 +588,10 @@ impl Body {
                 b[r + 1] = self.m_dt2 * q[i * 3 + 1];
                 b[r + 2] = self.m_dt2 * q[i * 3 + 2];
                 if let Some(a) = self.agar {
-                    let x0 = pt(&self.x, i as u32);
+                    // the worm lies on its side on the plate (y = its rest left-right offset):
+                    // the drag is taken from a point eased back onto that plane
+                    let mut x0 = pt(&self.x, i as u32);
+                    x0[1] += PLATE * (self.rest[i * 3 + 1] - x0[1]);
                     let t = tan[self.slice[i]];
                     let p = add(x0, scale(t, dot(t, sub(pt(&x, i as u32), x0))));
                     for c in 0..3 {
