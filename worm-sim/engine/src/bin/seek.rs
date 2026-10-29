@@ -59,11 +59,13 @@ fn main() {
     let skip = env("SKIP", 3.0) / dt;
     let skip = skip as usize;
     let fade = (1.0 / dt) as usize;
-    if muscles.len() < (steps + skip) * 96 {
+    let trim_steps = (60.0 / dt) as usize; // the gait's mean bend, over its first minute
+    let need = steps.max(trim_steps) + skip;
+    if muscles.len() < need * 96 {
         eprintln!("computing {steps} brain steps into {cache}");
         w.brain.init(-65.0);
         muscles.clear();
-        for _ in 0..steps + skip {
+        for _ in 0..need {
             w.think();
             muscles.extend_from_slice(&w.muscle);
         }
@@ -83,14 +85,16 @@ fn main() {
     set("OMEGA_BIAS", &mut p.omega_bias);
     set("REFRACTORY", &mut p.refractory);
     set("STRAIGHTEN", &mut p.straighten);
+    p.cone = env("P_CONE", 0.0) != 0.0;
     p.vane_segments = env("P_VANE_SEGMENTS", p.vane_segments as f64) as usize;
     p.omega_segments = env("P_OMEGA_SEGMENTS", p.omega_segments as f64) as usize;
     // head direction at rest is -z; + angle toward dorsal (+x)
     let food = [dist * ang.sin(), 0.0, -dist * ang.cos()];
     let mut seek = Seek::new(food, p, seed);
     if env("TRIM", 1.0) != 0.0 {
-        seek.trim = gait_trim(&muscles[skip * 96..(skip + steps) * 96], 0);
+        seek.trim = gait_trim(&muscles[skip * 96..(skip + trim_steps) * 96], 0);
     }
+    w.seek = Some(seek);
 
     let mirror = env("MIRROR", 0.0) != 0.0;
     let synth = std::env::var("SYNTH").ok().map(|v| {
@@ -123,9 +127,9 @@ fn main() {
                 b.swap(48 + s, 72 + s);
             }
         }
-        let m = seek.apply(&b, &w.body, w.head(), dt);
-        w.muscle.copy_from_slice(&m);
+        w.muscle.copy_from_slice(&b);
         w.moving();
+        let seek = w.seek.as_ref().unwrap();
         let h = w.head();
         let mut c = [0.0; 3];
         for i in 0..w.body.nv {

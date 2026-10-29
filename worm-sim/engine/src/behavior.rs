@@ -20,6 +20,9 @@ pub const SEGMENTS: usize = 24;
 pub struct Params {
     /// width of the attractant hill (body units; 0.63 = 1 mm)
     pub sigma: f64,
+    /// shape of the hill: false = Gaussian (ln C = -r²/2σ², as a spot of salt spreads),
+    /// true = cone (ln C = -r/σ: the same relative gradient everywhere)
+    pub cone: bool,
     /// weathervane gain: muscle bias per (d log C / dt × head sweep rate)
     pub k_vane: f64,
     /// time constant of the weathervane bias (s)
@@ -50,6 +53,7 @@ impl Default for Params {
     fn default() -> Params {
         Params {
             sigma: 6.3,
+            cone: false,
             k_vane: 0.0,
             tau_vane: 1.0,
             vane_segments: 6,
@@ -61,7 +65,7 @@ impl Default for Params {
             omega_bias: 0.8,
             omega_segments: 18, // 0.8, 18, 3 s: reversal + omega turn the heading by ~160°
             refractory: 2.0,
-            straighten: 0.013, // tools/turning.py: -0.9 deg/s at 0, -0.2 at 0.01, +0.2 at 0.016 (brain gait, balanced muscles)
+            straighten: 0.015, // tools/turning.py over 3 min: -0.6 deg/s at 0.005, -0.1 at 0.013, +0.1 at 0.016, +0.3 at 0.02
         }
     }
 }
@@ -143,7 +147,12 @@ impl Seek {
     /// log concentration at p (in-plane distance to the food)
     pub fn log_conc(&self, p: [f64; 3]) -> f64 {
         let d = sub(p, self.food);
-        -(d[0] * d[0] + d[2] * d[2]) / (2.0 * self.p.sigma * self.p.sigma)
+        let r2 = d[0] * d[0] + d[2] * d[2];
+        if self.p.cone {
+            -r2.sqrt() / self.p.sigma
+        } else {
+            -r2 / (2.0 * self.p.sigma * self.p.sigma)
+        }
     }
 
     /// signed angle of the head (slices 0-3) against the neck (slices 4-9), + = toward dorsal

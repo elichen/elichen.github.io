@@ -9,6 +9,7 @@
 //!   think:  60 neural steps of 5/3 ms (100 ms);
 //!   move:   the 80 motor neurons' mean soma voltage through the 80×96 readout,
 //!           muscle = clip((v·W + 80)/100, 0, 0.8), then 8 body steps of 1/240 s.
+use crate::behavior::Seek;
 use crate::body::Body;
 use crate::brain::Brain;
 
@@ -48,6 +49,8 @@ pub struct Worm {
     pub hold: usize,
     /// body steps of 1/240 s per control step (8 = BAAIWorm: 33 ms of body per 100 ms of brain)
     pub body_steps: usize,
+    /// food seeking on agar (behavior.rs) between the brain's muscles and the body
+    pub seek: Option<Seek>,
 }
 
 impl Worm {
@@ -78,6 +81,7 @@ impl Worm {
             delta_c: 0.0,
             hold: 1,
             body_steps: BODY_STEPS,
+            seek: None,
         };
         w.reset();
         w
@@ -171,7 +175,14 @@ impl Worm {
     }
 
     pub fn moving(&mut self) {
-        self.body.act.copy_from_slice(&self.muscle);
+        let head = self.head();
+        match self.seek.as_mut() {
+            Some(s) => {
+                let m = s.apply(&self.muscle, &self.body, head, self.body_steps as f64 / 240.0);
+                self.body.act.copy_from_slice(&m);
+            }
+            None => self.body.act.copy_from_slice(&self.muscle),
+        }
         for _ in 0..self.body_steps {
             self.body.step();
         }
