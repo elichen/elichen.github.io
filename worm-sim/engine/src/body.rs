@@ -447,8 +447,12 @@ impl Body {
         self.chol = Profile::new(self.nv, &e);
     }
 
-    /// unit tangent of the centerline at each slice, from positions x
-    fn tangents(&self, x: &[f64]) -> Vec<V3> {
+    /// the centroid of each of the 40 slices along the body (head = -z end first)
+    pub fn centerline(&self) -> Vec<V3> {
+        self.centroids(&self.x)
+    }
+
+    fn centroids(&self, x: &[f64]) -> Vec<V3> {
         let mut c = vec![[0.0; 3]; SLICES];
         let mut n = vec![0.0f64; SLICES];
         for i in 0..self.nv {
@@ -459,6 +463,12 @@ impl Body {
         for k in 0..SLICES {
             c[k] = scale(c[k], 1.0 / n[k].max(1.0));
         }
+        c
+    }
+
+    /// unit tangent of the centerline at each slice, from positions x
+    fn tangents(&self, x: &[f64]) -> Vec<V3> {
+        let c = self.centroids(x);
         (0..SLICES).map(|k| normalized(sub(c[(k + 1).min(SLICES - 1)], c[k.saturating_sub(1)]))).collect()
     }
 

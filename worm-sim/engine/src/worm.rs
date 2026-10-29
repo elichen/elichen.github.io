@@ -44,6 +44,10 @@ pub struct Worm {
     history: [f64; HISTORY],
     pub stimulus: f64,
     pub delta_c: f64,
+    /// control steps each value of the recorded cycle is held (1 = BAAIWorm)
+    pub hold: usize,
+    /// body steps of 1/240 s per control step (8 = BAAIWorm: 33 ms of body per 100 ms of brain)
+    pub body_steps: usize,
 }
 
 impl Worm {
@@ -72,6 +76,8 @@ impl Worm {
             history: [0.0; HISTORY],
             stimulus: CYCLE[0],
             delta_c: 0.0,
+            hold: 1,
+            body_steps: BODY_STEPS,
         };
         w.reset();
         w
@@ -128,7 +134,7 @@ impl Worm {
     /// The brain's half of a control step; returns the new muscle activations.
     pub fn think(&mut self) {
         self.step_count += 1;
-        self.stimulus = if self.food.is_some() { self.sense() } else { CYCLE[(self.step_count - 1) % 20] };
+        self.stimulus = if self.food.is_some() { self.sense() } else { CYCLE[(self.step_count - 1) / self.hold % 20] };
         for &c in &self.input_cells {
             self.brain.iclamp[c] = self.stimulus;
         }
@@ -166,7 +172,7 @@ impl Worm {
 
     pub fn moving(&mut self) {
         self.body.act.copy_from_slice(&self.muscle);
-        for _ in 0..BODY_STEPS {
+        for _ in 0..self.body_steps {
             self.body.step();
         }
     }

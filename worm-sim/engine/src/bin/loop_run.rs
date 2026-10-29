@@ -6,6 +6,10 @@
 //!      DUMP=<file> writes each step's 96 muscle activations
 //!      AGAR=<c_t>,<c_n> crawls on agar (per-vertex drag coefficients) instead of swimming
 //!      DUMPX=<file> writes each step's vertex positions (f64, little-endian)
+//!      BODY_STEPS=<n> body steps per control step (8 = BAAIWorm; 24 = brain and body clocks agree)
+//!      HOLD=<n> holds each value of the recorded input cycle for n control steps
+//!      MOTOR=<file> writes each step's 80 motor soma voltages, mean over the step (f64)
+//!      CENTER=<file> writes each step's 40 slice centroids, head first (f64, little-endian)
 use std::io::Write;
 use std::time::Instant;
 use worm_engine::{body::Body, brain::Brain, frame::fit, worm::Worm};
@@ -64,11 +68,20 @@ fn main() {
         let c: Vec<f64> = c.split(',').map(|x| x.parse().unwrap()).collect();
         w.body.set_agar(Some((c[0], c[1])));
     }
+    if let Ok(n) = std::env::var("BODY_STEPS") {
+        w.body_steps = n.parse().unwrap();
+    }
+    if let Ok(h) = std::env::var("HOLD") {
+        w.hold = h.parse().unwrap();
+    }
     let warm: usize = std::env::var("WARM").map(|s| s.parse().unwrap()).unwrap_or(0);
     w.warm_up(warm);
     let mut dump = std::env::var("DUMP").ok().map(|p| std::fs::File::create(p).unwrap());
     let mut dumpx = std::env::var("DUMPX").ok().map(|p| std::fs::File::create(p).unwrap());
-    let steps = (secs * 30.0) as usize;
+    let mut motor = std::env::var("MOTOR").ok().map(|p| std::fs::File::create(p).unwrap());
+    let mut center = std::env::var("CENTER").ok().map(|p| std::fs::File::create(p).unwrap());
+    let cps = 240.0 / w.body_steps as f64; // control steps per body second
+    let steps = (secs * cps) as usize;
     let t0 = Instant::now();
     let (mut tb, mut tn) = (0.0, 0.0);
     let mut prev = com(&w);
@@ -92,7 +105,13 @@ fn main() {
         if let Some(f) = dumpx.as_mut() {
             f.write_all(&w.body.x.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>()).unwrap();
         }
-        if k % 30 == 29 {
+        if let Some(f) = motor.as_mut() {
+            f.write_all(&w.motor_v.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>()).unwrap();
+        }
+        if let Some(f) = center.as_mut() {
+            f.write_all(&w.body.centerline().iter().flatten().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>()).unwrap();
+        }
+        if (k + 1) % (cps as usize) == 0 {
             let h = w.head();
             let c = com(&w);
             let (r, _) = fit(&w.body.rest, &w.body.x);
@@ -109,7 +128,7 @@ fn main() {
                     format!("food dist {:.3} cos(fwd,food) {:+.2}", df, (to[0] * fwd[0] + to[1] * fwd[1] + to[2] * fwd[2]) / n)
                 })
                 .unwrap_or_default();
-            println!("t {:5.1}s com [{:+.2} {:+.2} {:+.2}] v_fwd {:+.3}/s stim [{:+.3},{:+.3}] {}", (k + 1) as f64 / 30.0, c[0], c[1], c[2], v_fwd, lo, hi, food);
+            println!("t {:5.1}s com [{:+.2} {:+.2} {:+.2}] v_fwd {:+.3}/s stim [{:+.3},{:+.3}] {}", (k + 1) as f64 / cps, c[0], c[1], c[2], v_fwd, lo, hi, food);
             lo = f64::MAX;
             hi = f64::MIN;
         }
