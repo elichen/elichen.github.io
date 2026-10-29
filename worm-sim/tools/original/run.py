@@ -32,12 +32,15 @@ if mode == 'online':  # the online group's readout, as worm_in_env.py would load
     w.worm_0.wout = pickle.load(open(G + f'/{group}_wout.pkl', 'rb'))
 rec = {k: [] for k in ['input', 'mnv', 'muscle', 'head', 'x', 'states']}
 t0 = time.time()
+init = int(os.environ.get('INIT', 0))  # first INIT ticks: body driven by output/test.npy (step_init), brain still senses
 for s in range(steps):
-    w.step()
+    if s == init and init:  # step() only sets up its (record-only) arrays on step 1, which step_init took
+        for a in ('rel_x', 'rel_y', 'rel_z', 'rel_vx', 'rel_vy', 'rel_vz'): setattr(w, a, np.zeros((0, 17)))
+    w.step_init() if s < init else w.step()
     interact.tick()
-    rec['input'].append(w.test_i[-1]); rec['mnv'].append(w.mnv_0.copy()); rec['muscle'].append(np.array(w.muscle_signal_list[0]))
+    rec['input'].append(w.test_i[-1]); rec['mnv'].append(w.mnv_0.copy()); rec['muscle'].append(np.array(w.init_muscle_file[s] if s < init else w.muscle_signal_list[0]))
     rec['head'].append(interact.get_head_location(0)); rec['x'].append(interact.positions(0)); rec['states'].append(interact.states(0))
     if s % 30 == 29:
         print(f'{(s+1)/30:.1f} s  head {rec["head"][-1]}  {time.time()-t0:.0f} s wall', flush=True)
 np.savez_compressed(out, **{k: np.array(v) for k, v in rec.items()},
-                    target_local=w.worm_0.target_location, init_pos=interact.get_init_position(0), init_rot=interact.get_init_rotation(0))
+                    target_local=w.worm_0.target_location, init=init, init_pos=interact.get_init_position(0), init_rot=interact.get_init_rotation(0))

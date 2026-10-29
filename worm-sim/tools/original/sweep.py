@@ -5,13 +5,15 @@ from concurrent.futures import ThreadPoolExecutor
 B = os.path.abspath(os.environ['BAAIWORM']); PY = os.environ['PY']
 E = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = sys.argv[1]; os.makedirs(OUT, exist_ok=True); secs = 60
+OUT = sys.argv[1]; os.makedirs(OUT, exist_ok=True)
+INIT = int(os.environ.get('INIT', 0)); secs = 60 + INIT // 30  # INIT ticks of BAAIWorm's teaching muscles first (original only)
+ONLY_REF = bool(os.environ.get('ONLY_REF'))
 dirs = [(0,0,-1),(.7,0,-.7),(-.7,0,-.7),(0,.7,-.7),(0,-.7,-.7),(1,0,0),(-1,0,0),(0,1,0),(0,-1,0),(0,0,1)]
 jobs = []
 for i, d in enumerate(dirs):
     d = np.array(d) / np.linalg.norm(d); f = [f'{x:.5f}' for x in d * 2.0 + np.array([0, 0, -0.313])]
-    jobs.append(([PY, f'{HERE}/run.py', 'online', str(secs * 30), f'{OUT}/ref_{i}.npz'] + f, f'{OUT}/ref_{i}.log', {'LOCAL': '1'}))
-    jobs.append(([f'{E}/engine/target/release/loop_run', f'{E}/model', 'online', str(secs)] + f, f'{OUT}/mine_{i}.log', {'WARM': '0', 'DUMPX': f'{OUT}/mine_{i}.x'}))
+    jobs.append(([PY, f'{HERE}/run.py', 'online', str(secs * 30), f'{OUT}/ref_{i}.npz'] + f, f'{OUT}/ref_{i}.log', {'LOCAL': '1', 'INIT': str(INIT)}))
+    if not ONLY_REF: jobs.append(([f'{E}/engine/target/release/loop_run', f'{E}/model', 'online', str(secs)] + f, f'{OUT}/mine_{i}.log', {'WARM': '0', 'DUMPX': f'{OUT}/mine_{i}.x'}))
 def run(j):
     with open(j[1], 'w') as o: subprocess.run(j[0], stdout=o, stderr=subprocess.STDOUT, env={**os.environ, **j[2]})
 with ThreadPoolExecutor(12) as ex: list(ex.map(run, jobs))
