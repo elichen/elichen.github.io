@@ -307,7 +307,23 @@ pub struct Body {
     pub iterations: usize,
     /// multiplies the water's drag and lift (1 = SoftCon's water)
     pub fluid: f64,
+    /// None = SoftCon's water; Some = crawling on agar (resistive force theory)
+    agar: Option<Agar>,
+    entries: Vec<(usize, usize, f64)>,
+    slice: Vec<usize>, // vertex -> slice along the body, for the centerline
 }
+
+/// Viscous drag of a surface groove, per vertex: c_t along the body, c_n across it and
+/// out of the plane. Implicit as two projective-dynamics terms with constant weights,
+/// so the matrix stays factored: w_t |x - x0|^2 + (w_n - w_t) |x - p|^2, where p is x0
+/// moved along the local body tangent by (x - x0)'s tangential part.
+#[derive(Clone, Copy)]
+struct Agar {
+    w_t: f64,
+    w_n: f64,
+}
+
+const SLICES: usize = 40;
 
 impl Body {
     pub fn new(data: &[f64]) -> Body {
@@ -390,6 +406,8 @@ impl Body {
             }
         }
         let chol = Profile::new(nv, &entries);
+        let (z0, z1) = (0..nv).map(|i| rest[i * 3 + 2]).fold((f64::MAX, f64::MIN), |(a, b), z| (a.min(z), b.max(z)));
+        let slice = (0..nv).map(|i| (((rest[i * 3 + 2] - z0) / (z1 - z0) * SLICES as f64) as usize).min(SLICES - 1)).collect();
         Body {
             nv,
             x: rest.clone(),
@@ -410,7 +428,38 @@ impl Body {
             xk: vec![0.0; nv * 3],
             iterations: 0,
             fluid: 1.0,
+            agar: None,
+            entries,
+            slice,
         }
+    }
+
+    /// Crawl on agar with per-vertex drag coefficients c_t (along the body) and c_n
+    /// (across it), or swim in SoftCon's water with None.
+    pub fn set_agar(&mut self, c: Option<(f64, f64)>) {
+        self.agar = c.map(|(ct, cn)| Agar { w_t: ct / DT, w_n: cn / DT });
+        let mut e = self.entries.clone();
+        if let Some(a) = self.agar {
+            for i in 0..self.nv {
+                e.push((i, i, a.w_n));
+            }
+        }
+        self.chol = Profile::new(self.nv, &e);
+    }
+
+    /// unit tangent of the centerline at each slice, from positions x
+    fn tangents(&self, x: &[f64]) -> Vec<V3> {
+        let mut c = vec![[0.0; 3]; SLICES];
+        let mut n = vec![0.0f64; SLICES];
+        for i in 0..self.nv {
+            let k = self.slice[i];
+            c[k] = add(c[k], pt(x, i as u32));
+            n[k] += 1.0;
+        }
+        for k in 0..SLICES {
+            c[k] = scale(c[k], 1.0 / n[k].max(1.0));
+        }
+        (0..SLICES).map(|k| normalized(sub(c[(k + 1).min(SLICES - 1)], c[k.saturating_sub(1)]))).collect()
     }
 
     pub fn reset(&mut self) {
@@ -488,7 +537,12 @@ impl Body {
 
     /// Environment::Step: drag, then one projective-dynamics time step.
     pub fn step(&mut self) {
-        self.drag();
+        if self.agar.is_some() {
+            self.f_ext.iter_mut().for_each(|f| *f = 0.0);
+        } else {
+            self.drag();
+        }
+        let tan = if self.agar.is_some() { self.tangents(&self.x) } else { Vec::new() };
         let nv = self.nv;
         let inv_m = nv as f64 / MASS;
         // q = x + dt v + dt² M⁻¹ f
@@ -506,6 +560,14 @@ impl Body {
                 b[r] = self.m_dt2 * q[i * 3];
                 b[r + 1] = self.m_dt2 * q[i * 3 + 1];
                 b[r + 2] = self.m_dt2 * q[i * 3 + 2];
+                if let Some(a) = self.agar {
+                    let x0 = pt(&self.x, i as u32);
+                    let t = tan[self.slice[i]];
+                    let p = add(x0, scale(t, dot(t, sub(pt(&x, i as u32), x0))));
+                    for c in 0..3 {
+                        b[r + c] += a.w_t * x0[c] + (a.w_n - a.w_t) * p[c];
+                    }
+                }
             }
             for t in self.tets.iter_mut() {
                 let xs = [pt(&x, t.idx[0]), pt(&x, t.idx[1]), pt(&x, t.idx[2]), pt(&x, t.idx[3])];

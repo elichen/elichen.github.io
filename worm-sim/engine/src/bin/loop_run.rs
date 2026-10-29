@@ -4,6 +4,7 @@
 //! env: GJ / SYN = gain on gap junctions / chemical synapses (default 1)
 //!      WARM=<control steps of brain warm-up, body held> (default 0, as BAAIWorm)
 //!      DUMP=<file> writes each step's 96 muscle activations
+//!      AGAR=<c_t>,<c_n> crawls on agar (per-vertex drag coefficients) instead of swimming
 //!      DUMPX=<file> writes each step's vertex positions (f64, little-endian)
 use std::io::Write;
 use std::time::Instant;
@@ -58,6 +59,10 @@ fn main() {
                 }
             }
         }
+    }
+    if let Ok(c) = std::env::var("AGAR") {
+        let c: Vec<f64> = c.split(',').map(|x| x.parse().unwrap()).collect();
+        w.body.set_agar(Some((c[0], c[1])));
     }
     let warm: usize = std::env::var("WARM").map(|s| s.parse().unwrap()).unwrap_or(0);
     w.warm_up(warm);
