@@ -1,12 +1,16 @@
-// Runs BAAIWorm (engine.wasm: brain + body) off the main thread, paced to real
-// time: one control step = 100 ms of brain, then 1/30 s of body. After each batch
-// of steps it posts the mesh, muscles and voltages to the page.
+// Runs BAAIWorm's body (engine.wasm) off the main thread, paced to real time, and
+// starts brain-worker.js for the brain. One control step = 100 ms of brain (done
+// ahead in the brain worker), then 1/30 s of body here. After each batch of steps
+// it posts the mesh, muscles and voltages to the page.
 
 const CONTROL_DT = 1 / 30; // body seconds per control step
-const WARM_UP = 20; // control steps of brain with the body held straight
 
 let w = null;
-let mem = () => w.memory.buffer;
+const mem = () => w.memory.buffer;
+const brain = new Worker('brain-worker.js');
+const frames = [];
+let epoch = 0;
+let brainReady = false;
 let running = true;
 let speed = 1;
 let simTime = 0;
@@ -16,6 +20,8 @@ let lastPost = 0;
 let stepsSincePost = 0;
 let busyMs = 0;
 let iterSum = 0;
+let shown = null; // brain data of the last step taken
+let muscleBuf = 0;
 
 async function bytes(url) {
   const r = await fetch(url);
@@ -29,10 +35,19 @@ function put(a) {
   return p;
 }
 
+brain.onmessage = (e) => {
+  const m = e.data;
+  if (m.type === 'frame') {
+    if (m.epoch === epoch) frames.push(m);
+  } else if (m.type === 'ready') {
+    brainReady = true;
+    maybeStart();
+  } else postMessage(m);
+};
+
 async function load() {
-  const progress = (text) => postMessage({ type: 'progress', text });
-  progress('Loading the circuit and body');
-  const [wasm, brain, body, wout, meta] = await Promise.all([
+  postMessage({ type: 'progress', text: 'Loading the circuit and body' });
+  const [wasm, brainData, body, wout, meta] = await Promise.all([
     WebAssembly.instantiateStreaming(fetch('engine.wasm')),
     bytes('model/brain.bin'),
     bytes('model/body.bin'),
@@ -40,10 +55,16 @@ async function load() {
     fetch('model/brain.json').then((r) => r.json()),
   ]);
   w = wasm.instance.exports;
-  w.init(put(brain), brain.length, put(body), body.length, put(wout), put(new Float64Array([...meta.input, ...meta.output])));
-  progress('Warming up the brain');
-  await new Promise((r) => setTimeout(r, 0));
-  w.warm_up(WARM_UP);
+  w.init(put(brainData), brainData.length, put(body), body.length, put(wout), put(new Float64Array([...meta.input, ...meta.output])));
+  muscleBuf = w.alloc(96);
+  postMessage({ type: 'progress', text: 'Warming up the brain' });
+  maybeStart();
+}
+
+let started = false;
+function maybeStart() {
+  if (started || !w || !brainReady) return;
+  started = true;
   postMessage({ type: 'ready', vertices: w.n_vertices() });
   restartClock();
   loop();
@@ -57,23 +78,23 @@ function restartClock() {
 function post() {
   const nv = w.n_vertices();
   const x = new Float32Array(new Float64Array(mem(), w.positions(), nv * 3));
-  const muscle = new Float32Array(new Float64Array(mem(), w.muscles(), 96));
-  const motor = new Float32Array(new Float64Array(mem(), w.motor_v(), 80));
-  const soma = new Float32Array(new Float64Array(mem(), w.soma_v(), 136));
-  const nodes = new Float32Array(mem(), w.node_v(), 24496).slice();
+  const muscle = new Float32Array(shown.muscle);
+  const { motor, soma, nodes } = shown;
   const now = performance.now();
   const wall = (now - lastPost) / 1000;
   postMessage(
     {
       type: 'state', x, muscle, motor, soma, nodes,
-      stimulus: w.stimulus(), time: simTime, steps: stepsSincePost,
-      // how much body time one wall second buys at full speed
+      stimulus: shown.stimulus, time: simTime, steps: stepsSincePost,
+      // how much body time one wall second buys at full speed (body side)
       capacity: stepsSincePost ? (stepsSincePost * CONTROL_DT) / (busyMs / 1000) : 0,
       rate: wall > 0 ? (stepsSincePost * CONTROL_DT) / wall : 0,
       iterations: stepsSincePost ? iterSum / stepsSincePost : 0,
+      queue: frames.length, // brain steps ready ahead of the body
     },
-    [x.buffer, muscle.buffer, motor.buffer, soma.buffer, nodes.buffer],
+    [x.buffer, muscle.buffer],
   );
+  shown = null;
   lastPost = now;
   stepsSincePost = 0;
   busyMs = 0;
@@ -83,35 +104,41 @@ function post() {
 function loop() {
   if (running) {
     const t0 = performance.now();
+    // while the brain has nothing ready (warming up after a restart) the clock waits
+    if (!frames.length) (wallStart = t0), (simStart = simTime);
     const due = simStart + ((t0 - wallStart) / 1000) * speed;
     // never fall further behind than a few steps: a slow machine runs slower than real time
-    if (due - simTime > 4 * CONTROL_DT) simTime = due - 4 * CONTROL_DT, simStart = simTime, wallStart = t0;
-    while (simTime + CONTROL_DT <= due + 1e-9 && performance.now() - t0 < 40) {
-      w.think();
+    if (due - simTime > 4 * CONTROL_DT) (simTime = due - 4 * CONTROL_DT), (simStart = simTime), (wallStart = t0);
+    let used = 0;
+    while (frames.length && simTime + CONTROL_DT <= due + 1e-9 && performance.now() - t0 < 40) {
+      const f = frames.shift();
+      new Float64Array(mem(), muscleBuf, 96).set(f.muscle);
+      w.set_muscles(muscleBuf);
       w.moving();
       iterSum += w.iterations();
       simTime += CONTROL_DT;
       stepsSincePost++;
+      shown = f;
+      used++;
     }
+    if (used) brain.postMessage({ type: 'credit', n: used });
     busyMs += performance.now() - t0;
-    if (stepsSincePost) post();
+    if (stepsSincePost && shown) post();
   }
   setTimeout(loop, 4);
 }
 
 onmessage = (e) => {
   const m = e.data;
+  if (m.type === 'gain') brain.postMessage(m);
   if (!w) return;
-  if (m.type === 'gain') {
-    w.set_gain(1, m.syn); // excitatory
-    w.set_gain(2, m.syn); // inhibitory
-    w.set_gain(0, m.gap);
-  } else if (m.type === 'reset') {
+  if (m.type === 'reset') {
+    epoch++;
+    frames.length = 0;
     w.reset();
-    w.warm_up(WARM_UP);
+    brain.postMessage({ type: 'reset', epoch });
     simTime = 0;
     restartClock();
-    post();
   } else if (m.type === 'run') {
     running = m.on;
     restartClock();

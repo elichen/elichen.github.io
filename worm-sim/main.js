@@ -40,6 +40,10 @@ const bodyLength = 0.6276;
 // ---------- three.js ----------
 const canvas = $('view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+canvas.addEventListener('webglcontextlost', () => {
+  $('loading-text').textContent = 'The browser reset the graphics. Reload the page to continue.';
+  $('loading').classList.remove('done');
+});
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(38, 1, 0.005, 50);
@@ -285,15 +289,20 @@ worker.onmessage = (e) => {
     centroid.set(cx / nv, cy / nv, cz / nv);
     speedTrack.push([m.time, centroid.clone()]);
     while (speedTrack.length > 2 && m.time - speedTrack[0][0] > 3) speedTrack.shift();
-    rate = rate * 0.9 + m.rate * 0.1;
+    // sim seconds per wall second over the last 3 s
+    rateTrack.push([performance.now() / 1000, m.time]);
+    while (rateTrack.length > 2 && rateTrack[rateTrack.length - 1][0] - rateTrack[0][0] > 3) rateTrack.shift();
+    const [w0, s0] = rateTrack[0], [w1, s1] = rateTrack[rateTrack.length - 1];
+    if (w1 - w0 > 1 && s1 > s0) rate = (s1 - s0) / (w1 - w0);
     // ?report sends the speed to a local test server (a tab under DevTools runs wasm unoptimized)
     if (location.search.includes('report') && Math.floor(m.time) % 5 === 0 && Math.floor(m.time) !== reported) {
       reported = Math.floor(m.time);
-      fetch(`/report?t=${m.time.toFixed(1)}&cap=${m.capacity.toFixed(3)}&rate=${m.rate.toFixed(3)}`);
+      fetch(`/report?t=${m.time.toFixed(1)}&cap=${m.capacity.toFixed(3)}&rate=${m.rate.toFixed(3)}&queue=${m.queue}`);
     }
   }
 };
 let rate = 1;
+const rateTrack = [];
 let reported = -1;
 
 function updateGeometry(m) {
@@ -366,6 +375,7 @@ $('gap').addEventListener('input', sendGain);
 $('reset').addEventListener('click', () => {
   worker.postMessage({ type: 'reset' });
   speedTrack.length = 0;
+  rateTrack.length = 0;
   followed = null;
 });
 $('about-open').addEventListener('click', () => $('about').showModal());
@@ -406,11 +416,17 @@ function frame() {
       const [t0, p0] = speedTrack[0], [t1, p1] = speedTrack[speedTrack.length - 1];
       $('speed').textContent = `${(p1.distanceTo(p0) / Math.max(1e-6, t1 - t0) / bodyLength).toFixed(2)} lengths/s`;
     }
-    $('rate').textContent = rate > 0.97 ? 'real time' : `${rate.toFixed(2)}× real time`;
+    $('rate').textContent = rate > 0.95 ? 'real time' : `${rate.toFixed(2)}× real time`;
   }
   // follow the worm, keeping the visitor's view angle
   if (latest) {
-    if (!followed) followed = centroid.clone(), controls.target.copy(centroid), camera.position.add(centroid);
+    if (!followed) {
+      // (re)start following: keep the camera's offset from what it was looking at
+      const off = camera.position.clone().sub(controls.target);
+      followed = centroid.clone();
+      controls.target.copy(centroid);
+      camera.position.copy(centroid).add(off);
+    }
     const d = centroid.clone().sub(followed).multiplyScalar(0.08);
     followed.add(d);
     controls.target.add(d);

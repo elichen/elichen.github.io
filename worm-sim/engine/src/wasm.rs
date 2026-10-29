@@ -54,6 +54,12 @@ pub extern "C" fn think() {
     worm().think();
 }
 
+/// muscle activations to use on the next `moving` (96 values), for a page that runs the brain elsewhere
+#[no_mangle]
+pub unsafe extern "C" fn set_muscles(m: *const f64) {
+    worm().muscle.copy_from_slice(std::slice::from_raw_parts(m, 96));
+}
+
 #[no_mangle]
 pub extern "C" fn moving() {
     worm().moving();
