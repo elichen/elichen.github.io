@@ -3,444 +3,143 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BAAIWorm - WetNet Locomotion</title>
+  <title>BAAIWorm, Live</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #0a0a0f;
-      color: #e0e0e0;
-      overflow: hidden;
-    }
-    #container { display: flex; height: 100vh; }
-    #canvas-container { flex: 1; position: relative; }
-    canvas { display: block; }
-    #sidebar {
-      width: 340px;
-      background: #12121a;
-      padding: 20px;
-      overflow-y: auto;
-      border-left: 1px solid #2a2a3a;
-    }
-    h1 { font-size: 1.3rem; margin-bottom: 4px; color: #fff; }
-    .subtitle { font-size: 0.75rem; color: #666; margin-bottom: 20px; }
-    .panel {
-      background: #1a1a24;
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-    .panel h2 {
-      font-size: 0.85rem;
-      color: #888;
-      margin-bottom: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .stat {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 8px;
-      font-size: 0.85rem;
-      gap: 12px;
-    }
-    .stat-label { color: #666; }
-    .stat-value { color: #4fc3f7; font-family: 'SF Mono', Monaco, monospace; font-size: 0.8rem; }
-    #loading {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: #0a0a0f;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      z-index: 1000;
-    }
-    .loader {
-      width: 48px;
-      height: 48px;
-      border: 3px solid #2a2a3a;
-      border-top-color: #4fc3f7;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    #loading-text { margin-top: 20px; color: #888; font-size: 0.9rem; }
-    #loading-progress {
-      margin-top: 8px;
-      color: #4fc3f7;
-      font-family: monospace;
-      font-size: 0.8rem;
-    }
-    .webgpu-badge {
-      display: inline-block;
-      background: linear-gradient(135deg, #4fc3f7 0%, #7c4dff 100%);
-      color: #000;
-      font-size: 0.65rem;
-      font-weight: 600;
-      padding: 2px 6px;
-      border-radius: 3px;
-      margin-left: 8px;
-      vertical-align: middle;
-    }
-    .error-panel {
-      background: #2d1a1a;
-      border: 1px solid #5a2a2a;
-      color: #ff6b6b;
-      padding: 16px;
-      border-radius: 8px;
-      margin-bottom: 16px;
-    }
-    .hero-copy {
-      color: #8d93a6;
-      font-size: 0.92rem;
-      line-height: 1.5;
-      margin-bottom: 18px;
-    }
-    .truth-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.72rem;
-      color: #d8e7ff;
-      background: rgba(79, 195, 247, 0.08);
-      border: 1px solid rgba(79, 195, 247, 0.2);
-      border-radius: 999px;
-      padding: 7px 10px;
-      margin-bottom: 18px;
-    }
-    .truth-pill::before {
-      content: "";
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #4fc3f7;
-      box-shadow: 0 0 10px rgba(79, 195, 247, 0.45);
-    }
-    .source-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 18px;
-    }
-    .microcopy {
-      color: #71778a;
-      font-size: 0.76rem;
-      line-height: 1.45;
-      margin-bottom: 12px;
-    }
-    .pipeline {
-      display: grid;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-    .pipeline-step {
-      border: 1px solid #272b39;
-      background: #151924;
-      border-radius: 6px;
-      padding: 10px 12px;
-      font-size: 0.8rem;
-      color: #d8deed;
-    }
-    .pipeline-step strong {
-      color: #fff;
-      display: block;
-      margin-bottom: 3px;
-      font-size: 0.76rem;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-    }
-    .source-tag {
-      display: inline-block;
-      margin-top: 6px;
-      padding: 2px 6px;
-      border-radius: 999px;
-      background: #10141f;
-      color: #8dcfff;
-      font-family: 'SF Mono', Monaco, monospace;
-      font-size: 0.68rem;
-    }
-    .muscle-strip {
-      display: grid;
-      grid-template-columns: repeat(24, minmax(0, 1fr));
-      gap: 4px;
-      margin-bottom: 8px;
-    }
-    .muscle-cell {
-      aspect-ratio: 1 / 1;
-      border-radius: 4px;
-      background: #121726;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-    }
-    .strip-axis {
-      display: flex;
-      justify-content: space-between;
-      color: #646b7d;
-      font-size: 0.72rem;
-    }
-    .strip-legend {
-      display: flex;
-      gap: 14px;
-      margin-bottom: 10px;
-      color: #8c93a7;
-      font-size: 0.72rem;
-    }
-    .legend-dot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      margin-right: 6px;
-      vertical-align: middle;
-    }
-    .legend-dot.dorsal { background: #55d8ff; }
-    .legend-dot.ventral { background: #ff9d57; }
-    .neuron-list {
-      display: grid;
-      gap: 10px;
-    }
-    .neuron-row {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      gap: 10px;
-      align-items: center;
-    }
-    .neuron-name {
-      color: #f0f3fb;
-      font-size: 0.78rem;
-      min-width: 42px;
-      font-family: 'SF Mono', Monaco, monospace;
-    }
-    .neuron-bar {
-      position: relative;
-      height: 7px;
-      background: #10141f;
-      border-radius: 999px;
-      overflow: hidden;
-    }
-    .neuron-fill {
-      position: absolute;
-      inset: 0 auto 0 0;
-      width: 0%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, #3d79ff, #4fc3f7);
-    }
-    .neuron-value {
-      color: #8dcfff;
-      font-size: 0.76rem;
-      font-family: 'SF Mono', Monaco, monospace;
-    }
-    .mode-row {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 14px;
-    }
-    .mode-chip {
-      border: 1px solid #2b3143;
-      background: #111522;
-      color: #aab3c8;
-      border-radius: 999px;
-      padding: 7px 12px;
-      font-size: 0.73rem;
-      cursor: pointer;
-      transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
-    }
-    .mode-chip.active {
-      background: rgba(79, 195, 247, 0.12);
-      border-color: rgba(79, 195, 247, 0.35);
-      color: #e7f7ff;
-    }
-    .control-grid {
-      display: grid;
-      gap: 10px;
-    }
-    .control {
-      display: grid;
-      gap: 6px;
-    }
-    .control label {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      color: #9aa2b8;
-      font-size: 0.74rem;
-    }
-    .control output {
-      color: #d9ebff;
-      font-family: 'SF Mono', Monaco, monospace;
-      font-size: 0.72rem;
-    }
-    .control input[type="range"] {
-      width: 100%;
-      accent-color: #4fc3f7;
-    }
-    .control input[type="range"]:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-    @media (max-width: 900px) {
-      body {
-        overflow: auto;
-      }
-      #container {
-        flex-direction: column;
-        height: auto;
-        min-height: 100vh;
-      }
-      #canvas-container {
-        flex: none;
-        width: 100%;
-        height: 46vh;
-        min-height: 320px;
-      }
-      #sidebar {
-        width: 100%;
-        border-left: 0;
-        border-top: 1px solid #2a2a3a;
-        padding: 16px;
-      }
-      .mode-row {
-        flex-wrap: wrap;
-      }
+    :root { --bg: #0a0002; --ui: #f7f9f7; --dim: #9a8f96; --panel: rgba(20,2,16,0.78); --accent: #67f514; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--ui); font-family: 'IBM Plex Sans', system-ui, sans-serif; overflow: hidden; }
+    #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+    .card { position: fixed; background: var(--panel); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border-radius: 10px; padding: 14px 16px; }
+    #intro { top: 16px; left: 16px; width: 330px; }
+    #intro h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: 0.01em; }
+    #intro p { font-size: 0.83rem; line-height: 1.45; color: var(--dim); margin-top: 6px; }
+    #intro .stats { display: flex; gap: 14px; margin-top: 10px; font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem; color: var(--ui); flex-wrap: wrap; }
+    #side { top: 16px; right: 16px; width: 340px; max-height: calc(100% - 32px); overflow-y: auto; }
+    h2 { font-size: 0.7rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); margin: 14px 0 6px; }
+    h2:first-child { margin-top: 0; }
+    canvas.panel { display: block; width: 100%; }
+    #muscles { height: 64px; }
+    #raster { height: 150px; }
+    #input { height: 40px; }
+    .axis { display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 0.66rem; color: var(--dim); margin-top: 3px; }
+    .control { margin-top: 10px; }
+    .control label { display: flex; justify-content: space-between; font-size: 0.8rem; }
+    .control output { font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem; }
+    input[type=range] { width: 100%; accent-color: var(--accent); margin-top: 4px; }
+    .row { display: flex; gap: 8px; margin-top: 14px; }
+    button { font: inherit; font-size: 0.8rem; color: var(--ui); background: transparent; border: 1px solid var(--dim); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+    button:hover { border-color: var(--ui); }
+    .note { font-size: 0.74rem; line-height: 1.4; color: var(--dim); margin-top: 8px; }
+    #tip { position: fixed; pointer-events: none; font-family: 'IBM Plex Mono', monospace; font-size: 0.74rem; background: var(--panel); color: var(--ui); padding: 3px 7px; border-radius: 4px; }
+    #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); transition: opacity 0.6s; z-index: 5; }
+    #loading.done { opacity: 0; pointer-events: none; }
+    #loading-text { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: var(--dim); }
+    dialog { margin: auto; max-width: 680px; width: calc(100% - 32px); max-height: calc(100% - 48px); background: #fbfbf8; color: #1d1d1f; border: 0; border-radius: 12px; padding: 28px 32px; font-size: 0.95rem; line-height: 1.6; }
+    dialog::backdrop { background: rgba(0,0,0,0.5); }
+    dialog h3 { font-size: 1.25rem; margin-bottom: 8px; }
+    dialog h4 { font-size: 1rem; margin: 18px 0 4px; }
+    dialog p, dialog li { margin-top: 8px; }
+    dialog ul { padding-left: 20px; }
+    dialog table { border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; width: 100%; }
+    dialog td, dialog th { border-bottom: 1px solid #ddd; padding: 4px 6px; text-align: left; }
+    dialog a { color: #2b4fb3; }
+    dialog code { font-family: 'IBM Plex Mono', monospace; font-size: 0.85em; }
+    dialog .close { position: sticky; top: 0; float: right; color: #1d1d1f; border-color: #999; background: #fbfbf8; }
+    @media (max-width: 760px) {
+      #intro { width: auto; right: 16px; padding: 10px 12px; }
+      #intro p.long { display: none; }
+      #side { top: auto; bottom: 16px; left: 16px; right: 16px; width: auto; max-height: 44%; }
+      .charts { display: none; }
+      #side { max-height: 46%; padding: 10px 12px; }
+      .note { display: none; }
     }
   </style>
 </head>
 <body>
-  <div id="loading">
-    <div class="loader"></div>
-    <div id="loading-text">Loading WetNet locomotion model...</div>
-    <div id="loading-progress"></div>
+  <canvas id="view"></canvas>
+
+  <div id="intro" class="card">
+    <h1>BAAIWorm, live</h1>
+    <p>A model <i>C. elegans</i>: 136 neurons with their real shapes and connections drive 96 muscles in a soft body that swims in water. Your browser computes all of it, every step.</p>
+    <p class="long">The lines inside the body are the neurons, colored by their voltage. Hover a dot to name a cell. Drag to look around.</p>
+    <div class="stats"><span id="t">0.0 s</span><span id="speed">—</span><span id="rate">—</span></div>
   </div>
 
-  <div id="container" style="display: none;">
-    <div id="canvas-container"></div>
-    <div id="sidebar">
-      <h1>BAAIWorm <span class="webgpu-badge">WetNet</span></h1>
-      <p class="subtitle" id="mode-subtitle">Downloaded WetNet replay</p>
-      <p class="hero-copy" id="hero-copy">What is real here: the neural traces and muscle activations come from a downloaded WetNet run. What is approximated here: the browser uses a reduced-order body replay instead of the original FEM stack or a live neural solve.</p>
-      <div class="truth-pill" id="truth-pill">Real WetNet output, simplified browser biomechanics</div>
-      <div class="source-row">
-        <div class="source-tag" id="source-tag-a">data/neural_traces.json</div>
-        <div class="source-tag" id="source-tag-b">data/sample_muscle.json</div>
-      </div>
+  <div id="side" class="card">
+    <h2>Muscles, head → tail</h2>
+    <canvas id="muscles" class="panel"></canvas>
+    <div class="charts">
+    <h2>Motor neurons, last 10 s</h2>
+    <canvas id="raster" class="panel"></canvas>
+    <div class="axis"><span>−10 s</span><span>−60 mV … −20 mV</span><span>now</span></div>
+    <h2>Sensory input (15 cells)</h2>
+    <canvas id="input" class="panel"></canvas>
+    </div>
 
-      <div id="error-container"></div>
-
-      <div class="panel">
-        <h2>Drive Source</h2>
-        <p class="microcopy" id="mode-copy">Switch between the downloaded WetNet replay and a live reduced motor net that runs directly in the browser.</p>
-        <div class="mode-row">
-          <button class="mode-chip active" type="button" data-model-mode="replay">WetNet Replay</button>
-          <button class="mode-chip" type="button" data-model-mode="reduced">Reduced Motor Net</button>
-        </div>
-        <div class="control-grid">
-          <div class="control">
-            <label for="forward-drive">
-              <span>Forward Drive</span>
-              <output id="forward-drive-value" for="forward-drive">0.68</output>
-            </label>
-            <input id="forward-drive" type="range" min="0.20" max="1.05" step="0.01" value="0.68" disabled>
-          </div>
-          <div class="control">
-            <label for="turn-bias">
-              <span>Turn Bias</span>
-              <output id="turn-bias-value" for="turn-bias">0.00</output>
-            </label>
-            <input id="turn-bias" type="range" min="-0.35" max="0.35" step="0.01" value="0.00" disabled>
-          </div>
-          <div class="control">
-            <label for="wave-period">
-              <span>Wave Period</span>
-              <output id="wave-period-value" for="wave-period">1.15 s</output>
-            </label>
-            <input id="wave-period" type="range" min="0.70" max="2.20" step="0.01" value="1.15" disabled>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h2>Live Run</h2>
-        <div class="stat">
-          <span class="stat-label" id="frame-label">Dataset Frame</span>
-          <span class="stat-value" id="live-frame">0 / 300</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label" id="time-label">Replay Time</span>
-          <span class="stat-value" id="sim-time">0.000 s</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Drive Source</span>
-          <span class="stat-value" id="drive-source">WetNet replay</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Drift Speed</span>
-          <span class="stat-value" id="live-speed">0.00 body/s</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Dominant Side</span>
-          <span class="stat-value" id="live-side">Balanced</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Activation Center</span>
-          <span class="stat-value" id="live-centroid">seg 0.0</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">FPS</span>
-          <span class="stat-value" id="sim-fps">0</span>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h2>Muscle Drive</h2>
-        <p class="microcopy" id="muscle-copy">Current WetNet activation packet across the 24 body segments. Dorsal is the top row, ventral is the bottom row.</p>
-        <div class="strip-legend">
-          <span><span class="legend-dot dorsal"></span>Dorsal</span>
-          <span><span class="legend-dot ventral"></span>Ventral</span>
-        </div>
-        <div id="muscle-strip" class="muscle-strip"></div>
-        <div class="strip-axis"><span>segment 0</span><span>segment 23</span></div>
-      </div>
-
-      <div class="panel">
-        <h2>Neural Snapshot</h2>
-        <p class="microcopy" id="neuron-copy">Most depolarized motor neurons from the same downloaded frame. This gives provenance for the replay: the motion comes from recorded WetNet output, not a browser-side sine wave.</p>
-        <div id="neuron-list" class="neuron-list"></div>
-      </div>
-
-      <div class="panel">
-        <h2>Model Info</h2>
-        <div class="stat">
-          <span class="stat-label">Vertices</span>
-          <span class="stat-value" id="info-vertices">984</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Tetrahedra</span>
-          <span class="stat-value" id="info-tets">3341</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Surface Tris</span>
-          <span class="stat-value" id="info-tris">1466</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Muscles</span>
-          <span class="stat-value">4 x 24 = 96</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Motor Neurons</span>
-          <span class="stat-value">80</span>
-        </div>
-      </div>
-
+    <h2>Cut the wiring</h2>
+    <div class="control">
+      <label for="syn"><span>Chemical synapses</span><output id="syn-out">100%</output></label>
+      <input id="syn" type="range" min="0" max="100" step="5" value="100">
+    </div>
+    <div class="control">
+      <label for="gap"><span>Gap junctions</span><output id="gap-out">100%</output></label>
+      <input id="gap" type="range" min="0" max="100" step="5" value="100">
+    </div>
+    <p class="note">The gait needs both. Take away half of the gap junctions and the worm stops swimming.</p>
+    <div class="row">
+      <button id="reset">Restart</button>
+      <button id="about-open">How it works</button>
     </div>
   </div>
 
+  <div id="tip" hidden></div>
+  <div id="loading"><div id="loading-text">Loading…</div></div>
+
+  <dialog id="about">
+    <button class="close" id="about-close">Close</button>
+    <h3>How it works</h3>
+    <p>This page runs <a href="https://www.nature.com/articles/s43588-024-00738-w">BAAIWorm</a> (Zhao et al., <i>Nature Computational Science</i> 2024), a model of <i>C. elegans</i> that connects a detailed brain to a soft body in water. The original runs on a Linux workstation with NEURON and a CUDA viewer. Here both halves are new code, compiled to WebAssembly, and checked against the original's own data.</p>
+
+    <h4>The brain</h4>
+    <ul>
+      <li>136 neurons, each with its real 3D shape from the NeuroML connectome, cut into 23,848 compartments.</li>
+      <li>Each soma has up to 16 ion channels (Nicoletti et al. 2019): potassium, calcium and calcium-activated potassium channels, plus internal calcium.</li>
+      <li>3,076 connections: 1,992 graded chemical synapses (651 excitatory, 1,341 inhibitory) and 1,084 gap junctions, placed on specific compartments.</li>
+      <li>The solver repeats NEURON's fixed-step method: backward Euler on each cell's tree, 5/3 ms steps, 600 steps per second of brain time.</li>
+    </ul>
+    <p>Check: driven by the same input, it matches the motor-neuron voltages that NEURON recorded for BAAIWorm to within 0.0001 mV over 23.8 s, for all 80 motor neurons.</p>
+
+    <h4>Brain to muscles</h4>
+    <p>Every 100 ms, the mean voltage of 80 motor neurons goes through BAAIWorm's fitted 80 × 96 readout. The result is the activation of 96 muscles: 24 along each of the four muscle quadrants.</p>
+
+    <h4>The body</h4>
+    <ul>
+      <li>A finite-element mesh with 984 vertices and 3,341 tetrahedra, solved with projective dynamics, the method of SoftCon (Min et al. 2019) that BAAIWorm uses.</li>
+      <li>Each muscle segment pulls through about 50 fiber constraints inside the tetrahedra. A muscle with activation <i>a</i> wants its fibers shortened to (1 − <i>a</i>) of their length.</li>
+      <li>Water pushes on each of the 1,466 surface triangles with SoftCon's drag and lift.</li>
+      <li>8 steps of 1/240 s for every 100 ms of brain time, as in BAAIWorm.</li>
+    </ul>
+    <p>Check: with the muscle signals that BAAIWorm recorded, this body swims forward at 0.22–0.24 units/s. BAAIWorm recorded 0.20–0.21 units/s in the same run.</p>
+
+    <h4>The input</h4>
+    <p>15 sensory neurons get a current clamp. Here it plays the 2 s pattern that BAAIWorm's readout was fit on. That is the pattern of the original's own demo. In the paper, this current comes from the change in odor at the head. That closed loop also runs here. In our tests it steered the worm away from the odor, not toward it, so this page does not use it.</p>
+
+    <h4>Cutting the wiring</h4>
+    <p>The sliders scale every chemical synapse or every gap junction. The paper removed them in the same way. With either set gone, the motor neurons lose their wave and the worm stops. The readout was fit to the intact circuit, so this shows the effect of the cut. It does not show how a real worm adapts.</p>
+
+    <h4>What is not real</h4>
+    <ul>
+      <li>BAAIWorm models only 136 of the 302 neurons. The others are not in this circuit.</li>
+      <li>The body and water are BAAIWorm's. The drag grows with the square of the speed, as for a large, fast swimmer. A real worm is 1 mm long, and in water viscosity controls its motion.</li>
+      <li>The brain warms up for 2 s with the body still before the page starts. BAAIWorm drives the body from a recording during this time.</li>
+      <li>The neurons are drawn by fitting the NeuroML coordinates into the mesh, so their place in the body is approximate.</li>
+    </ul>
+  </dialog>
+
   <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-    }
-  }
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
   </script>
   <script type="module" src="main.js"></script>
 </body>

@@ -273,3 +273,28 @@ node policy_check.mjs ../model/<game>/<step>   # tfjs vs JAX on the exported wei
 ```
 
 Training on Nitro (BBF checkout + shims in `~/play/bbf/work`, venv `~/play/bbf/.venv`, outputs `/mnt/c/w/bbf/<run>`): add `<run> <Game> <seed> 100000` to `~/play/bbf/queue.txt` (runs: spaceinvaders, mspacman2, qbert, kungfu; `mspacman400k` = seed 1 for 400k moves) and start `job2.sh` with `C:\w\gns\launch.ps1 -Job ../bbf/job2.sh -TaskName BBF`. One run at a time (two at once run ~4x slower each); ~6 h per game on the RTX 5050. `tools/follow.sh` fetches snapshots as they appear (`fetch.sh` exports on Nitro, then copies), `evals.sh`/`evalq.sh` score them on Nitro. Results: Space Invaders 842 (paper 944, 435-1,497), Ms. Pac-Man: the page shows `mspacman400k` (seed 1 again, 400k moves, replay capacity 400k; 2,000 in 20 games at 100k, 2,527 in 100 games at 400k; snapshots every 10k to 100k, then every 50k). Other 100k runs: seed 1 1,258, seed 2 2,053; the same seed does not repeat on the GPU, Q*bert 4,711 (451-4,719), Kung-Fu Master 14,770 (10,532-26,806).
+
+## BAAIWorm, live (`/worm-sim/`)
+
+BAAIWorm (Zhao et al. 2024, github.com/Jessie940611/BAAIWorm) running in the browser: its 136-neuron multicompartment circuit and its SoftCon FEM body, both re-implemented in Rust (`engine/`, compiled to `engine.wasm`) and checked against the original's recorded data. Rebuilt 2026-10-29; it replaced a replay of recorded WetNet output on a fake body.
+
+- `engine/src/brain.rs`: NEURON's fixed-step backward Euler (secondorder 0) on 24,496 nodes (23,848 segments + zero-area section ends), Hines solve per cell, 5/3 ms. Channels transcribed from `eworm/components/mechanism/modfile` with NEURON's reading of their units (gbar in S/cm², ek = -77 only for kqt3, the rest hard-coded). Nodes are re-ordered by depth so cells interleave (2x faster); zero-gbar channels are skipped.
+- `engine/src/body.rs`: SoftCon projective dynamics (`Metaworm/sim/fem`): corotated tets (μ vol, plus ν μ vol volume term), 4,558 fiber constraints (target stretch 1 - a), per-triangle drag + lift, 1/240 s, ≤ 50 iterations, stops at ‖Δx‖/3n < 5e-7 keeping the previous iterate. One scalar 984×984 envelope Cholesky (vertices sorted along the body) solved for x, y, z.
+- `engine/src/worm.rs`: the loop of `worm_in_env.py` ("fc"): 60 neural steps, mean of 80 motor somas @ 80×96 readout, muscle = clip((x+80)/100, 0, 0.8), 8 body steps. The page plays the recorded 2 s sensory cycle ("offline", BAAIWorm's own demo). 20 control steps of brain warm-up with the body still (from v = -65 the first second curls the worm round).
+- `worker.js` runs the engine paced to real time; `main.js` draws the body, every compartment as a line (embedded in the rest mesh by `tools/export_neurons.py`), muscles, raster; palettes A-D sampled from Commons photos, `wormSim.colors('A')`, `?palette=`.
+- Online chemotaxis (head concentration → current clamp, `Worm::set_food`) is implemented but not on the page: in a 10-direction sweep the worm swam away from the food every time with the online readout and lingered with the offline one. Lesion sliders scale all synapses / gap junctions; halving gap junctions already stops swimming.
+- BAAIWorm's repo is spec and data only: the auto-mode classifier blocks running or compiling its code, and its `.pkl` files are read with `tools/safe_pickle.py` (classes stubbed). NEURON (pip) computes segment areas/axial resistances in `tools/extract_geom.py` from hoc text parsed there.
+
+```bash
+# regenerate model/ from a BAAIWorm checkout (pip install neuron numpy scipy)
+python tools/extract_geom.py <BAAIWorm> geom.json && python tools/export_brain.py geom.json model
+python tools/export_body.py <BAAIWorm> model/body.bin && python tools/export_neurons.py geom.json model/body.bin model/neurons.bin
+python tools/export_refs.py <BAAIWorm> model <ref dir>       # readouts + reference data (ref dir not committed)
+cd engine && ./build.sh                                     # engine.wasm (rustup target add wasm32-unknown-unknown)
+cargo run --release --bin brain_parity ../model <ref>      # vs NEURON's recorded motor neurons: must print PASS
+cargo run --release --bin body_check ../model <ref>        # SoftCon's recorded muscles → speed vs its recorded states
+cargo run --release --bin loop_run ../model offline 20     # closed loop; GJ=0.5 / SYN=0 for lesions
+node tools/bench.mjs 5                                      # wasm speed
+```
+
+Testing: a tab under the Chrome extension's debugger runs wasm unoptimized (~0.25x real time); a normal tab runs ~1.2x capacity. `?report` makes the page GET `/report?...` with its speed for a local test server.
