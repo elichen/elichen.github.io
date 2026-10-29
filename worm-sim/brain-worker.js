@@ -3,7 +3,6 @@
 // steps in front of it; each result is the same as in a strictly serial loop.
 
 const AHEAD = 8;
-const WARM_UP = 20;
 let w = null;
 let credit = AHEAD;
 let epoch = 0;
@@ -31,7 +30,6 @@ async function load() {
   ]);
   w = wasm.instance.exports;
   w.init(put(brain), brain.length, put(body), body.length, put(wout), put(new Float64Array([...meta.input, ...meta.output])));
-  w.warm_up(WARM_UP);
   postMessage({ type: 'ready' });
   loop();
 }
@@ -62,7 +60,6 @@ onmessage = (e) => {
     epoch = m.epoch;
     credit = AHEAD;
     w.reset();
-    w.warm_up(WARM_UP);
   }
 };
 

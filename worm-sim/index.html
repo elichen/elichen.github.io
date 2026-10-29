@@ -121,10 +121,13 @@
       <li>Water pushes on each of the 1,466 surface triangles with SoftCon's drag and lift.</li>
       <li>8 steps of 1/240 s for every 100 ms of brain time, as in BAAIWorm.</li>
     </ul>
-    <p>Check: with the muscle signals that BAAIWorm recorded, this body swims forward at 0.22–0.24 units/s. BAAIWorm recorded 0.20–0.21 units/s in the same run.</p>
+    <p>Check: given the same muscle signals, this body and BAAIWorm's own body code stay within 0.0000001 units of each other for 20 s. (The worm is 0.54 units long.)</p>
+
+    <h4>The whole loop, against the original</h4>
+    <p>BAAIWorm's own code also runs here, outside the browser: its NEURON model and its SoftCon body, built without its CUDA viewer. Started the same way, the two runs give the same muscle signals to within 0.00003 for all 20 s (the range is 0 to 0.8). The two bodies stay within 1/40 of a body length of each other for 10 s. Then the small differences in the brain grow, as they do between any two runs of a swimming body, and the paths separate.</p>
 
     <h4>The input</h4>
-    <p>15 sensory neurons get a current clamp. Here it plays the 2 s pattern that BAAIWorm's readout was fit on. That is the pattern of the original's own demo. In the paper, this current comes from the change in odor at the head. That closed loop also runs here. In our tests it steered the worm away from the odor, not toward it, so this page does not use it.</p>
+    <p>15 sensory neurons get a current clamp. Here it plays the 2 s pattern that BAAIWorm's readout was fit on. That is the pattern of the original's own demo. In the paper, this current comes from the change in odor at the head. That closed loop also runs here. With food placed 2 units away in 10 directions, the worm ended farther from the food after 60 s in all 10 runs. BAAIWorm's own code did the same in all 10, so this page does not use the closed loop.</p>
 
     <h4>Cutting the wiring</h4>
     <p>The sliders scale every chemical synapse or every gap junction. The paper removed them in the same way. With either set gone, the motor neurons lose their wave and the worm stops. The readout was fit to the intact circuit, so this shows the effect of the cut. It does not show how a real worm adapts.</p>
@@ -134,7 +137,7 @@
       <li>BAAIWorm models only 136 of the 302 neurons. The others are not in this circuit.</li>
       <li>The input current is large for the small sensory cells. Some of them, such as URYVL, go several hundred millivolts below rest. This is a property of BAAIWorm's model, and the page keeps it.</li>
       <li>The body and water are BAAIWorm's. The drag grows with the square of the speed, as for a large, fast swimmer. A real worm is 1 mm long, and in water viscosity controls its motion.</li>
-      <li>The brain warms up for 2 s with the body still before the page starts. BAAIWorm drives the body from a recording during this time.</li>
+      <li>Every neuron starts at −65 mV, as in BAAIWorm. In the first half second the brain settles and the head swings round. BAAIWorm's own run does the same.</li>
       <li>The neurons are drawn by fitting the NeuroML coordinates into the mesh, so their place in the body is approximate.</li>
     </ul>
   </dialog>

@@ -104,7 +104,7 @@ function post() {
 function loop() {
   if (running) {
     const t0 = performance.now();
-    // while the brain has nothing ready (warming up after a restart) the clock waits
+    // while the brain has nothing ready (starting up after a restart) the clock waits
     if (!frames.length) (wallStart = t0), (simStart = simTime);
     const due = simStart + ((t0 - wallStart) / 1000) * speed;
     // never fall further behind than a few steps: a slow machine runs slower than real time

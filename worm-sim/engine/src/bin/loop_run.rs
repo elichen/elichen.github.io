@@ -2,8 +2,9 @@
 //! usage: loop_run <model dir> <offline|online|replay> <seconds of body time> [food x y z]
 //! (replay plays SoftCon's recorded muscles from REF=<ref dir> instead of the brain's)
 //! env: GJ / SYN = gain on gap junctions / chemical synapses (default 1)
-//!      WARM=<control steps of brain warm-up, body held> (default 20)
+//!      WARM=<control steps of brain warm-up, body held> (default 0, as BAAIWorm)
 //!      DUMP=<file> writes each step's 96 muscle activations
+//!      DUMPX=<file> writes each step's vertex positions (f64, little-endian)
 use std::io::Write;
 use std::time::Instant;
 use worm_engine::{body::Body, brain::Brain, frame::fit, worm::Worm};
@@ -58,9 +59,10 @@ fn main() {
             }
         }
     }
-    let warm: usize = std::env::var("WARM").map(|s| s.parse().unwrap()).unwrap_or(20);
+    let warm: usize = std::env::var("WARM").map(|s| s.parse().unwrap()).unwrap_or(0);
     w.warm_up(warm);
     let mut dump = std::env::var("DUMP").ok().map(|p| std::fs::File::create(p).unwrap());
+    let mut dumpx = std::env::var("DUMPX").ok().map(|p| std::fs::File::create(p).unwrap());
     let steps = (secs * 30.0) as usize;
     let t0 = Instant::now();
     let (mut tb, mut tn) = (0.0, 0.0);
@@ -71,7 +73,8 @@ fn main() {
         w.think();
         tn += t.elapsed().as_secs_f64();
         if let Some(r) = &replay {
-            w.muscle.copy_from_slice(&r[(k % 300) * 96..(k % 300) * 96 + 96]);
+            let j = k % (r.len() / 96);
+            w.muscle.copy_from_slice(&r[j * 96..j * 96 + 96]);
         }
         lo = lo.min(w.stimulus);
         hi = hi.max(w.stimulus);
@@ -81,6 +84,9 @@ fn main() {
         let t = Instant::now();
         w.moving();
         tb += t.elapsed().as_secs_f64();
+        if let Some(f) = dumpx.as_mut() {
+            f.write_all(&w.body.x.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>()).unwrap();
+        }
         if k % 30 == 29 {
             let h = w.head();
             let c = com(&w);

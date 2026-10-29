@@ -99,9 +99,12 @@ impl Worm {
     }
 
     /// Moving the food restarts the concentration bookkeeping (the worm "smells" it fresh).
+    /// Before the first step BAAIWorm takes the last smell at the start point (the body
+    /// origin), not at the head vertex, so its first change in concentration is not zero.
     pub fn set_food(&mut self, food: Option<[f64; 3]>) {
         self.food = food;
-        self.concentration = self.concentration_at(self.head());
+        let at = if self.step_count == 0 { [0.0; 3] } else { self.head() };
+        self.concentration = self.concentration_at(at);
     }
 
     /// WormNeuralNetwork.normalize_delta_concentration ("fc" branch)
@@ -122,7 +125,7 @@ impl Worm {
     /// The brain's half of a control step; returns the new muscle activations.
     pub fn think(&mut self) {
         self.step_count += 1;
-        self.stimulus = if self.food.is_some() { self.sense() } else { CYCLE[self.step_count % 20] };
+        self.stimulus = if self.food.is_some() { self.sense() } else { CYCLE[(self.step_count - 1) % 20] };
         for &c in &self.input_cells {
             self.brain.iclamp[c] = self.stimulus;
         }
