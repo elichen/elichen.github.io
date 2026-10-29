@@ -30,7 +30,7 @@ const DEEP_RENDER_MIN_BUDGET_MS = 1;
 const DEEP_RENDER_EXPENSIVE_STAGE_MIN_BUDGET_MS = 3.5;
 const DEEP_RENDER_STALE_SCALE_RATIO = 1.12;
 const DEEP_RENDER_STALE_TRANSLATION_PIXELS = 96;
-const MIN_GPU_SCALE = 1e-45;
+const MIN_GPU_SCALE = 1e-37;  // float32 deltas: |delta|/scale must stay below ~3e38
 const NEWTON_DEEP_RENDER_SCALE = 1e-6;
 const NEWTON_DEEP_RETRY_SCALE_FACTOR = 0.25;
 const NEWTON_PATHOLOGICAL_INITIAL_REPAIR_QUEUE_LENGTH = 4;
@@ -326,7 +326,7 @@ float mandelbrotPerturbation(vec2 deltaPixels) {
         vec2 nextScaledDelta = (
             2.0 * complexMul(reference, scaledDelta)
         ) + (
-            u_pixelScale * complexMul(scaledDelta, scaledDelta)
+            complexMul(scaledDelta, u_pixelScale * scaledDelta)
         ) + deltaPixels;
         vec2 z = nextReference + (u_pixelScale * nextScaledDelta);
         float mag2 = dot(z, z);
@@ -361,7 +361,7 @@ float juliaPerturbation(vec2 deltaPixels) {
         vec2 nextScaledDelta = (
             2.0 * complexMul(reference, scaledDelta)
         ) + (
-            u_pixelScale * complexMul(scaledDelta, scaledDelta)
+            complexMul(scaledDelta, u_pixelScale * scaledDelta)
         );
         vec2 z = nextReference + (u_pixelScale * nextScaledDelta);
         float mag2 = dot(z, z);
