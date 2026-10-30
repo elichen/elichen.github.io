@@ -63,7 +63,7 @@
   <div id="intro" class="card">
     <h1>BAAIWorm, live</h1>
     <p>A model <i>C. elegans</i> crawls on agar toward food. 136 neurons with their real shapes and connections drive 96 muscles in a soft body. It smells the food at its nose and steers the way real worms do. Your browser computes all of it, every step.</p>
-    <p class="long">Click the agar to move the food. The lines inside the body are the neurons, colored by their voltage. Hover a dot to name a cell. Drag to look around.</p>
+    <p class="long">Click the agar to move the food. Drag to look around. Press Neurons to see the circuit inside the body, colored by voltage, and hover a dot to name a cell.</p>
     <div class="stats"><span id="t">0.0 s</span><span id="speed">—</span><span id="rate">—</span></div>
     <div class="stats"><span id="doing">—</span><span id="food-dist">—</span><span id="turn-rate">—</span></div>
   </div>
@@ -93,6 +93,7 @@
     <div class="row">
       <button id="reset">Restart</button>
       <button id="overview">Whole plate</button>
+      <button id="view-toggle">Neurons</button>
       <button id="about-open">How it works</button>
     </div>
   </div>
@@ -125,6 +126,9 @@
       <li>In BAAIWorm, water pushes on each of the 1,466 surface triangles with SoftCon's drag and lift, and the body takes 8 steps of 1/240 s for every 100 ms of brain time.</li>
     </ul>
     <p>Check: in water, given the same muscle signals, no vertex of this body is more than 0.0000002 units from the same vertex in BAAIWorm's own body code during 20 s. (The worm is 0.63 units long, so 1 mm = 0.63 units.)</p>
+
+    <h4>The skin</h4>
+    <p>What you see is a drawn surface, not the simulation mesh. It is a smooth tube of 21,600 vertices that follows the mesh's outline, with a rounded nose and a tail that narrows to a point. Inside it are the organs that show through a real worm's cuticle: the pharynx with its two bulbs and the grinder, the intestine, and eggs on both sides of the vulva (positions from WormAtlas). Each vertex is fixed in one tetrahedron of the mesh, so it bends with the body. The shading copies transmitted light through a dissecting microscope: the edges are dark where the light bends, the middle is clear, and the cuticle has fine rings (annuli) and a ridge along each side (alae). The physics does not see any of this.</p>
 
     <h4>The whole loop, against the original</h4>
     <p>BAAIWorm's own code also runs here, outside the browser: its NEURON model and its SoftCon body, built without its CUDA viewer. Started the same way, the two runs give the same muscle signals to within 0.0001 at every step for 20 s (the range is 0 to 0.8). For the first 10 s, no vertex of the two bodies is more than 0.02 units apart (3% of the body length). Then the small differences in the brain grow, as they do between any two runs of a swimming body, and the paths separate.</p>

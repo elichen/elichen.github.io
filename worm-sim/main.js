@@ -17,6 +17,12 @@ const PALETTES = {
   D: { name: 'Agar plate', agar: '#cfccbc', agar2: '#bab7a6', tint: '#ead9a0', lawn: '#f1e8c9', trail: '#4a4945', bg: '#c4c2b4', bg2: '#dfdfd2', body: '#a3a092', rim: '#4a4945', shade: '#030305', rest: '#757268', active: '#030305', muscle: '#030305', ui: '#0f0f11', uiDim: '#4a4945', panel: 'rgba(223,223,210,0.85)', accent: '#030305', additive: false },
 };
 let pal = PALETTES.D;
+// the drawn skin under transmitted light, as in a dissecting microscope (edge, fill, alpha, edge alpha)
+// for cuticle, pharynx, grinder, intestine, eggs; sampled from the agar-plate photo (D)
+const SKIN = {
+  light: [['#2b2a26', '#dcdacd', 0.1, 0.85], ['#57544a', '#bdb9a9', 0.22, 0.5], ['#2a2824', '#55524a', 0.6, 0.4], ['#4f422c', '#94826a', 0.3, 0.45], ['#3d3b34', '#cfccbd', 0.22, 0.6]],
+  dark: [['#c9c6d8', '#1a1a2a', 0.08, 0.8], ['#8a87a8', '#2a2840', 0.2, 0.5], ['#d0cde0', '#5a5770', 0.5, 0.4], ['#a08a60', '#3a3020', 0.3, 0.45], ['#b8b5c8', '#2a2a3a', 0.2, 0.6]],
+};
 
 // ---------- data shared with the worker ----------
 async function f64(url) {
@@ -26,8 +32,8 @@ async function f32(url) {
   return new Float32Array(await (await fetch(url)).arrayBuffer());
 }
 
-const [bodyData, neuronData, muscleEnds, brainMeta] = await Promise.all([
-  f64('model/body.bin'), f32('model/neurons.bin'), f64('model/body_muscles.bin'), fetch('model/brain.json').then((r) => r.json()),
+const [bodyData, neuronData, muscleEnds, brainMeta, skinData] = await Promise.all([
+  f64('model/body.bin'), f32('model/neurons.bin'), f64('model/body_muscles.bin'), fetch('model/brain.json').then((r) => r.json()), f32('model/skin.bin'),
 ]);
 const nv = bodyData[0], nt = bodyData[1], nm = bodyData[2], ntri = bodyData[3];
 const rest = bodyData.subarray(5, 5 + nv * 3);
@@ -104,6 +110,92 @@ const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
 bodyMesh.frustumCulled = false;
 bodyMesh.renderOrder = 1;
 scene.add(bodyMesh);
+
+// ---------- the skin (tools/export_skin.py): cuticle and the organs seen through it ----------
+// each vertex is fixed in a rest tetrahedron, like the neurons; physics never sees it
+const skinN = skinData[0], skinTri = skinData[1];
+const skinEmb = skinData.subarray(2, 2 + skinN * 11);
+const skinIdx = skinData.subarray(2 + skinN * 11, 2 + skinN * 11 + skinTri * 3);
+const skinPos = new Float32Array(skinN * 3);
+const skinAttr = new Float32Array(skinN * 2);
+for (let i = 0; i < skinN; i++) (skinAttr[i * 2] = skinEmb[i * 11 + 8]), (skinAttr[i * 2 + 1] = skinEmb[i * 11 + 9]);
+const skinPosAttr = new THREE.BufferAttribute(skinPos, 3);
+const skinSAttr = new THREE.BufferAttribute(skinAttr, 2);
+// one geometry per part, all sharing the positions
+const parts = [[], [], [], [], []];
+for (let t = 0; t < skinTri; t++) {
+  const a = skinIdx[t * 3];
+  parts[skinEmb[a * 11 + 10]].push(skinIdx[t * 3], skinIdx[t * 3 + 1], skinIdx[t * 3 + 2]);
+}
+const skinVert = `
+  attribute vec2 sa;
+  varying vec3 vN; varying vec3 vV; varying vec2 vS;
+  void main() {
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); vS = sa;
+    gl_Position = projectionMatrix * mv;
+  }`;
+const skinUniforms = () => ({ edge: { value: new THREE.Color() }, fill: { value: new THREE.Color() }, alpha: { value: 0.2 }, edgeAlpha: { value: 0.8 } });
+// cuticle: dark where light bends at the edge (brightfield), clear in the middle,
+// with the fine annuli and the lateral alae
+const cuticleMat = new THREE.ShaderMaterial({
+  uniforms: skinUniforms(),
+  vertexShader: skinVert,
+  fragmentShader: `
+    uniform vec3 edge; uniform vec3 fill; uniform float alpha; uniform float edgeAlpha;
+    varying vec3 vN; varying vec3 vV; varying vec2 vS;
+    void main() {
+      float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
+      float rim = pow(f, 3.0);
+      float k = vS.x * 420.0;
+      float w = fwidth(k);
+      float ann = (1.0 - smoothstep(0.0, 0.5, w)) * (0.5 + 0.5 * cos(6.2832 * k));
+      float side = abs(abs(mod(vS.y + 3.1416, 6.2832) - 3.1416) - 1.5708); // 0 at the sides
+      float ala = (1.0 - smoothstep(0.0, 0.09, side)) * step(0.12, vS.x) * step(vS.x, 0.86);
+      vec3 c = mix(fill, edge, clamp(rim * 1.3 + 0.25 * ann * (1.0 - rim) + 0.35 * ala, 0.0, 1.0));
+      gl_FragColor = vec4(c, clamp(alpha + edgeAlpha * rim + 0.08 * ann + 0.25 * ala, 0.0, 1.0));
+    }`,
+  transparent: true, depthWrite: false, side: THREE.DoubleSide,
+});
+const organMat = (grain) => new THREE.ShaderMaterial({
+  uniforms: skinUniforms(),
+  vertexShader: skinVert,
+  fragmentShader: `
+    uniform vec3 edge; uniform vec3 fill; uniform float alpha; uniform float edgeAlpha;
+    varying vec3 vN; varying vec3 vV; varying vec2 vS;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+    void main() {
+      float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
+      float rim = pow(f, 2.0);
+      float g = ${grain ? 'noise(vec2(vS.x * 900.0, vS.y * 7.0)) * 0.6 + noise(vec2(vS.x * 2600.0, vS.y * 19.0)) * 0.4' : '0.5'};
+      vec3 c = mix(fill, edge, clamp(rim + ${grain ? '0.55' : '0.0'} * (g - 0.5), 0.0, 1.0));
+      gl_FragColor = vec4(c, clamp(alpha + edgeAlpha * rim + ${grain ? '0.3' : '0.0'} * (g - 0.3), 0.0, 1.0));
+    }`,
+  transparent: true, depthWrite: false, side: THREE.FrontSide,
+});
+const skinMats = [cuticleMat, organMat(false), organMat(false), organMat(true), organMat(false)];
+const skin = new THREE.Group();
+parts.forEach((idx, k) => {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', skinPosAttr);
+  g.setAttribute('sa', skinSAttr);
+  g.setIndex(idx);
+  const m = new THREE.Mesh(g, skinMats[k]);
+  m.frustumCulled = false;
+  m.renderOrder = k === 0 ? 1.5 : 1.2; // organs first, the cuticle over them
+  skin.add(m);
+});
+scene.add(skin);
+const skinGeos = skin.children.map((m) => m.geometry);
+let showNeurons = false;
+function setView(neurons) {
+  showNeurons = neurons;
+  skin.visible = !neurons;
+  bodyMesh.visible = nerves.visible = somas.visible = neurons;
+  $('view-toggle').textContent = neurons ? 'Skin' : 'Neurons';
+}
 
 // nervous system: a line from every compartment to its parent
 const nNodes = neuronData.length / 10;
@@ -262,6 +354,10 @@ function applyPalette(key) {
   nerveMat.blending = blend;
   somaMat.blending = blend;
   nerveMat.needsUpdate = somaMat.needsUpdate = true;
+  (pal.additive ? SKIN.dark : SKIN.light).forEach(([e, f, a, ea], k) => {
+    const u = skinMats[k].uniforms;
+    u.edge.value.set(e); u.fill.value.set(f); u.alpha.value = a; u.edgeAlpha.value = ea;
+  });
   plateMat.uniforms.agar.value.set(pal.agar);
   plateMat.uniforms.agar2.value.set(pal.agar2);
   plateMat.uniforms.tint.value.set(pal.tint);
@@ -428,7 +524,24 @@ let rate = 1;
 const rateTrack = [];
 let reported = -1;
 
+function updateSkin(x) {
+  const e = skinEmb;
+  for (let i = 0; i < skinN; i++) {
+    const b = i * 11;
+    let px = 0, py = 0, pz = 0;
+    for (let k = 0; k < 4; k++) {
+      const vi = e[b + k] * 3, wk = e[b + 4 + k];
+      px += wk * x[vi]; py += wk * x[vi + 1]; pz += wk * x[vi + 2];
+    }
+    skinPos[i * 3] = px; skinPos[i * 3 + 1] = py; skinPos[i * 3 + 2] = pz;
+  }
+  skinPosAttr.needsUpdate = true;
+  // normals per part (they share positions; each part's normals come from its own faces)
+  for (const g of skinGeos) g.computeVertexNormals();
+}
+
 function updateGeometry(m) {
+  if (!showNeurons) return updateSkin(m.x);
   bodyPos.set(m.x);
   bodyGeo.attributes.position.needsUpdate = true;
   bodyGeo.computeVertexNormals();
@@ -471,7 +584,7 @@ canvas.addEventListener('pointerleave', () => (mouse = null));
 const vtmp = new THREE.Vector3();
 function hover() {
   const tip = $('tip');
-  if (!mouse || !latest) return (tip.hidden = true);
+  if (!mouse || !latest || !showNeurons) return (tip.hidden = true);
   let best = 14, bc = -1;
   for (let c = 0; c < 136; c++) {
     vtmp.set(somaPos[c * 3], somaPos[c * 3 + 1], somaPos[c * 3 + 2]).project(camera);
@@ -534,6 +647,7 @@ $('reset').addEventListener('click', () => {
   trackGeo.setDrawRange(0, 0);
   followed = null;
 });
+$('view-toggle').addEventListener('click', () => setView(!showNeurons));
 $('about-open').addEventListener('click', () => $('about').showModal());
 $('about-close').addEventListener('click', () => $('about').close());
 document.addEventListener('visibilitychange', () => worker.postMessage({ type: 'run', on: !document.hidden }));
@@ -608,11 +722,14 @@ function frame() {
   marker.position.set(centroid.x, PLATE_Y + 0.004, centroid.z);
   marker.scale.setScalar(Math.max(0.5, dist * 0.03));
   markerMat.opacity = Math.min(0.9, Math.max(0, (dist - 3) / 6));
+  // the track only matters from a distance; up close it would cross the worm
+  trackMat.opacity = 0.8 * Math.min(1, Math.max(0, (dist - 1.2) / 3));
   hover();
   renderer.render(scene, camera);
 }
 
 applyPalette(new URLSearchParams(location.search).get('palette') || 'D');
+setView(new URLSearchParams(location.search).has('neurons'));
 resize();
 frame();
 
