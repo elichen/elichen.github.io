@@ -1,35 +1,38 @@
-// Runs the whole-brain model (engine.wasm) and the fly's body (MuJoCo, body.js) together, paced to
+// Runs the whole-brain model (engine.wasm) and the walking fly (MuJoCo, forage.js) together, paced to
 // real time, and posts every spike and the body's pose to the page.
 // Messages in:  {type: 'rate', neurons, hz} | {type: 'silence', neurons, on} | {type: 'reset'} | {type: 'pause', on}
-//               {type: 'drop', taste, hz} (taste null = no drop) | {type: 'wick', pos}
+//               {type: 'drop', taste, hz, near} (taste null = no drop; near = at the mouth) | {type: 'wick', pos} | {type: 'walk', hz}
 // Messages out: {type: 'progress', loaded, total} | {type: 'ready', n} | {type: 'body', geoms, meshes}
-//               {type: 'spikes', spikes, t, speed, active, pose, touch, act, wick}
+//               {type: 'spikes', spikes, t, speed, active, xpos, xmat, touch, wick, fly, walk, turn}
 import loadMujoco from 'https://cdn.jsdelivr.net/npm/@mujoco/mujoco@3.14.0/mujoco.js';
-import { FlyBody, Loop, STEP, CHUNK } from './body.js';
+import { Forager, BRAIN_STEPS } from './forage.js';
+import { WasmPolicy } from './walker.js';
 
 const BUDGET = 25;          // ms of work per slice, so messages get through
-const DROP = [0.075, 0, -0.07];    // where a new drop is held: touching the labellum at rest and extended (cm)
-const SETTLE = 2000;        // body steps from flybody's zero pose to the rest pose
-let w = null, body = null, loop = null;
+const STEP = 1e-4;          // s, the brain model's dt
+const AHEAD = 2.5;          // cm: where a new drop lands, ahead of the fly
+let w = null, fly = null;
 let paused = false;
 let clockStart = 0;         // performance.now() when simulated time was simStart
 let simStart = 0;
 let samples = [];           // [real ms, simulated s] over the last second, for the speed readout
-let wick = null;            // drop position, or null when no drop is held out
 
-async function loadBody() {
-    const names = await fetch('body/manifest.json').then(r => r.json());
-    const files = { 'fly.xml': await fetch('body/fly.xml').then(r => r.text()) };
-    await Promise.all(names.map(async n => { files[`meshes/${n}`] = new Uint8Array(await fetch(`body/meshes/${n}`).then(r => r.arrayBuffer())); }));
-    return new FlyBody(await loadMujoco(), files);
+async function loadFiles() {
+    const names = await fetch('walker/manifest.json').then(r => r.json());
+    const files = { 'fly.xml': await fetch('walker/fly.xml').then(r => r.text()) };
+    await Promise.all(names.map(async n => { files[n] = new Uint8Array(await fetch(`walker/meshes/${n}`).then(r => r.arrayBuffer())); }));
+    return files;
 }
 
 async function load() {
-    const [wasm, res, fly, neurons] = await Promise.all([
+    const [wasm, res, files, neurons, meta, weights, mujoco] = await Promise.all([
         fetch('engine.wasm').then(r => r.arrayBuffer()).then(b => WebAssembly.instantiate(b)),
         fetch('model/connectome.gz'),
-        loadBody(),
+        loadFiles(),
         fetch('model/neurons.json').then(r => r.json()),
+        fetch('walker/meta.json').then(r => r.json()),
+        fetch('walker/policy.bin').then(r => r.arrayBuffer()),
+        loadMujoco(),
     ]);
     const total = Number(res.headers.get('content-length')) || 31341230;
     let loaded = 0;
@@ -45,10 +48,11 @@ async function load() {
     const p = w.alloc(bytes.length);
     new Uint8Array(w.memory.buffer, p, bytes.length).set(bytes);
     const n = w.init(p, bytes.length, (Math.random() * 2 ** 32) >>> 0);
-    body = fly;
     const S = neurons.sets;
-    loop = new Loop(w, body, neurons.motor, { sugar: S.sugar.index, bitter: S.bitter.index, water: S.water.index, 'sugar+bitter': [...S.sugar.index, ...S.bitter.index] });
-    body.step(SETTLE);
+    const type = t => neurons.cell_type.index.flatMap((x, i) => x === neurons.cell_type.names.indexOf(t) ? [i] : []);
+    fly = new Forager(mujoco, files, meta, new WasmPolicy(w, new Float32Array(weights)), w, neurons.motor,
+        { sugar: S.sugar.index, bitter: S.bitter.index, water: S.water.index, 'sugar+bitter': [...S.sugar.index, ...S.bitter.index] },
+        type('DNp09'), type('DNg97'));
     postMessage({ type: 'body', ...describeBody() });
     postMessage({ type: 'ready', n });
     restartClock();
@@ -57,7 +61,7 @@ async function load() {
 
 // the visible geoms with their meshes, for the page to draw
 function describeBody() {
-    const m = body.model;
+    const m = fly.model;
     const geoms = [], meshes = {};
     for (let g = 0; g < m.ngeom; g++) {
         if (m.geom_group[g] > 2) continue;
@@ -68,13 +72,13 @@ function describeBody() {
             const v0 = m.mesh_vertadr[mesh], nv = m.mesh_vertnum[mesh], f0 = m.mesh_faceadr[mesh], nf = m.mesh_facenum[mesh];
             meshes[mesh] = { vert: Float32Array.from(m.mesh_vert.slice(3 * v0, 3 * (v0 + nv))), face: Uint32Array.from(m.mesh_face.slice(3 * f0, 3 * (f0 + nf))) };
         }
-        geoms.push({ g, type: m.geom_type[g], size: Array.from(m.geom_size.slice(3 * g, 3 * g + 3)), mesh, rgba, name: body.mj.mj_id2name(m, body.mj.mjtObj.mjOBJ_GEOM.value, g) });
+        geoms.push({ g, type: m.geom_type[g], size: Array.from(m.geom_size.slice(3 * g, 3 * g + 3)), mesh, rgba, name: fly.mj.mj_id2name(m, fly.mj.mjtObj.mjOBJ_GEOM.value, g) });
     }
     return { geoms, meshes };
 }
 
 function pose() {
-    const d = body.data;
+    const d = fly.data;
     return { xpos: Float64Array.from(d.geom_xpos), xmat: Float64Array.from(d.geom_xmat) };
 }
 
@@ -90,8 +94,8 @@ function tick() {
         const start = performance.now();
         const target = simStart + (start - clockStart) / 1000;
         const out = [];
-        while (now() + CHUNK * STEP <= target + 1e-9 && performance.now() - start < BUDGET) {
-            const s = loop.chunk();
+        while (now() + BRAIN_STEPS * STEP <= target + 1e-9 && performance.now() - start < BUDGET) {
+            const s = fly.step();
             if (s.length) out.push(s);
         }
         // more than 0.25 s behind: the CPU cannot keep up, so run slower than real time
@@ -104,7 +108,9 @@ function tick() {
         const speed = real > r0 ? (now() - s0) / ((real - r0) / 1000) : 1;
         const spikes = concat(out);
         const { xpos, xmat } = pose();
-        postMessage({ type: 'spikes', spikes, t: now(), speed, active: w.active(), xpos, xmat, touch: loop.touch, act: loop.act, wick },
+        const st = fly.state();
+        postMessage({ type: 'spikes', spikes, t: now(), speed, active: w.active(), xpos, xmat, touch: st.touch, wick: fly.dropOn ? fly.dropXY : null,
+            fly: [st.x, st.y, st.z], walk: st.speed, turn: st.yaw },
             [spikes.buffer, xpos.buffer, xmat.buffer]);
     }
     setTimeout(tick, 8);
@@ -124,24 +130,22 @@ onmessage = e => {
     if (!w) return;
     if (m.type === 'rate') for (const i of m.neurons) w.set_rate(i, m.hz);
     if (m.type === 'silence') for (const i of m.neurons) w.set_silenced(i, m.on);
+    if (m.type === 'walk') fly.setWalk(m.hz);
     if (m.type === 'drop') {
-        if (m.taste === loop.taste) {          // only the input rate changed
-            loop.hz = m.hz;
-            if (loop.touch) loop.input(true);
+        fly.hz = m.hz;
+        if (m.taste === fly.taste) {           // only the input rate changed
+            if (fly.touch) fly.input(true);
         } else {
-            loop.setTaste(m.taste);
-            loop.hz = m.hz;
-            wick = m.taste ? [...DROP] : null;
-            body.setWick(wick || body.away);
+            fly.setTaste(m.taste);
+            if (m.taste) fly.setDrop(m.near ? fly.mouth() : fly.ahead(AHEAD));
+            else fly.setDrop(fly.dropXY, false);
         }
     }
-    if (m.type === 'wick' && wick) { wick = m.pos; body.setWick(wick); }
+    if (m.type === 'wick' && fly.dropOn) fly.setDrop(m.pos);
     if (m.type === 'reset') {
         w.reset();
-        loop.reset();
-        body.mj.mj_resetData(body.model, body.data);
-        body.setWick(wick || body.away);
-        body.step(SETTLE);
+        fly.setTaste(null);
+        fly.reset();
         samples = [];
         restartClock();
     }

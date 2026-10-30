@@ -199,3 +199,7 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+---
+walker/policy.bin: flybody's trained walking policy, from the datasets supporting Vaxenburg et al. 2025,
+doi:10.25378/janelia.25309105, license GPL-3.0-or-later on figshare. The model (fly.xml, meshes) is Apache-2.0, above.

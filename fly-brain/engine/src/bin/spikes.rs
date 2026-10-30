@@ -13,6 +13,11 @@ fn main() {
     let mut b = Brain::new(o, t, c, a[5].parse().unwrap());
     if let Ok(x) = std::env::var("W_SCALE") { b.p.w_syn *= x.parse::<f64>().unwrap(); }
     for i in read(&a[2]) { b.set_rate(i, hz); }
+    // ALSO=<index file>:<Hz> drives a second set at its own rate
+    if let Ok(x) = std::env::var("ALSO") {
+        let (f, r) = x.rsplit_once(':').unwrap();
+        for i in read(f) { b.set_rate(i, r.parse().unwrap()); }
+    }
     if let Some(p) = a.get(7) { for i in read(p) { b.set_silenced(i, true); } }
     let time = std::time::Instant::now();
     let mut out = Vec::new();

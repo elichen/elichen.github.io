@@ -3,7 +3,7 @@ github.com/smpuglie/Pugliese_cpg_2025), rebuilt from their Methods on BANC v888,
 the nerve cord connectome makes a stepping rhythm when a descending neuron is driven.
 
     python tools/rate_vnc.py <banc dir: edgelist_simple_v3.feather, meta.feather, banc_neurons.parquet> \
-        <DN cell type> <input> [replicates=8] [network: t1 (front legs, as the paper) | legs (all six)] [out.npz]
+        <DN cell type> <input> [replicates=8] [network: t1 (front legs, as the paper) | legs (all six) | legs2 (+ cord interneurons onto premotor)] [out.npz | out_%d.npz]
 
 Model (their eq. 1): tau dr/dt = -r + [rmax tanh(a/rmax (I + W r - theta))]+, W = 0.03 x signed
 synapse count (ACh +, GABA/Glu -; floor of 5 synapses), per neuron a ~ N(1, 0.1) / size,
@@ -37,6 +37,10 @@ else:
 pre_mn = set(e.pre[e.post.isin(mn)]) - mn
 dns = set(meta.index[meta.super_class == 'descending'])
 premotor = pre_mn - dns
+if which == 'legs2':    # one more layer: nerve cord interneurons onto the premotor neurons (Sapkal et al. 2026's 19A layer)
+    cord = set(meta.index[meta.super_class.isin(['ventral_nerve_cord_intrinsic', 'ascending'])])
+    premotor |= (set(e.pre[e.post.isin(premotor)]) & cord) - mn
+    pre_mn |= premotor
 dn_in = set(e.pre[e.post.isin(premotor)]) & dns
 dn_in |= pre_mn & dns
 keep = [i for i in sorted(mn | premotor | dn_in) if i in meta.index and pd.notna(nt.get(i))]
@@ -118,8 +122,9 @@ for rep in range(reps):
     ext = [i for i in active if 'extensor' in types[i]]
     fe = np.corrcoef(post[:, flex].sum(1), post[:, ext].sum(1))[0, 1] if flex and ext and post[:, flex].std() > 0 and post[:, ext].std() > 0 else float('nan')
     scores.append(s)
-    if len(sys.argv) > 6 and rep == int(os.environ.get('SAVE_REP', 0)):   # keep one replicate's motor neuron traces
-        np.savez(sys.argv[6], rates=post[:, is_mn], types=types[is_mn].astype('U'), sides=sides[is_mn].astype('U'),
+    # keep one replicate's motor neuron traces, or every replicate's if the path has %d
+    if len(sys.argv) > 6 and ('%d' in sys.argv[6] or rep == int(os.environ.get('SAVE_REP', 0))):
+        np.savez(sys.argv[6].replace('%d', str(rep)), rates=post[:, is_mn], types=types[is_mn].astype('U'), sides=sides[is_mn].astype('U'),
                  effector=meta.body_part_effector.reindex(keep).astype(str).to_numpy()[is_mn].astype('U'), dt=SAVE)
     print(f'  replicate {rep}: {int((post.max(0) > 0.01).sum())} neurons active, {len(active)} motor neurons, '
           f'rhythmicity {s:.2f}, rhythm {np.median(freqs) if freqs else float("nan"):.1f} Hz, flexor-extensor r {fe:+.2f}, '

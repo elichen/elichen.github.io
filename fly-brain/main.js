@@ -33,8 +33,11 @@ const state = {
     active: 0,
     paused: false,
     rate: 150,
-    drop: 'sugar',          // taste of the drop held at the labellum, or null
+    drop: 'sugar',          // taste of the drop on the floor, or null
+    near: false,            // the next drop lands at the mouth, not ahead of the fly
     touch: false,           // the drop touches the labellum, so its taste neurons get input
+    walk: true,             // P9 gets input
+    move: { walk: 0, turn: 0 },
     sets: new Set(),        // names of activated sensory sets
     single: new Set(),      // neurons activated one by one
     silenced: new Set(),
@@ -271,6 +274,7 @@ function onSpikes(m) {
     state.speed = m.speed;
     state.active = m.active;
     flyView.update(m);
+    state.move = { walk: m.walk, turn: m.turn };
     if (m.touch !== state.touch) {
         state.touch = m.touch;
         refreshFlags();
@@ -289,8 +293,12 @@ function stimulated() {
 function driven() {
     const on = new Set(applied);
     if (state.drop && state.touch) for (const i of tasteSets(state.drop)) on.add(i);
+    if (state.walk) for (const i of cellsOf(WALK_INPUT)) on.add(i);
     return on;
 }
+
+const WALK_INPUT = 'DNp09', WALK_HZ = 100;      // P9, as in forage.js's tests
+const cellsOf = type => { const k = state.neurons.cell_type.names.indexOf(type); return state.neurons.cell_type.index.flatMap((x, i) => x === k ? [i] : []); };
 
 let applied = new Set();
 function applyRates() {
@@ -299,7 +307,8 @@ function applyRates() {
     if (off.length) worker.postMessage({ type: 'rate', neurons: off, hz: 0 });
     if (on.size) worker.postMessage({ type: 'rate', neurons: [...on], hz: state.rate });
     applied = on;
-    worker.postMessage({ type: 'drop', taste: state.drop, hz: state.rate });
+    worker.postMessage({ type: 'walk', hz: state.walk ? WALK_HZ : 0 });
+    worker.postMessage({ type: 'drop', taste: state.drop, hz: state.rate, near: state.near });
     flyView.setTaste(state.drop);
     refreshFlags();
 }
@@ -313,8 +322,9 @@ function refreshFlags() {
     f.needsUpdate = true;
     for (const b of document.querySelectorAll('.chip[data-set]')) b.setAttribute('aria-pressed', state.sets.has(b.dataset.set));
     for (const b of document.querySelectorAll('.chip[data-drop]')) b.setAttribute('aria-pressed', (b.dataset.drop || null) === state.drop);
+    document.getElementById('walk').setAttribute('aria-pressed', state.walk);
     document.getElementById('touch').textContent = !state.drop ? 'No drop. Choose one below.'
-        : state.touch ? `The ${state.drop.replace('+', ' and ')} drop touches the labellum` : 'The drop does not touch the labellum';
+        : state.touch ? `Tasting the ${state.drop.replace('+', ' and ')} drop` : state.walk ? 'Walking. A rule, not the brain, turns it toward the smell.' : 'Standing';
 }
 
 function silence(i, on) {
@@ -353,6 +363,12 @@ function renderPanel() {
         const cells = dd.dataset.motor.split(',').flatMap(t => state.neurons.motor[t]);
         dd.textContent = `${(cells.reduce((s, i) => s + rateOf(i), 0) / cells.length).toFixed(0)} Hz`;
     }
+    for (const dd of document.querySelectorAll('[data-type]')) {
+        const cells = cellsOf(dd.dataset.type);
+        dd.textContent = `${(cells.reduce((s, i) => s + rateOf(i), 0) / cells.length).toFixed(0)} Hz`;
+    }
+    document.getElementById('walk-speed').textContent = `${state.move.walk.toFixed(1)} cm/s`;
+    document.getElementById('walk-turn').textContent = `${state.move.turn.toFixed(1)} rad/s`;
     if (state.selected >= 0) document.getElementById('card-rate').textContent = `${rateOf(state.selected).toFixed(0)} Hz over the last second`;
     const clock = document.getElementById('clock');
     clock.textContent = `${state.t.toFixed(1)} s` + (state.paused ? ' · paused' : state.speed < 0.95 ? ` · ${state.speed.toFixed(2)}× real time` : ' · real time');
@@ -374,14 +390,16 @@ function select(i) {
     renderPanel();
 }
 
-// the article's experiments; each starts from rest. A taste is a drop held at the labellum.
+// the article's experiments; each starts from rest. near: the fly stands with the drop at its mouth.
 const EXPERIMENTS = {
-    sugar: { drop: 'sugar', rate: 150, show: 'MN9' },
-    'sugar-bitter': { drop: 'sugar+bitter', rate: 150, show: 'MN9' },
-    water: { drop: 'water', rate: 200, show: 'MN9' },
+    forage: { drop: 'sugar', rate: 150, walk: true, show: 'MN9' },
+    'forage-bitter': { drop: 'bitter', rate: 150, walk: true },
+    sugar: { drop: 'sugar', near: true, rate: 150, show: 'MN9' },
+    'sugar-bitter': { drop: 'sugar+bitter', near: true, rate: 150, show: 'MN9' },
+    water: { drop: 'water', near: true, rate: 200, show: 'MN9' },
     'jo-ce': { sets: ['JO-CE'], rate: 150, show: 'aBN1' },
     'jo-f': { sets: ['JO-F'], rate: 150, show: 'aBN1' },
-    silence: { drop: 'sugar', rate: 100, silence: ['CB0553'], show: 'CB0553' },
+    silence: { drop: 'sugar', near: true, rate: 100, silence: ['CB0553'], show: 'CB0553' },
     runaway: { sets: ['LB3b-right'], rate: 150 },
 };
 
@@ -390,6 +408,8 @@ function experiment(name) {
     resetAll();
     for (const s of x.sets || []) state.sets.add(s);
     state.drop = x.drop || null;
+    state.near = !!x.near;
+    state.walk = !!x.walk;
     state.rate = x.rate;
     rateInput.value = x.rate;
     rateOut.textContent = `${x.rate} Hz`;
@@ -421,9 +441,15 @@ document.getElementById('card-silence').onclick = () => {
 for (const b of document.querySelectorAll('.chip[data-drop]')) {
     b.onclick = () => {
         state.drop = b.dataset.drop || null;
+        state.near = false;
         applyRates();
     };
 }
+
+document.getElementById('walk').onclick = () => {
+    state.walk = !state.walk;
+    applyRates();
+};
 
 for (const b of document.querySelectorAll('.chip[data-set]')) {
     b.onclick = () => {
@@ -453,6 +479,8 @@ document.getElementById('reset').onclick = () => resetAll();
 function resetAll() {
     state.sets.clear();
     state.drop = null;
+    state.near = false;
+    state.walk = false;
     state.touch = false;
     state.single.clear();
     for (const i of state.silenced) worker.postMessage({ type: 'silence', neurons: [i], on: false });
