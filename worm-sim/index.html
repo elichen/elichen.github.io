@@ -125,7 +125,7 @@
       <li>Each muscle segment pulls through about 50 fiber constraints inside the tetrahedra. A muscle with activation <i>a</i> wants its fibers shortened to (1 − <i>a</i>) of their length.</li>
       <li>In BAAIWorm, water pushes on each of the 1,466 surface triangles with SoftCon's drag and lift, and the body takes 8 steps of 1/240 s for every 100 ms of brain time.</li>
     </ul>
-    <p>Check: in water, given the same muscle signals, no vertex of this body is more than 0.0000002 units from the same vertex in BAAIWorm's own body code during 20 s. (The worm is 0.63 units long, so 1 mm = 0.63 units.)</p>
+    <p>Check: in water, given the same muscle signals, no vertex of this body is more than 0.0000002 units from the same vertex in BAAIWorm's own body code during 20 s. (The worm is 0.63 units long, so 1 mm = 0.63 units.) The page crawls on a symmetric mesh of its own; see below.</p>
 
     <h4>The skin</h4>
     <p>What you see is a drawn surface, not the simulation mesh. It is a smooth tube of 21,600 vertices that follows the mesh's outline, with a rounded nose and a tail that narrows to a point. Inside it are the organs that show through a real worm's cuticle: the pharynx with its two bulbs and the grinder, the intestine, and eggs on both sides of the vulva (positions from WormAtlas). Each vertex is fixed in one tetrahedron of the mesh, so it bends with the body. The shading copies transmitted light through a dissecting microscope: the edges are dark where the light bends, the middle is clear, and the cuticle has fine rings (annuli) and a ridge along each side (alae). The physics does not see any of this.</p>
@@ -141,32 +141,31 @@
     <ul>
       <li><b>One clock.</b> BAAIWorm runs 100 ms of brain for every 33 ms of body, so its body moves three times too fast for its brain. Its 1.5 Hz gait is the recorded 2 s input played at that speed. Here the body also takes 100 ms per step. The gait is then 0.5 Hz.</li>
       <li><b>Agar drag.</b> Each vertex is pulled back to where it was, 30 times more strongly across the body than along it, as in the resistive-force models of crawling. The drag is part of the solver, so the matrix is still factored only once. The body is also held on the plane of the plate.</li>
-      <li><b>Even muscles.</b> In SoftCon's mesh, the dorsal and ventral muscle fibers of a segment can differ in strength by up to 20%. That bends the body into a fixed curve, so the worm crawled in circles. Here each segment's four quadrants pull with the same total strength.</li>
+      <li><b>A symmetric body.</b> SoftCon's mesh is irregular and is not a mirror image of itself. In a segment, the dorsal and ventral muscle fibers can differ in strength by up to 20%. Even a perfectly symmetric wave made it crawl in a slow curve, and the brain's gait made it crawl in circles. The page now uses its own mesh: the same length and outline, built from one quarter of a regular tube and mirrored across the dorsal–ventral and left–right planes, so it is exactly symmetric. It has 1,008 vertices and 3,948 tetrahedra, about as many as SoftCon's (984 and 3,341). The 96 muscle segments are in the same places along the body, in four quadrants at 45° from the midlines. On it, the brain's gait keeps its heading to within 0.1° per second. Real worms turn by 0.4 ± 2.1° per second on average (Pierce-Shimomura et al. 1999).</li>
     </ul>
     <table>
       <tr><th></th><th>This page</th><th>Real worms on agar</th></tr>
       <tr><td>Undulation</td><td>0.50 Hz</td><td>0.30 Hz (Fang-Yen et al. 2010); 0.55 Hz (Sawin et al. 2000)</td></tr>
-      <tr><td>Wavelength</td><td>0.65 body lengths</td><td>0.65 (Fang-Yen et al. 2010)</td></tr>
-      <tr><td>Speed</td><td>0.13 mm/s</td><td>0.12–0.15 mm/s (Iino &amp; Yoshida 2009; Pierce-Shimomura et al. 1999)</td></tr>
+      <tr><td>Wavelength</td><td>0.60 body lengths</td><td>0.65 (Fang-Yen et al. 2010)</td></tr>
+      <tr><td>Speed</td><td>0.15 mm/s</td><td>0.12–0.15 mm/s (Iino &amp; Yoshida 2009; Pierce-Shimomura et al. 1999)</td></tr>
     </table>
-    <p>The body is BAAIWorm's coarse mesh, which is not a mirror image of itself. Even a perfectly symmetric wave makes it curve slowly to one side, about 1° per second. A small constant bend in the head cancels this. We set it so the worm keeps its heading on average.</p>
 
     <h4 id="seek">Finding food (ours)</h4>
     <p>The food is a lawn of bacteria. Around it the attractant forms a hill: 2 mM on the open plate, rising to 6 mM at the food, about 1 cm wide. This is the radial gradient of Pierce-Shimomura et al. (1999). The worm senses the concentration at its nose. A layer between the brain's muscle signals and the body steers with the two strategies that real worms use, at the rates measured in them:</p>
     <ul>
       <li><b>Pirouettes</b> (Pierce-Shimomura et al. 1999). When the concentration falls, the worm turns more often. The rate per second is Iino and Yoshida's fit, 0.023 / (0.40 + e<sup>140 dC/dt</sup>) + 0.0033. Each turn is a reversal: the brain's gait runs tail first and the worm backs up. Half of the reversals end in an omega turn, a deep ventral bend that points the worm in a new direction. Durations are from Zhao et al. (2003): 2.3 s, or 3.4 s before an omega turn.</li>
-      <li><b>Weathervaning</b> (Iino &amp; Yoshida 2009). While the head sweeps to one side, a rising concentration bends it further to that side, so the path curves up the gradient. The gain is set so the path curves 12.7°/mm for each mM/mm of gradient across the heading, as Iino and Yoshida measured. On top of that, the heading wanders at random by 32°/mm, as theirs did.</li>
+      <li><b>Weathervaning</b> (Iino &amp; Yoshida 2009). While the head sweeps to one side, a rising concentration bends it further to that side, so the path curves up the gradient. The gain is set so the path curves 12.7°/mm for each mM/mm of gradient across the heading, as Iino and Yoshida measured. We set it in a test plate with a straight gradient across the worm's path, on each side in turn. On top of that, the heading wanders at random by 32°/mm, as theirs did.</li>
     </ul>
     <p>The brain keeps making the forward gait. It does not make these decisions. Making them inside the circuit is our next step.</p>
     <p><b>Test.</b> We repeated Pierce-Shimomura's assay: worms start 22 mm from the peak, at 48 different headings, and we count how many reach the 5 mm zone around it within 20 minutes.</p>
     <table id="seek-table">
       <tr><th></th><th>Reached the peak zone</th><th>Pierce-Shimomura et al. 1999</th></tr>
-      <tr><td>Both strategies</td><td>69% (33 of 48)</td><td>56–60%</td></tr>
-      <tr><td>No gradient (control)</td><td>8% (4 of 48)</td><td>8.3%</td></tr>
-      <tr><td>Pirouettes only</td><td>62% (15 of 24)</td><td>—</td></tr>
-      <tr><td>Weathervaning only</td><td>8% (2 of 24)</td><td>—</td></tr>
+      <tr><td>Both strategies</td><td>73% (35 of 48)</td><td>56–60%</td></tr>
+      <tr><td>No gradient (control)</td><td>6% (3 of 48)</td><td>8.3%</td></tr>
+      <tr><td>Pirouettes only</td><td>58% (14 of 24)</td><td>—</td></tr>
+      <tr><td>Weathervaning only</td><td>17% (4 of 24)</td><td>—</td></tr>
     </table>
-    <p>In this shallow gradient, the pirouettes do most of the work, as Pierce-Shimomura et al. found. Iino and Yoshida's weathervane gain gives only 1–3°/mm of curving here, much less than the random wander. Their plates had steeper salt gradients.</p>
+    <p>The difference from the control is clear (Fisher's exact test, p = 8&times;10<sup>-12</sup>). In this shallow gradient, the pirouettes do most of the work, as Pierce-Shimomura et al. found (p = 3&times;10<sup>-6</sup> against the control). Weathervaning alone does not differ clearly from the control (p = 0.2). At the start the gradient is only about 0.08 mM/mm, so Iino and Yoshida's gain curves the path by about 1°/mm, much less than the random wander. Their plates had steeper salt gradients. Near the food the gradient is steeper and weathervaning helps more: worms that reach the zone take 7 minutes (median) with both strategies, against 10 minutes with pirouettes only.</p>
 
     <h4>Cutting the wiring</h4>
     <p>The sliders scale the strength of every chemical synapse or every gap junction. At 0% every connection of that kind is gone, as in the paper's experiments that removed them. Weaker connections in between are this page's addition. On agar the intact worm crawls forward at 0.135 body lengths per second. With the gap junctions at half strength it almost stops (0.008). With them gone, or with the chemical synapses at half strength, it drifts backward. With no chemical synapses it does not move forward. The readout was fit to the intact circuit, so this shows the effect of the cut. It does not show how a real worm adapts.</p>
@@ -177,7 +176,7 @@
       <li>The input current is large for the small sensory cells. Some of them, such as URYVL, go several hundred millivolts below rest. This is a property of BAAIWorm's model, and the page keeps it.</li>
       <li>The gait comes from BAAIWorm's recorded input, played in a loop, and its fitted readout. The brain does not make the rhythm by itself, and it does not feel the body bend.</li>
       <li>The steering is a layer outside the brain, fit to the behavior of real worms (see above). The sensory neurons in the circuit still get the recorded input.</li>
-      <li>The body is BAAIWorm's coarse mesh. It shortens by up to a third as it bends, and a real worm does not.</li>
+      <li>The body shortens by about a fifth while it crawls, because BAAIWorm's readout keeps the muscles on both sides partly contracted. A real worm keeps its length.</li>
       <li>On the food the worm does not slow down or start feeding, as real worms do.</li>
       <li>Every neuron starts at −65 mV, as in BAAIWorm. The body waits 3 s while the brain settles, because before that the head swings round by 130°.</li>
       <li>The neurons are drawn by fitting the NeuroML coordinates into the mesh, so their place in the body is approximate.</li>

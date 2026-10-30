@@ -28,7 +28,7 @@ async function load() {
   const [wasm, brain, body, wout, meta] = await Promise.all([
     WebAssembly.instantiateStreaming(fetch('engine.wasm')),
     bytes('model/brain.bin'),
-    bytes('model/body.bin'),
+    bytes('model/body_sym.bin'),
     bytes('model/wout_offline.bin'),
     fetch('model/brain.json').then((r) => r.json()),
   ]);

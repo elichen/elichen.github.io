@@ -9,7 +9,9 @@ Anatomy in fractions of the body length L from the nose (adult hermaphrodite, Wo
 pharynx 0-0.13 L (metacorpus bulb at 0.065, terminal bulb at 0.115), intestine 0.135-0.86 L,
 vulva at 0.5 L ventral, anus at 0.88 L ventral.
 
-usage: python export_skin.py <model dir>/body.bin <model dir>/skin.bin
+usage: python export_skin.py <body to embed in> <out skin.bin> [<body for the outline>]
+(the outline defaults to the embedding body; the page embeds in body_sym.bin and takes
+the outline from SoftCon's body.bin, whose shape is the original's)
 
 skin.bin, little-endian float32: nv, ntri, then per vertex
   4 vertex indices, 4 weights, s (0 nose .. 1 tail), angle around the body (rad, 0 = dorsal), part
@@ -25,7 +27,9 @@ body = np.fromfile(sys.argv[1])
 nv, nt = int(body[0]), int(body[1])
 V = body[5:5 + nv * 3].reshape(nv, 3)
 T = body[5 + nv * 3:5 + nv * 3 + nt * 14].reshape(nt, 14)[:, :4].astype(int)
-z0, z1 = V[:, 2].min(), V[:, 2].max()
+outline = np.fromfile(sys.argv[3]) if len(sys.argv) > 3 else body
+VO = outline[5:5 + int(outline[0]) * 3].reshape(-1, 3)
+z0, z1 = VO[:, 2].min(), VO[:, 2].max()
 L = z1 - z0
 
 # the mesh's outline per slice: centre and half-widths (x = dorsal, y = left)
@@ -33,7 +37,7 @@ NS = 80
 edges = np.linspace(z0, z1, NS + 1)
 zc, cx, cy, hx, hy = [], [], [], [], []
 for a, b in zip(edges[:-1], edges[1:]):
-    s = V[(V[:, 2] >= a - 1e-9) & (V[:, 2] <= b + 1e-9)]
+    s = VO[(VO[:, 2] >= a - 1e-9) & (VO[:, 2] <= b + 1e-9)]
     zc.append((a + b) / 2)
     cx.append((s[:, 0].max() + s[:, 0].min()) / 2); hx.append((s[:, 0].max() - s[:, 0].min()) / 2)
     cy.append((s[:, 1].max() + s[:, 1].min()) / 2); hy.append((s[:, 1].max() - s[:, 1].min()) / 2)
@@ -166,3 +170,4 @@ for i, q in enumerate(verts):
 print(f"skin: {len(verts)} vertices, {len(tris)} triangles; clamped {far}; radius max {R0:.4f}, length {L:.4f}")
 out = np.concatenate([[len(verts), len(tris)], np.c_[emb, attr].ravel(), tris.ravel()]).astype("<f4")
 out.tofile(sys.argv[2])
+

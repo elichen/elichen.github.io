@@ -13,7 +13,7 @@ const put = (buf) => {
 };
 const meta = JSON.parse(bytes('model/brain.json'));
 const [bp, bn] = put(bytes('model/brain.bin'));
-const [yp, yn] = put(bytes('model/body.bin'));
+const [yp, yn] = put(bytes(process.env.BODY || 'model/body.bin'));
 const [wp] = put(bytes('model/wout_offline.bin'));
 const [cp] = put(new Float64Array([...meta.input, ...meta.output]));
 w.init(bp, bn, yp, yn, wp, cp);

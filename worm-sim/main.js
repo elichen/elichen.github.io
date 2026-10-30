@@ -33,7 +33,7 @@ async function f32(url) {
 }
 
 const [bodyData, neuronData, muscleEnds, brainMeta, skinData] = await Promise.all([
-  f64('model/body.bin'), f32('model/neurons.bin'), f64('model/body_muscles.bin'), fetch('model/brain.json').then((r) => r.json()), f32('model/skin.bin'),
+  f64('model/body_sym.bin'), f32('model/neurons.bin'), f64('model/body_sym_muscles.bin'), fetch('model/brain.json').then((r) => r.json()), f32('model/skin.bin'),
 ]);
 const nv = bodyData[0], nt = bodyData[1], nm = bodyData[2], ntri = bodyData[3];
 const rest = bodyData.subarray(5, 5 + nv * 3);
@@ -241,7 +241,7 @@ scene.add(somas);
 // 9 cm Petri dish (0.63 units = 1 mm); the worm lies on its left side on the agar
 const MM = 0.63;
 const PLATE_R = 45 * MM;
-const PLATE_Y = -0.0185;
+const PLATE_Y = -0.0205; // just under the body (body_sym.bin: y from -0.0203)
 const SIGMA = 6.3; // the attractant hill (behavior.rs Params::sigma)
 const LAWN_R = 1.0 * MM;
 const plateMat = new THREE.ShaderMaterial({

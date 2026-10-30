@@ -32,6 +32,9 @@ pub struct Params {
     pub sigma: f64,
     pub c_floor: f64,
     pub c_peak: f64,
+    /// instead of the hill, a planar gradient along +x in mM/mm (for calibrating the
+    /// weathervane against Iino & Yoshida's curving per gradient across the heading)
+    pub plane: f64,
     /// weathervane gain: muscle bias per (dC/dt in mM/s × sign of the head sweep)
     pub k_vane: f64,
     /// time constant of the weathervane bias (s)
@@ -71,10 +74,11 @@ impl Default for Params {
             sigma: 6.3,
             c_floor: 2.0,
             c_peak: 4.0,
-            k_vane: 0.7, // 0.5 gives 7.1 °/mm per mM/mm, 1 gives 24.5 (Iino & Yoshida: 12.7)
+            plane: 0.0,
+            k_vane: 2.7, // planar ±0.2 mM/mm across the path, first 60 s: 1 gives 4.7 °/mm per mM/mm, 2 gives 10.3, 4 gives 17.6 (Iino & Yoshida: 12.7)
             tau_vane: 1.0,
             vane_segments: 6,
-            wander: 0.09, // curving SD 23 °/mm at 0.06, 35 at 0.1 (Iino & Yoshida: 32.3)
+            wander: 0.08, // curving SD 28 °/mm at 0.07, 35 at 0.09 (Iino & Yoshida: 32.3)
             tau_wander: 6.0,
             turn_a: 0.023,
             turn_b: 0.40,
@@ -88,7 +92,7 @@ impl Default for Params {
             omega_bias: 0.8,
             omega_segments: 18, // 0.8, 18, 3 s: reversal + omega turn the heading by ~160°
             refractory: 1.0,
-            straighten: 0.015, // tools/turning.py over 3 min: -0.6 deg/s at 0.005, -0.1 at 0.013, +0.1 at 0.016, +0.3 at 0.02
+            straighten: 0.0, // tools/make_body.py's mirror-symmetric body needs none (SoftCon's mesh: 0.015)
         }
     }
 }
@@ -180,6 +184,9 @@ impl Seek {
 
     /// concentration (mM) at p, from the in-plane distance to the food
     pub fn conc(&self, p: [f64; 3]) -> f64 {
+        if self.p.plane != 0.0 {
+            return self.p.c_floor + self.p.plane * p[0] / 0.63;
+        }
         let d = sub(p, self.food);
         let r2 = d[0] * d[0] + d[2] * d[2];
         self.p.c_floor + self.p.c_peak * (-r2 / (2.0 * self.p.sigma * self.p.sigma)).exp()

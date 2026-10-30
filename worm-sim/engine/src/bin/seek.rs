@@ -6,6 +6,7 @@
 //! BAAIWorm's recorded input, so its muscles are the same in every trial and are cached
 //! in BRAIN_CACHE=<file> (default target/brain_cache.bin).
 //! env: AGAR=c_t,c_n (default 0.003,0.09); P_<NAME>=value sets a behavior parameter
+//! BODY=<file> uses another body (default <model dir>/body_sym.bin, the page's; body.bin is SoftCon's).
 //! CENTER=<file> writes the 40 slice centroids per step (for tools/kinematics.py, FPS=10).
 //! GJ=<g> / SYN=<g> scale the gap junctions / chemical synapses (with BRAIN_CACHE set).
 //! SKIP=<s> starts from the brain's state this long after v = -65 mV (default 3).
@@ -41,7 +42,7 @@ fn main() {
         s[i + 1..j].split(',').map(|x| x.trim().trim_matches('"').to_string()).collect()
     };
     let brain = Brain::new(&f64s(&format!("{dir}/brain.bin")), 5.0 / 3.0);
-    let body = Body::new(&f64s(&format!("{dir}/body.bin")));
+    let body = Body::new(&f64s(&std::env::var("BODY").unwrap_or(format!("{dir}/body_sym.bin"))));
     let wout = f64s(&format!("{dir}/wout_offline.bin"));
     let mut w = Worm::new(brain, body, wout, &names);
     w.body_steps = 24;
@@ -89,6 +90,7 @@ fn main() {
         ("SIGMA", &mut p.sigma),
         ("C_FLOOR", &mut p.c_floor),
         ("C_PEAK", &mut p.c_peak),
+        ("PLANE", &mut p.plane),
         ("K_VANE", &mut p.k_vane),
         ("TAU_VANE", &mut p.tau_vane),
         ("WANDER", &mut p.wander),

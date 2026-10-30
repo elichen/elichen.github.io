@@ -9,7 +9,7 @@
   pirouettes   turn rate (per min) by smoothed dC/dt (mM/s); Iino & Yoshida's fit
 
   python tools/seek_stats.py <food distance> <trial.csv>...   (food angle from the name: *_<angle>.csv)
-  env: SIGMA, C_PEAK (the hill, as in seek), R_MM
+  env: SIGMA, C_PEAK (the hill, as in seek), PLANE (planar gradient instead), R_MM
 """
 import os
 import re
@@ -20,6 +20,7 @@ import numpy as np
 MM = 0.63  # body units per mm
 SIGMA = float(os.environ.get("SIGMA", 6.3))
 C_PEAK = float(os.environ.get("C_PEAK", 4.0))
+PLANE = float(os.environ.get("PLANE", 0.0))  # planar gradient along +x (mM/mm), as seek's P_PLANE
 R = float(os.environ.get("R_MM", 5.0)) * MM
 WIN = 2.0  # s: one gait cycle
 
@@ -31,6 +32,8 @@ def food_of(path, dist):
 
 def grad(p, food):
     """∇C in mM per body unit"""
+    if PLANE:
+        return np.tile([PLANE / MM, 0.0], (len(p), 1))
     d = p - food
     return -C_PEAK * np.exp(-(d**2).sum(-1) / (2 * SIGMA**2))[:, None] * d / SIGMA**2
 
