@@ -60,19 +60,20 @@ const quatMul = (a, b) => [
 
 // the same network from engine.wasm (SIMD), ~4x faster; engine: an instance's exports
 export class WasmPolicy {
-    constructor(engine, weights) {
+    constructor(engine, weights, [inputs, hidden, layers, outputs] = [741, 512, 3, 59]) {
         this.e = engine;
+        this.inputs = inputs; this.outputs = outputs;
         const p = engine.policy_alloc(weights.length * 4);
         new Float32Array(engine.memory.buffer, p, weights.length).set(weights);
-        engine.policy_init(p);
+        engine.policy_init(inputs, hidden, layers, outputs);
         this.obsP = engine.policy_obs();
         this.outP = engine.policy_out();
     }
 
     run(obs) {
-        new Float32Array(this.e.memory.buffer, this.obsP, 741).set(obs);
+        new Float32Array(this.e.memory.buffer, this.obsP, this.inputs).set(obs);
         this.e.policy_run();
-        return new Float32Array(this.e.memory.buffer, this.outP, 59);
+        return new Float32Array(this.e.memory.buffer, this.outP, this.outputs);
     }
 }
 

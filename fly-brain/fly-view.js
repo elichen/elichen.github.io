@@ -15,13 +15,12 @@ export class FlyView {
         this.onWick = onWick;
         const renderer = this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
         renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        const scene = this.scene = new THREE.Scene();
+                const scene = this.scene = new THREE.Scene();
         const pmrem = new THREE.PMREMGenerator(renderer);
         scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
         scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
         renderer.shadowMap.enabled = true;
-        const key = this.key = new THREE.DirectionalLight(0xffffff, 1.6);
+        const key = this.key = new THREE.DirectionalLight(0xffffff, 1.2);
         key.position.set(1, 0.6, 3);
         key.castShadow = true;
         key.shadow.mapSize.set(1024, 1024);
@@ -35,7 +34,7 @@ export class FlyView {
         // behind and to the right of where the fly starts, looking down; a light moves with the camera
         this.target = new THREE.Vector3(0.3, 0, 0.05);
         this.camera.position.set(-0.9, -1.5, 1.0);
-        const fill = new THREE.DirectionalLight(0xffffff, 1.4);
+        const fill = new THREE.DirectionalLight(0xffffff, 1.2);
         fill.position.set(0.3, 0.5, 1);
         this.camera.add(fill);
         scene.add(this.camera);
@@ -46,6 +45,7 @@ export class FlyView {
         this.controls.maxDistance = 12;
         this.controls.maxPolarAngle = Math.PI / 2 - 0.03;
         this.controls.update();
+        this.follow = 0.08;     // share of the way to the fly per pose
         this.parts = [];
         this.wickParts = [];
         this.dragging = false;
@@ -145,7 +145,7 @@ export class FlyView {
         // follow the fly, keeping the viewing angle
         if (m.fly) {
             const t = this.controls.target;
-            const dx = (m.fly[0] - t.x) * 0.08, dy = (m.fly[1] - t.y) * 0.08;
+            const dx = (m.fly[0] - t.x) * this.follow, dy = (m.fly[1] - t.y) * this.follow;
             t.x += dx; t.y += dy;
             this.camera.position.x += dx; this.camera.position.y += dy;
             this.key.target.position.set(m.fly[0], m.fly[1], 0);
