@@ -1,0 +1,17 @@
+[package]
+name = "fly_engine"
+version = "0.1.0"
+edition = "2021"
+description = "Shiu et al.'s whole-brain LIF model on the FlyWire connectome, for the fly-brain page"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+flate2 = "1"

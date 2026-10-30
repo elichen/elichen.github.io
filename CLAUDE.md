@@ -312,3 +312,46 @@ BAAIWORM=<BAAIWorm> PY=<venv python> python tools/original/sweep.py out && pytho
 ```
 
 Testing: a tab under the Chrome extension's debugger runs wasm slowly; measure speed in a normal tab or in headless Chrome (`puppeteer-core`, own profile, `--use-angle=metal`). On 2026-10-29 the automated tab lost its WebGL context twice after many reloads + screenshots and Chrome then blocked WebGL for that origin until restart; the same Restart sequence never lost context in headless Metal or SwiftShader. `?report` makes the page GET `/report?...` with its speed for a local test server.
+
+## The Whole Fly Brain (`/fly-brain/`)
+
+Shiu et al. 2024's whole-brain leaky integrate-and-fire model (Nature 634:210, code `philshiu/Drosophila_brain_model`, MIT) on the FlyWire v783 connectome (138,639 neurons, 15.1M connections, 54.5M synapses, CC BY 4.0), run in a worker in real time. Distill-style article in Simplified Technical English; the buttons in it set up the paper's experiments (sugar → MN9, + bitter, water, JO-CE/JO-F → aBN1, one silencing, and a runaway).
+
+- `engine/src/brain.rs` (Rust → `engine.wasm` via `engine/build.sh`) steps the model exactly as Brian 2 does (dt 0.1 ms, Brian's hoisted update constants, delay 18 steps, refractory 22 steps, and **synaptic input to a refractory neuron is dropped**: Brian ignores updates to variables marked "unless refractory"). Neurons that cannot reach threshold without new input (bound: max(v−v0,0) + max(g,0)·h_max) are skipped and caught up in closed form when input arrives; still spike-exact. ~50x real time for the paper's experiments in V8; the runaway (~440k spikes/s) runs at ~0.5-0.7x and the clock shows it.
+- **Body (2026-10-30):** `body.js` (shared by `worker.js` and `tools/feed.mjs`) closes the loop with flybody's proboscis (Vaxenburg et al. 2025, Apache-2.0; `body/` from `tools/pack_fly.py`: thorax tethered, only rostrum/haustellum/labellum joints, flybody's actuators and springs unchanged, decimated meshes, a mocap wick + drop). Brain -> body: McKellar 2020's muscles (MN9 protracts rostrum vs MN1/MN2; MN4 extends haustellum vs MN3; MN7 opens labellum), activation 1 - exp(-rate/40 Hz) low-passed 30 ms (our choice, stated in the article), actuator target = limit x activation. Body -> brain: drop touching a labellar lobe (`mj_geomDistance`) turns on the paper's taste set at the input rate. Brain and body exchange every 5 ms (both dt 0.1 ms) in the module worker; MuJoCo wasm 3.14 from jsDelivr. MN identities come from BANC's FAFB matches (`motor` in neurons.json). The head-rostrum contact exclude in pack_fly.py is needed: with the head welded, MuJoCo no longer filters that parent-child pair.
+- `worker.js` paces brain + body and posts spikes and geom poses; `main.js` (three.js points at cell bodies, neuropil shells, panel, drops, `EXPERIMENTS`, palettes `PALETTES` + `flyBrain.colors('A')`, `?palette=`); `fly-view.js` draws the fly and drags the drop.
+- `model/connectome.gz` (31 MB, `tools/export_brain.py`), `model/neurons.json` (positions = soma or a point on the neuron, names/classes from `flyconnectome/flywire_annotations`, Shiu's stimulus sets from the paper's `figures.ipynb`, named neurons), `model/neuropils.json` (Ito 2014 JFRC2 neuropils in FlyWire space from fafbseg's `JFRC2NP.surf.fw.zip`; fafbseg is GPL-3).
+- Shiu's "right hemisphere" sets are the fly's **left** in the annotations (`side`). The paper used v630; 1 sugar, 1 bitter and 1 JO-CE neuron changed IDs in v783.
+- Runaway: LB3b on the fly's right (not a paper set) spreads through excitatory antennal-lobe LNs (lLN1_bc etc.; known cholinergic, Shang 2007) into ~550 PNs and ~3,400 Kenyon cells; Brian does the same. Cause unknown; don't claim a wrong transmitter sign.
+
+```bash
+cd fly-brain    # data: ~/play/fly/shiu (Shiu repo clone), ~/play/fly/ann (flywire_annotations), venv ~/play/fly/.venv (brian2)
+python tools/export_brain.py <Completeness_783.csv> <Connectivity_783.parquet> model/connectome.gz
+python tools/export_neurons.py <Completeness_783.csv> <Supplemental_file1_neuron_annotations.tsv> <figures.ipynb> <banc_888_meta.feather> model/neurons.json
+python tools/export_neuropils.py <dir of fafbseg .ply> model/neuropils.json
+(cd engine && ./build.sh)
+python tools/parity_ref.py <Completeness> <Connectivity> <annotations.tsv> model/neurons.json <ref dir>   # Brian 2 with recorded Poisson kicks
+(cd engine && cargo run --release --bin parity ../model/connectome.gz <ref dir>)   # must print PASS (every spike, same step)
+python tools/stats_ref.py ... && cargo run --release --bin rates ...   # Brian's own PoissonInput vs ours over trials
+node tools/experiments.mjs 20       # the article's table, with engine.wasm
+node tools/bench.mjs                # wasm speed
+python tools/pack_fly.py <flybody>/flybody/fruitfly/assets body   # tethered fly (needs mujoco, fast-simplification)
+npm install && node tools/feed.mjs 10   # closed loop per drop: extension rate, latency, MN9 (the article's table)
+```
+
+Testing: headless Chrome (puppeteer-core) with a no-cache static server; `flyBrain.experiment(name)` runs an article experiment.
+
+**Brain + nerve cord (BANC, 2026-10-29, offline only, not on the page):** the same model on BANC v888 (Bates et al. 2026, Dataverse doi:10.7910/DVN/7WTH1N: `banc_888_edgelist_simple_v3.feather`, `banc_888_meta.feather`, `banc_888_neurotransmitter_prediction_v2.csv`; in `~/play/fly/banc`). 162,733 neurons, 42.2M synapses; GABA/Glu/histamine inhibitory. Shiu's w_syn unchanged: BANC brain neurons have ~0.55x FlyWire's synapses, but scaling w_syn up (`W_SCALE`) makes sugar run away. The fly's left labellar GRNs are thin in BANC (LB3b median 32 output synapses vs 180 on the right), so taste sets come from BANC's right side. Control: right sugar GRNs -> MN9 26 Hz, + bitter 7 Hz. Result: no leg rhythm. DNg100 (50-200 Hz) drives ~60-100 leg MNs tonically, flexors and extensors co-fire (r +0.2-0.4); a screen of all 473 DN types: best leg spectral peak 2.3x a Poisson null, never flexor/extensor alternation.
+
+```bash
+python tools/export_banc.py <edgelist_simple_v3.feather> <meta.feather> <nt_v2.csv> <dir>   # banc.gz + banc_neurons.parquet
+(cd engine && cargo build --release) && engine/target/release/spikes <dir>/banc.gz <index file> 150 5 1 run.bin && python tools/banc_rhythm.py <dir>/banc_neurons.parquet run.bin
+engine/target/release/screen <dir>/banc.gz <sets file> 150 2.2 <leg MN index file> screen.bin && python tools/banc_screen.py <dir>/banc_neurons.parquet <sets file> screen.bin 2.2
+```
+
+Pugliese et al.'s rate model (rewritten from their Methods, `tools/rate_vnc.py`, scipy sparse): on BANC, DNg100 makes a 9-10 Hz rhythm in the front-leg network (input 150) and 8-10 Hz in all six legs at input 90 (8/8; >=105 mostly not). `tools/leg_drive.py` sends it to flybody's legs (tethered, open loop, joint directions measured from the foot): feet move < 0.1 mm, middle legs ~still, inter-leg phase varies by run: not walking. DNb08 (their other walking DN) on six legs: silent at input 12, floods the network (>500 active) from 16, no robust rhythm. Escape: LC4/LPLC2 drive the giant fiber (DNp01) but it drives nothing (its real outputs are electrical). Leg sugar GRNs never reach MN9 in BANC (also with w_syn x1.4). Brain-only FlyWire: no sensory set drives neck/antenna/eye MNs; pharyngeal pump MNs fire tonically (no 6-8 Hz rhythm).
+
+```bash
+python tools/rate_vnc.py ~/play/fly/banc DNg100 90 8 legs [out.npz]      # rhythmicity per replicate (their score)
+python tools/leg_drive.py <flybody>/fruitfly.xml out.npz <frames dir> 0.7  # foot paths, loop direction, phase between legs
+```

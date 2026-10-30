@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Node tools for the fly body on MuJoCo's WebAssembly build (the page loads MuJoCo from a CDN)",
+  "devDependencies": {
+    "@mujoco/mujoco": "3.14.0"
+  }
+}

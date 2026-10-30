@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>The Whole Fly Brain</title>
+    <meta name="description" content="All 138,639 neurons of a fruit fly's brain, wired as the FlyWire connectome maps them, run in your browser and move the proboscis of a simulated fly. Touch a drop of sugar to its mouth and watch it reach out to feed.">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="site"><a href="../index.html">elichen.github.io</a></nav>
+
+    <header class="title">
+        <h1>The Whole Fly Brain</h1>
+        <p class="description">All 138,639 neurons of a fruit fly's brain, wired as the FlyWire connectome maps them, run in your browser and move the proboscis of a simulated fly. Touch a drop of sugar to its mouth and watch it reach out to feed.</p>
+    </header>
+
+    <section class="demo" aria-label="Live simulation">
+        <div class="viewport" id="viewport">
+            <div class="pane fly-pane">
+                <canvas id="fly" aria-label="The fly's head and proboscis, with a drop held at the labellum. Drag the drop to move it."></canvas>
+                <div class="touch" id="touch"></div>
+                <p class="hint">Drag the drop. Drag elsewhere to turn.</p>
+            </div>
+            <div class="pane brain-pane" id="brain-pane">
+                <canvas id="view" aria-label="The fruit fly brain seen from the front. Each neuron is a point at its cell body; points flash when the neuron fires."></canvas>
+                <div class="clock" id="clock"></div>
+                <div class="tip" id="tip" hidden></div>
+                <p class="hint">Drag to turn the brain. Click a neuron.</p>
+            </div>
+            <div class="status" id="status">Loading the connectome…</div>
+        </div>
+
+        <div class="panel">
+            <div class="controls">
+                <div class="stims" role="group" aria-label="Hold a drop at the labellum">
+                    <span class="label">Drop</span>
+                    <button type="button" class="chip" data-drop="sugar" aria-pressed="false">Sugar</button>
+                    <button type="button" class="chip" data-drop="bitter" aria-pressed="false">Bitter</button>
+                    <button type="button" class="chip" data-drop="water" aria-pressed="false">Water</button>
+                    <button type="button" class="chip" data-drop="sugar+bitter" aria-pressed="false">Sugar and bitter</button>
+                    <button type="button" class="chip" data-drop="" aria-pressed="false">None</button>
+                </div>
+                <div class="stims" role="group" aria-label="Activate sensory neurons">
+                    <span class="label">Activate</span>
+                    <button type="button" class="chip" data-set="Ir94e" aria-pressed="false">Ir94e</button>
+                    <button type="button" class="chip" data-set="JO-CE" aria-pressed="false">Antenna JO-CE</button>
+                    <button type="button" class="chip" data-set="JO-F" aria-pressed="false">Antenna JO-F</button>
+                </div>
+                <label class="slider"><span class="label">Input rate</span>
+                    <input type="range" id="rate" min="10" max="250" step="10" value="150">
+                    <output id="rate-out"></output></label>
+                <span class="buttons">
+                    <button type="button" id="pause">Pause</button>
+                    <button type="button" id="reset">Reset</button>
+                </span>
+            </div>
+
+            <div class="results">
+                <div class="active-list">
+                    <div class="list-head"><span class="chart-title">Most active responding neurons, last second</span><span class="label" id="n-active"></span></div>
+                    <ol id="top"></ol>
+                </div>
+                <div class="side">
+                    <dl class="readouts" id="named">
+                        <div><dt>MN9 · rostrum protractor</dt><dd data-motor="MN9">—</dd></div>
+                        <div><dt>MN1, MN2 · rostrum retractors</dt><dd data-motor="MN1,MN2Da,MN2Db,MN2V">—</dd></div>
+                        <div><dt>MN4 · haustellum extensor</dt><dd data-motor="MN4a,MN4b">—</dd></div>
+                        <div><dt>MN3 · haustellum flexor</dt><dd data-motor="MN3L,MN3M">—</dd></div>
+                        <div><dt>MN7 · labellum opener</dt><dd data-motor="MN7">—</dd></div>
+                        <div><dt>aBN1 · antennal grooming</dt><dd data-named="aBN1">—</dd></div>
+                        <div><dt>aDN1 · antennal grooming</dt><dd data-named="aDN1">—</dd></div>
+                        <div><dt>aDN2 · antennal grooming</dt><dd data-named="aDN2">—</dd></div>
+                    </dl>
+                    <div class="card" id="card" hidden>
+                        <div class="card-head"><strong id="card-name"></strong><button type="button" class="close" id="card-close" aria-label="Close">×</button></div>
+                        <p id="card-what"></p>
+                        <p class="card-rate" id="card-rate"></p>
+                        <div class="card-buttons">
+                            <button type="button" id="card-stim" aria-pressed="false">Activate</button>
+                            <button type="button" id="card-silence" aria-pressed="false">Silence</button>
+                            <a id="card-codex" target="_blank" rel="noopener">FlyWire Codex ↗</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="byline">
+        <div><h3>Published</h3><p>October 30, 2026</p></div>
+        <div><h3>Connectome</h3><p>FlyWire, version 783</p></div>
+        <div><h3>Model</h3><p>Shiu et al. 2024, checked spike for spike against their Brian 2 code</p></div>
+        <div><h3>Body</h3><p>flybody (Vaxenburg et al. 2025), proboscis only</p></div>
+    </div>
+
+    <article class="prose" id="article">
+        <p class="lede">A fruit fly brain has about 140,000 neurons. In 2024 the FlyWire consortium published the wiring of one adult female fly's brain: every neuron, and every chemical synapse between them, traced in electron microscope images <a href="#ref-1" class="cite">[1]</a><a href="#ref-2" class="cite">[2]</a>. Shiu et al. then made this wiring diagram into a simulation of the whole brain <a href="#ref-3" class="cite">[3]</a>. Above, their model runs in your browser on all 138,639 neurons and 54.5 million synapses. Each point is one neuron. A point flashes when its neuron fires.</p>
+        <p>On the left, the brain moves a body. A drop touches the fly's labellum, the tip of its proboscis. The taste neurons fire, the brain model sends spikes to the motor neurons of the proboscis, and the proboscis moves. Nothing between the drop and the movement is written by hand, except one rule that turns a motor neuron's firing rate into muscle force. The section <a href="#body">In a body</a> gives this rule.</p>
+
+        <h2>The model</h2>
+        <p>Each neuron is a leaky integrate-and-fire unit. Its membrane potential decays to rest, and synaptic input pushes it up or down. When it crosses the threshold, the neuron fires a spike, resets, and ignores all input for a short refractory period. Every neuron uses the same values:</p>
+        <ul>
+            <li>Resting and reset potential −52 mV, threshold −45 mV.</li>
+            <li>Membrane time constant 20 ms, synaptic time constant 5 ms.</li>
+            <li>Refractory period 2.2 ms, synaptic delay 1.8 ms.</li>
+        </ul>
+        <p>The connectome gives everything else. A connection's weight is its number of synapses times 0.275 mV. Its sign comes from the transmitter that a neural network predicts from the electron microscope images <a href="#ref-4" class="cite">[4]</a>. Neurons predicted to release GABA or glutamate inhibit. All others excite.</p>
+        <p>The weight per synapse, 0.275 mV, is the only free parameter. Shiu et al. chose it so that sugar neurons firing at 100 Hz make the motor neuron MN9 fire at about 80% of its maximum rate.</p>
+        <p>Without input, every neuron stays at rest. The model has no spontaneous activity. You can change it in two ways, the same two ways as the paper:</p>
+        <ul>
+            <li><strong>Activate</strong> gives each neuron of a set random (Poisson) input at the input rate. Each input event makes the neuron fire.</li>
+            <li><strong>Silence</strong> sets all output synapses of a neuron to zero. Click a neuron to activate or silence it.</li>
+        </ul>
+
+        <h2>Experiments from the paper</h2>
+        <p>Each button below starts the model from rest and sets up one experiment from Shiu et al. The sets of sensory neurons are the ones in the paper's code, by FlyWire ID. All are on the fly's left side. The paper used FlyWire version 630. A few of its neurons changed in version 783, so some sets are one neuron smaller here. A taste set gets its input from a drop: while the drop touches the labellum, each neuron of the set gets random input at the input rate. In the paper, the input was always on. Here the drop touches the labellum all the time unless you move it, so the input is the same.</p>
+        <p><button type="button" class="inline" data-exp="sugar">Sugar</button> The paper's 20 sugar-sensing taste neurons of the labellum fire at 150 Hz. (Newer FlyWire annotations give some of them other taste types.) About 370 neurons in the brain respond. MN9 fires at about 80 Hz. MN9 is the motor neuron of the muscle that swings the proboscis forward. The motor neurons that extend the proboscis tip and open the labellum also fire, and the proboscis reaches into the drop. In this simulated fly, this is proboscis extension, the first step of feeding.</p>
+        <p><button type="button" class="inline" data-exp="sugar-bitter">Sugar and bitter</button> Bitter neurons fire together with the sugar neurons. MN9 almost stops, and the proboscis stays in or moves only a little. In the fly, bitter taste also stops proboscis extension to sugar.</p>
+        <p><button type="button" class="inline" data-exp="water">Water</button> Water neurons drive MN9 only at high input rates. Here they fire at 200 Hz, and the proboscis extends part of the way. The paper shows that the sugar and water pathways share part of their circuit to MN9.</p>
+        <p><button type="button" class="inline" data-exp="jo-ce">Antenna</button> The JO-CE neurons sense movement of the antenna. They activate aBN1, aDN1 and aDN2, the neurons of the antennal grooming circuit. The JO-F neurons <button type="button" class="inline" data-exp="jo-f">JO-F</button> are also in the antenna, but they do not activate this circuit. Experiments in flies show the same difference.</p>
+        <p><button type="button" class="inline" data-exp="silence">Silence one neuron</button> Sugar neurons fire at 100 Hz and one neuron of type CB0553 is silent. MN9 drops from about 62 Hz to about 38 Hz. We found this neuron with the page's engine: of the 80 most active neurons, it is the one whose silencing lowers MN9 most. No single neuron stops MN9.</p>
+        <table>
+            <thead><tr><th>Activated</th><th>Readout</th><th>50 Hz</th><th>100 Hz</th><th>150 Hz</th><th>200 Hz</th></tr></thead>
+            <tbody>
+                <tr><td>Sugar</td><td>MN9</td><td>11</td><td>64</td><td>77</td><td>89</td></tr>
+                <tr><td>Sugar and bitter</td><td>MN9</td><td>1</td><td>3</td><td>4</td><td>7</td></tr>
+                <tr><td>Sugar and Ir94e</td><td>MN9</td><td>0</td><td>11</td><td>28</td><td>54</td></tr>
+                <tr><td>Water</td><td>MN9</td><td>0</td><td>0</td><td>6</td><td>30</td></tr>
+                <tr><td>Antenna JO-CE</td><td>aBN1</td><td>1</td><td>26</td><td>51</td><td>68</td></tr>
+                <tr><td>Antenna JO-F</td><td>aBN1</td><td>0</td><td>1</td><td>1</td><td>3</td></tr>
+            </tbody>
+        </table>
+        <p class="note">Firing rate of the readout neuron in Hz, mean of 20 runs of 1 s from rest, for each input rate. Computed with this page's engine (<code>tools/experiments.mjs</code>).</p>
+        <p>Shiu et al. tested predictions of the model in living flies, with optogenetics, calcium imaging and behavior. Their preprint reports that 91% of 164 testable predictions agreed with the experiments <a href="#ref-5" class="cite">[5]</a>.</p>
+
+        <h2 id="body">In a body</h2>
+        <p>The body is flybody, a physics model of the fruit fly by Vaxenburg et al. <a href="#ref-8" class="cite">[8]</a>, in the MuJoCo physics engine <a href="#ref-9" class="cite">[9]</a>. Its proboscis has joints for the rostrum (the base, which swings forward), the haustellum (the middle part, which extends) and the two lobes of the labellum (which open). Each joint has flybody's position actuator and passive spring. We use them without changes.</p>
+        <p>The fly is tethered by its thorax, as in the laboratory test for proboscis extension. Its legs, wings and antennae do not move. The brain model has no nerve cord, so it has no motor neurons for them (see <a href="#walk">Can it walk?</a>).</p>
+        <p><strong>From brain to body.</strong> McKellar et al. activated and silenced the motor neuron of every proboscis muscle and recorded what each muscle does <a href="#ref-10" class="cite">[10]</a>. FlyWire does not name these motor neurons, but the BANC connectome does, and it matches each of them to its FlyWire neuron <a href="#ref-11" class="cite">[11]</a>. So the page knows which neurons of the model move which joint:</p>
+        <table class="text">
+            <thead><tr><th>Joint</th><th>Moves it forward or open</th><th>Moves it back</th></tr></thead>
+            <tbody>
+                <tr><td>Rostrum</td><td>MN9 (muscle 9, protractor)</td><td>MN1, MN2 (muscles 1 and 2, retractors)</td></tr>
+                <tr><td>Haustellum</td><td>MN4 (muscle 4, extensor)</td><td>MN3 (muscle 3, flexor)</td></tr>
+                <tr><td>Labellum</td><td>MN7 (muscle 7, opens the lobes)</td><td>none</td></tr>
+            </tbody>
+        </table>
+        <p>We had to choose one rule, because no recording gives the force of these muscles for a firing rate. The activation of a muscle is 1 − e<sup>−r/40 Hz</sup>, where r is the mean firing rate of its motor neurons over the last 30 ms. The joint's actuator aims at the limit of the joint's range times the activation of the forward muscle, minus the same for the backward muscle. With no motor neuron firing, the proboscis folds back to rest.</p>
+        <p><strong>From body to brain.</strong> The page checks every 5 ms whether the drop touches a lobe of the labellum. While it touches, the drop's taste neurons get input. The brain and the body both step in 0.1 ms steps and exchange data every 5 ms, in the same background thread.</p>
+        <p>We measured the loop with <code>tools/feed.mjs</code>: the drop touches the labellum for 1 s at 150 Hz input, then it moves away. Ten runs per drop:</p>
+        <table>
+            <thead><tr><th>Drop</th><th>Proboscis extends</th><th>Time to extend</th><th>MN9</th></tr></thead>
+            <tbody>
+                <tr><td>Sugar</td><td>10 of 10</td><td>53 ± 5 ms</td><td>66 Hz</td></tr>
+                <tr><td>Bitter</td><td>0 of 10</td><td>—</td><td>0 Hz</td></tr>
+                <tr><td>Water</td><td>6 of 10, only a little</td><td>520 ± 180 ms</td><td>4 Hz</td></tr>
+                <tr><td>Water, 200 Hz input</td><td>10 of 10</td><td>190 ± 60 ms</td><td>20 Hz</td></tr>
+                <tr><td>Sugar and bitter</td><td>3 of 10, only a little</td><td>400 ± 470 ms</td><td>7 Hz</td></tr>
+            </tbody>
+        </table>
+        <p class="note">"Extends" means the rostrum turns more than 0.3 rad forward, about half of the turn with full drive. MN9 is the mean rate of the two MN9 neurons while the drop touches. When the sugar drop moves away, the proboscis folds back within about 60 ms.</p>
+        <p>Sugar also makes the motor neurons of the pharynx pump fire (MN10, MN11 and others, 40–110 Hz), as for swallowing. A real fly swallows with a rhythmic pump. In the model these neurons fire without a rhythm: we looked for one and did not find it. The body has no pharynx, so these neurons move nothing on this page.</p>
+
+        <h2 id="walk">Can it walk?</h2>
+        <p>No, not with this model. In 2026 the BANC connectome mapped the brain and the ventral nerve cord of one fly in one dataset <a href="#ref-11" class="cite">[11]</a>. The nerve cord holds the circuits and motor neurons of the legs and wings. We ran the same model, with the same parameters, on all 162,733 neurons of BANC. The sugar control works: sugar neurons drive MN9 to about 26 Hz, and bitter neurons reduce it to 7 Hz.</p>
+        <p>Then we activated DNg100, a descending neuron that starts walking in real flies, at 50–200 Hz. About 60–100 of the 393 leg motor neurons fire, but without a rhythm, and the flexors and extensors of a joint fire together. With these signals a leg would stiffen, not step. We then activated each of the 473 types of descending neuron, one type at a time. 175 types make leg motor neurons fire. None makes a rhythm clearly above random firing, and none makes flexors and extensors alternate.</p>
+        <p>Pugliese et al. found a walking rhythm in a simulation of the nerve cord connectome <a href="#ref-12" class="cite">[12]</a>. Their model uses firing rates, not spikes, and gives each neuron random values for its gain, threshold, maximum rate and time constant. We wrote their model again from their Methods and ran it on BANC (<code>tools/rate_vnc.py</code>; they also report BANC). Their result holds: with DNg100 driven, the network of the front legs makes a rhythm at 9–10 Hz, and the network of all six legs makes one at 8–10 Hz in 8 of 8 runs with a moderate input. The rhythm is sensitive to the input: with stronger input, it stops in most runs.</p>
+        <p>Then we sent this rhythm to flybody's legs with the same rule as the proboscis (<code>tools/leg_drive.py</code>, fly tethered in air). The feet move in time with the rhythm, but by less than 0.1 mm, less than a tenth of a real step. The middle legs almost do not move. The phase between the legs changes from run to run, so there is no tripod gait. In the front legs, the motor neurons of one leg mostly rise and fall together, not in turn. This is a rhythm, but it is not walking.</p>
+        <p>So the wiring holds part of what walking needs, but a simulated fly does not walk from the wiring and these simple neurons alone. Viral demonstrations of a walking "simulated fly" connect a few descending neurons of this brain model to a walking controller that is part of the body model, not of the connectome.</p>
+        <p>Escape fails for a different reason. In BANC, neurons that detect a looming object (LC4, LPLC2) drive the giant fiber, the descending neuron for escape, to 60–110 Hz. But the giant fiber does not drive the jump muscle's motor neuron: in the fly, that synapse is mostly electrical, and the connectome and the model have chemical synapses only.</p>
+
+        <h2>How the page runs it</h2>
+        <p>The model runs in WebAssembly, compiled from Rust, in a background thread. It steps all neurons in steps of 0.1 ms, the same step as the paper, and keeps pace with real time. The page downloads 31 MB: the connectome as 15.1 million weighted connections between 138,639 neurons.</p>
+        <p>Most neurons are at rest or below threshold at any moment, so the engine does not step them. Without new input, a neuron's potential cannot rise more than a known amount, which follows from its current potential and synaptic input. If that rise cannot reach the threshold, the neuron waits. When input arrives, the engine brings the neuron up to date in one calculation. With sugar input, the engine steps about 90 neurons per step, not 138,639. It runs the paper's experiments about 50 times faster than real time.</p>
+        <p>We checked the engine against the original model in Brian 2 <a href="#ref-6" class="cite">[6]</a>, the simulator of the paper:</p>
+        <ul>
+            <li><strong>Spike for spike.</strong> Both simulators got the same random input in ten runs of 1 s: the six experiments on this page, including the runaway below, and four more with sets of neurons from the FlyWire annotations. Brian made 1,999,953 spikes. The engine made the same 1,999,953 spikes, each in the same 0.1 ms step.</li>
+            <li><strong>Firing rates.</strong> With its own random input, the engine made 30 runs of the sugar experiment. Brian made 30 runs with Brian's random input. For all 437 neurons that fired, the mean rates agree within 3 standard errors. MN9 fired at 78.6 Hz in Brian and 78.2 Hz in the engine.</li>
+        </ul>
+        <p>One detail of Brian was necessary to match: a neuron in its refractory period ignores synaptic input. Brian applies this rule to variables marked "unless refractory", and the model's synaptic input is one of them.</p>
+
+        <h2>What the model leaves out</h2>
+        <p>This is a model of the wiring, not of the fly. Shiu et al. list its limits <a href="#ref-3" class="cite">[3]</a>:</p>
+        <ul>
+            <li>All neurons have the same parameters. Real neurons differ, and many fly neurons do not fire spikes.</li>
+            <li>The model has no gap junctions, neuropeptides, neuromodulation or internal state, such as hunger.</li>
+            <li>Transmitter predictions can be wrong, and then a connection has the wrong sign.</li>
+            <li>Neurons have no activity at rest, so inhibition of a silent neuron has no effect.</li>
+            <li>Absolute firing rates are not reliable. Changes in rate are more reliable.</li>
+        </ul>
+        <p>The body adds only the proboscis. The connectome is the brain only, without the ventral nerve cord, so most motor neurons are not in it. The rule from firing rate to muscle force is our choice. The optic lobes hold more than half of the neurons, and they stay dark until something activates them.</p>
+        <p><button type="button" class="inline" data-exp="runaway">Runaway</button> The model can also go out of control. Here, the 12 LB3b taste neurons on the fly's right side fire at 150 Hz. These are not the paper's neurons. Activity spreads through excitatory local neurons of the antennal lobe to the whole olfactory pathway: about 8,400 neurons fire, among them about 3,400 Kenyon cells of the mushroom body. MN9 stays silent. Brian 2 gives the same result. In real flies, inhibition keeps Kenyon cell activity sparse. In the model, the inhibitory APL neuron fires at more than 300 Hz but does not stop the spread. We do not know which missing part of the model causes this. With this input the engine can run slower than real time, and the clock above the brain shows the speed.</p>
+
+        <h2>Data</h2>
+        <p>Connectome: FlyWire, version 783 <a href="#ref-1" class="cite">[1]</a>, as prepared by Shiu et al. for their model (CC BY 4.0). Neuron names, classes and positions: FlyWire annotations <a href="#ref-2" class="cite">[2]</a>. A point is the neuron's cell body. Sensory neurons have their cell bodies outside the brain, so their point is on their axon. The outlines are the neuropils of the insect brain nomenclature <a href="#ref-7" class="cite">[7]</a>, transformed to FlyWire space by the fafbseg package. Click a neuron to open it in FlyWire Codex. Body: flybody <a href="#ref-8" class="cite">[8]</a> (Apache 2.0), with simpler meshes. Names of the proboscis motor neurons and the nerve cord experiments: BANC, version 888 <a href="#ref-11" class="cite">[11]</a>.</p>
+    </article>
+
+    <section class="appendix">
+        <h3>References</h3>
+        <ol class="refs">
+            <li id="ref-1">Dorkenwald, S. et al. Neuronal wiring diagram of an adult brain. <em>Nature</em> 634, 124–138 (2024).</li>
+            <li id="ref-2">Schlegel, P. et al. Whole-brain annotation and multi-connectome cell typing of <em>Drosophila</em>. <em>Nature</em> 634, 139–152 (2024).</li>
+            <li id="ref-3">Shiu, P. K. et al. A <em>Drosophila</em> computational brain model reveals sensorimotor processing. <em>Nature</em> 634, 210–219 (2024). Code: <a href="https://github.com/philshiu/Drosophila_brain_model">philshiu/Drosophila_brain_model</a>.</li>
+            <li id="ref-4">Eckstein, N. et al. Neurotransmitter classification from electron microscopy images at synaptic sites in <em>Drosophila melanogaster</em>. <em>Cell</em> 187, 2574–2594 (2024).</li>
+            <li id="ref-5">Shiu, P. K. et al. A leaky integrate-and-fire computational model based on the connectome of the entire adult <em>Drosophila</em> brain reveals insights into sensorimotor processing. <em>bioRxiv</em> 2023.05.02.539144 (2023).</li>
+            <li id="ref-6">Stimberg, M., Brette, R. &amp; Goodman, D. F. M. Brian 2, an intuitive and efficient neural simulator. <em>eLife</em> 8, e47314 (2019).</li>
+            <li id="ref-7">Ito, K. et al. A systematic nomenclature for the insect brain. <em>Neuron</em> 81, 755–765 (2014).</li>
+            <li id="ref-8">Vaxenburg, R. et al. Whole-body physics simulation of fruit fly locomotion. <em>Nature</em> 643, 1312–1320 (2025). Code: <a href="https://github.com/TuragaLab/flybody">TuragaLab/flybody</a>.</li>
+            <li id="ref-9">Todorov, E., Erez, T. &amp; Tassa, Y. MuJoCo: a physics engine for model-based control. <em>IROS</em> (2012).</li>
+            <li id="ref-10">McKellar, C. E., Siwanowicz, I., Dickson, B. J. &amp; Simpson, J. H. Controlling motor neurons of every muscle for fly proboscis reaching. <em>eLife</em> 9, e54978 (2020).</li>
+            <li id="ref-11">Bates, A. S., Phelps, J. S. et al. Distributed control circuits across a brain-and-cord connectome. <em>Nature</em> (2026). Data: <a href="https://doi.org/10.7910/DVN/7WTH1N">doi:10.7910/DVN/7WTH1N</a>.</li>
+            <li id="ref-12">Pugliese, S. M. et al. Connectome simulations identify a central pattern generator circuit for fly walking. <em>bioRxiv</em> 2025.09.12.675944 (2025).</li>
+        </ol>
+    </section>
+
+    <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+    </script>
+    <script type="module" src="main.js"></script>
+</body>
+</html>
