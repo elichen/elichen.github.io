@@ -1,6 +1,6 @@
-"""Pack flybody's flying fly for the web: flight/body/{fly.xml, meshes/, manifest.json, meta.json, policy.bin} and
+"""Pack flybody's flying fly for the web: <dir>/{fly.xml, meshes/, manifest.json, meta.json, policy.bin} and
 reference rollouts in <ref dir> for tools/flight_parity.mjs.
-    python tools/pack_flyer.py <flight policy dir> <wing_pattern_fmech.npy> flight/body <ref dir>
+    python tools/pack_flyer.py <flight policy dir> <wing_pattern_fmech.npy> <dir> <ref dir>
     (venv: mujoco 3.1.6, dm-control 1.0.20, flybody, tensorflow, fast-simplification)
 Exported from flybody's flight_imitation task, so the physics is the policy's, except: the ghost fly, cameras, lights and
 path markers go, and a looming object (mocap, no contact) is added. Visual meshes are decimated.
@@ -52,7 +52,11 @@ def policy(x):
     for b, w in ((v[4], v[5]), (v[6], v[7])):
         h = elu(h @ w + b)
     return h @ v[9] + v[8]
-env = flight_imitation(wpg_pattern_path=pattern, terminal_com_dist=float('inf'))
+FULL = bool(os.environ.get('FULL'))   # legs free and floor solid: the full-body fly, for training takeoff and landing
+if FULL:     # the one body: legs, wings and mouth all free, both of flybody's policies run on it
+    _build = _ff.FruitFly._build
+    _ff.FruitFly._build = lambda self, name='walker', use_mouth=False, **kw: _build(self, name=name, use_mouth=name == 'walker' or use_mouth, **kw)
+env = flight_imitation(wpg_pattern_path=pattern, terminal_com_dist=float('inf'), disable_legs=not FULL, joint_filter=0.01 if FULL else 0.)
 spec = env.action_spec(); lo, hi = spec.minimum, spec.maximum
 ts = env.reset()
 w = env.task._walker
@@ -109,7 +113,20 @@ if opt is None:
 fl = opt.find('flag')
 if fl is None:
     fl = ET.SubElement(opt, 'flag')
-fl.set('contact', 'disable')    # in the air, nothing touches
+if FULL:
+    for g in root.iter('geom'):
+        if g.get('name') == 'groundplane':       # as flybody's Walking task
+            g.set('contype', '1'); g.set('conaffinity', '1'); g.set('friction', '0.5')
+            g.set('solref', '0.001 1'); g.set('solimp', '0.95 0.99 0.01')
+    for el in root.iter():
+        if el.get('name') in [f'walker/wing_{x}_{y}' for x in ('yaw', 'roll', 'pitch') for y in ('left', 'right')] and el.tag == 'general':
+            el.attrib.pop('dyntype', None); el.attrib.pop('dynprm', None)   # wings are direct, as in flight
+    d_ = [x for x in root.iter('default') if x.get('class') == 'walker/adhesion-collision']
+    for x in d_:
+        for g in x.findall('geom'):
+            g.set('friction', '1')     # flybody's walking claw friction
+else:
+    fl.set('contact', 'disable')    # in the air, nothing touches
 tree.write(f'{out}/fly.xml')
 shutil.rmtree(tmp)
 json.dump(sorted(os.listdir(f'{out}/meshes')), open(f'{out}/manifest.json', 'w'))

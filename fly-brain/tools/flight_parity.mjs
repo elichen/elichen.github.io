@@ -1,8 +1,8 @@
-// flight/flyer.js in MuJoCo 3.14 wasm vs flybody in Python (tools/pack_flyer.py).
-//   node tools/flight_parity.mjs flight/body <ref dir>
+// flyer.js in MuJoCo 3.14 wasm vs flybody in Python (tools/pack_flyer.py).
+//   node tools/flight_parity.mjs <pack_flyer dir> <ref dir>
 import fs from 'node:fs';
 import loadMujoco from '@mujoco/mujoco';
-import { Flyer, CONTROL_DT } from '../flight/flyer.js';
+import { Flyer, CONTROL_DT } from '../flyer.js';
 import { WalkPolicy, WasmPolicy } from '../walker.js';
 
 const [dir, ref] = process.argv.slice(2);

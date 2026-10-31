@@ -7,7 +7,7 @@ import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const DROP_COLORS = { sugar: '#f4ead2', bitter: '#b9cf7a', water: '#a9d3f2', 'sugar+bitter': '#dcdca4' };
 const WICK = new Set(['drop']);
-const ODOR_RADIUS = 3;      // cm, the drawn smell; the rule's length scale is 1 cm (forage.js)
+const ODOR_RADIUS = 3;      // cm, the drawn smell; the rule's length scale is 1 cm
 
 export class FlyView {
     constructor(canvas, onWick) {

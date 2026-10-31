@@ -6,13 +6,13 @@ const here = new URL('..', import.meta.url).pathname;
 const seconds = Number(process.argv[2] || 1);
 const { instance } = await WebAssembly.instantiate(readFileSync(here + 'engine.wasm'));
 const w = instance.exports;
-const bytes = gunzipSync(readFileSync(here + 'model/connectome.gz'));
+const bytes = gunzipSync(readFileSync(here + 'flywire/connectome.gz'));
 const p = w.alloc(bytes.length);
 new Uint8Array(w.memory.buffer, p, bytes.length).set(bytes);
 let t = performance.now();
 const n = w.init(p, bytes.length, 1);
 console.log(`${n} neurons parsed in ${((performance.now() - t) / 1000).toFixed(2)} s, memory ${(w.memory.buffer.byteLength / 1e6).toFixed(0)} MB`);
-const neurons = JSON.parse(readFileSync(here + 'model/neurons.json'));
+const neurons = JSON.parse(readFileSync(here + 'flywire/neurons.json'));
 const runs = [['sugar', 150], ['JO-CE', 200], ['bitter', 150]];
 for (const [name, hz] of runs) {
     w.reset();
