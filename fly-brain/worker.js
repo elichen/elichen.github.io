@@ -7,7 +7,7 @@ import { Flyer } from './flyer.js';
 
 const BUDGET = 25, STEP = 1e-4, SLOW = 0.02, BLUR = 12, BLUR_EVERY = 2;
 let timeScale = 1, wings = [], ring = null, ringAt = 0, ctrlCount = 0;
-let w = null, day = null, paused = false, clockStart = 0, simStart = 0, samples = [];
+let w = null, day = null, paused = false, dirty = false, clockStart = 0, simStart = 0, samples = [];
 
 async function load() {
     const names = await fetch('body/manifest.json').then(r => r.json());
@@ -51,7 +51,7 @@ async function load() {
         }
         ringAt = (ringAt + 1) % BLUR;
     };
-    postMessage({ type: 'body', ...describe(mujoco, m), wings, blurCopies: BLUR });
+    postMessage({ type: 'body', ...describe(mujoco, m), wings, blurCopies: BLUR, pattern: fm.pattern });
     postMessage({ type: 'ready', n });
     restart();
     tick();
@@ -77,11 +77,12 @@ const now = () => day.t;
 function restart() { clockStart = performance.now(); simStart = now(); }
 
 function tick() {
-    if (!paused) {
+    if (!paused || dirty) {   // a change made while paused still shows
+        dirty = false;
         const start = performance.now();
         const target = simStart + timeScale * (start - clockStart) / 1000;
         const out = [];
-        while (now() + 10 * STEP <= target + 1e-9 && performance.now() - start < BUDGET) {
+        while (!paused && now() + 10 * STEP <= target + 1e-9 && performance.now() - start < BUDGET) {
             const s = day.step();
             if (s.length) out.push(s);
         }
@@ -103,7 +104,7 @@ function tick() {
             mode: L.mode, hunger: day.hunger, bored: day.bored, goal: day.goal && { x: day.goal.x, y: day.goal.y, why: day.goal.why }, eating: !!day.eating,
             foods: day.foods.map(f => [f.x, f.y, f.r, f.amount]), object: day.object && { p: day.object.p, v: day.object.v, radius: day.object.radius, hit: day.object.hit },
             rates: { oDN1: day.oDN1.rate, GF: day.GF.rate, MN9: day.mouth.MN9.rate, dnL: day.dnL.rate, dnR: day.dnR.rate }, p9: day.p9, sugar: day.sugar,
-            counts: { putBacks: day.putBacks || 0, jumps: day.jumps || 0, hits: day.hits || 0, calms: day.calms || 0 }, blur: timeScale === 1 && flapping ? blur : null, slow: timeScale < 1 }, [spikes.buffer, xpos.buffer, xmat.buffer, blur.buffer]);
+            counts: { putBacks: day.putBacks || 0, jumps: day.jumps || 0, hits: day.hits || 0, calms: day.calms || 0 }, blur: timeScale === 1 && flapping ? blur : null, slow: timeScale < 1, flapping, wingHz: day.F.freq }, [spikes.buffer, xpos.buffer, xmat.buffer, blur.buffer]);
     }
     setTimeout(tick, 8);
 }
@@ -111,6 +112,7 @@ function tick() {
 onmessage = e => {
     const m = e.data;
     if (!w) return;
+    dirty = true;
     if (m.type === 'swat') day.swat(m.side);
     if (m.type === 'food') day.addFood(m.x, m.y);
     if (m.type === 'slow') { timeScale = m.on ? SLOW : 1; samples = []; restart(); }

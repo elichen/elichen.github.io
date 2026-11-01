@@ -46,6 +46,7 @@
                 <div class="stims" role="group" aria-label="View">
                     <span class="label">View</span>
                     <button type="button" class="chip" id="slow" aria-pressed="false">Slow motion</button>
+                    <button type="button" class="chip" id="sound" aria-pressed="false">Sound</button>
                 </div>
                 <span class="buttons">
                     <button type="button" id="pause">Pause</button>
@@ -106,15 +107,15 @@
             </tbody>
         </table>
         <p>So the legs have one job: lift the nose. Before a jump, a real fly sets its posture <a href="#ref-4" class="cite">[4]</a>. Ours reaches with the front legs and crouches on the hind legs for 0.1 s with its wings shut, which gives about 20–28°. Then the flight policy starts the wings, on a path that begins at the fly's own pose, while the middle and hind legs push. If the nose is not up by 12°, the fly does not jump. We found these numbers by random search.</p>
-        <p>To land, the path falls to 0.8 cm, brakes to a hover with the nose at 35°, waits until the fly is almost still, and sinks. At the first touch of a foot, the wings shut and the walking policy takes over. Stillness matters: a touch at 2.5 cm/s or more often tipped the fly over.</p>
+        <p>To land, the path falls to 0.8 cm at 4 cm/s, brakes to a hover with the nose at 35°, waits until the fly is almost still, and sinks. At the first touch of a foot, the wings shut and the walking policy takes over. Stillness matters: a touch at 2.5 cm/s or more often tipped the fly over. So does the rate of fall: from 11 cm at 8 cm/s, the flight policy lost control in 7 of 9 descents, and at 3–5 cm/s in none of 28.</p>
         <p>One more thing took some finding. A rotation has two equal descriptions, <code>q</code> and <code>−q</code>, but a policy reads the numbers. When the fly's heading passed 180°, the sign could disagree with the path, and the policy threw the fly on its back. Each handover now makes the signs agree.</p>
         <p>The whole cycle, 40 trials, on new random seeds from a walking start (<code>tools/life.mjs</code>):</p>
         <table>
             <thead><tr><th>Step</th><th>Trials that reached it</th></tr></thead>
             <tbody>
                 <tr><td>Walked, then launched</td><td>40</td></tr>
-                <tr><td>Flew</td><td>38</td></tr>
-                <tr><td>Touched the table</td><td>38</td></tr>
+                <tr><td>Flew</td><td>37</td></tr>
+                <tr><td>Touched the table</td><td>37</td></tr>
                 <tr><td>Upright, and walked 2 cm</td><td>37</td></tr>
                 <tr><td>Took off again</td><td>34</td></tr>
             </tbody>
@@ -168,9 +169,10 @@
         </table>
         <p class="note">Turning away is better only when the object comes from the side or from behind. From the front, the turn takes the fly along the object's path. That test used a less sensitive eye rule than this page (full input at 6 rad/s, here 2 rad/s). The eye rule and the threshold are our choices, so these distances are not a prediction for a real fly.</p>
         <p>The fly flies at 14 cm/s, the median speed in flybody's recordings. At 30 cm/s the policy does not hold a steady pose, and a saccade makes it fall. Its thorax is about 45° nose up, as trained, near the published body angle for hovering flies <a href="#ref-17" class="cite">[17]</a>. It looks upright. We judged the abdomen and the hanging legs by eye from photos. The wings beat at about 218 Hz, too fast for a screen, so they are drawn as the real poses of the last wingbeat, laid faintly over each other.</p>
+        <p>Turn on Sound to hear the wings. The sound comes from the same wingbeat, not from a recording. The force on a wing grows with the square of its speed, and the ear gets the rate of change of that force. One beat of the policy's wing pattern gives the wave, and the policy's wing frequency gives the pitch. The shares of lift and drag and the volume are our choices, and we did not compare the sound with a recording of a fly. The volume falls as you zoom out. In slow motion it is silent, because 4 Hz is too low to hear. When the model runs slower than real time, the pitch stays at the real wing frequency.</p>
 
         <h2>A day, in numbers</h2>
-        <p>Five simulated minutes with no swatter (<code>node tools/day.mjs</code>): 12 flights, 8 meals, and 7 failures where we had to put the fly back on its feet. Four launches were also called off because the nose was not up. When the fly falls on its back, it cannot right itself. No policy was trained for this, so after 0.4 s we set it back on its feet, and the page counts each time. Falls come from launches, landings and walking.</p>
+        <p>Five simulated minutes with no swatter (<code>node tools/day.mjs</code>): 10 flights, 7 meals, and 4 failures where we had to put the fly back on its feet. Three launches were also called off because the nose was not up. When the fly falls on its back, it cannot right itself. No policy was trained for this, so after 0.4 s we set it back on its feet, and the page counts each time. Falls come from launches, landings and walking.</p>
 
         <h2>The brain model</h2>
         <p>Each neuron is a leaky integrate-and-fire unit <a href="#ref-6" class="cite">[6]</a>. Its potential decays to rest, and synaptic input pushes it up or down. At threshold it fires, resets, and ignores input for a short time. Every neuron has the same values: rest and reset −52 mV, threshold −45 mV, membrane time constant 20 ms, synaptic time constant 5 ms, refractory period 2.2 ms, delay 1.8 ms. The connectome gives the rest. A connection's weight is its number of synapses times 0.275 mV, and its sign comes from a predicted transmitter <a href="#ref-9" class="cite">[9]</a>. GABA, glutamate and histamine inhibit. Without input, every neuron stays at rest.</p>

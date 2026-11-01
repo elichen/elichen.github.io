@@ -69,7 +69,7 @@ export function buildKitchen(scene) {
     for (let i = 0; i < 512; i += 64) tg.fillRect(i, 0, 22, 360);
     tg.fillStyle = 'rgba(52,84,110,0.4)'; for (let i = 0; i < 360; i += 64) tg.fillRect(0, i, 512, 22);
     const tt = new THREE.CanvasTexture(tc); tt.colorSpace = THREE.SRGBColorSpace;
-    const towel = new THREE.Mesh(new THREE.BoxGeometry(20, 14, 0.25), std('#ffffff', 0.98, { map: tt, envMapIntensity: 0.3 })); towel.rotation.z = 0.2; room.add(place(towel, -37, -21, 0.12));
+    const towel = new THREE.Mesh(new THREE.BoxGeometry(20, 14, 0.02), std('#ffffff', 0.98, { map: tt, envMapIntensity: 0.3 })); towel.rotation.z = 0.2; room.add(place(towel, -37, -21, 0.01));   // thin: the physics has no towel, and a thick one would hide a fly (0.13 cm tall) walking on it
     const ring = new THREE.Mesh(new THREE.RingGeometry(3.6, 3.95, 64), new THREE.MeshBasicMaterial({ color: '#5a3517', transparent: true, opacity: 0.32, depthWrite: false })); ring.position.set(-12, 10, 0.006); room.add(ring);
     scene.add(room);
     // window light for the whole table; FlyView's own key light carries the fly's fine shadow

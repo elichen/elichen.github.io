@@ -145,9 +145,9 @@ export class FlyView {
         // follow the fly, keeping the viewing angle
         if (m.fly) {
             const t = this.controls.target;
-            const dx = (m.fly[0] - t.x) * this.follow, dy = (m.fly[1] - t.y) * this.follow;
-            t.x += dx; t.y += dy;
-            this.camera.position.x += dx; this.camera.position.y += dy;
+            const dx = (m.fly[0] - t.x) * this.follow, dy = (m.fly[1] - t.y) * this.follow, dz = (m.fly[2] - t.z) * this.follow;
+            t.x += dx; t.y += dy; t.z += dz;
+            this.camera.position.x += dx; this.camera.position.y += dy; this.camera.position.z += dz;
             this.key.target.position.set(m.fly[0], m.fly[1], 0);
             this.key.position.set(m.fly[0] + 1, m.fly[1] + 0.6, 3);
         }

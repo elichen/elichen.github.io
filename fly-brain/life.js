@@ -9,8 +9,9 @@ import { CONTROL_DT as WALK_DT } from './walker.js';
 
 export const TAKEOFF = { pre: 0.0977, pamp: [0.8887, 0.1825, -1.2234], T: 0.0587, rise: 0.3675, t0: 0.0201, tp: 0.00535, amp: [0, 0.5462, 0.6799], minPitch: 12 };
 // the path: fall from cruise at `rate` cm/s to `near` cm, still flying forward; brake to a hover over `slow` s, nose down to `pitch`; hold; sink to `floor` over `sink` s
-export const LANDING = { rate: 8, near: 0.8, slow: 0.5, hold: 0.1, sink: 0.6, pitch: 35, floor: 0.2, legs: 0.2, still: 0.5, wait: 1 };
-const CRUISE = -47.5 * Math.PI / 180, DEG = Math.PI / 180, WALK_H = 2e-4, FLY_H = 5e-5;
+// rate: at 8 cm/s the flight policy lost control in 7 of 9 long descents and fell; at 3-5 cm/s, 0 of 28
+export const LANDING = { rate: 4, near: 0.8, slow: 0.5, hold: 0.1, sink: 0.6, pitch: 35, floor: 0.2, legs: 0.2, still: 0.5, wait: 1 };
+const CRUISE = -47.5 * Math.PI / 180, DEG = Math.PI / 180, WALK_H = 2e-4, FLY_H = 5e-5, CLIMB = 8;
 const smooth = x => { const u = Math.min(1, Math.max(0, x)); return u * u * (3 - 2 * u); };
 
 export class Life {
@@ -113,7 +114,7 @@ export class Life {
             if (this.t > TO.T + 0.15) { this.mode = 'fly'; this.t = 0; }
             return FLY_DT;
         }
-        if (this.mode === 'fly') { F.yaw = this.yaw; F.height += Math.max(-LANDING.rate * FLY_DT, Math.min(LANDING.rate * FLY_DT, this.cruise - F.height)); F.step(); this.t += FLY_DT; return FLY_DT; }
+        if (this.mode === 'fly') { F.yaw = this.yaw; F.height += Math.max(-this.LA.rate * FLY_DT, Math.min(CLIMB * FLY_DT, this.cruise - F.height)); F.step(); this.t += FLY_DT; return FLY_DT; }
         if (this.mode === 'descend') {
             const A = Math.max(0, (this.fromH - LA.near) / LA.rate), t = this.t, r = smooth((t - A) / LA.slow);
             // sink only from a still hover (first touch at 2.5 cm/s or more tips the fly over); a stated rule

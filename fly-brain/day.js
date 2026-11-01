@@ -83,6 +83,7 @@ export class Day {
         this.hunger = this.hunger ?? 0.4; this.bored = this.bored ?? 0;
         this.goal = null; this.walking = false; this.eating = null; this.v = 0; this.setP9(0); this.setSugar(false);
         this.saccades = []; this.upsideDown = 0; this.retry = 0;
+        if (this.object) this.calmAt = this.t + 1;   // a put-back in the middle of a swat: the brain still needs clearing
         this.object = null; this.prevSize = null; this.applyEye('left', 0); this.applyEye('right', 0);
     }
 
@@ -188,6 +189,7 @@ export class Day {
             life.speed = this.v;
             life.yaw = go && this.v >= 0.8 ? clamp(4 * bearing, Math.min(TURN_WALK, 2 * this.v)) : 0;   // tools/walk_turns.mjs: 1 cm/s at 4 rad/s falls, 1.5 at 3 and 2 at 4 do not
         } else {
+            this.v = life.speed = 0;   // on landing the walking speed ramps up from a stand again
             life.yaw = this.goal ? clamp(3 * bearing, TURN_FLY) : 0;
             if (this.goal) life.cruise = dist < 25 && !crosses(p[0], p[1], this.goal.x, this.goal.y) ? Math.max(1.5, Math.min(CRUISE, dist * 0.25)) : CRUISE;
             // down when the goal is within the run, facing it or not: a goal inside the turning circle is never faced. Overshoot is walked or hopped back.
@@ -203,7 +205,7 @@ export class Day {
         // the object
         const o = this.object;
         if (o) {
-            for (let i = 0; i < 3; i++) o.p[i] += o.v[i] * dt;
+            if (o.p[2] > 0) for (let i = 0; i < 3; i++) o.p[i] += o.v[i] * dt;   // it stops on the table
             const b = F.position();
             const along = (b[0] - o.p[0]) * o.v[0] + (b[1] - o.p[1]) * o.v[1] + (b[2] - o.p[2]) * o.v[2], sp = Math.hypot(...o.v), off = Math.hypot(b[0] - o.p[0] - o.v[0] * along / sp / sp, b[1] - o.p[1] - o.v[1] * along / sp / sp, b[2] - o.p[2] - o.v[2] * along / sp / sp);
             if (Math.abs(along / sp) < 0.25 && off < o.radius) { o.hit = true; }

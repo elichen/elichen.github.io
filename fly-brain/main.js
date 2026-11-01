@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { FlyView } from './fly-view.js';
 import { buildKitchen, sugarDrop, swatter } from './scene.js';
 import { isClear, TABLE } from './day.js';
+import { WingSound } from './audio.js';
 
 const P = { bg: '#030101', rest: '#c02438', restAlpha: 0.8, fire: '#ffffff' };
 const FLASH = 0.03;
@@ -127,7 +128,8 @@ function poseBlur(m) {
     }
 }
 
-const up = new THREE.Vector3(), look = new THREE.Vector3();
+const up = new THREE.Vector3(), look = new THREE.Vector3(), where = new THREE.Vector3();
+let sound = null, soundOn = false, paused = false;
 function poseWorld(m) {
     while (drops.length < m.foods.length) { const d = sugarDrop(); flyView.scene.add(d); drops.push(d); }
     drops.forEach((d, i) => {
@@ -143,6 +145,7 @@ function poseWorld(m) {
 }
 
 function onSpikes(m) {
+    if (m.t < t) lastSpike.fill(-1e9);   // after Reset, or a neuron with a spike 'in the future' stays lit until the clock gets there
     t = m.t; latest = m;
     const s = m.spikes;
     for (let k = 0; k < s.length; k += 2) lastSpike[s[k + 1]] = s[k] * 1e-4;
@@ -150,6 +153,11 @@ function onSpikes(m) {
     flyView.update(m);
     poseBlur(m);
     poseWorld(m);
+    if (sound) {
+        where.set(m.fly[0], m.fly[1], m.fly[2]);
+        const dist = where.distanceTo(flyView.camera.position);
+        sound.update(m.flapping && !m.slow && !paused, m.wingHz, dist, where.project(flyView.camera).x);
+    }
 }
 
 const SAY = {
@@ -173,15 +181,17 @@ worker.onmessage = e => {
     const m = e.data;
     if (m.type === 'progress') status.textContent = `Loading the connectome… ${(m.loaded / 1e6).toFixed(0)} of ${(m.total / 1e6).toFixed(0)} MB`;
     else if (m.type === 'error') status.textContent = `Could not start the model: ${m.message}`;
-    else if (m.type === 'body') { flyView.build(m); buildBlur(m); }
+    else if (m.type === 'body') { flyView.build(m); buildBlur(m); sound = new WingSound(m.pattern); }
     else if (m.type === 'ready') { status.textContent = ''; document.body.classList.add('ready'); }
     else if (m.type === 'spikes' && points) onSpikes(m);
 };
 
+worker.onerror = e => { status.textContent = `The model stopped: ${e.message}`; };
+
 // a click on the table (not a drag) drops sugar there
 const ray = new THREE.Raycaster(), table = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), hit = new THREE.Vector3();
 let down = null;
-flyCanvas.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
+flyCanvas.addEventListener('pointerdown', e => { down = e.button === 0 ? [e.clientX, e.clientY] : null; });
 flyCanvas.addEventListener('pointerup', e => {
     if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
     const r = flyCanvas.getBoundingClientRect();
@@ -191,9 +201,9 @@ flyCanvas.addEventListener('pointerup', e => {
 for (const b of document.querySelectorAll('[data-swat]')) b.onclick = () => worker.postMessage({ type: 'swat', side: +b.dataset.swat });
 let slow = false;
 document.getElementById('slow').onclick = e => { slow = !slow; e.target.setAttribute('aria-pressed', slow); worker.postMessage({ type: 'slow', on: slow }); };
-let paused = false;
-document.getElementById('pause').onclick = e => { paused = !paused; e.target.textContent = paused ? 'Run' : 'Pause'; worker.postMessage({ type: 'pause', on: paused }); };
-document.getElementById('reset').onclick = () => { worker.postMessage({ type: 'reset' }); lastSpike.fill(-1e9); t = 0; };
+document.getElementById('sound').onclick = e => { soundOn = !soundOn; e.target.setAttribute('aria-pressed', soundOn); sound?.set(soundOn); };
+document.getElementById('pause').onclick = e => { paused = !paused; e.target.textContent = paused ? 'Run' : 'Pause'; worker.postMessage({ type: 'pause', on: paused }); if (paused) sound?.update(false, 218, 1, 0); };
+document.getElementById('reset').onclick = () => { worker.postMessage({ type: 'reset' }); };
 
 function frame() {
     material.uniforms.uNow.value = t;
@@ -205,4 +215,4 @@ function frame() {
 build(await fetch('model/neurons.json').then(r => r.json()));
 requestAnimationFrame(frame);
 setInterval(panel, 200);
-window.flyWorld = { worker, flyView, get latest() { return latest; } };
+window.flyWorld = { worker, flyView, get latest() { return latest; }, get sound() { return sound; } };
