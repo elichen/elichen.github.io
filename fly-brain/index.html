@@ -6,15 +6,6 @@
     <title>A Fly's Day</title>
     <meta name="description" content="A simulated fly lives on a kitchen table, with the connectome of a whole brain and nerve cord in your browser. It walks, takes off, flies, lands and eats. Drop sugar for it, or try to swat it.">
     <link rel="stylesheet" href="styles.css">
-    <style>
-        .viewport { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr); }
-        @media (max-width: 760px) { .viewport { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 3fr) minmax(0, 1fr); } }
-        i.meter { display: inline-block; vertical-align: middle; width: 110px; height: 6px; background: rgba(128,128,128,.25); border-radius: 3px; overflow: hidden; }
-        i.meter b { display: block; height: 100%; width: 0; background: #b5472f; }
-        #touch { background: rgba(20,14,8,.55); color: #fff; padding: 4px 9px; border-radius: 4px; width: fit-content; }
-        .fly-pane .hint { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
-        #counts { font-size: 13px; opacity: .7; margin: 8px 0 0; }
-    </style>
 </head>
 <body>
     <nav class="site"><a href="../index.html">elichen.github.io</a></nav>
@@ -27,7 +18,7 @@
             <div class="pane fly-pane">
                 <canvas id="fly" aria-label="A fly on a kitchen table."></canvas>
                 <div class="touch" id="touch"></div>
-                <p class="hint">Click the table to drop sugar. Drag to turn the view; scroll to zoom out.</p>
+                <p class="hint">Click the table to drop sugar. Drag to turn the view; scroll to zoom.</p>
             </div>
             <div class="pane brain-pane" id="brain-pane">
                 <canvas id="view" aria-label="The brain and nerve cord. Each neuron is a point; points flash when the neuron fires."></canvas>
@@ -39,24 +30,24 @@
             <div class="controls">
                 <div class="stims" role="group" aria-label="Swat">
                     <span class="label">Swat</span>
-                    <button type="button" class="chip" data-swat="0">From above</button>
-                    <button type="button" class="chip" data-swat="1.2">From its left</button>
-                    <button type="button" class="chip" data-swat="-1.2">From its right</button>
+                    <button type="button" disabled class="chip" data-swat="0">From above</button>
+                    <button type="button" disabled class="chip" data-swat="1.2">From its left</button>
+                    <button type="button" disabled class="chip" data-swat="-1.2">From its right</button>
                 </div>
                 <div class="stims" role="group" aria-label="View">
                     <span class="label">View</span>
-                    <button type="button" class="chip" id="slow" aria-pressed="false">Slow motion</button>
-                    <button type="button" class="chip" id="sound" aria-pressed="false">Sound</button>
+                    <button type="button" disabled class="chip" id="slow" aria-pressed="false">Slow motion</button>
+                    <button type="button" disabled class="chip" id="sound" aria-pressed="false">Sound</button>
                 </div>
                 <span class="buttons">
-                    <button type="button" id="pause">Pause</button>
-                    <button type="button" id="reset">Reset</button>
+                    <button type="button" disabled id="pause">Pause</button>
+                    <button type="button" disabled id="reset">Reset</button>
                 </span>
             </div>
-            <div class="results"><div class="side">
+            <div class="results">
                 <dl class="readouts">
-                    <div><dt>Hunger · a rule</dt><dd><i class="meter"><b id="hunger"></b></i></dd></div>
-                    <div><dt>Boredom · a rule</dt><dd><i class="meter"><b id="bored"></b></i></dd></div>
+                    <div><dt>Hunger · a rule</dt><dd><i class="meter" role="meter" aria-label="Hunger" aria-valuemin="0" aria-valuemax="100"><b id="hunger"></b></i></dd></div>
+                    <div><dt>Boredom · a rule</dt><dd><i class="meter" role="meter" aria-label="Boredom" aria-valuemin="0" aria-valuemax="100"><b id="bored"></b></i></dd></div>
                     <div><dt>oDN1 · walk or stand</dt><dd data-rate="oDN1">—</dd></div>
                     <div><dt>MN9 · mouth</dt><dd data-rate="MN9">—</dd></div>
                     <div><dt>Giant fiber · jump</dt><dd data-rate="GF">—</dd></div>
@@ -65,7 +56,7 @@
                     <div><dt>Model</dt><dd id="n-active">—</dd></div>
                 </dl>
                 <p id="counts"></p>
-            </div></div>
+            </div>
         </div>
     </section>
     <div class="byline">
@@ -81,7 +72,7 @@
             <thead><tr><th>What happens</th><th>What does it</th><th>From the connectome?</th></tr></thead>
             <tbody>
                 <tr><td>Want food, get bored</td><td>Two numbers that rise with time. They pick a goal and turn on the input to P9.</td><td>No</td></tr>
-                <tr><td>Find the way</td><td>A compass toward the goal. The fly knows where everything is.</td><td>No</td></tr>
+                <tr><td>Find the way</td><td>A compass toward the goal, and around what stands on the table. The fly knows where everything is.</td><td>No</td></tr>
                 <tr><td>Walk or stand</td><td>P9 drives oDN1. Past a threshold the fly walks.</td><td>The firing, yes. The thresholds are ours.</td></tr>
                 <tr><td>Stop on sugar</td><td>Sugar neurons cut oDN1, as Sapkal et al. found <a href="#ref-2" class="cite">[2]</a>.</td><td>Yes</td></tr>
                 <tr><td>Reach down to eat</td><td>Sugar drives MN9 and other mouth motor neurons, and they move the mouth joints.</td><td>The firing, yes. Firing to movement is our rule.</td></tr>
@@ -114,9 +105,9 @@
             <thead><tr><th>Step</th><th>Trials that reached it</th></tr></thead>
             <tbody>
                 <tr><td>Walked, then launched</td><td>40</td></tr>
-                <tr><td>Flew</td><td>37</td></tr>
-                <tr><td>Touched the table</td><td>37</td></tr>
-                <tr><td>Upright, and walked 2 cm</td><td>37</td></tr>
+                <tr><td>Flew</td><td>36</td></tr>
+                <tr><td>Touched the table</td><td>36</td></tr>
+                <tr><td>Upright, and walked 2 cm</td><td>35</td></tr>
                 <tr><td>Took off again</td><td>34</td></tr>
             </tbody>
         </table>
@@ -141,13 +132,13 @@
         <table>
             <thead><tr><th>From</th><th>Speed</th><th>Jumped</th><th>Hit</th></tr></thead>
             <tbody>
-                <tr><td>Above</td><td>30 cm/s</td><td>20</td><td>18</td></tr>
+                <tr><td>Above</td><td>30 cm/s</td><td>20</td><td>17</td></tr>
                 <tr><td>Above</td><td>40 cm/s</td><td>20</td><td>20</td></tr>
-                <tr><td>Its right</td><td>30 cm/s</td><td>20</td><td><strong>11</strong></td></tr>
-                <tr><td>Its right</td><td>40 cm/s</td><td>20</td><td>18</td></tr>
+                <tr><td>Its right</td><td>30 cm/s</td><td>20</td><td><strong>16</strong></td></tr>
+                <tr><td>Its right</td><td>40 cm/s</td><td>20</td><td>19</td></tr>
                 <tr><td>Its right</td><td>60 cm/s or 90 cm/s</td><td>40</td><td>40</td></tr>
                 <tr><td>Its left</td><td>30 cm/s</td><td>1</td><td>20</td></tr>
-                <tr><td>Its left</td><td>40–90 cm/s</td><td>3</td><td>60</td></tr>
+                <tr><td>Its left</td><td>40–90 cm/s</td><td>4</td><td>60</td></tr>
             </tbody>
         </table>
         <p>There are two results here. First, the brain's decision is good but the body is slow. A real fly's giant fiber can start a takeoff within milliseconds <a href="#ref-5" class="cite">[5]</a>. Ours spends 0.1 s rearing up, and the jump itself cannot throw it clear. Second, the fly hardly ever jumps from its left. The right eye drives the giant fiber and the left eye does not. We do not think this is real. BANC's left optic lobe is less complete in its annotation (it lists 2 Tm1 neurons on the left against 851), which may explain it. Do not read this as a fact about flies.</p>
@@ -172,7 +163,7 @@
         <p>Turn on Sound to hear the wings. The sound comes from the same wingbeat, not from a recording. The force on a wing grows with the square of its speed, and the ear gets the rate of change of that force. One beat of the policy's wing pattern gives the wave, and the policy's wing frequency gives the pitch. The shares of lift and drag and the volume are our choices, and we did not compare the sound with a recording of a fly. The volume falls as you zoom out. In slow motion it is silent, because 4 Hz is too low to hear. When the model runs slower than real time, the pitch stays at the real wing frequency.</p>
 
         <h2>A day, in numbers</h2>
-        <p>Five simulated minutes with no swatter (<code>node tools/day.mjs</code>): 10 flights, 7 meals, and 4 failures where we had to put the fly back on its feet. Three launches were also called off because the nose was not up. When the fly falls on its back, it cannot right itself. No policy was trained for this, so after 0.4 s we set it back on its feet, and the page counts each time. Falls come from launches, landings and walking.</p>
+        <p>Six runs of five simulated minutes with no swatter (<code>node tools/day.mjs</code>). A run has about 12 flights, 7 meals, and 2 launches called off because the nose was not up. In each run we also had to put the fly back on its feet: 3 times on average, from 0 to 7. When the fly falls on its back, it cannot right itself. No policy was trained for this, so after 0.4 s we set it back on its feet, and the page counts each time. Of those 19 falls, 9 were rear-ups that tipped over, 7 happened in flight and 3 at landing or while walking. Stopping a rear-up as soon as it starts to tip did not help: the fly fell anyway.</p>
 
         <h2>The brain model</h2>
         <p>Each neuron is a leaky integrate-and-fire unit <a href="#ref-6" class="cite">[6]</a>. Its potential decays to rest, and synaptic input pushes it up or down. At threshold it fires, resets, and ignores input for a short time. Every neuron has the same values: rest and reset −52 mV, threshold −45 mV, membrane time constant 20 ms, synaptic time constant 5 ms, refractory period 2.2 ms, delay 1.8 ms. The connectome gives the rest. A connection's weight is its number of synapses times 0.275 mV, and its sign comes from a predicted transmitter <a href="#ref-9" class="cite">[9]</a>. GABA, glutamate and histamine inhibit. Without input, every neuron stays at rest.</p>
@@ -208,12 +199,12 @@
             <li><strong>It smells nothing and sees nothing.</strong> Odor input ignites the model (see <a href="#walk">Can it walk by itself?</a>), and visual input from photoreceptors does not reach the looming neurons in this model (<code>tools/vision_reach.py</code>). The fly knows where the sugar is because we tell it.</li>
             <li><strong>Landing has no brain.</strong> We looked for a landing command. LPLC4 drives DNp07, but about the same from one eye (70 / 0 Hz) as from two (79 / 80 Hz), and that does not pass the test we set in advance (<code>tools/land.py</code>). So a rule decides.</li>
             <li><strong>Hunger is one number.</strong> Thirst, sleep, mating, grooming and learning are absent.</li>
-            <li><strong>A flat world.</strong> The fly cannot walk on the fruit or land on the mug, because the walking policy knows only flat ground. Its goals stay clear of what stands there.</li>
+            <li><strong>A flat world.</strong> The fly cannot walk on the fruit or land on the mug, because the walking policy knows only flat ground. Its goals and paths go around what stands there. It sometimes clips an edge: in those six runs, 0.7 s of 30 minutes was inside something.</li>
             <li><strong>No feeling of its own body.</strong> The legs, wings and halteres send no input to the model.</li>
         </ul>
 
         <h2>Data</h2>
-        <p>Connectome: BANC version 888 <a href="#ref-1" class="cite">[1]</a>. Body and policies: flybody <a href="#ref-3" class="cite">[3]</a> (model Apache 2.0; weights and wing pattern from <a href="https://doi.org/10.25378/janelia.25309105">doi:10.25378/janelia.25309105</a>, GPL 3). Numbers on FlyWire use its version 783 as prepared by Shiu et al. (CC BY 4.0); the page does not download it. The page downloads about 40 MB. In our test (headless Chrome on an Apple M4 Mac) it runs at about 0.7× real time on the table and 0.3× in the air, because in the air physics runs at 20 kHz with every leg joint free. The clock shows the speed.</p>
+        <p>Connectome: BANC version 888 <a href="#ref-1" class="cite">[1]</a>. Body and policies: flybody <a href="#ref-3" class="cite">[3]</a> (model Apache 2.0; weights and wing pattern from <a href="https://doi.org/10.25378/janelia.25309105">doi:10.25378/janelia.25309105</a>, GPL 3). Numbers on FlyWire use its version 783 as prepared by Shiu et al. (CC BY 4.0); the page does not download it. The page downloads about 40 MB. In our test (headless Chrome on an Apple M4 Mac) it runs at about 0.85× real time on the table and 0.5× in the air, because in the air physics runs at 20 kHz with every leg joint free. The clock shows the speed.</p>
     </article>
 
     <section class="appendix">
@@ -238,6 +229,10 @@
             <li id="ref-17">Medici, V. &amp; Fry, S. N. Embodied linearity of speed control in <em>Drosophila melanogaster</em>. <em>J. R. Soc. Interface</em> 9, 3260–3267 (2012).</li>
         </ol>
     </section>
+    <script>
+        // anything that stops the page before it is ready (no WebGL, a CDN that did not answer) says so instead of loading for ever
+        addEventListener('error', e => { if (!document.body.classList.contains('ready')) document.getElementById('status').textContent = `The page could not start: ${e.message || 'a script did not load'}. It needs WebGL and WebAssembly.`; }, true);
+    </script>
     <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
     </script>

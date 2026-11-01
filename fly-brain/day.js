@@ -27,11 +27,26 @@ const MUSCLES = {            // joint: [extensor motor neurons, flexor motor neu
 
 export const TABLE = { x: 34, y: 22 };   // half sizes, cm: where the fly's goals may be
 export const FOODS = [[-18, 6], [18, -15], [-27, -12], [8, 18]];
+const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
 export const CRUISE = 12;                // cm above the table: clears what stands on it
-// what stands on the table: x, y, radius, cm. Pictures only (scene.js); goals stay out, and a path across one flies high
+// what stands on the table: x, y, radius, cm. Pictures only (scene.js); goals stay out, and paths go round (way, below)
 export const KEEP_OUT = [[2, -3, 14.5], [-33, 16, 7.5], [28, 13, 12.5], [34, -7, 9], [36, -19, 5.5]];
 export const isClear = (x, y) => KEEP_OUT.every(([a, b, r]) => Math.hypot(x - a, y - b) > r);
-const crosses = (x0, y0, x1, y1) => KEEP_OUT.some(([a, b, r]) => { const dx = x1 - x0, dy = y1 - y0, u = Math.max(0, Math.min(1, ((a - x0) * dx + (b - y0) * dy) / (dx * dx + dy * dy || 1))); return Math.hypot(x0 + u * dx - a, y0 + u * dy - b) < r; });
+// The way to a goal, past the pictures: straight if nothing stands in the way, else along the tangent of the first thing in it, on the side nearer the goal.
+// Returns the direction to go, and whether the way is clear. The descent takes 40 cm of flight, so flying over something at height would still bring the fly down through it.
+const ROUND = 2;   // cm of margin on the tangent
+export function way(x0, y0, x1, y1) {
+    const dx = x1 - x0, dy = y1 - y0, L2 = dx * dx + dy * dy || 1, goal = Math.atan2(dy, dx);
+    let first = null, at = Infinity;
+    for (const k of KEEP_OUT) {
+        const [a, b, r] = k, u = Math.max(0, Math.min(1, ((a - x0) * dx + (b - y0) * dy) / L2));
+        if (Math.hypot(x0 + u * dx - a, y0 + u * dy - b) < r && u < at) { first = k; at = u; }
+    }
+    if (!first) return { angle: goal, clear: true };
+    const [a, b, r] = first, to = Math.atan2(b - y0, a - x0), d = Math.hypot(a - x0, b - y0), R = r + ROUND;
+    const off = d > R ? Math.asin(R / d) : Math.PI / 2 + Math.min(0.8, R - d);   // inside the margin (an overshoot): round it and drift out
+    return { angle: Math.abs(wrap(to + off - goal)) < Math.abs(wrap(to - off - goal)) ? to + off : to - off, clear: false };
+}
 const HUNGER_RATE = 1 / 45, BORED_RATE = 1 / 20, HUNGRY = 0.6, FULL = 0.05;   // per s; our choices
 const EAT_RATE = 0.2;                    // hunger per s at full MN9 activation; our choice
 const FLY_FROM = 6;                      // cm: farther than this, fly
@@ -45,7 +60,6 @@ const LOOM_HZ = 100, LOOM_FULL = 2, FRONT = 0.25;   // full rate at 2 rad/s: loo
 const TURN_WALK = 4, TURN_FLY = 8, WALK_RAMP = 2;
 const EXTEND = { rostrum: -1, haustellum: -1, labrum_left: 1, labrum_right: 1 };
 const clamp = (x, a) => Math.max(-a, Math.min(a, x));
-const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
 
 export class Day {
     constructor(mujoco, model, data, walker, flyer, brain, neurons, seed = 1) {
@@ -82,9 +96,17 @@ export class Day {
         this.t = this.t ?? 0; this.bodyAhead = 0;
         this.hunger = this.hunger ?? 0.4; this.bored = this.bored ?? 0;
         this.goal = null; this.walking = false; this.eating = null; this.v = 0; this.setP9(0); this.setSugar(false);
-        this.saccades = []; this.upsideDown = 0; this.retry = 0;
+        this.saccade = null; this.upsideDown = 0; this.retry = 0;
         if (this.object) this.calmAt = this.t + 1;   // a put-back in the middle of a swat: the brain still needs clearing
         this.object = null; this.prevSize = null; this.applyEye('left', 0); this.applyEye('right', 0);
+    }
+
+    // Reset: a new day from the start, as on loading the page.
+    newDay() {
+        this.brain.reset(); this.brainBase = 0; this.t = 0;
+        this.foods = []; for (const [x, y] of FOODS) this.addFood(x, y);
+        this.hunger = 0.4; this.bored = 0; this.putBacks = this.jumps = this.hits = 0;
+        this.reset(); this.calm(); this.calms = 0;
     }
 
     // The model does not calm down by itself after a loom: at any input from 30 Hz up it stays at about 32,000 spikes/s for good (tools/life_after.mjs),
@@ -158,7 +180,7 @@ export class Day {
         for (const j of this.joints) { const [e, fl] = MUSCLES[j.name]; d.ctrl[j.a] = act(e) * j.ext + act(fl) * j.flex; }
         // eating: sugar under the mouth
         const lx = d.geom_xpos[3 * this.lobe], ly = d.geom_xpos[3 * this.lobe + 1];
-        const under = !air && life.mode === 'walk' ? this.foods.find(o => Math.hypot(o.x - lx, o.y - ly) < o.r + (o === this.eating ? 0.3 : 0)) : null;
+        const under = life.mode === 'walk' ? this.foods.find(o => Math.hypot(o.x - lx, o.y - ly) < o.r + (o === this.eating ? 0.3 : 0)) : null;
         if (under && this.hunger > FULL && (this.goal?.food === under || this.eating)) { this.eating = under; this.goal = null; }
         if (this.eating && (!under || under !== this.eating)) this.eating = null;
         this.setSugar(!!this.eating);
@@ -175,9 +197,9 @@ export class Day {
         this.setP9(this.goal || this.eating ? P9_HZ : 0);
         if (this.oDN1.rate >= WALK_FROM) this.walking = true; else if (this.oDN1.rate < STAND_BELOW) this.walking = false;
         // the way
-        let dist = Infinity, bearing = 0;
-        if (this.goal) { dist = Math.hypot(this.goal.x - p[0], this.goal.y - p[1]); bearing = wrap(Math.atan2(this.goal.y - p[1], this.goal.x - p[0]) - life.heading()); }
-        if (this.goal && !this.goal.food && dist < ARRIVED + (air ? 4 : 0) && !air) this.goal = null;
+        let dist = Infinity, bearing = 0, clear = true;
+        if (this.goal) { const w = way(p[0], p[1], this.goal.x, this.goal.y); dist = Math.hypot(this.goal.x - p[0], this.goal.y - p[1]); bearing = wrap(w.angle - life.heading()); clear = w.clear; }
+        if (this.goal && !this.goal.food && dist < ARRIVED && !air) this.goal = null;
         // the jump is the giant fiber's
         if (life.mode === 'walk' && this.GF.rate > GF_JUMP && !this.noJump) { this.goal = this.goal ?? this.somewhere('escape'); if (this.retry <= 0) { this.jumps = (this.jumps || 0) + 1; this.retry = 0.5; life.takeOff(); } }
         if (life.mode === 'walk') {
@@ -191,13 +213,13 @@ export class Day {
         } else {
             this.v = life.speed = 0;   // on landing the walking speed ramps up from a stand again
             life.yaw = this.goal ? clamp(3 * bearing, TURN_FLY) : 0;
-            if (this.goal) life.cruise = dist < 25 && !crosses(p[0], p[1], this.goal.x, this.goal.y) ? Math.max(1.5, Math.min(CRUISE, dist * 0.25)) : CRUISE;
-            // down when the goal is within the run, facing it or not: a goal inside the turning circle is never faced. Overshoot is walked or hopped back.
-            if (life.mode === 'fly' && this.goal && dist < life.landingRun() + 1 && life.t > 0.5) life.land();
+            if (this.goal) life.cruise = dist < 25 ? Math.max(1.5, Math.min(CRUISE, dist * 0.25)) : CRUISE;
+            // down when the goal is in sight and within the run, facing it or not: a goal inside the turning circle is never faced. Overshoot is walked or hopped back.
+            if (life.mode === 'fly' && this.goal && clear && dist < life.landingRun() + 1 && life.t > 0.5) life.land();
             if (life.mode === 'fly' && !this.goal) this.goal = this.somewhere('escape');
-            const diff = this.dnL.rate - this.dnR.rate, last = this.saccades[this.saccades.length - 1];
-            if (life.mode === 'fly' && Math.abs(diff) > DODGE && (!last || this.t - last.at > REFRACTORY)) this.saccades.push({ at: this.t, sign: -Math.sign(diff) });
-            for (const q of this.saccades) { const u = this.t - (q.at + 2 * 0.04); if (Math.abs(u) < 4 * SD) life.yaw = q.sign * SACCADE_PEAK * Math.exp(-u * u / (2 * SD * SD)); }
+            const diff = this.dnL.rate - this.dnR.rate, q = this.saccade;
+            if (life.mode === 'fly' && Math.abs(diff) > DODGE && (!q || this.t - q.at > REFRACTORY)) this.saccade = { at: this.t, sign: -Math.sign(diff) };
+            if (this.saccade) { const { at, sign } = this.saccade, u = this.t - (at + 2 * 0.04); if (Math.abs(u) < 4 * SD) life.yaw = sign * SACCADE_PEAK * Math.exp(-u * u / (2 * SD * SD)); }
         }
         // the body
         this.bodyAhead -= dt;
@@ -215,7 +237,7 @@ export class Day {
         this.see(dt);
         if (this.calmAt !== null && this.t > this.calmAt && !this.object) this.calm();
         // put back: the policies can't right a fly on its back, or catch a tumble. Stated and counted on the page.
-        const bad = !Number.isFinite(d.qpos[f]) || life.up() < 0.2 || p[2] < -0.2 || p[2] > 40 || (air && life.mode === 'fly' && life.t > 0.5 && p[2] < 0.25);
+        const bad = !Number.isFinite(d.qpos[f]) || life.up() < 0.2 || p[2] < -0.2 || p[2] > 40 || (life.mode === 'fly' && life.t > 0.5 && p[2] < 0.25);
         this.upsideDown = Math.max(0, this.upsideDown + (bad ? dt : -dt / 3));      // a tumble flickers through upright: this adds it up
         if (this.upsideDown > 0.4 || !Number.isFinite(d.qpos[f])) {
             this.putBacks = (this.putBacks || 0) + 1;

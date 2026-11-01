@@ -89,7 +89,7 @@ export class Life {
     step() {
         const { mj, model: m, data: d, W, F, TO, LA } = this;
         // high in the air there is nothing to touch: leaving contacts out is what keeps flight near real time
-        const f = F.freeq, off = this.mode === 'fly' && d.qpos[f + 2] > 1;
+        const f = F.freeq, off = (this.mode === 'fly' || this.mode === 'descend') && d.qpos[f + 2] > 1;
         if (off !== this.contactOff) { this.contactOff = off; if (off) m.opt.disableflags |= this.noContact; else m.opt.disableflags &= ~this.noContact; }
         if (this.mode === 'walk') { W.speed = this.speed; W.yaw = this.yaw; W.step(); this.t += WALK_DT; return WALK_DT; }
         if (this.mode === 'rear') {

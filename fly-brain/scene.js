@@ -1,5 +1,5 @@
-// The kitchen table: only pictures. The fly's physics knows the flat tabletop and nothing else, so its goals stay clear of what stands here
-// and it flies above it. Sizes in cm, z up; the table top is z = 0.
+// The kitchen table: only pictures. The fly's physics knows the flat tabletop and nothing else, so its goals and paths stay clear of what stands here.
+// Sizes in cm, z up; the table top is z = 0.
 import * as THREE from 'three';
 
 const std = (color, roughness = 0.6, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, ...extra });

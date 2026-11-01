@@ -10,9 +10,7 @@ const P = { bg: '#030101', rest: '#c02438', restAlpha: 0.8, fire: '#ffffff' };
 const FLASH = 0.03;
 const canvas = document.getElementById('view'), status = document.getElementById('status'), flyCanvas = document.getElementById('fly');
 const worker = new Worker('worker.js', { type: 'module' });
-const flyView = new FlyView(flyCanvas, () => {});
-flyView.floor.visible = flyView.grid.visible = false;
-flyView.follow = 0.12;
+const flyView = new FlyView(flyCanvas);
 flyView.camera.far = 900; flyView.camera.fov = 32; flyView.camera.updateProjectionMatrix();
 flyView.controls.minDistance = 0.8; flyView.controls.maxDistance = 130;
 flyView.controls.target.set(-12, -16, 0.5);
@@ -138,14 +136,16 @@ function poseWorld(m) {
     });
     bat.visible = !!m.object;
     if (m.object) {
-        const o = m.object; bat.position.set(o.p[0], o.p[1], o.p[2]);
-        look.set(o.v[0], o.v[1], o.v[2]).normalize();
-        bat.quaternion.setFromUnitVectors(up.set(0, 0, 1), look.negate());
+        // drawn only: the swing ends flat on the table (or on the fly), not through it. day.js's object keeps its straight path.
+        const o = m.object, flat = Math.min(1, Math.max(0, o.p[2] / 6)), speed = Math.hypot(...o.v);
+        bat.position.set(o.p[0], o.p[1], Math.max(o.p[2], o.hit ? 0.3 : 0.04));
+        look.set(-o.v[0] * flat / speed, -o.v[1] * flat / speed, 1 - flat - o.v[2] * flat / speed).normalize();
+        bat.quaternion.setFromUnitVectors(up.set(0, 0, 1), look);
     }
 }
 
 function onSpikes(m) {
-    if (m.t < t) lastSpike.fill(-1e9);   // after Reset, or a neuron with a spike 'in the future' stays lit until the clock gets there
+    if (m.t < t) { lastSpike.fill(-1e9); points.geometry.attributes.lastSpike.needsUpdate = true; }   // after Reset, or a neuron with a spike 'in the future' stays lit until the clock gets there
     t = m.t; latest = m;
     const s = m.spikes;
     for (let k = 0; k < s.length; k += 2) lastSpike[s[k + 1]] = s[k] * 1e-4;
@@ -168,21 +168,23 @@ const SAY = {
 function panel() {
     const m = latest;
     if (!m) return;
-    const bar = (id, v) => { document.getElementById(id).style.width = `${(100 * Math.min(1, v)).toFixed(0)}%`; };
+    const bar = (id, v) => { const b = document.getElementById(id), pct = (100 * Math.min(1, v)).toFixed(0); b.style.width = `${pct}%`; b.parentElement.setAttribute('aria-valuenow', pct); };
     bar('hunger', m.hunger); bar('bored', m.bored);
-    document.getElementById('touch').textContent = m.object ? (m.object.hit ? 'Swatted.' : 'A swatter is coming!') : SAY[m.mode](m);
+    const say = document.getElementById('touch');
+    if (performance.now() < noticeUntil) say.textContent = 'Something stands there, or it is too near the edge. Try open table.';
+    else say.textContent = m.object ? (m.object.hit ? 'Swatted.' : 'A swatter is coming!') : SAY[m.mode](m);
     for (const [k, v] of Object.entries(m.rates)) { const el = document.querySelector(`[data-rate="${k}"]`); if (el) el.textContent = `${v.toFixed(0)} Hz`; }
     document.getElementById('counts').textContent = `Jumps from the swatter: ${m.counts.jumps} · Swats landed: ${m.counts.hits} · Put back on its feet: ${m.counts.putBacks} · Brain cleared: ${m.counts.calms}`;
     document.getElementById('n-active').textContent = `${m.active.toLocaleString()} active`;
-    document.getElementById('clock').textContent = `${t.toFixed(slow ? 3 : 1)} s · ${slow ? '1/50 speed' : m.speed < 0.95 ? `${m.speed.toFixed(2)}× real time` : 'real time'}`;
+    document.getElementById('clock').textContent = `${t.toFixed(slow ? 3 : 1)} s · ${paused ? 'paused' : slow ? '1/50 speed' : m.speed < 0.95 ? `${m.speed.toFixed(2)}× real time` : 'real time'}`;
 }
 
 worker.onmessage = e => {
     const m = e.data;
     if (m.type === 'progress') status.textContent = `Loading the connectome… ${(m.loaded / 1e6).toFixed(0)} of ${(m.total / 1e6).toFixed(0)} MB`;
     else if (m.type === 'error') status.textContent = `Could not start the model: ${m.message}`;
-    else if (m.type === 'body') { flyView.build(m); buildBlur(m); sound = new WingSound(m.pattern); }
-    else if (m.type === 'ready') { status.textContent = ''; document.body.classList.add('ready'); }
+    else if (m.type === 'body') { flyView.build(m); buildBlur(m); sound = new WingSound(m.pattern); if (soundOn) sound.set(true); }
+    else if (m.type === 'ready') { status.textContent = ''; document.body.classList.add('ready'); for (const b of document.querySelectorAll('.controls button')) b.disabled = false; }
     else if (m.type === 'spikes' && points) onSpikes(m);
 };
 
@@ -190,13 +192,16 @@ worker.onerror = e => { status.textContent = `The model stopped: ${e.message}`; 
 
 // a click on the table (not a drag) drops sugar there
 const ray = new THREE.Raycaster(), table = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), hit = new THREE.Vector3();
-let down = null;
+let down = null, noticeUntil = 0;
 flyCanvas.addEventListener('pointerdown', e => { down = e.button === 0 ? [e.clientX, e.clientY] : null; });
 flyCanvas.addEventListener('pointerup', e => {
-    if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+    if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) { if (down) document.body.classList.add('dragged'); return; }
     const r = flyCanvas.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), flyView.camera);
-    if (ray.ray.intersectPlane(table, hit) && Math.abs(hit.x) < TABLE.x && Math.abs(hit.y) < TABLE.y && isClear(hit.x, hit.y)) worker.postMessage({ type: 'food', x: hit.x, y: hit.y });
+    if (!ray.ray.intersectPlane(table, hit)) return;
+    if (Math.abs(hit.x) < TABLE.x && Math.abs(hit.y) < TABLE.y && isClear(hit.x, hit.y)) { noticeUntil = 0; worker.postMessage({ type: 'food', x: hit.x, y: hit.y }); document.body.classList.add('dropped'); }
+    else noticeUntil = performance.now() + 2500;
+    panel();
 });
 for (const b of document.querySelectorAll('[data-swat]')) b.onclick = () => worker.postMessage({ type: 'swat', side: +b.dataset.swat });
 let slow = false;
@@ -206,12 +211,16 @@ document.getElementById('pause').onclick = e => { paused = !paused; e.target.tex
 document.getElementById('reset').onclick = () => { worker.postMessage({ type: 'reset' }); };
 
 function frame() {
+    requestAnimationFrame(frame);
+    if (!onScreen) return;   // reading the article: the model keeps running, the GPU rests
     material.uniforms.uNow.value = t;
     controls.update();
     renderer.render(scene, camera);
     flyView.render();
-    requestAnimationFrame(frame);
 }
+if (matchMedia('(pointer: coarse)').matches) document.querySelector('.hint').textContent = 'Tap the table to drop sugar. Drag to turn the view; pinch to zoom.';
+let onScreen = true;
+new IntersectionObserver(([e]) => { onScreen = e.isIntersecting; }).observe(document.getElementById('viewport'));
 build(await fetch('model/neurons.json').then(r => r.json()));
 requestAnimationFrame(frame);
 setInterval(panel, 200);
