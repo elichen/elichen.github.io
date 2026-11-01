@@ -48,6 +48,8 @@ ix = {b: k for k, b in enumerate(keep)}
 n = len(keep)
 sub = e[e.pre.isin(ix) & e.post.isin(ix)]
 sign = np.where(nt.reindex(keep).isin(['gaba', 'glutamate']), -1.0, 1.0)
+if os.environ.get('NO_5HT'):   # as the page's BANC: serotonin neurons make no synapses (export_banc.py)
+    sign[nt.reindex(keep).eq('serotonin').to_numpy()] = 0.0
 pre_i, post_i = sub.pre.map(ix).to_numpy(), sub.post.map(ix).to_numpy()
 W = sparse.csr_matrix((sub['count'].to_numpy() * sign[pre_i] * MULT, (post_i, pre_i)), shape=(n, n))
 vol = meta.volume_nm3.reindex(keep).astype(float).to_numpy()
