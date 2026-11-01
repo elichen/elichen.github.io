@@ -10,7 +10,7 @@
 //   the way        walk or fly toward the goal: a compass, not the brain. Near: walk. Far: fly.
 //   the eye        an object's expansion rate sets the looming neurons' input.
 //   the movement   flybody's walking and flight policies, with the stated handovers in life.js.
-import { Life } from './life.js';
+import { Life, ESCAPE_PRE } from './life.js';
 
 // Brain -> mouth. Each joint has the muscles McKellar et al. 2020 (eLife 9:e54978) found move it, named by their
 // motor neurons (BANC names them; tools/export_neurons.py). A muscle's activation is 1 - exp(-r / R_HALF) of its motor
@@ -52,7 +52,7 @@ const EAT_RATE = 0.2;                    // hunger per s at full MN9 activation;
 const FLY_FROM = 6;                      // cm: farther than this, fly
 const ARRIVED = 1.0;                     // cm: a wander goal is reached
 const P9_HZ = 150, SUGAR_HZ = 150;
-const WALK_FROM = 15, STAND_BELOW = 7;   // Hz of oDN1 through its 0.2 s filter: median about 22 under P9 (5th percentile 8-12), about 4 with sugar (95th 10-14)
+const WALK_FROM = 13, STAND_BELOW = 7;   // Hz of oDN1 through its 0.2 s filter: median about 15 under P9 (5th percentile about 8), about 5 with sugar
 const TAU_ODN1 = 0.2, TAU_FAST = 0.05;   // s, rate filters
 const GF_JUMP = 20;                      // Hz of giant fiber that starts a takeoff; both eyes 44, one eye 5
 const DODGE = 60, REFRACTORY = 0.3, SACCADE_PEAK = 43, SD = 0.04 / 2.355;
@@ -60,11 +60,14 @@ const LOOM_HZ = 100, LOOM_FULL = 2, FRONT = 0.25;   // full rate at 2 rad/s: loo
 const TURN_WALK = 4, TURN_FLY = 8, WALK_RAMP = 2;
 const EXTEND = { rostrum: -1, haustellum: -1, labrum_left: 1, labrum_right: 1 };
 const clamp = (x, a) => Math.max(-a, Math.min(a, x));
+// Each spike raises a neuron's threshold by 0.05 mV, decaying over 200 ms. Not in Shiu's model. Without it, looms left the model firing for ever in 5 of 6 runs; with it, in 0 of 192 (several inputs, 1 and 5 s). Our choice, by a sweep.
+export const ADAPT = { step: 0.05, tau: 200 };
 
 export class Day {
     constructor(mujoco, model, data, walker, flyer, brain, neurons, seed = 1) {
         Object.assign(this, { mj: mujoco, model, data, brain, W: walker, F: flyer, n: neurons, rngState: seed >>> 0 || 1 });
         this.life = new Life(mujoco, model, data, walker, flyer);
+        brain.set_adaptation(ADAPT.step, ADAPT.tau);
         this.life.rnd = () => this.rnd();
         const L = neurons.life, m = model, id = (t, k) => mujoco.mj_name2id(m, mujoco.mjtObj[t].value, k);
         this.lobe = id('mjOBJ_GEOM', 'walker/labrum_left_lower_collision');
@@ -80,7 +83,7 @@ export class Day {
         this.dnL = group(neurons.named.DNp03.left, TAU_FAST); this.dnR = group(neurons.named.DNp03.right, TAU_FAST);
         this.groups = [...Object.values(this.mouth), this.oDN1, this.GF, this.dnL, this.dnR];
         this.eye = { left: Object.values(neurons.looms).flatMap(v => v.left), right: Object.values(neurons.looms).flatMap(v => v.right) };
-        this.foods = []; this.input = { left: 0, right: 0 }; this.brainBase = 0; this.calmAt = null;
+        this.foods = []; this.input = { left: 0, right: 0 }; this.brainBase = 0;
         this.reset();
     }
 
@@ -98,7 +101,6 @@ export class Day {
         this.hunger = this.hunger ?? 0.4; this.bored = this.bored ?? 0;
         this.goal = null; this.walking = false; this.eating = null; this.v = 0; this.setP9(0); this.setSugar(false);
         this.saccade = null; this.upsideDown = 0; this.retry = 0;
-        if (this.object) this.calmAt = this.t + 1;   // a put-back in the middle of a swat: the brain still needs clearing
         this.object = null; this.prevSize = null; this.applyEye('left', 0); this.applyEye('right', 0);
     }
 
@@ -107,13 +109,12 @@ export class Day {
         this.brain.reset(); this.brainBase = 0; this.t = 0;
         this.foods = []; for (const [x, y] of FOODS) this.addFood(x, y);
         this.hunger = 0.4; this.bored = 0; this.putBacks = this.jumps = this.hits = 0;
-        this.reset(); this.calm(); this.calms = 0;
+        this.reset(); this.calm();
     }
 
-    // Looms of 30 Hz and more can leave the model firing with no input (about 20,000 spikes/s), and in some runs the giant fiber keeps firing, so the fly would jump for ever.
-    // Excitatory loops with no adaptation hold it up (tools/after_input.mjs). So a second after an object has gone we clear the brain's state. Stated and counted on the page.
+    // Back to rest: for Reset, and for tools that want trials from rest. The day itself never needs it now that the model adapts (ADAPT).
     calm() {
-        this.brainBase += this.brain.step_count(); this.brain.reset(); this.calmAt = null; this.calms = (this.calms || 0) + 1;
+        this.brainBase += this.brain.step_count(); this.brain.reset();
         for (const g of this.groups) g.rate = 0;
         for (const i of this.n.life.P9) this.brain.set_rate(i, this.p9 || 0);
         for (const i of this.n.life.sugar) this.brain.set_rate(i, this.sugar ? SUGAR_HZ : 0);
@@ -202,7 +203,7 @@ export class Day {
         if (this.goal) { const w = way(p[0], p[1], this.goal.x, this.goal.y); dist = Math.hypot(this.goal.x - p[0], this.goal.y - p[1]); bearing = wrap(w.angle - life.heading()); clear = w.clear; }
         if (this.goal && !this.goal.food && dist < ARRIVED && !air) this.goal = null;
         // the jump is the giant fiber's
-        if (life.mode === 'walk' && this.GF.rate > GF_JUMP && !this.noJump) { this.goal = this.goal ?? this.somewhere('escape'); if (this.retry <= 0) { this.jumps = (this.jumps || 0) + 1; this.retry = 0.5; life.takeOff(); } }
+        if (life.mode === 'walk' && this.GF.rate > GF_JUMP && !this.noJump) { this.goal = this.goal ?? this.somewhere('escape'); if (this.retry <= 0) { this.jumps = (this.jumps || 0) + 1; this.retry = 0.5; life.takeOff(ESCAPE_PRE); } }
         if (life.mode === 'walk') {
             this.retry -= dt;
             if (this.goal && dist > FLY_FROM && this.retry <= 0 && this.walking && life.t > 1 && life.up() > 0.95 && (this.v || 0) < 0.05) { life.takeOff(); this.retry = 0.5; }
@@ -233,10 +234,9 @@ export class Day {
             const along = (b[0] - o.p[0]) * o.v[0] + (b[1] - o.p[1]) * o.v[1] + (b[2] - o.p[2]) * o.v[2], sp = Math.hypot(...o.v), off = Math.hypot(b[0] - o.p[0] - o.v[0] * along / sp / sp, b[1] - o.p[1] - o.v[1] * along / sp / sp, b[2] - o.p[2] - o.v[2] * along / sp / sp);
             if (Math.abs(along / sp) < 0.25 && off < o.radius) { o.hit = true; }
             if (o.hit && !o.counted) { o.counted = true; this.hits = (this.hits || 0) + 1; }
-            if (this.t > o.until) { this.lastSwat = o.hit ? 'hit' : 'missed'; this.object = null; this.calmAt = this.t + 1; }
+            if (this.t > o.until) { this.lastSwat = o.hit ? 'hit' : 'missed'; this.object = null; }
         }
         this.see(dt);
-        if (this.calmAt !== null && this.t > this.calmAt && !this.object) this.calm();
         // put back: the policies can't right a fly on its back, or catch a tumble. Stated and counted on the page.
         const bad = !Number.isFinite(d.qpos[f]) || life.up() < 0.2 || p[2] < -0.2 || p[2] > 40 || (life.mode === 'fly' && life.t > 0.5 && p[2] < 0.25);
         this.upsideDown = Math.max(0, this.upsideDown + (bad ? dt : -dt / 3));      // a tumble flickers through upright: this adds it up

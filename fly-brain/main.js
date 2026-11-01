@@ -178,7 +178,7 @@ function panel() {
     if (caption.textContent !== line) caption.textContent = line;   // it is a live region: same text, no new announcement
     for (const b of swats) b.disabled = !!m.object;         // one swatter at a time
     for (const [k, v] of Object.entries(m.rates)) { const el = document.querySelector(`[data-rate="${k}"]`); if (el) el.textContent = `${v.toFixed(0)} Hz`; }
-    document.getElementById('counts').textContent = `Jumps from the swatter: ${m.counts.jumps} · Swats landed: ${m.counts.hits} · Put back on its feet: ${m.counts.putBacks} · Brain cleared: ${m.counts.calms}`;
+    document.getElementById('counts').textContent = `Jumps from the swatter: ${m.counts.jumps} · Swats landed: ${m.counts.hits} · Put back on its feet: ${m.counts.putBacks}`;
     document.getElementById('spike-rate').textContent = `${(Math.round(m.spikeRate / 100) * 100).toLocaleString('en-US')} spikes/s`;
     document.getElementById('clock').textContent = `${t.toFixed(slow ? 3 : 1)} s · ${paused ? 'paused' : slow ? '1/50 speed' : m.speed < 0.95 ? `${m.speed.toFixed(2)}× real time` : 'real time'}`;
 }

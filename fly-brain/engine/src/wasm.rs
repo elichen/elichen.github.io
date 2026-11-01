@@ -38,6 +38,11 @@ pub extern "C" fn set_rate(i: usize, hz: f64) {
 }
 
 #[no_mangle]
+pub extern "C" fn set_adaptation(step_mv: f64, tau_ms: f64) {
+    brain().set_adaptation(step_mv, tau_ms);
+}
+
+#[no_mangle]
 pub extern "C" fn set_silenced(i: usize, s: bool) {
     brain().set_silenced(i, s);
 }

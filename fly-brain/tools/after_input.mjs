@@ -3,7 +3,7 @@
 //   node tools/after_input.mjs
 import fs from 'node:fs'; import zlib from 'node:zlib';
 const n=JSON.parse(fs.readFileSync('model/neurons.json')),L=n.life,bytes=zlib.gunzipSync(fs.readFileSync('model/banc.gz')),wasm=await WebAssembly.compile(fs.readFileSync('engine.wasm'));
-const fresh=async seed=>{const w=(await WebAssembly.instantiate(wasm)).exports,p=w.alloc(bytes.length);new Uint8Array(w.memory.buffer,p,bytes.length).set(bytes);w.init(p,bytes.length,seed);return w;};
+const fresh=async seed=>{const w=(await WebAssembly.instantiate(wasm)).exports,p=w.alloc(bytes.length);new Uint8Array(w.memory.buffer,p,bytes.length).set(bytes);w.init(p,bytes.length,seed);w.set_adaptation(0.05,200);return w;};
 const set=(w,cells,hz)=>{for(const i of cells)w.set_rate(i,hz);};
 const looms=s=>Object.values(n.looms).flatMap(v=>v[s]);
 const read={oDN1:L.oDN1,MN9:L.MN9,GF:L.GF,dnL:n.named.DNp03.left,dnR:n.named.DNp03.right};

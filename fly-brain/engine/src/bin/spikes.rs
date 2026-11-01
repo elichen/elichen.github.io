@@ -12,6 +12,8 @@ fn main() {
     let steps = (a[4].parse::<f64>().unwrap() * 1e4).round() as i32;
     let mut b = Brain::new(o, t, c, a[5].parse().unwrap());
     if let Ok(x) = std::env::var("W_SCALE") { b.p.w_syn *= x.parse::<f64>().unwrap(); }
+    // ADAPT=<step mV>,<tau ms>: the page's threshold adaptation (day.js ADAPT)
+    if let Ok(x) = std::env::var("ADAPT") { let (p, q) = x.split_once(',').unwrap(); b.set_adaptation(p.parse().unwrap(), q.parse().unwrap()); }
     for i in read(&a[2]) { b.set_rate(i, hz); }
     // ALSO=<index file>:<Hz> drives a second set at its own rate
     if let Ok(x) = std::env::var("ALSO") {

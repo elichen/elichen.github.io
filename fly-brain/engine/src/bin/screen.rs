@@ -15,6 +15,7 @@ fn main() {
     let time = std::time::Instant::now();
     for (s, line) in std::fs::read_to_string(&a[2]).unwrap().lines().enumerate() {
         let mut b = Brain::new(o.clone(), t.clone(), c.clone(), 1);
+        if let Ok(x) = std::env::var("ADAPT") { let (p, q) = x.split_once(',').unwrap(); b.set_adaptation(p.parse().unwrap(), q.parse().unwrap()); }
         for x in line.split_whitespace().skip(1) { b.set_rate(x.parse().unwrap(), hz); }
         for k in 0..steps {
             for &i in b.step() {

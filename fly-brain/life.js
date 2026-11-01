@@ -10,6 +10,8 @@ import { CONTROL_DT as WALK_DT } from './walker.js';
 export const TAKEOFF = { pre: 0.0977, pamp: [0.8887, 0.1825, -1.2234], T: 0.0587, rise: 0.3675, t0: 0.0201, tp: 0.00535, amp: [0, 0.5462, 0.6799], minPitch: 12 };
 // the path: fall from cruise at `rate` cm/s to `near` cm, still flying forward; brake to a hover over `slow` s, nose down to `pitch`; hold; sink to `floor` over `sink` s
 // rate: at 8 cm/s the flight policy lost control in 7 of 9 long descents and fell; at 3-5 cm/s, 0 of 28
+// the giant fiber's jump: a much shorter rear-up. Real flies have a slow voluntary takeoff and a fast escape too (von Reyn et al. 2014). 35 ms: 4 of 40 hits from the right at 30 cm/s, where 98 ms had 32; used for every takeoff it causes about 5x the called-off launches, so only here
+export const ESCAPE_PRE = 0.035;
 export const LANDING = { rate: 4, near: 0.8, slow: 0.5, hold: 0.1, sink: 0.6, pitch: 35, floor: 0.2, legs: 0.2, still: 0.5, wait: 1 };
 const CRUISE = -47.5 * Math.PI / 180, DEG = Math.PI / 180, WALK_H = 2e-4, FLY_H = 5e-5, CLIMB = 8;
 const smooth = x => { const u = Math.min(1, Math.max(0, x)); return u * u * (3 - 2 * u); };
@@ -61,8 +63,9 @@ export class Life {
         this.mode = 'walk'; this.t = 0;
     }
 
-    takeOff() {
+    takeOff(pre = this.TO.pre) {
         if (this.mode !== 'walk') return;
+        this.pre = pre;
         this.model.opt.timestep = FLY_H;
         for (const a of this.adhere) this.data.ctrl[a] = 0;
         this.from = this.legs.map(l => this.data.qpos[l.q]);
@@ -94,11 +97,11 @@ export class Life {
         if (off !== this.contactOff) { this.contactOff = off; if (off) m.opt.disableflags |= this.noContact; else m.opt.disableflags &= ~this.noContact; }
         if (this.mode === 'walk') { W.speed = this.speed; W.yaw = this.yaw; W.step(); this.t += WALK_DT; return WALK_DT; }
         if (this.mode === 'rear') {
-            const u = smooth(this.t / TO.pre / 0.8);
+            const u = smooth(this.t / this.pre / 0.8);
             this.legs.forEach((l, i) => { d.ctrl[l.a] = this.from[i] * (1 - u) + (l.rest + (l.coxa ? 0 : l.sign * TO.pamp[l.pair])) * u; });
             for (let i = 0; i < 4; i++) mj.mj_step(m, d);
             this.t += FLY_DT;
-            if (this.t >= TO.pre) {
+            if (this.t >= this.pre) {
                 if (this.pitch() > -TO.minPitch * DEG) { this.aborts++; this.startWalking(); return FLY_DT; }
                 this.set = this.legs.map(l => d.ctrl[l.a]);
                 this.p0 = this.pitch(); this.pathFromHere(this.p0, this.rnd()); this.h0 = F.height;

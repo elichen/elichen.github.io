@@ -9,6 +9,9 @@
 //!    'unless refractory'); Poisson inputs add w_syn * f_poi to v
 //! 4. resets: spiking neurons get v = v_rst, g = 0 (inputs that arrived this step are lost)
 //!
+//! One addition, not in Shiu's model and off by default (`set_adaptation`): each spike raises the neuron's own threshold by
+//! a step that decays exponentially. With it off, the engine is Brian's model spike for spike.
+//!
 //! Only neurons that could reach threshold are stepped. Without new input, v - v0 can rise to
 //! at most max(v - v0, 0) + max(g, 0) * h_max (h_max = peak of the response to a unit g), so a
 //! neuron below that bound is dormant: it keeps its state and the step it was last updated,
@@ -64,6 +67,9 @@ pub struct Cell {
     active: bool,
     excited: bool,
     pub silenced: bool,
+    /// threshold rise from past spikes (V), as of step `adapt_at`
+    adapt: f32,
+    adapt_at: i32,
 }
 
 pub struct Brain {
@@ -89,6 +95,8 @@ pub struct Brain {
     queue: Vec<Vec<u32>>,
     active: Vec<u32>,
     pub full: bool,
+    adapt_step: f32,
+    adapt_decay: f32,
     pub step_n: i32,
     pub spikes: Vec<u32>,
     pub spike_count: Vec<u32>,
@@ -162,7 +170,7 @@ impl Brain {
         // response of v - v0 to g = 1 is tau/(t_mbr - tau) (e^(-t/t_mbr) - e^(-t/tau)); its peak:
         let t_peak = (p.t_mbr / p.tau).ln() / (1.0 / p.tau - 1.0 / p.t_mbr);
         let h_max = p.tau / (p.t_mbr - p.tau) * ((-t_peak / p.t_mbr).exp() - (-t_peak / p.tau).exp());
-        let rest_cell = Cell { v: p.v0, g: 0.0, last: i32::MIN / 2, since: 0, rfc: RFC as u8, active: false, excited: false, silenced: false };
+        let rest_cell = Cell { v: p.v0, g: 0.0, last: i32::MIN / 2, since: 0, rfc: RFC as u8, active: false, excited: false, silenced: false, adapt: 0.0, adapt_at: 0 };
         let mut br = Brain {
             n,
             offsets,
@@ -181,6 +189,8 @@ impl Brain {
             queue: (0..SLOTS).map(|_| Vec::new()).collect(),
             active: Vec::new(),
             full: false,
+            adapt_step: 0.0,
+            adapt_decay: 1.0,
             step_n: 0,
             spikes: Vec::new(),
             spike_count: vec![0; n],
@@ -199,6 +209,8 @@ impl Brain {
             c.last = i32::MIN / 2;
             c.since = 0;
             c.active = false;
+            c.adapt = 0.0;
+            c.adapt_at = 0;
         }
         for q in self.queue.iter_mut() {
             q.clear();
@@ -224,6 +236,27 @@ impl Brain {
     /// Shiu's silencing: every synapse out of the neuron has weight 0.
     pub fn set_silenced(&mut self, i: usize, s: bool) {
         self.cells[i].silenced = s;
+    }
+
+    /// Each spike raises the neuron's threshold by `step_mv`, decaying with `tau_ms`. 0 = Shiu's model.
+    pub fn set_adaptation(&mut self, step_mv: f64, tau_ms: f64) {
+        self.adapt_step = (step_mv * MV) as f32;
+        self.adapt_decay = (-DT / (tau_ms * MS)).exp() as f32;
+    }
+
+    /// The threshold rise at step n; lazy, so a dormant neuron pays nothing.
+    #[inline]
+    fn threshold_rise(&mut self, i: usize, n: i32) -> f64 {
+        if self.adapt_step == 0.0 {
+            return 0.0;
+        }
+        let d = self.adapt_decay;
+        let c = &mut self.cells[i];
+        if c.adapt != 0.0 && n > c.adapt_at {
+            c.adapt *= d.powi(n - c.adapt_at);
+        }
+        c.adapt_at = n;
+        c.adapt as f64
     }
 
     /// Refractory period in steps (parity runs: Poisson targets get 0 without a rate).
@@ -323,7 +356,8 @@ impl Brain {
         // 1-2. groups + thresholds
         if self.full {
             for i in 0..self.n {
-                if self.update(i, n) && self.cells[i].v > v_th {
+                let rise = self.threshold_rise(i, n);
+                if self.update(i, n) && self.cells[i].v > v_th + rise {
                     self.spikes.push(i as u32);
                 }
             }
@@ -339,8 +373,9 @@ impl Brain {
             while k < self.active.len() {
                 let i = self.active[k] as usize;
                 let nr = self.update(i, n);
+                let rise = self.threshold_rise(i, n);
                 let c = self.cells[i];
-                if nr && c.v > v_th {
+                if nr && c.v > v_th + rise {
                     self.spikes.push(i as u32);
                 }
                 if nr && !self.could_fire(&c) {
@@ -354,7 +389,9 @@ impl Brain {
             }
             self.spikes.sort_unstable();
         }
+        let step = self.adapt_step;
         for &s in &self.spikes {
+            self.cells[s as usize].adapt += step;
             self.cells[s as usize].last = n;
             self.spike_count[s as usize] += 1;
         }

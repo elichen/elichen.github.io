@@ -115,7 +115,7 @@ function tick() {
             mode: L.mode, hunger: day.hunger, bored: day.bored, goal: day.goal && { x: day.goal.x, y: day.goal.y, why: day.goal.why }, eating: !!day.eating,
             foods: day.foods.map(f => [f.x, f.y, f.r, f.amount]), object: day.object && { p: day.object.p, v: day.object.v, radius: day.object.radius, hit: day.object.hit },
             rates: { oDN1: day.oDN1.rate, GF: day.GF.rate, MN9: day.mouth.MN9.rate, dnL: day.dnL.rate, dnR: day.dnR.rate },
-            counts: { putBacks: day.putBacks || 0, jumps: day.jumps || 0, hits: day.hits || 0, calms: day.calms || 0 }, blur: timeScale === 1 && flapping ? blur : null, slow: timeScale < 1, flapping, wingHz: day.F.freq }, [spikes.buffer, xpos.buffer, xmat.buffer, blur.buffer]);
+            counts: { putBacks: day.putBacks || 0, jumps: day.jumps || 0, hits: day.hits || 0 }, blur: timeScale === 1 && flapping ? blur : null, slow: timeScale < 1, flapping, wingHz: day.F.freq }, [spikes.buffer, xpos.buffer, xmat.buffer, blur.buffer]);
     }
     if (behind) soon.port2.postMessage(0); else setTimeout(tick, 8);
 }

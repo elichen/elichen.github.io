@@ -265,3 +265,24 @@ a.cite:hover { color: var(--accent); }
 .prose td.word, .prose th.word { text-align: left; }
 .prose .note { margin-top: -0.6em; font-size: 14px; line-height: 1.5; color: var(--text-2); }
 .prose table.text th, .prose table.text td { text-align: left; }
+
+/* --- Figures */
+.prose figure { position: relative; margin: 1.6em 0; }
+.fig-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-bottom: 8px; font-size: 13px; color: var(--text-2); }
+.fig-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.fig-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 560px) { .fig-panels { grid-template-columns: minmax(0, 1fr); } }
+.fig-title { margin: 0 0 2px !important; font-size: 13px; font-weight: 600; color: var(--text); }
+.fig-panel svg, figure > svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+.fig-axis { font: 12px var(--font); fill: rgba(0, 0, 0, 0.55); }
+.fig-note { font: 12px var(--font); fill: rgba(0, 0, 0, 0.5); }
+.fig-tip { position: absolute; z-index: 2; display: grid; gap: 2px; padding: 6px 9px; background: #fff; border: 1px solid var(--hairline); border-radius: 5px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); font-size: 12px; line-height: 1.4; pointer-events: none; white-space: nowrap; }
+.fig-tip[hidden] { display: none; }
+.fig-tip span { display: flex; align-items: center; gap: 6px; color: var(--text-2); }
+.fig-tip i { width: 8px; height: 8px; border-radius: 50%; }
+.prose figcaption { margin-top: 8px; font-size: 14px; line-height: 1.5; color: var(--text-2); }
+.prose figure details { margin-top: 6px; font-size: 13px; color: var(--text-2); }
+.prose figure summary { cursor: pointer; }
+.loop-node { font: 600 13px var(--font); fill: rgba(0, 0, 0, 0.82); }
+.loop-sub { font: 11px var(--font); fill: rgba(0, 0, 0, 0.55); }
+.loop-edge { font: 11px var(--font); fill: rgba(0, 0, 0, 0.6); }
