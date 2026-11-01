@@ -16,12 +16,12 @@
     <section class="demo" aria-label="Live simulation">
         <div class="viewport" id="viewport">
             <div class="pane fly-pane">
-                <canvas id="fly" aria-label="A fly on a kitchen table."></canvas>
-                <div class="touch" id="touch"></div>
+                <canvas id="fly" role="img" aria-label="A fly on a kitchen table."></canvas>
+                <div class="touch" id="touch" role="status"></div>
                 <p class="hint">Click the table to drop sugar. Drag to turn the view; scroll to zoom.</p>
             </div>
             <div class="pane brain-pane" id="brain-pane">
-                <canvas id="view" aria-label="The brain and nerve cord. Each neuron is a point; points flash when the neuron fires."></canvas>
+                <canvas id="view" role="img" aria-label="The brain and nerve cord. Each neuron is a point; points flash when the neuron fires."></canvas>
                 <div class="clock" id="clock"></div>
             </div>
             <div class="status" id="status">Loading the connectome…</div>
@@ -51,9 +51,9 @@
                     <div><dt>oDN1 · walk or stand</dt><dd data-rate="oDN1">—</dd></div>
                     <div><dt>MN9 · mouth</dt><dd data-rate="MN9">—</dd></div>
                     <div><dt>Giant fiber · jump</dt><dd data-rate="GF">—</dd></div>
+                    <div><dt>Whole model</dt><dd id="spike-rate">—</dd></div>
                     <div><dt>DNp03 left · turns it right</dt><dd data-rate="dnL">—</dd></div>
                     <div><dt>DNp03 right · turns it left</dt><dd data-rate="dnR">—</dd></div>
-                    <div><dt>Model</dt><dd id="n-active">—</dd></div>
                 </dl>
                 <p id="counts"></p>
             </div>
@@ -79,6 +79,7 @@
                 <tr><td>Jump from a swatter</td><td>Looming neurons drive the giant fiber, DNp01. Past 20 Hz the fly takes off.</td><td>The firing, yes. The threshold is ours.</td></tr>
                 <tr><td>Dodge in the air</td><td>Looming neurons drive DNp03 on their side.</td><td>The side, yes. The saccade comes from recordings.</td></tr>
                 <tr><td>See</td><td>A rule from the object's geometry to the input of the looming neurons. The model has no eyes.</td><td>No</td></tr>
+                <tr><td>Serotonin</td><td>Neurons predicted to use serotonin have no effect on other neurons in the BANC model. This is our change, below.</td><td>No</td></tr>
                 <tr><td>Move the legs and wings</td><td>flybody's two trained policies <a href="#ref-3" class="cite">[3]</a>. The motor neurons of legs and wings fire, but do not move them.</td><td>No</td></tr>
                 <tr><td>Take off and land</td><td>Stated rules between the two policies, below.</td><td>No</td></tr>
                 <tr><td>What stands on the table</td><td>Pictures. The physics has only the flat tabletop.</td><td>No</td></tr>
@@ -118,33 +119,33 @@
         <table>
             <thead><tr><th>Input</th><th>oDN1</th><th>MN9</th><th>Giant fiber</th><th>DNp03 left / right</th></tr></thead>
             <tbody>
-                <tr><td>P9, 150 Hz</td><td>8.6</td><td>0</td><td>0</td><td>0 / 0</td></tr>
-                <tr><td>P9 + sugar, 150 Hz</td><td>3.8</td><td>10.3</td><td>0</td><td>0 / 0</td></tr>
+                <tr><td>P9, 150 Hz</td><td>16.9</td><td>0</td><td>0</td><td>0 / 0</td></tr>
+                <tr><td>P9 + sugar, 150 Hz</td><td>6.4</td><td>11.8</td><td>0</td><td>0 / 0</td></tr>
                 <tr><td>Sugar, 150 Hz</td><td>0</td><td>14.2</td><td>0</td><td>0 / 0</td></tr>
-                <tr><td>Looms, both eyes, 100 Hz</td><td>0</td><td>0</td><td>43.6</td><td>164 / 168</td></tr>
-                <tr><td>Looms, left eye, 100 Hz</td><td>0</td><td>0</td><td>5.3</td><td>169 / 0</td></tr>
+                <tr><td>Looms, both eyes, 100 Hz</td><td>0</td><td>0</td><td>38.9</td><td>165 / 173</td></tr>
+                <tr><td>Looms, left eye, 100 Hz</td><td>0</td><td>0</td><td>5.5</td><td>170 / 0</td></tr>
             </tbody>
         </table>
         <p>We did not fit these connections. The connectome separates walking, stopping, feeding, jumping and turning into different outputs, with the same weights. oDN1 and MN9 are weaker on BANC than on FlyWire, so our thresholds are set for BANC.</p>
 
         <h2>Can you swat it?</h2>
-        <p>Usually, yes. A swatter of 3 cm half-width starts 30 cm away and aims at a standing fly. 20 trials per row; if the jump is off, all 120 control trials are hits. A hit is only counted. It does not hurt the fly. (<code>SWATTEST=20 node tools/day.mjs</code>)</p>
+        <p>Usually, yes. A swatter of 3 cm half-width starts 30 cm away and aims at a standing fly. 40 trials per row, except where a row joins speeds. If the jump is off, all 240 control trials are hits. A hit is only counted. It does not hurt the fly. Results change from run to run: from its right at 30 cm/s, two runs of 20 had 14 and 15 hits, and earlier runs had up to 16. (<code>SWATTEST=20 node tools/day.mjs body</code>; the buttons on this page use 30 cm/s.)</p>
         <table>
-            <thead><tr><th>From</th><th>Speed</th><th>Jumped</th><th>Hit</th></tr></thead>
+            <thead><tr><th>From</th><th class="word">Speed</th><th>Jumped</th><th>Hit</th></tr></thead>
             <tbody>
-                <tr><td>Above</td><td>30 cm/s</td><td>20</td><td>17</td></tr>
-                <tr><td>Above</td><td>40 cm/s</td><td>20</td><td>20</td></tr>
-                <tr><td>Its right</td><td>30 cm/s</td><td>20</td><td><strong>16</strong></td></tr>
-                <tr><td>Its right</td><td>40 cm/s</td><td>20</td><td>19</td></tr>
-                <tr><td>Its right</td><td>60 cm/s or 90 cm/s</td><td>40</td><td>40</td></tr>
-                <tr><td>Its left</td><td>30 cm/s</td><td>1</td><td>20</td></tr>
-                <tr><td>Its left</td><td>40–90 cm/s</td><td>4</td><td>60</td></tr>
+                <tr><td>Above</td><td class="word">30 cm/s</td><td>40 of 40</td><td>39</td></tr>
+                <tr><td>Above</td><td class="word">40–90 cm/s</td><td>120 of 120</td><td>120</td></tr>
+                <tr><td>Its right</td><td class="word">30 cm/s</td><td>40 of 40</td><td><strong>29</strong></td></tr>
+                <tr><td>Its right</td><td class="word">40 cm/s</td><td>40 of 40</td><td>36</td></tr>
+                <tr><td>Its right</td><td class="word">60 or 90 cm/s</td><td>80 of 80</td><td>80</td></tr>
+                <tr><td>Its left</td><td class="word">30 cm/s</td><td>1 of 40</td><td>40</td></tr>
+                <tr><td>Its left</td><td class="word">40–90 cm/s</td><td>7 of 120</td><td>120</td></tr>
             </tbody>
         </table>
         <p>There are two results here. First, the brain's decision is good but the body is slow. A real fly's giant fiber can start a takeoff within milliseconds <a href="#ref-5" class="cite">[5]</a>. Ours spends 0.1 s rearing up, and the jump itself cannot throw it clear. Second, the fly hardly ever jumps from its left. The right eye drives the giant fiber and the left eye does not. We do not think this is real. BANC's left optic lobe is less complete in its annotation (it lists 2 Tm1 neurons on the left against 851), which may explain it. Do not read this as a fact about flies.</p>
 
         <h2>Why it dodges</h2>
-        <p>In living flies, Croke et al. recorded DNp03, a pair of descending neurons. It fires more to a looming object on its own side. If you activate one DNp03 in a tethered fly in flight, the wingbeat on its side gets larger, the other gets smaller, and the head turns away. Its main inputs are the visual neurons LPLC1, LPLC4 and LC4 <a href="#ref-15" class="cite">[15]</a>. The model passes this test (<code>tools/loom.py</code>): left looming neurons at 100 Hz give DNp03 169 Hz on the left and 0 on the right, and right looming neurons give 0 and 175 Hz. In the nerve cord, one DNp03 makes the motor neurons of the wing muscles b3 and i1 fire on the other side only, as Croke et al. predict. They also predict b1 on the same side, and b1 stays silent in the model (<code>tools/wing_turn.py</code>).</p>
+        <p>In living flies, Croke et al. recorded DNp03, a pair of descending neurons. It fires more to a looming object on its own side. If you activate one DNp03 in a tethered fly in flight, the wingbeat on its side gets larger, the other gets smaller, and the head turns away. Its main inputs are the visual neurons LPLC1, LPLC4 and LC4 <a href="#ref-15" class="cite">[15]</a>. The model passes this test (<code>tools/loom.py</code>): left looming neurons at 100 Hz give DNp03 170 Hz on the left and 0 on the right, and right looming neurons give 0 and 177 Hz. In the nerve cord, one DNp03 makes the motor neurons of the wing muscles b3 and i1 fire on the other side only, as Croke et al. predict. They also predict b1 on the same side, and b1 stays silent in the model (<code>tools/wing_turn.py</code>).</p>
         <p>When DNp03 left minus right passes 60 Hz, the fly makes one saccade away from the active side. The brain chooses whether and which way. The shape is fixed: from 44 saccades of real flies in flybody's data, a peak of 43 rad/s and a width of 40 ms, with 27° of roll into the turn.</p>
         <p>We tested this in an earlier scene with the fly always in the air and contacts off (<code>tools/dodge.mjs</code> at commit <code>80772509</code>). The object was aimed at where a straight flight would go, so a fly that does not turn was hit in all 80 runs. Ten runs per row. Clearance is the smallest distance from head to object surface, in cm.</p>
         <table>
@@ -163,22 +164,23 @@
         <p>Turn on Sound to hear the wings. The sound comes from the same wingbeat, not from a recording. The force on a wing grows with the square of its speed, and the ear gets the rate of change of that force. One beat of the policy's wing pattern gives the wave, and the policy's wing frequency gives the pitch. The shares of lift and drag and the volume are our choices, and we did not compare the sound with a recording of a fly. The volume falls as you zoom out. In slow motion it is silent, because 4 Hz is too low to hear. When the model runs slower than real time, the pitch stays at the real wing frequency.</p>
 
         <h2>A day, in numbers</h2>
-        <p>Six runs of five simulated minutes with no swatter (<code>node tools/day.mjs</code>). A run has about 12 flights, 7 meals, and 2 launches called off because the nose was not up. In each run we also had to put the fly back on its feet: 3 times on average, from 0 to 7. When the fly falls on its back, it cannot right itself. No policy was trained for this, so after 0.4 s we set it back on its feet, and the page counts each time. Of those 19 falls, 9 were rear-ups that tipped over, 7 happened in flight and 3 at landing or while walking. Stopping a rear-up as soon as it starts to tip did not help: the fly fell anyway.</p>
+        <p>Six runs of five simulated minutes with no swatter (<code>node tools/day.mjs body 300</code>). A run has about 10 flights, 7 meals, and 2 launches called off because the nose was not up. In each run we also had to put the fly back on its feet: about 3 times on average, from 2 to 5. When the fly falls on its back, it cannot right itself. No policy was trained for this, so after 0.4 s we set it back on its feet, and the page counts each time. Of those 19 falls, 9 were rear-ups that tipped over, 5 happened in flight and 5 at landing. Stopping a rear-up as soon as it starts to tip did not help: the fly fell anyway.</p>
 
         <h2>The brain model</h2>
-        <p>Each neuron is a leaky integrate-and-fire unit <a href="#ref-6" class="cite">[6]</a>. Its potential decays to rest, and synaptic input pushes it up or down. At threshold it fires, resets, and ignores input for a short time. Every neuron has the same values: rest and reset −52 mV, threshold −45 mV, membrane time constant 20 ms, synaptic time constant 5 ms, refractory period 2.2 ms, delay 1.8 ms. The connectome gives the rest. A connection's weight is its number of synapses times 0.275 mV, and its sign comes from a predicted transmitter <a href="#ref-9" class="cite">[9]</a>. GABA, glutamate and histamine inhibit. Without input, every neuron stays at rest.</p>
+        <p>Each neuron is a leaky integrate-and-fire unit <a href="#ref-6" class="cite">[6]</a>. Its potential decays to rest, and synaptic input pushes it up or down. At threshold it fires, resets, and ignores input for a short time. Every neuron has the same values: rest and reset −52 mV, threshold −45 mV, membrane time constant 20 ms, synaptic time constant 5 ms, refractory period 2.2 ms, delay 1.8 ms. The connectome gives the rest. A connection's weight is its number of synapses times 0.275 mV, and its sign comes from a predicted transmitter <a href="#ref-9" class="cite">[9]</a>. GABA, glutamate and histamine inhibit. A brain at rest stays at rest until input arrives. It does not always go back to rest when the input stops (see <a href="#wrong">What is wrong with this fly</a>).</p>
+        <p><strong>One change from Shiu et al., for realism.</strong> Their rule gives every transmitter other than GABA and glutamate a fast excitatory effect. The serotonin receptors we found in flies are slow G-protein types, so on BANC we give serotonin neurons no synapses at all. We found this problem while we looked for a failure: as fast excitation, a loop of seven neurons (LAL122, LAL120b, LAL017, LAL165) kept the model firing at about 31,000 spikes per second, with no input, after any walk. Now the model goes back to rest after P9 (<code>tools/after_input.mjs</code>). This is more realistic but not complete. Real serotonin has slow effects, and the model has none. The serotonin labels are predictions and not verified for these neurons, and dopamine, octopamine and tyramine stay excitatory. The numbers on FlyWire below use the original rule.</p>
         <p>The model runs in WebAssembly, compiled from Rust, in steps of 0.1 ms. A neuron that cannot reach threshold without new input is not stepped. When input arrives, one calculation brings it up to date, so the result does not change.</p>
         <p>We checked the engine against Shiu et al.'s model in Brian 2 <a href="#ref-11" class="cite">[11]</a>, on the brain-only FlyWire connectome (version 783, 138,639 neurons <a href="#ref-7" class="cite">[7]</a><a href="#ref-8" class="cite">[8]</a>) that the paper used. With the same random input in ten runs of 1 s, Brian made 1,999,953 spikes, and the engine made the same spikes, each in the same step. With separate random input, 30 runs of sugar: all 437 neurons that fired agree within 3 standard errors, and MN9 fired at 78.6 Hz in Brian and 78.2 Hz in the engine. <strong>We did not check BANC against Brian.</strong> It is the same engine on a different connectome, with the same weight per synapse.</p>
         <p>On FlyWire, the engine repeats the paper's experiments. Rate of the readout in Hz, mean of 20 runs of 1 s (<code>tools/experiments.mjs</code>). Shiu et al.'s preprint reports that 91% of 164 testable predictions agreed with experiments in flies <a href="#ref-10" class="cite">[10]</a>.</p>
         <table>
-            <thead><tr><th>Activated</th><th>Readout</th><th>50 Hz</th><th>100 Hz</th><th>150 Hz</th><th>200 Hz</th></tr></thead>
+            <thead><tr><th>Activated</th><th class="word">Readout</th><th>50 Hz</th><th>100 Hz</th><th>150 Hz</th><th>200 Hz</th></tr></thead>
             <tbody>
-                <tr><td>Sugar</td><td>MN9</td><td>11</td><td>64</td><td>77</td><td>89</td></tr>
-                <tr><td>Sugar and bitter</td><td>MN9</td><td>1</td><td>3</td><td>4</td><td>7</td></tr>
-                <tr><td>Sugar and Ir94e</td><td>MN9</td><td>0</td><td>11</td><td>28</td><td>54</td></tr>
-                <tr><td>Water</td><td>MN9</td><td>0</td><td>0</td><td>6</td><td>30</td></tr>
-                <tr><td>Antenna JO-CE</td><td>aBN1</td><td>1</td><td>26</td><td>51</td><td>68</td></tr>
-                <tr><td>Antenna JO-F</td><td>aBN1</td><td>0</td><td>1</td><td>1</td><td>3</td></tr>
+                <tr><td>Sugar</td><td class="word">MN9</td><td>11</td><td>64</td><td>77</td><td>89</td></tr>
+                <tr><td>Sugar and bitter</td><td class="word">MN9</td><td>1</td><td>3</td><td>4</td><td>7</td></tr>
+                <tr><td>Sugar and Ir94e</td><td class="word">MN9</td><td>0</td><td>11</td><td>28</td><td>54</td></tr>
+                <tr><td>Water</td><td class="word">MN9</td><td>0</td><td>0</td><td>6</td><td>30</td></tr>
+                <tr><td>Antenna JO-CE</td><td class="word">aBN1</td><td>1</td><td>26</td><td>51</td><td>68</td></tr>
+                <tr><td>Antenna JO-F</td><td class="word">aBN1</td><td>0</td><td>1</td><td>1</td><td>3</td></tr>
             </tbody>
         </table>
         <p><strong>Stopping on sugar.</strong> Sapkal et al. found that sugar stops walking in real flies, and showed why in this model <a href="#ref-2" class="cite">[2]</a>. We repeated it on FlyWire (<code>tools/intent.py</code>). With P9 at 100 Hz, oDN1 fires at 13.4 Hz. Sugar at 50, 100 and 150 Hz reduces it to 9.5, 2.8 and 1.0 Hz. Bitter at 150 Hz does not (13.8 Hz).</p>
@@ -187,24 +189,25 @@
         <p>Shiu et al. list the model's limits <a href="#ref-6" class="cite">[6]</a>. All neurons have the same parameters, and many real fly neurons do not fire spikes. There are no gap junctions, neuropeptides, neuromodulation or internal state. Transmitter predictions can be wrong. Neurons have no activity at rest, so inhibition of a silent neuron has no effect. Absolute firing rates are not reliable; changes in rate are more reliable.</p>
 
         <h2 id="walk">Can it walk by itself?</h2>
+        <p class="note">We ran the tests in this section, and the wing test in Why it dodges, before the serotonin change. We did not run them again.</p>
         <p>No. The legs on this page move by a trained policy. We activated DNg100, a descending neuron that starts walking in real flies, at 50–200 Hz on BANC. About 60–100 of the 393 leg motor neurons fire, with no rhythm, and flexors and extensors of a joint fire together. A leg would stiffen, not step. We then activated each of the 473 types of descending neuron in turn. 175 types make leg motor neurons fire. None makes a rhythm clearly above random firing, and none makes flexors and extensors alternate.</p>
         <p>Pugliese et al. found a walking rhythm in a rate model of the nerve cord <a href="#ref-12" class="cite">[12]</a>. We wrote their model again from their Methods and ran it on BANC (<code>tools/rate_vnc.py</code>). Their result holds: with DNg100 driven, all six legs' networks make a rhythm at 8–10 Hz in 8 of 8 runs at a moderate input, and most runs stop with stronger input. We sent this rhythm to flybody's legs, tethered (<code>tools/leg_drive.py</code>). The feet move by less than 0.1 mm, the middle legs almost not at all, and the phase between legs changes from run to run.</p>
         <p>Real flies set a clear test. Sapkal et al. activated DNg100 in flies with no head and little leg feedback. All six legs stepped, left and right alternated, and the legs kept a tripod <a href="#ref-13" class="cite">[13]</a>. The model on BANC does not do this (<code>tools/phase.py</code>). Muscles that swing a front leg forward and back are about 45–60° apart, not 180°. The front legs are nearly in phase. There is no tripod at any input. So the wiring holds part of what walking needs, but this model does not walk from it.</p>
         <p><strong>Smell</strong> fails too. A real fly turns toward the antenna that smells more, through DNa02 <a href="#ref-14" class="cite">[14]</a>. On FlyWire, olfactory input usually ignites the whole brain or does nothing, and DNa02 fires on the fly's left whichever antenna gets the input (<code>tools/intent.py steer</code>). Silencing Kenyon cells, excitatory antennal lobe neurons or all neuromodulator neurons, or weakening all synapses, did not help. It may be an error in the model, not in the fly.</p>
         <p><strong>The jump</strong> does not reach the muscles. Looming neurons drive the giant fiber, but it does not drive the jump muscle's motor neuron: in the fly that synapse is mostly electrical, and the connectome has chemical synapses only. So a threshold on the giant fiber's rate starts the jump.</p>
 
-        <h2>What is wrong with this fly</h2>
+        <h2 id="wrong">What is wrong with this fly</h2>
         <ul>
-            <li><strong>The brain does not calm down.</strong> After looming input at 30 Hz or more, the model stays at about 32,000 spikes per second for as long as we ran it, with no input. A real brain recovers. So one second after an object goes, we clear the brain's state. The page counts each time. It is the largest cheat on this page.</li>
+            <li><strong>The brain does not always calm down.</strong> After looming input at 100 Hz, the model can stay at about 20,000 spikes per second with no input, and the giant fiber keeps firing at 30–40 Hz (<code>tools/life_after.mjs</code>). Looming input at 30 and 50 Hz stops by itself in that test. We think that excitatory loops hold this state up, because the model has no adaptation: a spike across about 162 synapses is enough to make the next neuron fire, and nothing weakens with use. One loop we isolated is AVLP082 and CB2432, with 219 and 344 synapses onto each other. So one second after an object goes, we clear the brain's state, and the page counts each time. It is the largest cheat on this page.</li>
             <li><strong>It smells nothing and sees nothing.</strong> Odor input ignites the model (see <a href="#walk">Can it walk by itself?</a>), and visual input from photoreceptors does not reach the looming neurons in this model (<code>tools/vision_reach.py</code>). The fly knows where the sugar is because we tell it.</li>
             <li><strong>Landing has no brain.</strong> We looked for a landing command. LPLC4 drives DNp07, but about the same from one eye (70 / 0 Hz) as from two (79 / 80 Hz), and that does not pass the test we set in advance (<code>tools/land.py</code>). So a rule decides.</li>
             <li><strong>Hunger is one number.</strong> Thirst, sleep, mating, grooming and learning are absent.</li>
-            <li><strong>A flat world.</strong> The fly cannot walk on the fruit or land on the mug, because the walking policy knows only flat ground. Its goals and paths go around what stands there. It sometimes clips an edge: in those six runs, 0.7 s of 30 minutes was inside something.</li>
+            <li><strong>A flat world.</strong> The fly cannot walk on the fruit or land on the mug, because the walking policy knows only flat ground. Its goals and paths go around what stands there. It sometimes clips an edge: in those six runs, 2.0 s of 30 minutes was inside something.</li>
             <li><strong>No feeling of its own body.</strong> The legs, wings and halteres send no input to the model.</li>
         </ul>
 
         <h2>Data</h2>
-        <p>Connectome: BANC version 888 <a href="#ref-1" class="cite">[1]</a>. Body and policies: flybody <a href="#ref-3" class="cite">[3]</a> (model Apache 2.0; weights and wing pattern from <a href="https://doi.org/10.25378/janelia.25309105">doi:10.25378/janelia.25309105</a>, GPL 3). Numbers on FlyWire use its version 783 as prepared by Shiu et al. (CC BY 4.0); the page does not download it. The page downloads about 40 MB. In our test (headless Chrome on an Apple M4 Mac) it runs at about 0.85× real time on the table and 0.5× in the air, because in the air physics runs at 20 kHz with every leg joint free. The clock shows the speed.</p>
+        <p>Connectome: BANC version 888 <a href="#ref-1" class="cite">[1]</a>. Body and policies: flybody <a href="#ref-3" class="cite">[3]</a> (model Apache 2.0; weights and wing pattern from <a href="https://doi.org/10.25378/janelia.25309105">doi:10.25378/janelia.25309105</a>, GPL 3). Numbers on FlyWire use its version 783 as prepared by Shiu et al. (CC BY 4.0); the page does not download it. The page downloads about 40 MB. In our test (headless Chrome on an Apple M4 Mac) it runs at about real time on the table and 0.5× in the air, because in the air physics runs at 20 kHz with every leg joint free. The clock shows the speed.</p>
     </article>
 
     <section class="appendix">

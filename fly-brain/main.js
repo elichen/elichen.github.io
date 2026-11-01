@@ -13,8 +13,8 @@ const worker = new Worker('worker.js', { type: 'module' });
 const flyView = new FlyView(flyCanvas);
 flyView.camera.far = 900; flyView.camera.fov = 32; flyView.camera.updateProjectionMatrix();
 flyView.controls.minDistance = 0.8; flyView.controls.maxDistance = 130;
-flyView.controls.target.set(-12, -16, 0.5);
-flyView.camera.position.set(-20, -30, 9);
+flyView.controls.target.set(-12, -16, 0.15);   // where the day starts, close enough to see a fly 0.25 cm long
+flyView.camera.position.set(-14.2, -21.2, 2.2);
 flyView.controls.update();
 flyView.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 flyView.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -30,6 +30,8 @@ scene.background = new THREE.Color(P.bg);
 const camera = new THREE.PerspectiveCamera(32, 1, 1, 20000);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
+let brainTurned = false;   // once the visitor has turned or zoomed the brain, a resize (on a phone, the address bar hiding) must not undo it
+controls.addEventListener('start', () => { brainTurned = true; });
 const material = new THREE.ShaderMaterial({
     uniforms: { uNow: { value: 0 }, uScale: { value: 1 }, uMin: { value: 1.5 }, uRest: { value: new THREE.Color(P.rest) }, uFire: { value: new THREE.Color(P.fire) } },
     vertexShader: /* glsl */`
@@ -85,7 +87,8 @@ function resize() {
     if (camera.userData.size) {
         const [bw, bh] = camera.userData.size, tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
         const d = Math.max(bw / 0.9 / 2 / (tanV * camera.aspect), bh / 0.9 / 2 / tanV);
-        camera.position.set(0, 0, d); controls.target.set(0, 0, 0); camera.far = d * 5;
+        if (!brainTurned) { camera.position.set(0, 0, d); controls.target.set(0, 0, 0); }
+        camera.far = d * 5; controls.minDistance = d * 0.1; controls.maxDistance = d * 2.5;
     }
     const pr = renderer.getPixelRatio();
     material.uniforms.uScale.value = h * pr / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
@@ -170,45 +173,54 @@ function panel() {
     if (!m) return;
     const bar = (id, v) => { const b = document.getElementById(id), pct = (100 * Math.min(1, v)).toFixed(0); b.style.width = `${pct}%`; b.parentElement.setAttribute('aria-valuenow', pct); };
     bar('hunger', m.hunger); bar('bored', m.bored);
-    const say = document.getElementById('touch');
-    if (performance.now() < noticeUntil) say.textContent = 'Something stands there, or it is too near the edge. Try open table.';
-    else say.textContent = m.object ? (m.object.hit ? 'Swatted.' : 'A swatter is coming!') : SAY[m.mode](m);
+    const caption = document.getElementById('touch');
+    const line = performance.now() < noticeUntil ? notice : m.object ? (m.object.hit ? 'Swatted.' : 'A swatter is coming!') : SAY[m.mode](m);
+    if (caption.textContent !== line) caption.textContent = line;   // it is a live region: same text, no new announcement
+    for (const b of swats) b.disabled = !!m.object;         // one swatter at a time
     for (const [k, v] of Object.entries(m.rates)) { const el = document.querySelector(`[data-rate="${k}"]`); if (el) el.textContent = `${v.toFixed(0)} Hz`; }
     document.getElementById('counts').textContent = `Jumps from the swatter: ${m.counts.jumps} · Swats landed: ${m.counts.hits} · Put back on its feet: ${m.counts.putBacks} · Brain cleared: ${m.counts.calms}`;
-    document.getElementById('n-active').textContent = `${m.active.toLocaleString()} active`;
+    document.getElementById('spike-rate').textContent = `${(Math.round(m.spikeRate / 100) * 100).toLocaleString('en-US')} spikes/s`;
     document.getElementById('clock').textContent = `${t.toFixed(slow ? 3 : 1)} s · ${paused ? 'paused' : slow ? '1/50 speed' : m.speed < 0.95 ? `${m.speed.toFixed(2)}× real time` : 'real time'}`;
 }
 
 worker.onmessage = e => {
     const m = e.data;
     if (m.type === 'progress') status.textContent = `Loading the connectome… ${(m.loaded / 1e6).toFixed(0)} of ${(m.total / 1e6).toFixed(0)} MB`;
+    else if (m.type === 'building') status.textContent = 'Building the fly…';
     else if (m.type === 'error') status.textContent = `Could not start the model: ${m.message}`;
-    else if (m.type === 'body') { flyView.build(m); buildBlur(m); sound = new WingSound(m.pattern); if (soundOn) sound.set(true); }
+    else if (m.type === 'body') { flyView.build(m); buildBlur(m); sound = new WingSound(m.pattern); }
     else if (m.type === 'ready') { status.textContent = ''; document.body.classList.add('ready'); for (const b of document.querySelectorAll('.controls button')) b.disabled = false; }
     else if (m.type === 'spikes' && points) onSpikes(m);
 };
 
-worker.onerror = e => { status.textContent = `The model stopped: ${e.message}`; };
+worker.onerror = e => { status.textContent = `The model stopped: ${e.message || 'a script did not load'}.`; };
 
 // a click on the table (not a drag) drops sugar there
 const ray = new THREE.Raycaster(), table = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), hit = new THREE.Vector3();
-let down = null, noticeUntil = 0;
-flyCanvas.addEventListener('pointerdown', e => { down = e.button === 0 ? [e.clientX, e.clientY] : null; });
+let down = null, noticeUntil = 0, notice = '';
+const say = (text, ms) => { notice = text; noticeUntil = performance.now() + ms; panel(); };
+const pressed = new Set();   // a second finger makes it a pinch, never a drop
+flyCanvas.addEventListener('pointerdown', e => { pressed.add(e.pointerId); down = pressed.size === 1 && e.button === 0 ? [e.clientX, e.clientY] : null; });
+flyCanvas.addEventListener('pointercancel', e => { pressed.delete(e.pointerId); down = null; });
 flyCanvas.addEventListener('pointerup', e => {
-    if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) { if (down) document.body.classList.add('dragged'); return; }
+    pressed.delete(e.pointerId);
+    const from = down;
+    down = null;
+    if (!from) return;
+    if (Math.hypot(e.clientX - from[0], e.clientY - from[1]) > 5) { document.body.classList.add('dragged'); return; }
     const r = flyCanvas.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), flyView.camera);
     if (!ray.ray.intersectPlane(table, hit)) return;
-    if (Math.abs(hit.x) < TABLE.x && Math.abs(hit.y) < TABLE.y && isClear(hit.x, hit.y)) { noticeUntil = 0; worker.postMessage({ type: 'food', x: hit.x, y: hit.y }); document.body.classList.add('dropped'); }
-    else noticeUntil = performance.now() + 2500;
-    panel();
+    if (Math.abs(hit.x) < TABLE.x && Math.abs(hit.y) < TABLE.y && isClear(hit.x, hit.y)) { worker.postMessage({ type: 'food', x: hit.x, y: hit.y }); document.body.classList.add('dropped'); say('Sugar dropped. When hungry, the fly goes to the nearest sugar.', 3000); }
+    else say('Something stands there, or it is too near the edge. Try open table.', 2500);
 });
-for (const b of document.querySelectorAll('[data-swat]')) b.onclick = () => worker.postMessage({ type: 'swat', side: +b.dataset.swat });
+const swats = document.querySelectorAll('[data-swat]');
+for (const b of swats) b.onclick = () => worker.postMessage({ type: 'swat', side: +b.dataset.swat });
 let slow = false;
 document.getElementById('slow').onclick = e => { slow = !slow; e.target.setAttribute('aria-pressed', slow); worker.postMessage({ type: 'slow', on: slow }); };
 document.getElementById('sound').onclick = e => { soundOn = !soundOn; e.target.setAttribute('aria-pressed', soundOn); sound?.set(soundOn); };
 document.getElementById('pause').onclick = e => { paused = !paused; e.target.textContent = paused ? 'Run' : 'Pause'; worker.postMessage({ type: 'pause', on: paused }); if (paused) sound?.update(false, 218, 1, 0); };
-document.getElementById('reset').onclick = () => { worker.postMessage({ type: 'reset' }); };
+document.getElementById('reset').onclick = () => { noticeUntil = 0; worker.postMessage({ type: 'reset' }); };
 
 function frame() {
     requestAnimationFrame(frame);

@@ -8,6 +8,8 @@ weight = synapse count, negative when the presynaptic neuron's predicted transmi
 glutamate. Histamine is also taken as inhibitory (it opens chloride channels in flies; Shiu's
 FlyWire table had no histamine class). Neurons with no prediction are excitatory, as in Shiu's
 table, and counted. Glia, trachea and 'not_a_neuron' are dropped.
+Serotonin neurons make no synapses here: fly serotonin receptors are slow G-protein types, not fast excitation, and as fast
+excitation a loop of them (LAL122, LAL120b) kept the model firing for ever after any walk. Unlike Shiu et al.; no slow effect replaces it.
 Writes <out>/banc.gz (FLY2, see export_brain.py) and <out>/banc_neurons.parquet (index order).
 """
 import gzip
@@ -36,7 +38,9 @@ sign = np.where(nt.isin(['gaba', 'glutamate', 'histamine']), -1, 1)
 
 pre = index[e.pre].to_numpy()
 post = index[e.post].to_numpy()
-w = e['count'].to_numpy().astype(np.int64) * sign[pre]
+keep = ~nt.isin(['serotonin']).to_numpy()[pre]
+pre, post = pre[keep], post[keep]
+w = e['count'].to_numpy().astype(np.int64)[keep] * sign[pre]
 os.makedirs(out, exist_ok=True)
 data = fly2(len(ids), pre, post, w)
 with gzip.open(os.path.join(out, 'banc.gz'), 'wb', compresslevel=6) as f:

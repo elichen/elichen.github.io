@@ -262,6 +262,6 @@ a.cite:hover { color: var(--accent); }
 .refs li { margin-bottom: 0.5em; }
 .refs li:target { background: #fff8d6; }
 
-.prose th:nth-child(2), .prose td:nth-child(2) { text-align: left; }
+.prose td.word, .prose th.word { text-align: left; }
 .prose .note { margin-top: -0.6em; font-size: 14px; line-height: 1.5; color: var(--text-2); }
 .prose table.text th, .prose table.text td { text-align: left; }

@@ -87,10 +87,10 @@ export function sugarDrop() {
     return m;
 }
 
-// the swatter: a wire handle and a square of mesh
+// the swatter: a handle and a square of mesh
 export function swatter(radius) {
     const c = document.createElement('canvas'); c.width = c.height = 128;
-    const g = c.getContext('2d'); g.fillStyle = '#b42a2a'; g.fillRect(0, 0, 128, 128); g.clearRect(0, 0, 0, 0);
+    const g = c.getContext('2d'); g.fillStyle = '#b42a2a'; g.fillRect(0, 0, 128, 128);
     g.globalCompositeOperation = 'destination-out';
     for (let x = 4; x < 128; x += 8) for (let y = 4; y < 128; y += 8) { g.beginPath(); g.arc(x, y, 2.4, 0, 7); g.fill(); }
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;

@@ -34,7 +34,9 @@ export class FlyView {
         this.controls.minDistance = 0.3;
         this.controls.maxDistance = 12;
         this.controls.maxPolarAngle = Math.PI / 2 - 0.03;
-        this.follow = 0.12;     // share of the way to the fly per pose
+        this.followTau = 0.12;  // s: how fast the view catches up with the fly
+        this.flyAt = null;
+        this.drawnAt = performance.now();
         this.parts = [];
         new ResizeObserver(() => this.resize()).observe(canvas);
         this.resize();
@@ -86,15 +88,19 @@ export class FlyView {
             e[3] = e[7] = e[11] = 0; e[15] = 1;
             mesh.matrixWorldNeedsUpdate = true;
         }
-        // follow the fly, keeping the viewing angle
-        if (m.fly) {
-            const t = this.controls.target;
-            const dx = (m.fly[0] - t.x) * this.follow, dy = (m.fly[1] - t.y) * this.follow, dz = (m.fly[2] - t.z) * this.follow;
-            t.x += dx; t.y += dy; t.z += dz;
-            this.camera.position.x += dx; this.camera.position.y += dy; this.camera.position.z += dz;
-            this.key.target.position.set(m.fly[0], m.fly[1], 0);
-            this.key.position.set(m.fly[0] + 1, m.fly[1] + 0.6, 3);
-        }
+        this.flyAt = m.fly;
+        this.key.target.position.set(m.fly[0], m.fly[1], 0);
+        this.key.position.set(m.fly[0] + 1, m.fly[1] + 0.6, 3);
+    }
+
+    // follow the fly, keeping the viewing angle. Per drawn frame, by time: it does not depend on how often poses arrive, and it still finishes while paused
+    followFly() {
+        const now = performance.now(), share = 1 - Math.exp(-Math.min(0.1, (now - this.drawnAt) / 1000) / this.followTau);
+        this.drawnAt = now;
+        if (!this.flyAt) return;
+        const t = this.controls.target, dx = (this.flyAt[0] - t.x) * share, dy = (this.flyAt[1] - t.y) * share, dz = (this.flyAt[2] - t.z) * share;
+        t.x += dx; t.y += dy; t.z += dz;
+        this.camera.position.x += dx; this.camera.position.y += dy; this.camera.position.z += dz;
     }
 
     resize() {
@@ -106,6 +112,7 @@ export class FlyView {
     }
 
     render() {
+        this.followFly();
         this.controls.update();
         // the near plane scales with the zoom: a fixed 0.01 cm leaves too little depth precision far out, and the towel and coffee ring flicker through the table
         const near = Math.max(0.01, this.camera.position.distanceTo(this.controls.target) / 100);

@@ -51,8 +51,8 @@ const HUNGER_RATE = 1 / 45, BORED_RATE = 1 / 20, HUNGRY = 0.6, FULL = 0.05;   //
 const EAT_RATE = 0.2;                    // hunger per s at full MN9 activation; our choice
 const FLY_FROM = 6;                      // cm: farther than this, fly
 const ARRIVED = 1.0;                     // cm: a wander goal is reached
-const P9_HZ = 150, SUGAR_HZ = 150;       // tools/life_brain.mjs: oDN1 8.6 Hz, with sugar 3.8 Hz
-const WALK_FROM = 7, STAND_BELOW = 5;    // Hz of oDN1, between those two
+const P9_HZ = 150, SUGAR_HZ = 150;
+const WALK_FROM = 15, STAND_BELOW = 7;   // Hz of oDN1 through its 0.2 s filter: median about 22 under P9 (5th percentile 8-12), about 4 with sugar (95th 10-14)
 const TAU_ODN1 = 0.2, TAU_FAST = 0.05;   // s, rate filters
 const GF_JUMP = 20;                      // Hz of giant fiber that starts a takeoff; both eyes 44, one eye 5
 const DODGE = 60, REFRACTORY = 0.3, SACCADE_PEAK = 43, SD = 0.04 / 2.355;
@@ -65,6 +65,7 @@ export class Day {
     constructor(mujoco, model, data, walker, flyer, brain, neurons, seed = 1) {
         Object.assign(this, { mj: mujoco, model, data, brain, W: walker, F: flyer, n: neurons, rngState: seed >>> 0 || 1 });
         this.life = new Life(mujoco, model, data, walker, flyer);
+        this.life.rnd = () => this.rnd();
         const L = neurons.life, m = model, id = (t, k) => mujoco.mj_name2id(m, mujoco.mjtObj[t].value, k);
         this.lobe = id('mjOBJ_GEOM', 'walker/labrum_left_lower_collision');
         this.head = id('mjOBJ_BODY', 'walker/head');
@@ -109,8 +110,8 @@ export class Day {
         this.reset(); this.calm(); this.calms = 0;
     }
 
-    // The model does not calm down by itself after a loom: at any input from 30 Hz up it stays at about 32,000 spikes/s for good (tools/life_after.mjs),
-    // and in some runs the giant fiber keeps firing. So a second after an object has gone we clear the brain's state. A stated rule; real brains recover.
+    // Looms of 30 Hz and more can leave the model firing with no input (about 20,000 spikes/s), and in some runs the giant fiber keeps firing, so the fly would jump for ever.
+    // Excitatory loops with no adaptation hold it up (tools/after_input.mjs). So a second after an object has gone we clear the brain's state. Stated and counted on the page.
     calm() {
         this.brainBase += this.brain.step_count(); this.brain.reset(); this.calmAt = null; this.calms = (this.calms || 0) + 1;
         for (const g of this.groups) g.rate = 0;
@@ -124,7 +125,7 @@ export class Day {
     applyEye(side, hz) { if (this.input[side] === hz) return; this.input[side] = hz; for (const i of this.eye[side]) this.brain.set_rate(i, hz); }
 
     addFood(x, y, r = 0.45, amount = 1) { this.foods.push({ x, y, r, amount }); }
-    // an object coming down at the fly, from a side given by az (rad from straight above, in the table's frame)
+    // an object coming down at the fly: fromSide is the angle from the fly's heading, positive to its left, 0 = straight above
     swat(fromSide = 0, dist = 30, speed = 30, radius = 3) {
         const f = this.F.freeq, q = this.data.qpos, h = this.life.heading(), a = h + fromSide;
         const tilt = Math.abs(fromSide) > 0 ? 0.8 : 0;

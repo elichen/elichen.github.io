@@ -7,7 +7,7 @@ import { Flyer } from './flyer.js';
 
 const BUDGET = 25, STEP = 1e-4, SLOW = 0.02, BLUR = 12, BLUR_EVERY = 2;
 let timeScale = 1, wings = [], ring = null, ringAt = 0, ctrlCount = 0;
-let w = null, day = null, paused = false, dirty = false, clockStart = 0, simStart = 0, samples = [];
+let w = null, day = null, paused = false, dirty = false, clockStart = 0, simStart = 0, samples = [], spikeTotal = 0, spikeRate = 0;
 
 const get = async url => { const r = await fetch(url); if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`); return r; };
 
@@ -25,6 +25,7 @@ async function load() {
     let loaded = 0;
     const counted = res.body.pipeThrough(new TransformStream({ transform(c, ctl) { loaded += c.length; postMessage({ type: 'progress', loaded, total }); ctl.enqueue(c); } }));
     const bytes = new Uint8Array(await new Response(counted.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+    postMessage({ type: 'building' });
     const module = await WebAssembly.compile(bin);
     const fresh = () => new WebAssembly.Instance(module).exports;
     w = fresh();
@@ -97,9 +98,11 @@ function tick() {
         behind = !paused && lag > 10 * STEP;
         if (lag > 0.25 * timeScale) simStart -= lag;
         const real = performance.now();
-        samples.push([real, now()]);
+        for (const p of out) spikeTotal += p.length / 2;
+        samples.push([real, now(), spikeTotal]);
         while (samples.length > 2 && real - samples[0][0] > 1000) samples.shift();
-        const [r0, s0] = samples[0];
+        const [r0, s0, n0] = samples[0];
+        if (now() > s0) spikeRate = (spikeTotal - n0) / (now() - s0);   // per simulated second; paused, the last value stays
         const speed = real > r0 ? (now() - s0) / ((real - r0) / 1000) / timeScale : 1;
         let len = 0;
         for (const p of out) len += p.length;
@@ -108,7 +111,7 @@ function tick() {
         for (const p of out) { spikes.set(p, o); o += p.length; }
         const d = day.data, xpos = Float64Array.from(d.geom_xpos), xmat = Float64Array.from(d.geom_xmat), blur = ring.slice(), L = day.life;
         const flapping = L.mode !== 'walk' && L.mode !== 'rear' && L.mode !== 'touch';
-        postMessage({ type: 'spikes', spikes, t: now(), speed, active: w.active(), xpos, xmat, fly: day.F.position(),
+        postMessage({ type: 'spikes', spikes, t: now(), speed, spikeRate, xpos, xmat, fly: day.F.position(),
             mode: L.mode, hunger: day.hunger, bored: day.bored, goal: day.goal && { x: day.goal.x, y: day.goal.y, why: day.goal.why }, eating: !!day.eating,
             foods: day.foods.map(f => [f.x, f.y, f.r, f.amount]), object: day.object && { p: day.object.p, v: day.object.v, radius: day.object.radius, hit: day.object.hit },
             rates: { oDN1: day.oDN1.rate, GF: day.GF.rate, MN9: day.mouth.MN9.rate, dnL: day.dnL.rate, dnR: day.dnR.rate },

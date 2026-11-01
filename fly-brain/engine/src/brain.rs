@@ -84,6 +84,8 @@ pub struct Brain {
     /// Poisson rate per neuron (Hz); nonzero = excited
     pub rate: Vec<f64>,
     excited: Vec<u32>,
+    /// `excited` is out of date: rebuilt once at the next step, so setting a whole set of neurons stays cheap
+    excited_stale: bool,
     queue: Vec<Vec<u32>>,
     active: Vec<u32>,
     pub full: bool,
@@ -175,6 +177,7 @@ impl Brain {
             cells: vec![rest_cell; n],
             rate: vec![0.0; n],
             excited: Vec::new(),
+            excited_stale: false,
             queue: (0..SLOTS).map(|_| Vec::new()).collect(),
             active: Vec::new(),
             full: false,
@@ -211,9 +214,11 @@ impl Brain {
         self.catch_up(i, self.step_n - 1);
         self.rate[i] = hz;
         let c = &mut self.cells[i];
+        if c.excited != (hz > 0.0) {
+            self.excited_stale = true;
+        }
         c.excited = hz > 0.0;
         c.rfc = if c.excited { 0 } else { RFC as u8 };
-        self.excited = (0..self.n as u32).filter(|&j| self.rate[j as usize] > 0.0).collect();
     }
 
     /// Shiu's silencing: every synapse out of the neuron has weight 0.
@@ -224,6 +229,13 @@ impl Brain {
     /// Refractory period in steps (parity runs: Poisson targets get 0 without a rate).
     pub fn set_rfc(&mut self, i: usize, steps: u8) {
         self.cells[i].rfc = steps;
+    }
+
+    fn refresh_excited(&mut self) {
+        if self.excited_stale {
+            self.excited_stale = false;
+            self.excited = (0..self.n as u32).filter(|&j| self.rate[j as usize] > 0.0).collect();
+        }
     }
 
     fn rand(&mut self) -> f64 {
@@ -290,6 +302,7 @@ impl Brain {
 
     /// One 0.1 ms step with Poisson input. Returns the neurons that spiked.
     pub fn step(&mut self) -> &[u32] {
+        self.refresh_excited();
         let mut hit = Vec::new();
         for k in 0..self.excited.len() {
             let i = self.excited[k];
@@ -303,6 +316,7 @@ impl Brain {
 
     /// One step with the given Poisson kicks (for parity runs fed Brian's own input).
     pub fn step_with(&mut self, kicks: &[u32]) {
+        self.refresh_excited();
         let n = self.step_n;
         let v_th = self.p.v_th;
         self.spikes.clear();

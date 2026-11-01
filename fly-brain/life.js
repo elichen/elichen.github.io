@@ -36,6 +36,7 @@ export class Life {
         d.qpos.set(save); mujoco.mj_forward(m, d);
         this.mode = 'walk'; this.t = 0; this.aborts = 0;
         this.noContact = mujoco.mjtDisableBit.mjDSBL_CONTACT.value; this.contactOff = false;
+        this.rnd = Math.random;            // Day passes its own, so that a seed repeats a day
         this.speed = 0; this.yaw = 0;      // what walking or flying is asked to do now
         this.cruise = 1;                   // height flying aims at, cm above the table
     }
@@ -100,7 +101,7 @@ export class Life {
             if (this.t >= TO.pre) {
                 if (this.pitch() > -TO.minPitch * DEG) { this.aborts++; this.startWalking(); return FLY_DT; }
                 this.set = this.legs.map(l => d.ctrl[l.a]);
-                this.p0 = this.pitch(); this.pathFromHere(this.p0, Math.random()); this.h0 = F.height;
+                this.p0 = this.pitch(); this.pathFromHere(this.p0, this.rnd()); this.h0 = F.height;
                 this.mode = 'launch'; this.t = 0;
             }
             return FLY_DT;
