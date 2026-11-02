@@ -2,6 +2,7 @@
 //! page (as WebAssembly, see `wasm.rs`) and the native check tools in src/bin.
 #![allow(clippy::needless_range_loop)]
 pub mod brain;
+pub mod circuit;
 pub mod behavior;
 pub mod body;
 pub mod frame;

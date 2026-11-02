@@ -146,6 +146,8 @@ pub struct Brain {
     d: Vec<f64>,
     rhs: Vec<f64>,
     pub soma: Vec<usize>,
+    /// cell of each node (solver order)
+    pub cell_of: Vec<u32>,
     soma_area: Vec<f64>,
     gbar: Vec<[f64; N_CHANNELS]>,
     st: Vec<SomaState>,
@@ -204,6 +206,7 @@ impl Brain {
             d: vec![0.0; n],
             rhs: vec![0.0; n],
             soma: Vec::with_capacity(nc),
+            cell_of: vec![],
             soma_area: Vec::with_capacity(nc),
             gbar: Vec::with_capacity(nc),
             st: vec![SomaState::default(); nc],
@@ -254,6 +257,16 @@ impl Brain {
         b.epas = perm(&b.epas);
         b.gax = perm(&b.gax);
         b.parent = order.iter().map(|&i| if b.parent[i] >= 0 { new_of[b.parent[i] as usize] as i32 } else { -1 }).collect();
+        // cells are stored one after another, each starting at its root
+        let mut cell = vec![0u32; n];
+        let mut c = 0u32;
+        for i in 0..n {
+            if i > 0 && b.parent[new_of[i]] < 0 {
+                c += 1;
+            }
+            cell[i] = c;
+        }
+        b.cell_of = order.iter().map(|&i| cell[i]).collect();
         b.order = order;
         b.set_dt(dt);
         let mut area = vec![0.0; n];
@@ -321,6 +334,76 @@ impl Brain {
 
     pub fn gap_pre_post(&self, k: usize) -> (u32, u32) {
         (self.gj_pre[k], self.gj_post[k])
+    }
+
+    /// wiring controls (ours), the same for a given seed. "rewire": every chemical synapse
+    /// takes another synapse's presynaptic site with its sign and weight, and gap junctions
+    /// swap partners in pairs (a-b, c-d -> a-d, c-b), so each cell keeps its numbers of
+    /// synapses in and out, its junctions and the sites on it; no synapse or junction joins
+    /// a cell to itself. "sign": the excitatory / inhibitory labels are dealt out again over
+    /// the chemical synapses (BAAIWorm signs synapses one by one, not by cell).
+    pub fn shuffle(&mut self, kind: &str, seed: u64) {
+        let mut r = seed.wrapping_mul(0x9E3779B97F4A7C15) | 1;
+        let mut next = |n: usize| {
+            r ^= r << 13;
+            r ^= r >> 7;
+            r ^= r << 17;
+            (r % n as u64) as usize
+        };
+        let cell = |b: &Brain, i: u32| b.cell_of[i as usize];
+        let ns = self.sy_pre.len();
+        match kind {
+            "rewire" => {
+                for k in (1..ns).rev() {
+                    let j = next(k + 1);
+                    self.swap_syn_pre(k, j);
+                }
+                for _ in 0..100 * ns {
+                    let bad: Vec<usize> = (0..ns).filter(|&k| cell(self, self.sy_pre[k]) == cell(self, self.sy_post[k])).collect();
+                    if bad.is_empty() {
+                        break;
+                    }
+                    let (k, j) = (bad[0], next(ns));
+                    if cell(self, self.sy_pre[j]) != cell(self, self.sy_post[k]) && cell(self, self.sy_pre[k]) != cell(self, self.sy_post[j]) {
+                        self.swap_syn_pre(k, j);
+                    }
+                }
+                // gap junctions: one entry per pair (pre < post), swap ends, write both directions
+                let mut pairs: Vec<(u32, u32, f64)> = (0..self.gj_pre.len()).filter(|&k| self.gj_pre[k] < self.gj_post[k]).map(|k| (self.gj_pre[k], self.gj_post[k], self.gj_w[k])).collect();
+                let np = pairs.len();
+                for _ in 0..20 * np {
+                    let (k, j) = (next(np), next(np));
+                    let (a, b2, c, d) = (pairs[k].0, pairs[k].1, pairs[j].0, pairs[j].1);
+                    if k != j && cell(self, a) != cell(self, d) && cell(self, c) != cell(self, b2) {
+                        pairs[k].1 = d;
+                        pairs[j].1 = b2;
+                    }
+                }
+                self.gj_pre = pairs.iter().flat_map(|p| [p.0, p.1]).collect();
+                self.gj_post = pairs.iter().flat_map(|p| [p.1, p.0]).collect();
+                self.gj_w = pairs.iter().flat_map(|p| [p.2, p.2]).collect();
+                self.gj_gain = vec![1.0; self.gj_pre.len()];
+            }
+            "sign" => {
+                for k in (1..ns).rev() {
+                    let j = next(k + 1);
+                    let (ek, ej) = (self.sy_exc[k], self.sy_exc[j]);
+                    let g = |e: bool| if e { EXC_G } else { INH_G };
+                    let (wk, wj) = (self.sy_g[k] / g(ek), self.sy_g[j] / g(ej));
+                    self.sy_exc[k] = ej;
+                    self.sy_exc[j] = ek;
+                    self.sy_g[k] = wk * g(ej);
+                    self.sy_g[j] = wj * g(ek);
+                }
+            }
+            _ => panic!("shuffle {kind}: rewire or sign"),
+        }
+    }
+
+    fn swap_syn_pre(&mut self, k: usize, j: usize) {
+        self.sy_pre.swap(k, j);
+        self.sy_exc.swap(k, j);
+        self.sy_g.swap(k, j);
     }
 
     /// NEURON's finitialize(v0)

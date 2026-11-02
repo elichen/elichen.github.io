@@ -12,6 +12,7 @@
 use crate::behavior::Seek;
 use crate::body::Body;
 use crate::brain::Brain;
+use crate::circuit::Circuit;
 
 pub const INPUT: [&str; 15] = ["AWAL", "AWAR", "AWCL", "AWCR", "ASKL", "ASKR", "ALNL", "ALNR", "PLML", "PHAL", "PHAR", "URYDL", "URYDR", "URYVL", "URYVR"];
 pub const OUTPUT: [&str; 80] = ["RIML", "RIMR", "RMEL", "RMER", "RMED", "RMEV", "RMDDL", "RMDDR", "RMDL", "RMDR", "RMDVL", "RMDVR", "RIVL", "RIVR", "SMDDL", "SMDDR", "SMDVL", "SMDVR", "SMBDL", "SMBDR", "SMBVL", "SMBVR", "DA01", "DA02", "DA03", "DA04", "DA05", "DA06", "DA07", "DA08", "DA09", "DB01", "DB02", "DB03", "DB04", "DB05", "DB06", "DB07", "DD01", "DD02", "DD03", "DD04", "DD05", "DD06", "VA01", "VA02", "VA03", "VA04", "VA05", "VA06", "VA07", "VA08", "VA09", "VA10", "VA11", "VA12", "VB01", "VB02", "VB03", "VB04", "VB05", "VB06", "VB07", "VB08", "VB09", "VB10", "VB11", "VD01", "VD02", "VD03", "VD04", "VD05", "VD06", "VD07", "VD08", "VD09", "VD10", "VD11", "VD12", "VD13"];
@@ -51,6 +52,8 @@ pub struct Worm {
     pub body_steps: usize,
     /// food seeking on agar (behavior.rs) between the brain's muscles and the body
     pub seek: Option<Seek>,
+    /// muscles through the anatomy with proprioception (circuit.rs) instead of the readout
+    pub circuit: Option<Circuit>,
 }
 
 impl Worm {
@@ -82,6 +85,7 @@ impl Worm {
             hold: 1,
             body_steps: BODY_STEPS,
             seek: None,
+            circuit: None,
         };
         w.reset();
         w
@@ -189,7 +193,66 @@ impl Worm {
     }
 
     pub fn control_step(&mut self) {
+        if self.circuit.is_some() {
+            self.circuit_step(true);
+            return;
+        }
         self.think();
         self.moving();
+    }
+
+    /// One control step with `circuit`: sub-steps of brain, then muscles from the motor
+    /// neurons' anatomy, then body, with the bend fed back to the motor neurons before
+    /// each. `move_body` = false runs the brain alone on a straight, held body.
+    pub fn circuit_step(&mut self, move_body: bool) {
+        let mut c = self.circuit.take().expect("circuit");
+        self.step_count += 1;
+        self.stimulus = if self.food.is_some() {
+            self.sense()
+        } else if c.p.cycle {
+            CYCLE[(self.step_count - 1) / self.hold % 20]
+        } else {
+            c.p.tonic
+        };
+        for &i in &self.input_cells {
+            self.brain.iclamp[i] = self.stimulus;
+        }
+        let k = c.substeps;
+        let (ns, bs) = (NEURAL_STEPS / k, self.body_steps / k);
+        let dt = bs as f64 / 240.0;
+        self.motor_v = vec![0.0; 80];
+        let mut cur = [0.0; 80];
+        for _ in 0..k {
+            c.proprio(&self.body.muscle_stretch(), &mut cur);
+            for (j, &i) in self.output_cells.iter().enumerate() {
+                self.brain.iclamp[i] = cur[j];
+            }
+            let mut v = [0.0; 80];
+            for _ in 0..ns {
+                self.brain.step();
+                for (j, &i) in self.output_cells.iter().enumerate() {
+                    v[j] += self.brain.soma_v(i) / ns as f64;
+                }
+            }
+            for j in 0..80 {
+                self.motor_v[j] += v[j] / k as f64;
+            }
+            c.muscles(&v, dt);
+            if move_body {
+                self.muscle.copy_from_slice(&c.act);
+                let head = self.head();
+                match self.seek.as_mut() {
+                    Some(s) => {
+                        let m = s.apply(&self.muscle, &self.body, head, dt);
+                        self.body.act.copy_from_slice(&m);
+                    }
+                    None => self.body.act.copy_from_slice(&self.muscle),
+                }
+                for _ in 0..bs {
+                    self.body.step();
+                }
+            }
+        }
+        self.circuit = Some(c);
     }
 }

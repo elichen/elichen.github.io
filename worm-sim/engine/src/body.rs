@@ -457,6 +457,24 @@ impl Body {
         self.refactor();
     }
 
+    /// Length of each of the 96 muscles against its rest length (fiber-weighted mean of
+    /// |F f| over its fibers; < 1 = shortened), what a stretch receptor along it would feel.
+    pub fn muscle_stretch(&self) -> [f64; 96] {
+        let (mut s, mut w) = ([0.0; 96], [0.0; 96]);
+        for f in &self.fibers {
+            let mut ff = [0.0; 3];
+            for k in 0..4 {
+                ff = add(ff, scale(pt(&self.x, f.idx[k]), f.a[k]));
+            }
+            s[f.seg as usize] += f.w * norm(ff);
+            w[f.seg as usize] += f.w;
+        }
+        for m in 0..96 {
+            s[m] /= w[m].max(1e-12);
+        }
+        s
+    }
+
     /// Crawl on agar with per-vertex drag coefficients c_t (along the body) and c_n
     /// (across it), or swim in SoftCon's water with None.
     pub fn set_agar(&mut self, c: Option<(f64, f64)>) {
