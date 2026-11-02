@@ -36,11 +36,11 @@ function apple(x, y, z, r, color) {
 
 export function buildKitchen(scene) {
     const room = new THREE.Group();
-    scene.background = new THREE.Color('#e8e2d6');
+    scene.background = new THREE.Color('#f4f6f7');
     const top = new THREE.Mesh(new THREE.BoxGeometry(100, 64, 3), std('#ffffff', 0.55, { map: wood(), envMapIntensity: 0.5 }));
     top.position.z = -1.5; top.receiveShadow = true; room.add(top);
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), std('#a79f92', 0.95)); floor.position.z = -75; room.add(floor);
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(800, 300), std('#efe9dc', 0.95)); back.rotation.x = Math.PI / 2; back.position.set(0, 180, 70); room.add(back);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), std('#d9dcdc', 0.95)); floor.position.z = -75; room.add(floor);
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(800, 300), std('#f7f8f8', 0.95)); back.rotation.x = Math.PI / 2; back.position.set(0, 180, 70); room.add(back);
     const glassM = new THREE.MeshPhysicalMaterial({ color: '#f4f8f6', roughness: 0.05, transmission: 0, transparent: true, opacity: 0.28, depthWrite: false });
     // fruit bowl, centre back: fly goals stay out of everything here (day.js TABLE plus KEEP_OUT)
     const bowl = lathe([[0.01, 0], [5, 0], [7, 0.5], [11, 3.2], [13, 6.5], [12.6, 6.6], [10.6, 3.6], [6.5, 1.1], [0.01, 0.9]], std('#2f5e74', 0.25));

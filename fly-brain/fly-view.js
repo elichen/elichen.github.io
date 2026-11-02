@@ -38,6 +38,7 @@ export class FlyView {
         this.flyAt = null;
         this.drawnAt = performance.now();
         this.parts = [];
+        this.shift = 0; this.shiftNow = 0;
         new ResizeObserver(() => this.resize()).observe(canvas);
         this.resize();
     }
@@ -103,6 +104,14 @@ export class FlyView {
         this.camera.position.x += dx; this.camera.position.y += dy; this.camera.position.z += dz;
     }
 
+    // the fly sits off centre while text covers part of the window
+    applyShift() {
+        this.shiftNow += (this.shift - this.shiftNow) * 0.08;
+        const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+        if (Math.abs(this.shiftNow) < 0.5 && !this.shift) { if (this.camera.view?.enabled) this.camera.clearViewOffset(); return; }
+        this.camera.setViewOffset(w, h, this.shiftNow, 0, w, h);
+    }
+
     resize() {
         const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
         if (!w || !h) return;
@@ -113,6 +122,7 @@ export class FlyView {
 
     render() {
         this.followFly();
+        this.applyShift();
         this.controls.update();
         // the near plane scales with the zoom: a fixed 0.01 cm leaves too little depth precision far out, and the towel and coffee ring flicker through the table
         const near = Math.max(0.01, this.camera.position.distanceTo(this.controls.target) / 100);

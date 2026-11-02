@@ -2,7 +2,7 @@
 const SERIES = [
     { key: 'original', name: 'Original rule', color: '#b7791f', dash: '' },
     { key: 'noSerotonin', name: 'No serotonin synapses', color: '#c2185b', dash: '6 3' },
-    { key: 'adapting', name: 'And adaptation (this page)', color: '#1f6fa8', dash: '' },
+    { key: 'adapting', name: 'No serotonin synapses, with adaptation (this page)', color: '#1f6fa8', dash: '' },
 ];
 const NS = 'http://www.w3.org/2000/svg';
 const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent?.appendChild(e); return e; };
