@@ -179,7 +179,7 @@ pub extern "C" fn agar_on(x: f64, z: f64, seed: f64) {
 #[no_mangle]
 pub extern "C" fn seek_food(x: f64, z: f64) {
     if let Some(s) = worm().seek.as_mut() {
-        s.food = [x, 0.0, z];
+        s.move_food([x, 0.0, z]);
     }
 }
 

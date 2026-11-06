@@ -182,6 +182,17 @@ impl Seek {
         (-2.0 * u.ln()).sqrt() * (2.0 * std::f64::consts::PI * v).cos()
     }
 
+    /// Moves the food. The worm smells the new field fresh: without this the jump in
+    /// concentration reads as a huge dC/dt (a weathervane bias ~100x normal that
+    /// saturates the head muscles, then a pirouette).
+    pub fn move_food(&mut self, food: [f64; 3]) {
+        self.food = food;
+        self.started = false;
+        self.dcdt = 0.0;
+        self.dcdt_slow = 0.0;
+        self.bias = 0.0;
+    }
+
     /// concentration (mM) at p, from the in-plane distance to the food
     pub fn conc(&self, p: [f64; 3]) -> f64 {
         if self.p.plane != 0.0 {

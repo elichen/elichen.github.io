@@ -53,7 +53,8 @@ canvas.addEventListener('webglcontextlost', () => {
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(38, 1, 0.005, 400);
-camera.position.set(0.25, 0.42, -0.3);
+const CLOSE = 0.7; // close-up distance (landscape), far enough to show the whole worm
+camera.position.set(0.25, 0.42, -0.3).setLength(CLOSE);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.minDistance = 0.08;
@@ -622,7 +623,7 @@ function flyTo(dist, elev) {
 }
 $('overview').addEventListener('click', () => {
   const far = camera.position.distanceTo(controls.target) > 6;
-  flyTo(far ? 0.55 : 2.6 * PLATE_R * (innerWidth < innerHeight ? 1.6 : 1), far ? 0.85 : 1.45);
+  flyTo(far ? CLOSE * resize.far : 2.6 * PLATE_R * (innerWidth < innerHeight ? 1.6 : 1), far ? 0.85 : 1.45);
   $('overview').textContent = far ? 'Whole plate' : 'Close up';
 });
 
@@ -664,6 +665,13 @@ function resize() {
     camera.position.copy(controls.target).add(off);
     resize.far = far;
   }
+  // put the worm in the middle of the space the cards leave free: between them
+  // side by side, or between top and bottom card on a phone
+  const a = $('intro').getBoundingClientRect(), b = $('side').getBoundingClientRect();
+  let cx = w / 2, cy = h / 2;
+  if (a.right > b.left) cy = Math.max(a.bottom, Math.min(b.top, (a.bottom + b.top) / 2));
+  else cx = (a.right + b.left) / 2;
+  camera.setViewOffset(w, h, w / 2 - cx, h / 2 - cy, w, h);
   for (const c of [muscleCanvas, rasterCanvas, inputCanvas]) {
     c.width = Math.max(1, c.clientWidth * devicePixelRatio);
     c.height = Math.max(1, c.clientHeight * devicePixelRatio);
