@@ -59,6 +59,7 @@ const DODGE = 60, REFRACTORY = 0.3, SACCADE_PEAK = 43, SD = 0.04 / 2.355;
 const LOOM_HZ = 100, LOOM_FULL = 2, FRONT = 0.25;   // full rate at 2 rad/s: looming neurons respond well before contact (our choice)
 const TURN_WALK = 4, TURN_FLY = 8, WALK_RAMP = 2;
 const EXTEND = { rostrum: -1, haustellum: -1, labrum_left: 1, labrum_right: 1 };
+const TILTED = 0.8;                      // up (cos of the body's tilt) below which a walking fly is not on its feet; walking stays above it
 const clamp = (x, a) => Math.max(-a, Math.min(a, x));
 // Each spike raises a neuron's threshold by 0.05 mV, decaying over 200 ms. Not in Shiu's model. Without it, looms left the model firing for ever in 5 of 6 runs; with it, in 0 of 192 (several inputs, 1 and 5 s). Our choice, by a sweep.
 export const ADAPT = { step: 0.05, tau: 200 };
@@ -100,7 +101,7 @@ export class Day {
         this.t = this.t ?? 0; this.bodyAhead = 0;
         this.hunger = this.hunger ?? 0.4; this.bored = this.bored ?? 0;
         this.goal = null; this.walking = false; this.eating = null; this.v = 0; this.setP9(0); this.setSugar(false);
-        this.saccade = null; this.upsideDown = 0; this.retry = 0;
+        this.saccade = null; this.upsideDown = 0; this.tilted = 0; this.retry = 0;
         this.object = null; this.prevSize = null; this.applyEye('left', 0); this.applyEye('right', 0);
     }
 
@@ -240,7 +241,9 @@ export class Day {
         // put back: the policies can't right a fly on its back, or catch a tumble. Stated and counted on the page.
         const bad = !Number.isFinite(d.qpos[f]) || life.up() < 0.2 || p[2] < -0.2 || p[2] > 40 || (life.mode === 'fly' && life.t > 0.5 && p[2] < 0.25);
         this.upsideDown = Math.max(0, this.upsideDown + (bad ? dt : -dt / 3));      // a tumble flickers through upright: this adds it up
-        if (this.upsideDown > 0.4 || !Number.isFinite(d.qpos[f])) {
+        // a called-off rear-up can also leave it on its side or sitting back (up 0.3-0.7): the walking policy never stands up from there. Walking keeps up > 0.8.
+        this.tilted = life.mode === 'walk' && life.up() < TILTED ? this.tilted + dt : 0;
+        if (this.upsideDown > 0.4 || this.tilted > 1 || !Number.isFinite(d.qpos[f])) {
             this.putBacks = (this.putBacks || 0) + 1;
             const ok = Number.isFinite(d.qpos[f]) && isClear(p[0], p[1]) && Math.abs(p[0]) < TABLE.x && Math.abs(p[1]) < TABLE.y, s = ok ? null : this.somewhere('');
             this.reset(ok ? p[0] : s.x, ok ? p[1] : s.y, this.rnd() * 6.28);

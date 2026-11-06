@@ -161,8 +161,8 @@
 
         <section class="room" id="day">
         <h2>A day, in numbers</h2>
-        <p>We made six runs of five simulated minutes with no swatter (<code>node tools/day.mjs body 300</code>). A run has about 10 flights, 7 meals, and 2 takeoffs that the fly canceled because the nose was not up. In each run we also had to put the fly back on its feet: 3 times on average, from 1 to 6.</p>
-        <p>When the fly falls on its back, it cannot stand up again. Neither policy learned this, so after 0.4 s we put the fly back on its feet, and the page counts each time. Of those 18 falls, 11 were rear-ups that tipped over, 5 happened in flight and 2 on the way down. We tried to stop a rear-up when it started to tip, but this did not help: the fly fell anyway.</p>
+        <p>We made six runs of five simulated minutes with no swatter (<code>node tools/day.mjs body 300</code>). A run has about 11 flights, 7 meals, and 2 or 3 takeoffs that the fly canceled because the nose was not up. In each run we also had to put the fly back on its feet: 3.5 times on average, from 1 to 7.</p>
+        <p>When the fly falls on its back, it cannot stand up again. Neither policy learned this, so after 0.4 s we put the fly back on its feet, and the page counts each time. A canceled rear-up can also leave the fly on its side or sitting back on its abdomen. The walking policy cannot stand up from there either, so after 1 s we also put it back. Before we added this rule, the fly stayed down for minutes in 3 of the 6 runs. Of those 21 falls, 15 were rear-ups that tipped over, 5 happened in flight (4 of them just after takeoff) and 1 on the way down. We tried to stop a rear-up when it started to tip, but this did not help: the fly fell anyway.</p>
         </section>
 
         <section class="room" id="model" data-room="brain">
