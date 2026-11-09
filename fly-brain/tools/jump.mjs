@@ -1,5 +1,7 @@
 // Takeoff with no new policy: on the floor, the legs push by a stated rule while flybody's flight policy runs the wings from the first
 // moment, on a path that starts at the fly's own pose and blends into cruise. Searches the push.
+// History: this search used the first rear-up, with fixed joint targets (pamp). life.js now solves the rear-up's posture from where the feet stand
+// (Life.rearPose); the push it found (T, rise, t0, tp, amp) is still the page's. tools/rear.mjs tests the takeoff as the page does it.
 //   node tools/jump.mjs <full body dir> [samples] [seed]
 import fs from 'node:fs'; import loadMujoco from '@mujoco/mujoco';
 import { Walker, WasmPolicy } from '../walker.js';

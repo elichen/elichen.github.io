@@ -117,7 +117,7 @@ function build(n) {
     camera.userData.size = [box[0][1] - box[0][0], box[1][1] - box[1][0]];
     // where each named group sits in the view, for its label's line
     const where = cells => { const c = new THREE.Vector3(); for (const i of cells) c.add(new THREE.Vector3(v[3 * i], v[3 * i + 1], v[3 * i + 2])); return c.divideScalar(cells.length); };
-    spots = { oDN1: where(n.life.oDN1), MN9: where(n.life.MN9), GF: where(n.life.GF), dnL: where(n.named.DNp03.left), dnR: where(n.named.DNp03.right) };
+    spots = { oDN1: where(n.life.oDN1), MN9: where(n.life.MN9), GF: where(n.life.GF), slow: where([...n.named.DNp04.left, ...n.named.DNp04.right, ...n.named.DNp11.left, ...n.named.DNp11.right]), dnL: where(n.named.DNp03.left), dnR: where(n.named.DNp03.right) };
     resize();
 }
 
@@ -238,7 +238,7 @@ function onSpikes(m) {
 }
 
 const SAY = {
-    walk: m => m.eating ? 'The fly eats. Sugar decreases the firing of oDN1, and the mouth reaches down.' : m.goal ? (m.goal.why === 'hunger' ? 'The fly is hungry. It walks to the sugar.' : m.goal.why === 'escape' ? 'The fly moves away.' : 'The fly is bored. It walks to a new place.') : 'The fly stands.',
+    walk: m => m.perched ? 'The fly stands on something. It will leave by air.' : m.eating ? 'The fly eats. Sugar decreases the firing of oDN1, and the mouth reaches down.' : m.goal ? (m.goal.why === 'hunger' ? 'The fly is hungry. It walks to the sugar.' : m.goal.why === 'escape' ? 'The fly moves away.' : 'The fly is bored. It walks to a new place.') : 'The fly stands.',
     rear: () => 'The fly rears up to jump.', launch: () => 'The fly takes off.', touch: () => 'The fly touches the table. The wings shut.',
     fly: m => m.goal?.why === 'hunger' ? 'The fly is hungry. It flies to the sugar.' : m.goal?.why === 'escape' ? 'The fly moves away.' : 'The fly is bored. It flies to a new place.', descend: () => 'The fly lands.',
 };

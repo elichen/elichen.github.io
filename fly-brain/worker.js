@@ -4,6 +4,7 @@ import loadMujoco from 'https://cdn.jsdelivr.net/npm/@mujoco/mujoco@3.14.0/mujoc
 import { Day } from './day.js';
 import { Walker, WasmPolicy } from './walker.js';
 import { Flyer } from './flyer.js';
+import { addThings } from './things.js';
 
 const BUDGET = 25, STEP = 1e-4, SLOW = 0.02, BLUR = 12, BLUR_EVERY = 2;
 let timeScale = 1, wings = [], ring = null, ringAt = 0, ctrlCount = 0;
@@ -34,7 +35,7 @@ async function load() {
     const n = w.init(p, bytes.length, (Math.random() * 2 ** 32) >>> 0);
     const vfs = new mujoco.MjVFS();
     for (const [name, b] of Object.entries(files)) vfs.addBuffer(name, b);
-    const m = mujoco.MjModel.from_xml_string(xml, vfs), d = new mujoco.MjData(m);
+    const m = mujoco.MjModel.from_xml_string(addThings(xml), vfs), d = new mujoco.MjData(m);
     vfs.delete();
     const walker = new Walker(mujoco, m, d, wm, new WasmPolicy(fresh(), new Float32Array(wp)));
     const flyer = new Flyer(mujoco, m, d, fm, new WasmPolicy(fresh(), new Float32Array(fp), [104, 256, 2, 12]));
@@ -112,9 +113,9 @@ function tick() {
         const d = day.data, xpos = Float64Array.from(d.geom_xpos), xmat = Float64Array.from(d.geom_xmat), blur = ring.slice(), L = day.life;
         const flapping = L.mode !== 'walk' && L.mode !== 'rear' && L.mode !== 'touch';
         postMessage({ type: 'spikes', spikes, t: now(), speed, spikeRate, xpos, xmat, fly: day.F.position(),
-            mode: L.mode, hunger: day.hunger, bored: day.bored, goal: day.goal && { x: day.goal.x, y: day.goal.y, why: day.goal.why }, eating: !!day.eating,
+            mode: L.mode, perched: L.mode === 'walk' && L.floor > 0, hunger: day.hunger, bored: day.bored, goal: day.goal && { x: day.goal.x, y: day.goal.y, why: day.goal.why }, eating: !!day.eating,
             foods: day.foods.map(f => [f.x, f.y, f.r, f.amount]), object: day.object && { p: day.object.p, v: day.object.v, radius: day.object.radius, hit: day.object.hit },
-            rates: { oDN1: day.oDN1.rate, GF: day.GF.rate, MN9: day.mouth.MN9.rate, dnL: day.dnL.rate, dnR: day.dnR.rate },
+            rates: { oDN1: day.oDN1.rate, GF: Math.max(day.gfL.rate, day.gfR.rate), slow: Math.max(day.slowL.rate, day.slowR.rate), MN9: day.mouth.MN9.rate, dnL: day.dnL.rate, dnR: day.dnR.rate },
             counts: { putBacks: day.putBacks || 0, jumps: day.jumps || 0, hits: day.hits || 0 }, blur: timeScale === 1 && flapping ? blur : null, slow: timeScale < 1, flapping, wingHz: day.F.freq }, [spikes.buffer, xpos.buffer, xmat.buffer, blur.buffer]);
     }
     if (behind) soon.port2.postMessage(0); else setTimeout(tick, 8);

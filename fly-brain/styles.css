@@ -68,6 +68,7 @@ nav.site a { text-decoration: none; }
 .prose th:first-child, .prose td:first-child { text-align: left; padding-left: 0; }
 .prose th { font-weight: 600; font-size: 13px; color: var(--ink-2); }
 .prose td.word, .prose th.word, .prose table.text th, .prose table.text td { text-align: left; }
+.prose table:not(.text) td:not(:first-child):not(.word) { white-space: nowrap; }   /* a pair such as 158 / 0 stays on one line */
 .prose .note { font-size: 15px; line-height: 1.5; color: var(--ink-2); }
 code { font: 0.82em ui-monospace, SFMono-Regular, Menlo, monospace; }
 a.cite { color: var(--ink-3); text-decoration: none; font: 0.8em var(--sans); white-space: nowrap; }

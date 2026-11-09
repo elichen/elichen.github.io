@@ -8,7 +8,7 @@
 
 export const CONTROL_STEPS = 10;   // physics steps per control step (0.2 ms, 2 ms)
 export const CONTROL_DT = 0.002;
-const PREVIEW = 65, HEIGHT = 0.1278;
+const PREVIEW = 65, HEIGHT = 0.1278;   // HEIGHT: the thorax above the ground it walks on
 
 export class WalkPolicy {
     // weights: flat Float32Array as written by tools/walk_ref.py
@@ -121,6 +121,7 @@ export class Walker {
         this.obs = new Float32Array(741);
         this.speed = 2; this.yaw = 0;
         this.ref = { x: 0, y: 0, heading: 0 };
+        this.floor = 0;   // height of the flat ground under the feet: the table, or the top of something on it
     }
 
     // state as recorded in Python (or meta.qpos0)
@@ -167,7 +168,7 @@ export class Walker {
         let { x, y, heading: th } = this.ref;
         const quats = [];
         for (let k = 0; k < PREVIEW; k++) {
-            local(x - d.qpos[this.freeq], y - d.qpos[this.freeq + 1], HEIGHT - d.qpos[this.freeq + 2]);
+            local(x - d.qpos[this.freeq], y - d.qpos[this.freeq + 1], HEIGHT + this.floor - d.qpos[this.freeq + 2]);
             quats.push(quatMul(conj, [Math.cos(th / 2), 0, 0, Math.sin(th / 2)]));
             x += this.speed * dt * Math.cos(th); y += this.speed * dt * Math.sin(th); th += this.yaw * dt;
         }

@@ -1,6 +1,7 @@
-// The kitchen table: only pictures. The fly's physics knows the flat tabletop and nothing else, so its goals and paths stay clear of what stands here.
+// The kitchen table, as a picture. things.js places what stands on it, and gives the same things to the fly's physics.
 // Sizes in cm, z up; the table top is z = 0.
 import * as THREE from 'three';
+import { THINGS as T } from './things.js';
 
 const std = (color, roughness = 0.6, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, ...extra });
 const place = (mesh, x, y, z = 0) => { mesh.position.set(x, y, z); mesh.castShadow = mesh.receiveShadow = true; return mesh; };
@@ -43,26 +44,29 @@ export function buildKitchen(scene) {
     const back = new THREE.Mesh(new THREE.PlaneGeometry(800, 300), std('#f7f8f8', 0.95)); back.rotation.x = Math.PI / 2; back.position.set(0, 180, 70); room.add(back);
     const glassM = new THREE.MeshPhysicalMaterial({ color: '#f4f8f6', roughness: 0.05, transmission: 0, transparent: true, opacity: 0.28, depthWrite: false });
     // fruit bowl, centre back: fly goals stay out of everything here (day.js TABLE plus KEEP_OUT)
-    const bowl = lathe([[0.01, 0], [5, 0], [7, 0.5], [11, 3.2], [13, 6.5], [12.6, 6.6], [10.6, 3.6], [6.5, 1.1], [0.01, 0.9]], std('#2f5e74', 0.25));
-    room.add(place(bowl, 2, -3));
-    room.add(apple(-1.5, -5, 4.3, 3.6, '#a8231f'), apple(5.5, -4.5, 4.3, 3.5, '#c2a52a'), apple(2, 0, 4.4, 3.6, '#8f2a22'));
+    const bowl = lathe([[0.01, 0], ...T.bowl.wall, [12.6, 6.6], [10.6, 3.6], [6.5, 1.1], [0.01, 0.9]], std('#2f5e74', 0.25));
+    room.add(place(bowl, T.bowl.x, T.bowl.y));
+    T.apples.forEach(([x, y, z, r], i) => room.add(apple(x, y, z, r, ['#a8231f', '#c2a52a', '#8f2a22'][i])));
     // mug
-    const mug = lathe([[0.01, 0], [3.8, 0], [4, 0.3], [4, 8.8], [3.65, 8.8], [3.65, 0.8], [0.01, 0.8]], std('#e9e3d2', 0.3));
-    const handle = new THREE.Mesh(new THREE.TorusGeometry(2, 0.42, 14, 40), std('#e9e3d2', 0.3)); handle.rotation.x = Math.PI / 2; handle.position.set(4.6, 0, 4.5); handle.castShadow = true;
+    const M = T.mug, H = M.handle;
+    const mug = lathe([[0.01, 0], [M.r - 0.2, 0], [M.r, 0.3], [M.r, M.h], [3.65, M.h], [3.65, 0.8], [0.01, 0.8]], std('#e9e3d2', 0.3));
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(H.r, H.thick, 14, 40), std('#e9e3d2', 0.3)); handle.rotation.x = Math.PI / 2; handle.position.set(H.out, 0, H.z); handle.castShadow = true;
     const coffee = new THREE.Mesh(new THREE.CircleGeometry(3.65, 40), std('#2a1609', 0.12)); coffee.position.z = 7.5;
-    const mugG = new THREE.Group(); mugG.add(mug, handle, coffee); mugG.position.set(-33, 16, 0); room.add(mugG); mug.castShadow = true;
+    const mugG = new THREE.Group(); mugG.add(mug, handle, coffee); mugG.position.set(M.x, M.y, 0); room.add(mugG); mug.castShadow = true;
     // a plate with crumbs, a knife, a jam jar
-    const plate = lathe([[0.01, 0], [6, 0], [10, 1], [11, 1.5], [10.8, 1.65], [9.8, 1.2], [6, 0.35], [0.01, 0.35]], std('#f5f2ea', 0.25));
-    room.add(place(plate, 28, 13));
-    for (let i = 0; i < 40; i++) { const c = new THREE.Mesh(new THREE.DodecahedronGeometry(0.1 + Math.random() * 0.2), std('#b98a4e', 0.9)); const a = Math.random() * 6.28, r = Math.random() * 5; c.position.set(28 + r * Math.cos(a), 13 + r * Math.sin(a), 0.42); room.add(c); }
+    const plate = lathe([[0.01, 0], ...T.plate.wall, [9.8, 1.2], [6, 0.35], [0.01, 0.35]], std('#f5f2ea', 0.25));
+    room.add(place(plate, T.plate.x, T.plate.y));
+    for (let i = 0; i < 40; i++) { const c = new THREE.Mesh(new THREE.DodecahedronGeometry(0.1 + Math.random() * 0.2), std('#b98a4e', 0.9)); const a = Math.random() * 6.28, r = Math.random() * 5; c.position.set(T.plate.x + r * Math.cos(a), T.plate.y + r * Math.sin(a), 0.42); room.add(c); }
     const knife = new THREE.Group();
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(11, 1.5, 0.08), std('#cfd3d6', 0.2, { metalness: 0.9 })); blade.position.x = 5.5;
-    const hilt = new THREE.Mesh(new THREE.CapsuleGeometry(0.55, 8, 8, 16), std('#3a2a1e', 0.5)); hilt.rotation.z = Math.PI / 2; hilt.position.x = -4;
-    blade.castShadow = hilt.castShadow = true; knife.add(blade, hilt); knife.position.set(34, -7, 0.55); knife.rotation.z = 1.25; room.add(knife);
-    const jar = lathe([[0.01, 0], [3.4, 0], [3.6, 0.5], [3.6, 7], [3, 8], [3, 9], [0.01, 9]], glassM); room.add(place(jar, 36, -19));
+    const K = T.knife;
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(...K.blade), std('#cfd3d6', 0.2, { metalness: 0.9 })); blade.position.x = K.blade[0] / 2;
+    const hilt = new THREE.Mesh(new THREE.CapsuleGeometry(K.hilt[0], K.hilt[1], 8, 16), std('#3a2a1e', 0.5)); hilt.rotation.z = Math.PI / 2; hilt.position.x = -K.hilt[1] / 2;
+    blade.castShadow = hilt.castShadow = true; knife.add(blade, hilt); knife.position.set(K.x, K.y, K.z); knife.rotation.z = K.turn; room.add(knife);
+    const J = T.jar;
+    const jar = lathe([[0.01, 0], [3.4, 0], [J.r, 0.5], [J.r, 7], [3, 8], [3, 9], [0.01, 9]], glassM); room.add(place(jar, J.x, J.y));
     jar.castShadow = false;
-    const jam = lathe([[0.01, 0.2], [3.3, 0.2], [3.3, 5.5], [0.01, 5.5]], std('#6d1329', 0.3)); room.add(place(jam, 36, -19));
-    const lid = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 1.2, 40), std('#c6c1b4', 0.3, { metalness: 0.6 })); lid.rotation.x = Math.PI / 2; room.add(place(lid, 36, -19, 9.6));
+    const jam = lathe([[0.01, 0.2], [3.3, 0.2], [3.3, 5.5], [0.01, 5.5]], std('#6d1329', 0.3)); room.add(place(jam, J.x, J.y));
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 1.2, 40), std('#c6c1b4', 0.3, { metalness: 0.6 })); lid.rotation.x = Math.PI / 2; room.add(place(lid, J.x, J.y, J.h - 0.6));
     // a tea towel at the corner, and an old coffee ring
     const tc = document.createElement('canvas'); tc.width = 512; tc.height = 360;
     const tg = tc.getContext('2d'); tg.fillStyle = '#e6e1d3'; tg.fillRect(0, 0, 512, 360); tg.fillStyle = 'rgba(52,84,110,0.75)';

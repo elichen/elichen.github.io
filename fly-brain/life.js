@@ -1,20 +1,24 @@
 // One fly's whole day on one body: walk (flybody's walking policy), take off, fly (flybody's flight policy), land, walk again.
 // The two policies are unchanged and neither was trained for the handovers. The handovers are stated rules, here:
-// takeoff = the legs rear the body up with the wings shut, then push while the flight policy runs the wings on a path that starts
-// at the fly's own pose and blends into cruise. It cannot catch a level body (tools/catch.mjs: from 10 deg nose-up yes, from 0 no).
+// takeoff = the legs rear the body up with the wings shut and the feet where they stand, then push while the flight policy runs the wings
+// on a path that starts at the fly's own pose and blends into cruise. It cannot catch a level body (tools/catch.mjs: from 10 deg nose-up yes, from 0 no).
 // A fly that is not nose-up after the rear-up does not launch. Landing = the path sinks to the floor, slows, legs reach out;
 // on first touch the wings shut and the walking policy takes over.
 import { CONTROL_DT as FLY_DT } from './flyer.js';
 import { CONTROL_DT as WALK_DT } from './walker.js';
 
-export const TAKEOFF = { pre: 0.0977, pamp: [0.8887, 0.1825, -1.2234], T: 0.0587, rise: 0.3675, t0: 0.0201, tp: 0.00535, amp: [0, 0.5462, 0.6799], minPitch: 12 };
+// rear-up: `pre` s to pitch the body `angle` deg nose-up and lift it `lift` cm on the feet where they stand (rearPose); then the push (T, rise, t0, tp, amp; by random search)
+export const TAKEOFF = { pre: 0.0977, angle: 40, lift: 0.04, T: 0.0587, rise: 0.3675, t0: 0.0201, tp: 0.00535, amp: [0, 0.5462, 0.6799], minPitch: 12 };
+// the giant fiber's jump: a much shorter rear-up. Real flies have a slow voluntary takeoff and a fast escape too (von Reyn et al. 2014). In 35 ms the body gets to about 31 deg of the 65 asked.
+// tools/rear.mjs, takeoffs that flew: 40 deg in 98 ms 300 of 300; 65 deg in 35 ms 100 of 100; 80 deg in 20 ms 96 of 100
+export const ESCAPE = { pre: 0.035, angle: 65 };
 // the path: fall from cruise at `rate` cm/s to `near` cm, still flying forward; brake to a hover over `slow` s, nose down to `pitch`; hold; sink to `floor` over `sink` s
 // rate: at 8 cm/s the flight policy lost control in 7 of 9 long descents and fell; at 3-5 cm/s, 0 of 28
-// the giant fiber's jump: a much shorter rear-up. Real flies have a slow voluntary takeoff and a fast escape too (von Reyn et al. 2014). 35 ms: 4 of 40 hits from the right at 30 cm/s, where 98 ms had 32; used for every takeoff it causes about 5x the called-off launches, so only here
-export const ESCAPE_PRE = 0.035;
 export const LANDING = { rate: 4, near: 0.8, slow: 0.5, hold: 0.1, sink: 0.6, pitch: 35, floor: 0.2, legs: 0.2, still: 0.5, wait: 1 };
 const CRUISE = -47.5 * Math.PI / 180, DEG = Math.PI / 180, WALK_H = 2e-4, FLY_H = 5e-5, CLIMB = 8;
 const smooth = x => { const u = Math.min(1, Math.max(0, x)); return u * u * (3 - 2 * u); };
+const det3 = M => M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1]) - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0]) + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]);
+const solve3 = (A, e) => { const D = det3(A); return [0, 1, 2].map(n => det3(A.map((row, r) => row.map((v, c) => (c === n ? e[r] : v)))) / D); };   // Cramer's rule
 
 export class Life {
     constructor(mujoco, model, data, walker, flyer, takeoff = TAKEOFF, landing = LANDING) {
@@ -23,8 +27,12 @@ export class Life {
         const act = n => mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR.value, n);
         this.legs = [...Array(m.njnt).keys()].filter(j => /coxa|femur|tibia|tarsus/.test(nm(j) || '')).map(j => {
             const n = nm(j), p = m.jnt_qposadr[j];
-            return { n, q: p, a: act(n), pair: /T1/.test(n) ? 0 : /T2/.test(n) ? 1 : 2, coxa: /coxa/.test(n), tuck: m.qpos_spring[p] * 0.6, rest: m.qpos0[p] };
+            const pair = /T1/.test(n) ? 0 : /T2/.test(n) ? 1 : 2, a = act(n);
+            return { n, q: p, a, pair, leg: 2 * pair + (/left/.test(n) ? 0 : 1), coxa: /coxa/.test(n), tuck: m.qpos_spring[p] * 0.6, rest: m.qpos0[p], lo: a >= 0 ? m.actuator_ctrlrange[2 * a] : 0, hi: a >= 0 ? m.actuator_ctrlrange[2 * a + 1] : 0 };
         }).filter(l => l.a >= 0);
+        this.feet = ['T1', 'T2', 'T3'].flatMap(t => ['left', 'right'].map(s => mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY.value, `walker/claw_${t}_${s}`)));
+        this.byLeg = this.feet.map((_, k) => this.legs.filter(l => l.leg === k));
+        this.scratch = new mujoco.MjData(m);   // for the kinematics of rearPose
         this.adhere = [...Array(m.nu).keys()].filter(a => /adhere_claw/.test(mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_ACTUATOR.value, a)));
         this.touch = ['T1', 'T2', 'T3'].flatMap(t => ['left', 'right'].map(s => m.sensor_adr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SENSOR.value, `walker/touch_claw_${t}_${s}`)]));
         // +1 if a bigger angle moves the foot away from the thorax, from the rest pose
@@ -41,6 +49,8 @@ export class Life {
         this.rnd = Math.random;            // Day passes its own, so that a seed repeats a day
         this.speed = 0; this.yaw = 0;      // what walking or flying is asked to do now
         this.cruise = 1;                   // height flying aims at, cm above the table
+        this.floor = 0;                    // height of what the feet stand on
+        this.near = null;                  // (x, y, z) => is something solid near? Day sets it when the model has things on the table
     }
 
     pitch() { const f = this.F.freeq, q = this.data.qpos; return Math.asin(Math.max(-1, Math.min(1, 2 * (q[f + 3] * q[f + 5] - q[f + 6] * q[f + 4])))); }
@@ -54,23 +64,63 @@ export class Life {
         if (q[f + 3] * r[0] + q[f + 4] * r[1] + q[f + 5] * r[2] + q[f + 6] * r[3] < 0) for (let i = 3; i < 7; i++) q[f + i] = -q[f + i];
     }
 
+    // Joint angles that pitch the body to `to` rad nose-up and lift it by `lift`, with every foot where it stands now: the same
+    // posture from any stance. (Fixed joint targets tipped the fly over whenever its middle feet stood behind its centre.)
+    // Damped least squares on each leg's 8 driven joints, with the kinematics on scratch data. Returns the change of each joint.
+    rearPose(to, lift) {
+        const { mj, model: m, data: d, scratch: S, legs, feet, byLeg } = this, b = this.F.root, angle = to + this.pitch();   // pitch() is negative nose-up
+        S.qpos.set(d.qpos); mj.mj_kinematics(m, S);
+        const at = () => {      // each foot from the thorax, in the thorax frame
+            const R = S.xmat, X = S.xpos;
+            return feet.map(c => { const v = [0, 1, 2].map(i => X[3 * c + i] - X[3 * b + i]); return [0, 1, 2].map(j => R[9 * b + j] * v[0] + R[9 * b + 3 + j] * v[1] + R[9 * b + 6 + j] * v[2]); });
+        };
+        const R = S.xmat, c = Math.cos(angle), sn = Math.sin(angle);
+        const want = at().map(r => { const v = [r[0] - lift * R[9 * b + 6], r[1] - lift * R[9 * b + 7], r[2] - lift * R[9 * b + 8]]; return [c * v[0] + sn * v[2], v[1], -sn * v[0] + c * v[2]]; });
+        const q0 = legs.map(l => d.qpos[l.q]), H = 1e-3;
+        for (let it = 0; it < 12; it++) {
+            mj.mj_kinematics(m, S);
+            const now = at(), J = byLeg.map(() => []);
+            for (let j = 0; j < 8; j++) {     // the legs do not move each other: one joint of every leg at a time
+                for (const g of byLeg) if (g[j]) S.qpos[g[j].q] += H;
+                mj.mj_kinematics(m, S);
+                const moved = at();
+                byLeg.forEach((g, k) => { if (g[j]) { J[k][j] = [0, 1, 2].map(i => (moved[k][i] - now[k][i]) / H); S.qpos[g[j].q] -= H; } });
+            }
+            byLeg.forEach((g, k) => {     // dq = J' (J J' + damping)^-1 (want - now), no more than 0.2 rad a round
+                const e = [0, 1, 2].map(i => want[k][i] - now[k][i]);
+                const A = [0, 1, 2].map(i => [0, 1, 2].map(n => g.reduce((s, _, j) => s + J[k][j][i] * J[k][j][n], i === n ? 1e-5 : 0)));
+                const y = solve3(A, e);
+                g.forEach((l, j) => { const dq = Math.max(-0.2, Math.min(0.2, J[k][j][0] * y[0] + J[k][j][1] * y[1] + J[k][j][2] * y[2])); S.qpos[l.q] = Math.max(l.lo, Math.min(l.hi, S.qpos[l.q] + dq)); });
+            });
+        }
+        return legs.map((l, i) => S.qpos[l.q] - q0[i]);
+    }
+
     startWalking() {
         const { W, F, data: d } = this, f = F.freeq;
         this.alignQuat([Math.cos(this.heading() / 2), 0, 0, Math.sin(this.heading() / 2)]);
         this.model.opt.timestep = WALK_H;
         Object.values(W.buf).forEach(b => b.fill(0)); W.nbuf = 0;
         W.setRef(d.qpos[f], d.qpos[f + 1], this.heading());
+        // what the feet stand on: the table, or the flat top of something on it. The walking policy knows flat ground only, and measures its height from there.
+        const low = Math.min(...this.feet.map(c => d.xpos[3 * c + 2]));
+        this.floor = W.floor = low > 0.3 ? low - 0.008 : 0;
         this.mode = 'walk'; this.t = 0;
     }
 
-    takeOff(pre = this.TO.pre) {
+    takeOff({ pre, angle } = this.TO) {
         if (this.mode !== 'walk') return;
-        this.pre = pre;
+        this.pre = pre; this.fast = pre <= ESCAPE.pre;
         this.model.opt.timestep = FLY_H;
-        for (const a of this.adhere) this.data.ctrl[a] = 0;
+        // the feet stay stuck while the body rears. The legs start from where they are: the walking policy's last commands are not a posture, and held, they drop the fly on its nose
         this.from = this.legs.map(l => this.data.qpos[l.q]);
+        const turn = this.rearPose(angle * DEG, this.TO.lift);
+        this.to = this.legs.map((l, i) => Math.max(l.lo, Math.min(l.hi, this.from[i] + turn[i])));
         this.mode = 'rear'; this.t = 0;
     }
+
+    // a giant fiber spike during the slow rear-up: the fast one takes over from the pose the body has reached (von Reyn et al. 2014: the spike's time picks the takeoff)
+    hurry() { if (this.mode === 'rear' && !this.fast && this.pre - this.t > ESCAPE.pre) { this.mode = 'walk'; this.takeOff(ESCAPE); return true; } return false; }
 
     land() { if (this.mode === 'fly') { this.mode = 'descend'; this.t = 0; this.sinkAt = null; this.fromH = this.F.height; this.fromP = this.F.pitch; this.fromS = this.F.speed; this.from = this.legs.map(l => this.data.ctrl[l.a]); } }
 
@@ -92,17 +142,18 @@ export class Life {
     // one control step of whichever mode; returns the simulated seconds it took
     step() {
         const { mj, model: m, data: d, W, F, TO, LA } = this;
-        // high in the air there is nothing to touch: leaving contacts out is what keeps flight near real time
-        const f = F.freeq, off = (this.mode === 'fly' || this.mode === 'descend') && d.qpos[f + 2] > 1;
+        // high in the air there is nothing to touch, except near what stands on the table: leaving contacts out is what keeps flight near real time
+        const f = F.freeq, off = (this.mode === 'fly' || this.mode === 'descend') && d.qpos[f + 2] > 1 && !this.near?.(d.qpos[f], d.qpos[f + 1], d.qpos[f + 2]);
         if (off !== this.contactOff) { this.contactOff = off; if (off) m.opt.disableflags |= this.noContact; else m.opt.disableflags &= ~this.noContact; }
         if (this.mode === 'walk') { W.speed = this.speed; W.yaw = this.yaw; W.step(); this.t += WALK_DT; return WALK_DT; }
         if (this.mode === 'rear') {
             const u = smooth(this.t / this.pre / 0.8);
-            this.legs.forEach((l, i) => { d.ctrl[l.a] = this.from[i] * (1 - u) + (l.rest + (l.coxa ? 0 : l.sign * TO.pamp[l.pair])) * u; });
+            this.legs.forEach((l, i) => { d.ctrl[l.a] = this.from[i] * (1 - u) + this.to[i] * u; });
             for (let i = 0; i < 4; i++) mj.mj_step(m, d);
             this.t += FLY_DT;
             if (this.t >= this.pre) {
                 if (this.pitch() > -TO.minPitch * DEG) { this.aborts++; this.startWalking(); return FLY_DT; }
+                for (const a of this.adhere) d.ctrl[a] = 0;
                 this.set = this.legs.map(l => d.ctrl[l.a]);
                 this.p0 = this.pitch(); this.pathFromHere(this.p0, this.rnd()); this.h0 = F.height;
                 this.mode = 'launch'; this.t = 0;
