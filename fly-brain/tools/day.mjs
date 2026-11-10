@@ -15,7 +15,7 @@ const W=new Walker(mujoco,m,d,JSON.parse(fs.readFileSync('policy/walk.json')),lo
 const F=new Flyer(mujoco,m,d,JSON.parse(fs.readFileSync('policy/fly.json')),load('policy/fly.bin',[104,256,2,12]));
 const b=new WebAssembly.Instance(wasm).exports;const p=b.alloc(bytes.length);new Uint8Array(b.memory.buffer,p,bytes.length).set(bytes);b.init(p,bytes.length,seed);
 const D=new Day(mujoco,m,d,W,F,b,n,seed*7919);
-if(process.env.NUMB)D.numb=true; // the body's sensory neurons stay silent
+if(process.env.HELPLESS)D.helpless=true; if(process.env.NUMB)D.numb=true; // the body's sensory neurons stay silent
 if(process.env.SWATTEST){ // the swat table: per side and speed, standing fly; NOJUMP=1 is the control with the giant fiber's jump off
   const trials=+process.env.SWATTEST; D.noJump=!!process.env.NOJUMP;
   for(const [name,side] of [['above',0],['left',1.2],['right',-1.2]])for(const sp of [30,40,60,90]){let hits=0,jumps=0,fast=0,lat=[],gf=[];
@@ -35,4 +35,4 @@ let pb=0,trace=[],spk={},perch=0;while(D.t<T){{const q=F.position();if(PICS.some
   if(D.t>next){next+=swatEvery;D.swat([0,1.2,-1.2][Math.floor(D.rnd()*3)]);log(`SWAT in ${l.mode}`);}
   if(D.lastSwat){log(`swat ${D.lastSwat}, GF ${D.GF.rate.toFixed(0)}`);D.lastSwat=null;}
 }
-console.log(JSON.stringify({T,flights,meals,food:D.foods.length,hunger:+D.hunger.toFixed(2),putBacks:D.putBacks||0,jumps:D.jumps||0,hits:D.hits||0,aborts:D.life.aborts,calms:D.calms||0,insideBounds_s:inPics/1000,inPicsAt,onThings_s:+perch.toFixed(1),time:Object.fromEntries(Object.entries(time).map(([k,v])=>[k,+v.toFixed(1)])),spikesPerS:Object.fromEntries(Object.entries(spk).map(([k,v])=>[k,Math.round(v/time[k])])),speed:+(T/((performance.now()-t0)/1000)).toFixed(2)}));
+console.log(JSON.stringify({T,flights,meals,food:D.foods.length,hunger:+D.hunger.toFixed(2),putBacks:D.putBacks||0,getUps:D.getUps||0,jumps:D.jumps||0,hits:D.hits||0,aborts:D.life.aborts,calms:D.calms||0,insideBounds_s:inPics/1000,inPicsAt,onThings_s:+perch.toFixed(1),time:Object.fromEntries(Object.entries(time).map(([k,v])=>[k,+v.toFixed(1)])),spikesPerS:Object.fromEntries(Object.entries(spk).map(([k,v])=>[k,Math.round(v/time[k])])),speed:+(T/((performance.now()-t0)/1000)).toFixed(2)}));

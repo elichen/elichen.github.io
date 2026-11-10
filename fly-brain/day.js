@@ -13,7 +13,7 @@
 //   the eye        an object's expansion rate (LC4, LPLC1, LPLC4) and size (LPLC2) set the looming neurons' input.
 //   the movement   flybody's walking and flight policies, with the stated handovers in life.js.
 import { Life, ESCAPE } from './life.js';
-import { nearThing, BOUNDS } from './things.js';
+import { nearThing, BOUNDS, SWATTER } from './things.js';
 
 // Brain -> mouth. Each joint has the muscles McKellar et al. 2020 (eLife 9:e54978) found move it, named by their
 // motor neurons (BANC names them; tools/export_neurons.py). A muscle's activation is 1 - exp(-r / R_HALF) of its motor
@@ -88,7 +88,11 @@ export class Day {
         this.life = new Life(mujoco, model, data, walker, flyer);
         brain.set_adaptation(ADAPT.step, ADAPT.tau);
         this.life.rnd = () => this.rnd();
-        if (mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM.value, 'thing_bowl') >= 0) this.life.near = nearThing;
+        if (mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM.value, 'thing_bowl') >= 0) {     // the model has the things and the swatter (things.js)
+            const o = () => this.object;
+            this.life.near = (x, y, z) => nearThing(x, y, z) || (o() && Math.hypot(x - o().at[0], y - o().at[1], z - o().at[2]) < 1.5 * SWATTER.half + 1);
+            this.swatter = { k: model.body_mocapid[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY.value, 'swatter')], touch: model.sensor_adr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SENSOR.value, 'swatter')] };
+        }
         const L = neurons.life, m = model, id = (t, k) => mujoco.mj_name2id(m, mujoco.mjtObj[t].value, k);
         this.lobe = id('mjOBJ_GEOM', 'walker/labrum_left_lower_collision');
         this.head = id('mjOBJ_BODY', 'walker/head');
@@ -131,7 +135,7 @@ export class Day {
         this.t = this.t ?? 0; this.bodyAhead = 0;
         this.hunger = this.hunger ?? 0.4; this.bored = this.bored ?? 0;
         this.goal = null; this.walking = false; this.eating = null; this.v = 0; this.setP9(0); this.setSugar(false);
-        this.saccade = null; this.upsideDown = 0; this.tilted = 0; this.retry = 0;
+        this.saccade = null; this.upsideDown = 0; this.tilted = 0; this.retry = 0; this.tries = 0;
         this.object = null; this.prevSize = null; for (const k in this.eye) this.applyEye(k, 0);
     }
 
@@ -139,7 +143,7 @@ export class Day {
     newDay() {
         this.brain.reset(); this.brainBase = 0; this.t = 0;
         this.foods = []; for (const [x, y] of FOODS) this.addFood(x, y);
-        this.hunger = 0.4; this.bored = 0; this.putBacks = this.jumps = this.hits = 0;
+        this.hunger = 0.4; this.bored = 0; this.putBacks = this.getUps = this.jumps = this.hits = 0;
         this.reset(); this.calm();
     }
 
@@ -174,13 +178,26 @@ export class Day {
 
     addFood(x, y, r = 0.45, amount = 1) { this.foods.push({ x, y, r, amount }); }
     // an object coming down at the fly: fromSide is the angle from the fly's heading, positive to its left, 0 = straight above
-    swat(fromSide = 0, dist = 30, speed = 30, radius = 3) {
+    swat(fromSide = 0, dist = 30, speed = 30, radius = SWATTER.half) {
         const f = this.F.freeq, q = this.data.qpos, h = this.life.heading(), a = h + fromSide;
         const tilt = Math.abs(fromSide) > 0 ? 0.8 : 0;
         const dir = [Math.sin(tilt) * Math.cos(a), Math.sin(tilt) * Math.sin(a), Math.cos(tilt)];
         const lead = this.life.mode === 'fly' ? this.F.speed * dist / speed : 0, aim = [q[f] + lead * Math.cos(h), q[f + 1] + lead * Math.sin(h), q[f + 2]];
         this.object = { p: aim.map((v, i) => v + dist * dir[i]), v: dir.map(v => -speed * v), radius, until: this.t + dist / speed + 0.25, hit: false, aim };
-        this.prevSize = null;
+        this.prevSize = null; this.placeSwatter();
+    }
+
+    // Where the swatter is and how it is turned: its face follows its path, and comes flat as it nears the table. The page draws this, and the physics has it.
+    placeSwatter() {
+        const o = this.object, w = this.swatter, d = this.data;
+        if (o) {
+            const flat = Math.min(1, Math.max(0, o.p[2] / 6)), sp = Math.hypot(...o.v), n = [-o.v[0] * flat / sp, -o.v[1] * flat / sp, 1 - flat - o.v[2] * flat / sp], l = Math.hypot(...n);
+            o.at = [o.p[0], o.p[1], Math.max(o.p[2], SWATTER.thick / 2)]; o.normal = n.map(v => v / l);
+        }
+        if (!w) return;
+        const at = o ? o.at : [0, 0, -60], [x, y, z] = o ? o.normal : [0, 0, 1], c = Math.sqrt((1 + z) / 2) || 1;   // the turn from the z axis to the normal (the normal never points down)
+        for (let i = 0; i < 3; i++) d.mocap_pos[3 * w.k + i] = at[i];
+        d.mocap_quat[4 * w.k] = c; d.mocap_quat[4 * w.k + 1] = -y / (2 * c); d.mocap_quat[4 * w.k + 2] = x / (2 * c); d.mocap_quat[4 * w.k + 3] = 0;
     }
 
     see(dt) {
@@ -197,12 +214,15 @@ export class Day {
         this.applyEye('right', right ? hz : 0); this.applyEye('sizeright', right ? big : 0);
     }
 
-    somewhere(why) { for (;;) { const x = (2 * this.rnd() - 1) * TABLE.x, y = (2 * this.rnd() - 1) * TABLE.y; if (isClear(x, y)) return { x, y, why }; } }
+    somewhere(why, from = null, atLeast = 0) { for (;;) { const x = (2 * this.rnd() - 1) * TABLE.x, y = (2 * this.rnd() - 1) * TABLE.y; if (isClear(x, y) && (!from || Math.hypot(x - from[0], y - from[1]) >= atLeast)) return { x, y, why }; } }
+    // where an escape goes: a place at least 12 cm away. A nearer one made the fly turn hard and come down as soon as it was in the air, and it fell.
+    away() { return this.somewhere('escape', this.F.position(), 12); }
 
     // the wish: which goal, by rule
     choose() {
         const { life } = this, p = life.F.position();
         if (this.eating) return;
+        if (this.goal?.why === 'escape' && life.mode !== 'walk') return;   // an escape first gets away: hunger must not call the fly back to the sugar it jumped from
         if (this.hunger > HUNGRY && this.foods.length) {
             const near = this.foods.reduce((a, b) => (Math.hypot(a.x - p[0], a.y - p[1]) < Math.hypot(b.x - p[0], b.y - p[1]) ? a : b));
             this.goal = { x: near.x, y: near.y, food: near, why: 'hunger' };
@@ -256,7 +276,7 @@ export class Day {
             const fast = Math.max(this.gfL.rate, this.gfR.rate) > FAST_JUMP, slow = Math.max(this.slowL.rate, this.slowR.rate) > SLOW_JUMP;
             if (fast && life.hurry()) this.fastJumps = (this.fastJumps || 0) + 1;
             if (life.mode === 'walk' && (fast || slow)) {
-                this.goal = this.goal ?? this.somewhere('escape');
+                if (this.goal?.why !== 'escape') this.goal = this.away();
                 if (this.retry <= 0) { this.jumps = (this.jumps || 0) + 1; if (fast) this.fastJumps = (this.fastJumps || 0) + 1; this.retry = 0.5; life.takeOff(fast ? ESCAPE : undefined); }
             }
         }
@@ -279,7 +299,7 @@ export class Day {
             if (this.goal) life.cruise = dist < 25 && !over ? Math.max(1.5, Math.min(CRUISE, dist * 0.25)) : CRUISE;
             // down when the goal is in sight and within the run, facing it or not: a goal inside the turning circle is never faced. Overshoot is walked or hopped back.
             if (life.mode === 'fly' && this.goal && clear && !over && dist < life.landingRun() + 1 && life.t > 0.5) life.land();
-            if (life.mode === 'fly' && !this.goal) this.goal = this.somewhere('escape');
+            if (life.mode === 'fly' && !this.goal) this.goal = this.away();
             const diff = this.dnL.rate - this.dnR.rate, q = this.saccade;
             if (life.mode === 'fly' && Math.abs(diff) > DODGE && (!q || this.t - q.at > REFRACTORY)) this.saccade = { at: this.t, sign: -Math.sign(diff) };
             if (this.saccade) { const { at, sign } = this.saccade, u = this.t - (at + 2 * 0.04); if (Math.abs(u) < 4 * SD) life.yaw = sign * SACCADE_PEAK * Math.exp(-u * u / (2 * SD * SD)); }
@@ -293,19 +313,29 @@ export class Day {
             if (o.p[2] > 0) for (let i = 0; i < 3; i++) o.p[i] += o.v[i] * dt;   // it stops on the table
             const b = F.position();
             const along = (b[0] - o.p[0]) * o.v[0] + (b[1] - o.p[1]) * o.v[1] + (b[2] - o.p[2]) * o.v[2], sp = Math.hypot(...o.v), off = Math.hypot(b[0] - o.p[0] - o.v[0] * along / sp / sp, b[1] - o.p[1] - o.v[1] * along / sp / sp, b[2] - o.p[2] - o.v[2] * along / sp / sp);
-            if (Math.abs(along / sp) < 0.25 && off < o.radius) { o.hit = true; }
+            // a hit: the swatter is solid, and its touch sensor reports a force. (A model with no swatter in it: the fly is inside the square as it passes.)
+            if (this.swatter ? d.sensordata[this.swatter.touch] > 0 : Math.abs(along / sp) < 0.25 && off < o.radius) o.hit = true;
             if (o.hit && !o.counted) { o.counted = true; this.hits = (this.hits || 0) + 1; }
             if (this.t > o.until) { this.lastSwat = o.hit ? 'hit' : 'missed'; this.object = null; }
+            this.placeSwatter();
         }
         this.see(dt);
         if (this.feels) this.feel(Math.round(this.t * 1000));
-        // put back: the policies can't right a fly on its back, or catch a tumble. Stated and counted on the page.
+        // a fall: the policies can't catch a tumble. The fly gets up by itself; if it cannot, it is put back, stated and counted on the page.
         const bad = !Number.isFinite(d.qpos[f]) || life.up() < 0.2 || p[2] < -0.2 || p[2] > 40 || (life.mode === 'fly' && life.t > 0.5 && p[2] < 0.25);
         this.upsideDown = Math.max(0, this.upsideDown + (bad ? dt : -dt / 3));      // a tumble flickers through upright: this adds it up
         // a called-off rear-up can also leave it on its side or sitting back (up 0.3-0.7): the walking policy never stands up from there. Walking keeps up > 0.8.
         this.tilted = life.mode === 'walk' && life.up() < TILTED ? this.tilted + dt : 0;
-        if (this.upsideDown > 0.4 || this.tilted > 1 || !Number.isFinite(d.qpos[f])) {
-            this.putBacks = (this.putBacks || 0) + 1;
+        // down, and on the table: the fly gets up by itself (life.getUp). It has three tries; a try that ends upright for a second is counted.
+        const lost = !Number.isFinite(d.qpos[f]) || p[2] < -0.2 || p[2] > 40;
+        if (life.mode === 'getup') this.upsideDown = 0;
+        if (this.tries && life.mode === 'walk' && life.t > 1 && life.up() > 0.9) { this.tries = 0; this.getUps = (this.getUps || 0) + 1; }
+        if (!lost && (this.upsideDown > 0.4 || this.tilted > 1) && p[2] < 1 + life.floor && (this.tries || 0) < 3 && !this.helpless) {
+            this.upsideDown = this.tilted = 0;
+            if (life.up() <= 0.8) { this.tries = (this.tries || 0) + 1; life.getUp(); }
+            else if (life.mode !== 'walk') { life.mode = 'touch'; life.t = 0; }      // it came down on its feet: the wings shut, and it walks
+        } else if (lost || ((this.upsideDown > 0.4 || this.tilted > 1) && (p[2] < 1 + life.floor || life.mode === 'walk'))) {
+            this.putBacks = (this.putBacks || 0) + 1; this.tries = 0;
             const ok = Number.isFinite(d.qpos[f]) && isClear(p[0], p[1]) && Math.abs(p[0]) < TABLE.x && Math.abs(p[1]) < TABLE.y, s = ok ? null : this.somewhere('');
             this.reset(ok ? p[0] : s.x, ok ? p[1] : s.y, this.rnd() * 6.28);
         }

@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { FlyView } from './fly-view.js';
 import { buildKitchen, sugarDrop, swatter } from './scene.js';
 import { isClear, TABLE } from './day.js';
+import { SWATTER } from './things.js';
 import { WingSound } from './audio.js';
 
 const css = name => getComputedStyle(document.body).getPropertyValue(name).trim();
@@ -24,7 +25,7 @@ flyView.controls.update();
 flyView.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 flyView.renderer.toneMapping = THREE.ACESFilmicToneMapping;
 buildKitchen(flyView.scene);
-const SWAT_R = 3, bat = swatter(SWAT_R);
+const bat = swatter(SWATTER.half);
 flyView.scene.add(bat);
 const drops = [];
 
@@ -213,11 +214,10 @@ function poseWorld(m) {
     });
     bat.visible = !!m.object;
     if (m.object) {
-        // drawn only: the swing ends flat on the table (or on the fly), not through it. day.js's object keeps its straight path.
-        const o = m.object, flat = Math.min(1, Math.max(0, o.p[2] / 6)), speed = Math.hypot(...o.v);
-        bat.position.set(o.p[0], o.p[1], Math.max(o.p[2], o.hit ? 0.3 : 0.04));
-        look.set(-o.v[0] * flat / speed, -o.v[1] * flat / speed, 1 - flat - o.v[2] * flat / speed).normalize();
-        bat.quaternion.setFromUnitVectors(up.set(0, 0, 1), look);
+        // as day.js places it: the same square is in the physics
+        const o = m.object;
+        bat.position.set(o.at[0], o.at[1], o.at[2]);
+        bat.quaternion.setFromUnitVectors(up.set(0, 0, 1), look.set(...o.normal));
     }
 }
 
@@ -239,7 +239,7 @@ function onSpikes(m) {
 
 const SAY = {
     walk: m => m.perched ? 'The fly stands on something. It will leave by air.' : m.eating ? 'The fly eats. Sugar decreases the firing of oDN1, and the mouth reaches down.' : m.goal ? (m.goal.why === 'hunger' ? 'The fly is hungry. It walks to the sugar.' : m.goal.why === 'escape' ? 'The fly moves away.' : 'The fly is bored. It walks to a new place.') : 'The fly stands.',
-    rear: () => 'The fly rears up to jump.', launch: () => 'The fly takes off.', touch: () => 'The fly touches the table. The wings shut.',
+    getup: () => 'The fly fell. It gets up.', rear: () => 'The fly rears up to jump.', launch: () => 'The fly takes off.', touch: () => 'The fly touches the table. The wings shut.',
     fly: m => m.goal?.why === 'hunger' ? 'The fly is hungry. It flies to the sugar.' : m.goal?.why === 'escape' ? 'The fly moves away.' : 'The fly is bored. It flies to a new place.', descend: () => 'The fly lands.',
 };
 function panel() {
@@ -250,10 +250,10 @@ function panel() {
     const caption = document.getElementById('touch');
     const line = performance.now() < noticeUntil ? notice : m.object ? (m.object.hit ? 'Swatted.' : 'A swatter is coming!') : SAY[m.mode](m);
     if (caption.textContent !== line) caption.textContent = line;   // it is a live region: same text, no new announcement
-    document.getElementById('why').href = '#' + (m.object ? 'swat' : m.eating ? 'oneb' : m.mode === 'fly' ? 'dodge' : m.mode === 'walk' ? 'what' : 'takeoff');
+    document.getElementById('why').href = '#' + (m.object ? 'swat' : m.eating ? 'oneb' : m.mode === 'fly' ? 'dodge' : m.mode === 'walk' ? 'what' : m.mode === 'getup' ? 'day' : 'takeoff');
     for (const b of swats) b.disabled = !!m.object;         // one swatter at a time
     for (const [k, v] of Object.entries(m.rates)) { const el = document.querySelector(`[data-rate="${k}"]`); if (el) el.textContent = `${v.toFixed(0)} Hz`; }
-    document.getElementById('counts').textContent = `Jumps from the swatter: ${m.counts.jumps} · Swats landed: ${m.counts.hits} · Put back on its feet: ${m.counts.putBacks}`;
+    document.getElementById('counts').textContent = `Jumps from the swatter: ${m.counts.jumps} · Swats landed: ${m.counts.hits} · Got up by itself: ${m.counts.getUps} · Put back on its feet: ${m.counts.putBacks}`;
     document.getElementById('spike-rate').textContent = `${(Math.round(m.spikeRate / 100) * 100).toLocaleString('en-US')} spikes/s`;
     document.getElementById('clock').textContent = `${t.toFixed(slow ? 3 : 1)} s · ${paused ? 'paused' : slow ? '1/50 speed' : m.speed < 0.95 ? `${m.speed.toFixed(2)}× real time` : 'real time'}`;
 }

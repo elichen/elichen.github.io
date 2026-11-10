@@ -1,5 +1,5 @@
 // What stands on the kitchen table: one list for the picture (scene.js) and for the physics (worker.js and the tools add it to the body's model).
-// Sizes in cm, z up; the table top is z = 0. The fly collides with all of it. Shapes for the physics are simple and convex:
+// Sizes in cm, z up; the table top is z = 0. The fly collides with all of it, and with the swatter. Shapes for the physics are simple and convex:
 // the bowl and the plate are filled (the fruit and the crumbs are in them), the mug has a lid of air.
 const TURN = 1.25, C = Math.cos(TURN), S = Math.sin(TURN);
 export const THINGS = {
@@ -10,6 +10,7 @@ export const THINGS = {
     knife: { x: 34, y: -7, z: 0.55, turn: TURN, blade: [11, 1.5, 0.08], hilt: [0.55, 8] },   // blade: length, width, thickness; hilt: radius, length
     jar: { x: 36, y: -19, r: 3.6, h: 10.2 },
 };
+export const SWATTER = { half: 3, thick: 0.1 };   // cm: half-width of the square, and its thickness
 // a cylinder round each thing: x, y, radius, height. High in the air the physics leaves contacts out, except inside one of these (life.js).
 export const BOUNDS = [[2, -3, 13, 8], [-33, 16, 7.1, 8.8], [28, 13, 11, 1.65], [34, -7, 11, 1.1], [36, -19, 3.6, 10.2]];
 export const nearThing = (x, y, z, margin = 1) => BOUNDS.some(([a, b, r, h]) => z < h + margin && Math.hypot(x - a, y - b) < r + margin);
@@ -33,5 +34,7 @@ export function addThings(xml) {
     const K = T.knife, [bl, bw, bt] = K.blade, [hr, hl] = K.hilt;
     geoms.push(`<geom name="thing_blade" type="box" size="${bl / 2} ${bw / 2} ${bt / 2}" pos="${n(K.x + bl / 2 * C)} ${n(K.y + bl / 2 * S)} ${K.z}" quat="${n(Math.cos(TURN / 2))} 0 0 ${n(Math.sin(TURN / 2))}" ${solid} />`);
     geoms.push(`<geom name="thing_hilt" type="capsule" size="${hr}" fromto="${n(K.x - hl * C)} ${n(K.y - hl * S)} ${K.z} ${K.x} ${K.y} ${K.z}" ${solid} />`);
-    return xml.replace('</asset>', meshes.join('') + '</asset>').replace('</worldbody>', geoms.join('') + '</worldbody>');
+    // the swatter: a thin square that day.js moves (a mocap body, parked under the table), and a touch sensor that reports the force on it
+    const R = SWATTER.half, sw = `<body name="swatter" mocap="true" pos="0 0 -60"><geom name="swatter" type="box" size="${R} ${R} ${SWATTER.thick / 2}" ${solid} /><site name="swatter" type="box" size="${R} ${R} ${SWATTER.thick}" group="3" /></body>`;
+    return xml.replace('</asset>', meshes.join('') + '</asset>').replace('</worldbody>', geoms.join('') + sw + '</worldbody>').replace('</sensor>', '<touch name="swatter" site="swatter" /></sensor>');
 }

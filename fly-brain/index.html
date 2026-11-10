@@ -62,6 +62,7 @@
                 <tr><td>Serotonin, adaptation</td><td>Our two changes to the model. See below.</td><td>No</td></tr>
                 <tr><td>Move the legs and wings</td><td>flybody's two trained policies <a href="#ref-3" class="cite">[3]</a>. The motor neurons of the legs and wings fire, but they do not move the legs and wings.</td><td>No</td></tr>
                 <tr><td>Take off and land</td><td>Stated rules between the two policies. See below.</td><td>No</td></tr>
+                <tr><td>Get up after a fall</td><td>One fixed move of the legs and wings turns the fly over. Then the walking policy stands it up.</td><td>No</td></tr>
                 <tr><td>What stands on the table</td><td>Solid shapes in the physics. The fly collides with them. Its goals and paths go around them.</td><td>No</td></tr>
             </tbody>
         </table>
@@ -122,27 +123,27 @@
 
         <section class="room" id="swat">
         <h2>Can you swat it?</h2>
-        <p>Yes, if you are fast. A swatter with a half-width of 3 cm starts 30 cm away and aims at a standing fly. Each row has 40 trials, and 80 where a row combines two speeds (<code>SWATTEST=20 node tools/day.mjs body</code>, two seeds). With the jump turned off, all 240 control trials are hits. The page only counts a hit, and a hit does not hurt the fly. The buttons on this page use 30 cm/s.</p>
+        <p>Yes, and from its left it is easy. The swatter is a solid square, 6 cm wide. It starts 30 cm away and aims at a standing fly. A hit is a contact between the swatter and any part of the fly. A hit knocks the fly down, and then the fly gets up (see <a href="#day">A day, in numbers</a>). Each row has 40 trials, and 80 where a row combines two speeds (<code>SWATTEST=20 node tools/day.mjs body</code>, two seeds). With the jump turned off, all 240 control trials are hits. The buttons on this page use 30 cm/s.</p>
         <table>
             <thead><tr><th>From</th><th class="word">Speed</th><th>Jumped</th><th>With the fast takeoff</th><th>Hit</th></tr></thead>
             <tbody>
-                <tr><td>Above</td><td class="word">30 cm/s</td><td>40 of 40</td><td>39</td><td>0</td></tr>
-                <tr><td>Above</td><td class="word">40 cm/s</td><td>40 of 40</td><td>31</td><td>2</td></tr>
-                <tr><td>Above</td><td class="word">60 or 90 cm/s</td><td>80 of 80</td><td>75</td><td>72</td></tr>
-                <tr><td>Its right</td><td class="word">30 cm/s</td><td>40 of 40</td><td>40</td><td>0</td></tr>
-                <tr><td>Its right</td><td class="word">40 cm/s</td><td>40 of 40</td><td>40</td><td>3</td></tr>
-                <tr><td>Its right</td><td class="word">60 or 90 cm/s</td><td>80 of 80</td><td>80</td><td>76</td></tr>
-                <tr><td>Its left</td><td class="word">30 cm/s</td><td>40 of 40</td><td><strong>0</strong></td><td>2</td></tr>
-                <tr><td>Its left</td><td class="word">40 cm/s</td><td>40 of 40</td><td><strong>0</strong></td><td>30</td></tr>
+                <tr><td>Above</td><td class="word">30 cm/s</td><td>40 of 40</td><td>38</td><td>7</td></tr>
+                <tr><td>Above</td><td class="word">40 cm/s</td><td>40 of 40</td><td>33</td><td>26</td></tr>
+                <tr><td>Above</td><td class="word">60 or 90 cm/s</td><td>80 of 80</td><td>74</td><td>79</td></tr>
+                <tr><td>Its right</td><td class="word">30 cm/s</td><td>40 of 40</td><td>40</td><td>13</td></tr>
+                <tr><td>Its right</td><td class="word">40 cm/s</td><td>40 of 40</td><td>40</td><td>34</td></tr>
+                <tr><td>Its right</td><td class="word">60 or 90 cm/s</td><td>80 of 80</td><td>79</td><td>80</td></tr>
+                <tr><td>Its left</td><td class="word">30 cm/s</td><td>40 of 40</td><td><strong>0</strong></td><td>36</td></tr>
+                <tr><td>Its left</td><td class="word">40 cm/s</td><td>40 of 40</td><td><strong>0</strong></td><td>40</td></tr>
                 <tr><td>Its left</td><td class="word">60 or 90 cm/s</td><td>80 of 80</td><td><strong>0</strong></td><td>80</td></tr>
             </tbody>
         </table>
         <p>A real fly has two takeoffs <a href="#ref-5" class="cite">[5]</a>. In the fast takeoff, the giant fiber fires and the legs jump immediately. The fly has no time to set its posture, and it often tumbles in the air. In the slow takeoff, other descending neurons act first, and the fly sets its posture and lifts its wings before it jumps. Dombrovski et al. activated DNp04 and DNp11 in flies. These neurons gave takeoffs of the slow kind, and fewer takeoffs than the giant fiber gives <a href="#ref-18" class="cite">[18]</a>.</p>
         <p>Our fly has the two takeoffs also. Its usual rear-up takes 0.1 s. DNp04 and DNp11 start this rear-up when their mean firing on one side is more than 60 Hz. The giant fiber starts a rear-up of 35 ms when it fires at more than 30 Hz on one side. If the giant fiber fires during a slow rear-up, the fast rear-up replaces it. In the fly, one spike of the giant fiber is sufficient. In the model, the giant fiber also fires single spikes at weak input, so our threshold needs two spikes about 30 ms apart or less. We chose the two thresholds and the two times.</p>
         <p>The eye rule now follows the fly more closely. Ache et al. recorded the giant fiber during looming. It adds two signals: LC4 tells it how fast the object grows, and LPLC2 tells it how large the object is <a href="#ref-19" class="cite">[19]</a>. Our rule gives LC4, LPLC1 and LPLC4 an input in proportion to the rate of growth, with the full input at 2 rad/s. It gives LPLC2 a bell curve of the size, with its peak at 60° and a width of 15°, while the object grows. One LPLC2 neuron sees 60° at most <a href="#ref-20" class="cite">[20]</a>. We chose these numbers. An earlier version of this page gave no input to LPLC2.</p>
-        <p>The sides differ, and the table shows it. From the right eye, the giant fiber fires first, and the fly always takes the fast takeoff. From the left eye, the giant fiber fires too late or not at all, and the fly always takes the slow takeoff. So a swatter at 40 cm/s from its left hits the fly in 30 of 40 trials, and from its right in 3.</p>
+        <p>The sides differ, and the table shows it. From the right eye, the giant fiber fires first, and the fly always takes the fast takeoff. From the left eye, the giant fiber fires too late or not at all, and the fly always takes the slow takeoff. So at 30 cm/s the swatter hits the fly in 36 of 40 trials from its left, in 13 from its right, and in 7 from above.</p>
         <p>One neuron explains most of this difference. PVLP010 inhibits the giant fiber on its own side: 132 synapses on the left in BANC, and only 41 on the right. In FlyWire it has 113 and 137. Left PVLP010 also has more than twice the input of the right (5,344 synapses against 2,335). In a test without adaptation and with left looming input, we silenced left PVLP010, and the left giant fiber rose from 12 to 48 Hz. So the right PVLP010 of this one fly, or its reconstruction, is the unusual one. On FlyWire, the input that follows the rate of growth drives the giant fiber only weakly from either eye (0–14 Hz).</p>
-        <p>With the earlier rule, the fly jumped only when the mean firing of the two giant fibers passed 20 Hz. From its left, the fly did not jump in 28 of 40 trials at 30 cm/s, and the swatter hit it in all 40. The fast takeoff also fell often then: with one swatter per 30 s, we put the fly back on its feet 7 to 10 times in five minutes. In three runs of five minutes with the present page, the swatter came 27 times and hit the fly once, and we put the fly back 2 times.</p>
+        <p>With the earlier rule, the fly jumped only when the mean firing of the two giant fibers passed 20 Hz. From its left, the fly did not jump in 28 of 40 trials at 30 cm/s. An earlier version of this page also had no solid swatter: it counted a hit when the middle of the fly was inside the square as the square passed. The solid square hits more often, because it also touches the legs and the wings of a fly that has just left the table.</p>
         </section>
 
         <section class="room" id="dodge">
@@ -172,7 +173,8 @@
         <section class="room" id="day">
         <h2>A day, in numbers</h2>
         <p>We made six runs of five simulated minutes with no swatter (<code>node tools/day.mjs body 300</code>). A run has about 10 flights and 6 meals. In these 30 minutes the fly canceled no takeoff, and we did not put it back on its feet.</p>
-        <p>When the fly falls on its back, it cannot stand up again. Neither policy learned this. So after 0.4 s on its back, or 1 s on its side, we put the fly back on its feet, and the page counts each time. On the earlier page this occurred 3.5 times in five minutes, and 15 of 21 falls were rear-ups that tipped over (see <a href="#takeoff">Takeoff and landing</a>).</p>
+        <p><strong>Getting up.</strong> Neither policy learned to stand up from a fall. On the earlier page we put a fallen fly back on its feet. Now the fly gets up by itself. One fixed move of the legs and the wings, 0.18 s long, turns the body over, and then the walking policy stands it up. We found this move by a random search of 1,440 moves, with no training (<code>tools/right.mjs</code>). From 150 new poses on its back, the fly got to its feet in 149. The move is not from recordings of flies. We did not compare it with the way a real fly gets up.</p>
+        <p>The fly has three tries. If it is still down, we put it back on its feet, and the page counts each time. In the six runs with no swatter, the fly did not fall. In three more runs of five minutes, a swatter came every 30 s. It came 27 times and hit the fly 11 times. The fly got up by itself 14 times, and we put it back once.</p>
         <p>What stands on the table is solid (<code>tools/things.mjs</code>). We sent the fly low and straight at the jar, the mug and the bowl, with its path around them turned off. In 30 flights it did not go through one of them. It hit them, and after 10 of these flights we put it back on its feet. On a usual day the fly flies around these things, or above them at 12 cm. If it comes down on a flat top, it stands there and leaves by air: we put the fly on the jar, the mug and the plate 10 times each, and it stood, took off and came down on the table in all 30 trials. After one takeoff from the mug it fell, and we put it back.</p>
         </section>
 
@@ -257,9 +259,9 @@
             </tbody>
         </table>
         <p>We do not know which claw and hook neurons prefer which direction, so all those of one leg fire together. BANC labels few campaniform sensilla on the middle and hind legs, and no touch neurons on the middle legs.</p>
-        <p>This is what the input does in the model, as the mean of 3 runs of 1 s (<code>tools/feel.mjs</code>). The table gives firing in Hz, left and right, for the motor neurons of four wing steering muscles.</p>
+        <p>This is what the input does in the model, as the mean of 3 runs of 1 s (<code>tools/feel.mjs</code>). The table gives the number of leg and neck motor neurons that fire at 5 Hz or more. It also gives the firing in Hz, left and right, of the motor neurons of four wing steering muscles.</p>
         <table>
-            <thead><tr><th>Input</th><th>Leg motor neurons that fire, of 391</th><th>Neck, of 49</th><th>b1</th><th>b2</th><th>b3</th><th>i1</th></tr></thead>
+            <thead><tr><th>Input</th><th>Leg, of 391</th><th>Neck, of 49</th><th>b1</th><th>b2</th><th>b3</th><th>i1</th></tr></thead>
             <tbody>
                 <tr><td>All leg sensors, 50 Hz</td><td>63</td><td>0</td><td>0 / 0</td><td>0 / 0</td><td>0 / 0</td><td>0 / 0</td></tr>
                 <tr><td>Halteres, 220 Hz</td><td>29</td><td>26</td><td>79 / 93</td><td>83 / 74</td><td>67 / 47</td><td>82 / 37</td></tr>
@@ -294,7 +296,7 @@
             <li><strong>Hunger is one number.</strong> The fly has no thirst, sleep, mating, grooming or learning.</li>
             <li><strong>The fly walks only on flat ground.</strong> What stands on the table is solid, but the walking policy knows only flat ground. So the fly cannot walk on the fruit, and its goals and paths go around these things. It can stand on a flat top, and then it leaves by air.</li>
             <li><strong>The fly feels its body, but its motor neurons do not move it.</strong> The sensory neurons fire by our rules, not by a model of each sensor. The antennae, the bristles of the body and the eyes send no input.</li>
-            <li><strong>The swatter is not solid.</strong> It goes through the fly, and the page counts a hit.</li>
+            <li><strong>A hit does not hurt the fly.</strong> The swatter is solid and knocks the fly down, but the fly has no injury, and the swatter goes through the table and the things on it.</li>
         </ul>
         </section>
 

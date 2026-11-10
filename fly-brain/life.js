@@ -6,6 +6,7 @@
 // on first touch the wings shut and the walking policy takes over.
 import { CONTROL_DT as FLY_DT } from './flyer.js';
 import { CONTROL_DT as WALK_DT } from './walker.js';
+import { rightingMove, GET_UP } from './righting.js';
 
 // rear-up: `pre` s to pitch the body `angle` deg nose-up and lift it `lift` cm on the feet where they stand (rearPose); then the push (T, rise, t0, tp, amp; by random search)
 export const TAKEOFF = { pre: 0.0977, angle: 40, lift: 0.04, T: 0.0587, rise: 0.3675, t0: 0.0201, tp: 0.00535, amp: [0, 0.5462, 0.6799], minPitch: 12 };
@@ -122,6 +123,9 @@ export class Life {
     // a giant fiber spike during the slow rear-up: the fast one takes over from the pose the body has reached (von Reyn et al. 2014: the spike's time picks the takeoff)
     hurry() { if (this.mode === 'rear' && !this.fast && this.pre - this.t > ESCAPE.pre) { this.mode = 'walk'; this.takeOff(ESCAPE); return true; } return false; }
 
+    // a fallen fly gets up: one move of the legs and wings turns it over (righting.js), then the walking policy stands it up
+    getUp(move = GET_UP) { this.model.opt.timestep = FLY_H; this.next = rightingMove(this, move); this.mode = 'getup'; this.t = 0; }
+
     land() { if (this.mode === 'fly') { this.mode = 'descend'; this.t = 0; this.sinkAt = null; this.fromH = this.F.height; this.fromP = this.F.pitch; this.fromS = this.F.speed; this.from = this.legs.map(l => this.data.ctrl[l.a]); } }
 
     // how far the fly travels on its way down, if it starts now
@@ -146,6 +150,13 @@ export class Life {
         const f = F.freeq, off = (this.mode === 'fly' || this.mode === 'descend') && d.qpos[f + 2] > 1 && !this.near?.(d.qpos[f], d.qpos[f + 1], d.qpos[f + 2]);
         if (off !== this.contactOff) { this.contactOff = off; if (off) m.opt.disableflags |= this.noContact; else m.opt.disableflags &= ~this.noContact; }
         if (this.mode === 'walk') { W.speed = this.speed; W.yaw = this.yaw; W.step(); this.t += WALK_DT; return WALK_DT; }
+        if (this.mode === 'getup') {
+            const more = this.next();
+            for (let i = 0; i < 4; i++) mj.mj_step(m, d);
+            this.t += FLY_DT;
+            if (!more) this.startWalking();
+            return FLY_DT;
+        }
         if (this.mode === 'rear') {
             const u = smooth(this.t / this.pre / 0.8);
             this.legs.forEach((l, i) => { d.ctrl[l.a] = this.from[i] * (1 - u) + this.to[i] * u; });
