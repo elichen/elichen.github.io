@@ -148,6 +148,20 @@ node tools/sweep.mjs --angles 12,20,40,60 --traffics 100,200 --seeds 3 --minutes
 node tools/snap.mjs --angle 40 --at 60,300,900 --out /tmp/snap
 ```
 
+## Copper Dreams (`/copper/`)
+
+Amiga-style demo, 104 s loop: 13 parts (intro, logo, copper bars + sine scroller + meters, plasma, rotozoomer, tunnel, moiré, vector balls, twister, glenz over a checker floor, Kefrens bars, dot tunnel + greetings, outro) on a 320 x 256 software frame buffer cut to 12-bit colour. No assets, no libraries.
+
+- `music.js`: a small tracker. Instruments are synthesized as 8-bit samples, the song is written with helpers (`buildSong`: 60 bars, 7 voices, 138 BPM), and `renderSong` mixes it once into a stereo buffer and returns every note start as an event.
+- `effects.js` (no DOM, shared with the tool): each part is a function of song time; `PARTS` maps parts to 4-bar patterns. `sync` turns the note events into `kick`, `snare` and the meters. `main.js`: canvas at whole device pixels, audio, keys; time is the audio clock.
+- Nobody has listened to the tune in a check: levels are measured, the notes are not judged.
+
+```bash
+cd copper && node tools/sheet.mjs /tmp/sheet.bmp 3.2   # one frame per pattern + the title, and the tune's levels
+```
+
+Testing: `copper.show(seconds)` in the console draws one frame without music.
+
 ## Path Tracer (`/pathtracer/`)
 
 WebGPU path tracer: one WGSL megakernel (`trace.wgsl`) over per-mesh BVHs built in a worker (`bvh.js`, `mesh.js`), placed by instances (`assemble.js`).

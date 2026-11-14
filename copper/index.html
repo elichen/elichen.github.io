@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Copper Dreams</title>
+<meta name="description" content="A demo in the old Amiga style, from Eli + Claude: copper bars, a sine scroller, plasma, a glenz vector and a tracker tune, all made by code in your browser.">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+  #hint {
+    position: fixed; left: 0; right: 0; bottom: 10px; text-align: center; pointer-events: none;
+    font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; color: #9ab; letter-spacing: 0.08em;
+    opacity: 0; transition: opacity 1s;
+  }
+  #hint.on { opacity: 0.8; }
+  #hint a { color: inherit; pointer-events: auto; }
+</style>
+</head>
+<body>
+<canvas id="screen" width="320" height="256" aria-label="Copper Dreams, an Amiga-style demo"></canvas>
+<div id="hint">SPACE pause &nbsp;·&nbsp; ← → skip &nbsp;·&nbsp; M mute &nbsp;·&nbsp; F full screen &nbsp;·&nbsp; <a href="../index.html">home</a></div>
+<script type="module" src="main.js"></script>
+</body>
+</html>
