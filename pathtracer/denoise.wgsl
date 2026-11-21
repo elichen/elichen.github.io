@@ -41,6 +41,10 @@ fn demodulated(i: u32) -> vec3f {
 fn demodulate(@builtin(global_invocation_id) gid: vec3u) {
   if (gid.x >= P.width || gid.y >= P.height) { return; }
   let i = gid.y * P.width + gid.x;
+  let gc = accum[i].guide;
+  var d = demodulated(i);
+  let blur = albedo(gc).w;
+  if (gc.y < 0.0 || blur <= 0.0) { dst[i] = vec4f(d, 0.0); return; }
   let mc = bitcast<u32>(accum[i].sum.w);
   var m1 = 0.0;
   var m2 = 0.0;
@@ -58,14 +62,18 @@ fn demodulate(@builtin(global_invocation_id) gid: vec3u) {
       n += 1.0;
     }
   }
-  var d = demodulated(i);
   let l = luminance(d);
   if (n < 1.0) { dst[i] = vec4f(d, l * l); return; }
   let mean = m1 / n;
   let variance = max(m2 / n - mean * mean, 0.0);
   let cap = mean + 3.0 * sqrt(variance) + 0.05 * mean;
-  if (l > cap) { d *= cap / l; }
+  if (l > cap) { d *= mix(1.0, cap / l, blur); }
   dst[i] = vec4f(d, variance);
+}
+
+fn depthAt(p: vec2i) -> f32 {
+  let q = clamp(p, vec2i(0), vec2i(i32(P.width) - 1, i32(P.height) - 1));
+  return accum[u32(q.y) * P.width + u32(q.x)].guide.y;
 }
 
 // One à-trous pass. Brightness differences only stop the blur when they are larger than the
@@ -81,6 +89,14 @@ fn atrous(@builtin(global_invocation_id) gid: vec3u) {
   let mc = bitcast<u32>(accum[i].sum.w);
   let blur = albedo(gc).w;
   if (blur <= 0.0) { dst[i] = cc; return; }
+  let p0 = vec2i(gid.xy);
+  let zL = depthAt(p0 + vec2i(-1, 0));
+  let zR = depthAt(p0 + vec2i(1, 0));
+  let zU = depthAt(p0 + vec2i(0, -1));
+  let zD = depthAt(p0 + vec2i(0, 1));
+  let dzx = min(select(1e9, abs(gc.y - zL), zL >= 0.0), select(1e9, abs(zR - gc.y), zR >= 0.0));
+  let dzy = min(select(1e9, abs(gc.y - zU), zU >= 0.0), select(1e9, abs(zD - gc.y), zD >= 0.0));
+  let gradZ = vec2f(select(dzx, 0.0, dzx > 1e8), select(dzy, 0.0, dzy > 1e8));
   let lc = luminance(cc.xyz);
   let sigmaL = 4.0 * sqrt(cc.w) + 1e-4;
   let kernel = array<f32, 5>(1.0 / 16.0, 1.0 / 4.0, 3.0 / 8.0, 1.0 / 4.0, 1.0 / 16.0);
@@ -88,7 +104,7 @@ fn atrous(@builtin(global_invocation_id) gid: vec3u) {
   var wsum = 0.0;
   for (var y = -2; y <= 2; y++) {
     for (var x = -2; x <= 2; x++) {
-      let q = vec2i(gid.xy) + vec2i(x, y) * i32(P.step);
+      let q = p0 + vec2i(x, y) * i32(P.step);
       if (q.x < 0 || q.y < 0 || q.x >= i32(P.width) || q.y >= i32(P.height)) { continue; }
       let j = u32(q.y) * P.width + u32(q.x);
       let gq = accum[j].guide;
@@ -100,8 +116,9 @@ fn atrous(@builtin(global_invocation_id) gid: vec3u) {
         let dist = length(vec2f(f32(x), f32(y))) * f32(P.step);
         let defocus = clamp(min(gc.w, gq.w) / f32(P.step) - 1.0, 0.0, 1.0);
         let same = select(defocus, 1.0, bitcast<u32>(accum[j].sum.w) == mc);
+        let slopeZ = (abs(f32(x)) * gradZ.x + abs(f32(y)) * gradZ.y) * f32(P.step);
         w *= same * mix(pow(max(dot(nc, nq), 0.0), 8.0), 1.0, defocus);
-        w *= exp(-abs(gc.y - gq.y) / (gc.y * (0.004 * dist + 0.2 * defocus) + 1e-4));
+        w *= exp(-abs(gc.y - gq.y) / (2.0 * slopeZ + gc.y * (0.004 * dist + 0.2 * defocus) + 1e-4));
         w *= exp(-abs(lc - luminance(cq.xyz)) / sigmaL);
         w *= blur;
       }

@@ -68,13 +68,14 @@ function getEnv(url) {
 const state = {
   scene: null, sceneName: null, place: 'venice', loadToken: 0,
   cam: null, env: null, ground: null,
-  samples: 0, spp: 1, movingSpp: 1, seed: 1, dirty: true, redisplay: true,
-  lastMove: -1e9, inFlight: false, gpuMs: 0, sampleMs: 0, mrays: 0, measureAt: 0, paused: false,
+  samples: 0, spp: 1, movingSpp: 1, seed: 1, dirty: true, redisplay: true, gen: 0,
+  lastMove: -1e9, inFlight: false, gpuMs: 0, sampleMs: 0, mrays: 0, measureAt: 0, paused: false, slowFrames: 0,
   selected: NONE, dof: true, xray: false, exposure: 1, homeDistance: 1,
 };
 
 let renderer;
 let SELECT_COLOR = [0.93, 0.84, 0.13];
+let hiddenDuringFrame = false;
 
 function cameraVectors() {
   const c = state.cam;
@@ -104,7 +105,17 @@ function renderOptions() {
   };
 }
 
-function reset() { state.dirty = true; }
+function reset() {
+  state.dirty = true;
+  state.samples = 0;
+  state.gen++;
+}
+
+function unpause() {
+  state.paused = false;
+  state.slowFrames = 0;
+  $('resume').hidden = true;
+}
 
 // ---------------------------------------------------------------- loading
 
@@ -135,6 +146,10 @@ async function loadScene(name, place = state.place) {
       }
       state.homeDistance = state.cam.distance;
       state.selected = NONE;
+      state.spp = 1;
+      state.movingSpp = 1;
+      state.sampleMs = 0;
+      state.gpuMs = 0;
       $('scene-note').textContent = def.note || '';
       showSelection();
     }
@@ -142,6 +157,7 @@ async function loadScene(name, place = state.place) {
     state.env = envDef ? { ...envDef } : null;
     state.ground = def.places ? [0, PLACES[place].height, 0] : null;
     state.exposure = Math.pow(2, def.exposure || 0);
+    unpause();
     reset();
     setStatus('');
   } catch (err) {
@@ -175,14 +191,16 @@ function frame() {
 
 // Render one frame if the GPU is free; returns a promise that settles when it finishes.
 function tick() {
-  if (!state.scene || state.inFlight || state.paused) return null;
+  if (!state.scene || state.inFlight || document.hidden) return null;
+  if (state.paused && !state.redisplay) return null;
   resizeCanvas();
   const now = performance.now();
   const moving = now - state.lastMove < 120;
   const preview = moving && state.sampleMs > 12;   // slow scenes drop to half resolution in motion
-  if (preview !== renderer.preview) { renderer.setPreview(preview); state.dirty = true; }
-  if (state.dirty) { state.samples = 0; state.dirty = false; }
-  const converged = state.samples >= MAX_SAMPLES;
+  if (preview !== renderer.preview) { renderer.setPreview(preview); reset(); }
+  const fresh = state.dirty;
+  if (fresh) { state.samples = 0; state.dirty = false; }
+  const converged = state.paused || state.samples >= MAX_SAMPLES;
   if (converged && !state.redisplay) return null;
   state.redisplay = false;
 
@@ -190,29 +208,41 @@ function tick() {
   if (!converged) spp = Math.max(1, Math.min(32, moving ? state.movingSpp : state.spp, MAX_SAMPLES - state.samples));
   const measure = spp > 0 && now - state.measureAt > 400;
   if (measure) state.measureAt = now;
+  const gen = state.gen;
   const opts = {
-    ...renderOptions(), spp, seed: state.seed++, accumulate: state.samples > 0,
+    ...renderOptions(), spp, seed: state.seed++, accumulate: !fresh && state.samples > 0,
     samples: state.samples + spp, exposure: state.exposure, denoise: denoiseAmount(state.samples + spp), selected: state.selected,
     accent: SELECT_COLOR, measure, look: LOOK,
   };
   state.inFlight = true;
+  hiddenDuringFrame = document.hidden;
   const { done, rays } = renderer.render(cameraVectors(), opts);
   state.samples += spp;
   return done.then(ms => {
     state.inFlight = false;
-    if (ms > STALL_MS) {
-      state.paused = true;
-      setStatus(`Paused: one frame took ${(ms / 1000).toFixed(1)} s on this GPU.`);
-      $('resume').hidden = false;
-    }
     if (!spp) return;
-    state.gpuMs = state.gpuMs ? state.gpuMs * 0.8 + ms * 0.2 : ms;
-    if (!preview) state.sampleMs = ms / spp;
-    // several samples per pixel even while moving, so a single unlucky path doesn't show as a dark speck
-    if (moving) state.movingSpp = Math.max(1, Math.min(8, Math.round(spp * MOVING_MS / Math.max(ms, 1))));
-    else state.spp = Math.max(1, Math.min(32, Math.round(spp * TARGET_MS / Math.max(ms, 1))));
-    if (rays) rays.then(n => { state.mrays = n / ms / 1000; });
-    updateStats();
+    if (!hiddenDuringFrame && !document.hidden) {
+      if (ms > STALL_MS) {
+        if (spp > 1) {
+          state.spp = 1;
+          state.movingSpp = 1;
+          state.slowFrames = 0;
+        } else if (++state.slowFrames >= 2) {
+          state.paused = true;
+          setStatus(`Paused: one frame took ${(ms / 1000).toFixed(1)} s on this GPU.`);
+          $('resume').hidden = false;
+        }
+      } else {
+        state.slowFrames = 0;
+        state.gpuMs = state.gpuMs ? state.gpuMs * 0.8 + ms * 0.2 : ms;
+        if (!preview) state.sampleMs = ms / spp;
+        // several samples per pixel even while moving, so a single unlucky path doesn't show as a dark speck
+        if (moving) state.movingSpp = Math.max(1, Math.min(8, Math.round(spp * MOVING_MS / Math.max(ms, 1))));
+        else state.spp = Math.max(1, Math.min(32, Math.round(spp * TARGET_MS / Math.max(ms, 1))));
+      }
+      if (rays) rays.then(n => { state.mrays = n / ms / 1000; if (gen === state.gen) updateStats(); });
+    }
+    if (gen === state.gen) updateStats();
   });
 }
 
@@ -248,16 +278,16 @@ canvas.addEventListener('pointermove', e => {
   if (pointers.size === 2) {
     const [a, b] = [...pointers.values()];
     const d = Math.hypot(a.x - b.x, a.y - b.y);
-    if (drag.pinch) c.distance = clampDistance(c.distance * drag.pinch / d);
+    if (drag.pinch && d > 0) c.distance = clampDistance(c.distance * drag.pinch / d);
     drag.pinch = d;
   } else if (drag.pan) {
     const v = cameraVectors();
     const k = (c.distance * Math.tan(v.fov / 2) * 2) / canvas.clientHeight;
     c.target = c.target.map((t, i) => t - v.right[i] * dx * k + v.up[i] * dy * k);
-    if (SCENES[state.sceneName].places) c.target[1] = Math.max(0.05, c.target[1]);
+    if (SCENES[state.sceneName]?.geometry?.ground) c.target[1] = Math.max(0.05, c.target[1]);
   } else {
     c.yaw -= dx * 0.3;
-    const lowest = SCENES[state.sceneName].places ? 1 : -5;   // stay above the photo's ground
+    const lowest = SCENES[state.sceneName]?.geometry?.ground ? 1 : -5;   // stay above the ground plane
     c.pitch = Math.max(lowest, Math.min(85, c.pitch + dy * 0.25));
   }
   moved();
@@ -267,7 +297,7 @@ const endPointer = e => {
   if (!pointers.has(e.pointerId)) return;
   pointers.delete(e.pointerId);
   if (drag && pointers.size === 0) {
-    if (drag.moved < 5 && performance.now() - drag.t < 400 && e.type === 'pointerup') clickAt(e);
+    if (drag.moved < 5 && performance.now() - drag.t < 400 && e.type === 'pointerup' && e.button === 0) clickAt(e);
     drag = null;
   }
 };
@@ -297,11 +327,12 @@ function canvasPoint(e) {
   return [((e.clientX - r.left) / r.width) * renderer.width, ((e.clientY - r.top) / r.height) * renderer.height];
 }
 
-let lastClick = 0;
+let lastClick = { t: 0, x: 0, y: 0 };
 async function clickAt(e) {
+  if (!state.scene || !state.cam) return;
   const now = performance.now();
-  const double = now - lastClick < 350;
-  lastClick = now;
+  const double = now - lastClick.t < 350 && Math.hypot(e.clientX - lastClick.x, e.clientY - lastClick.y) < 12;
+  lastClick = { t: now, x: e.clientX, y: e.clientY };
   const [x, y] = canvasPoint(e);
   const hit = await renderer.pick(cameraVectors(), x, y, renderOptions());
   if (double) {
@@ -338,6 +369,10 @@ function applyPreset(p) {
   const fresh = material(p);
   for (const k of Object.keys(fresh)) if (k !== 'emission') m[k] = fresh[k];
   renderer.updateMaterials(packMaterials(state.scene.materials));
+  state.spp = 1;
+  state.movingSpp = 1;
+  unpause();
+  setStatus('');
   showSelection();
   reset();
 }
@@ -365,11 +400,12 @@ function bindUI() {
     $('objects').appendChild(b);
   }
   document.querySelectorAll('[data-scene]').forEach(b => b.addEventListener('click', () => loadScene(b.dataset.scene)));
-  document.querySelectorAll('[data-place]').forEach(b => b.addEventListener('click', () => loadScene(state.sceneName, b.dataset.place)));
+  document.querySelectorAll('[data-place]').forEach(b => b.addEventListener('click', () => loadScene(state.sceneName || 'dragon', b.dataset.place)));
   buildPresetButtons();
   $('dof').addEventListener('change', e => { state.dof = e.target.checked; reset(); });
   $('xray').addEventListener('change', e => { state.xray = e.target.checked; reset(); });
-  $('resume').addEventListener('click', () => { state.paused = false; $('resume').hidden = true; setStatus(''); reset(); });
+  $('resume').addEventListener('click', () => { unpause(); setStatus(''); reset(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenDuringFrame = true; });
   window.addEventListener('keydown', e => {
     if (e.key === 'Escape') { state.selected = NONE; state.redisplay = true; showSelection(); }
   });

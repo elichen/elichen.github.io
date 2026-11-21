@@ -195,8 +195,8 @@ export function frameCamera(cam, bounds, aspect) {
   const r = 0.5 * Math.hypot(x1 - x0, y1 - y0, z1 - z0);
   const half = (cam.fov * Math.PI) / 360;
   const fit = Math.min(half, Math.atan(Math.tan(half) * aspect));
-  const distance = (r / Math.sin(fit)) * 0.92;
-  return { ...cam, target: [(x0 + x1) / 2, (y0 + y1) / 2 * 0.95, (z0 + z1) / 2], distance, focus: distance, aperture: 0.012 * distance };
+  const distance = Math.max((r / Math.sin(fit)) * 0.92, ((y1 - y0) * 0.5 / Math.tan(half)) * 1.28);
+  return { ...cam, target: [(x0 + x1) / 2, (y0 + y1) / 2 * 0.96, (z0 + z1) / 2], distance, focus: distance, aperture: 0.012 * distance };
 }
 
 // ---------------------------------------------------------------- scenes

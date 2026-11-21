@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Path Tracer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%2300acc2'/%3E%3Ccircle cx='11.5' cy='11.5' r='4.5' fill='%23e9e9e9' opacity='.75'/%3E%3C/svg%3E">
   <meta name="description" content="A physically based path tracer written as a WebGPU compute shader: an 870,000-triangle dragon, glass, jade and the Cornell box, rendered live in your browser.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -126,8 +127,8 @@
     </table>
     <p>
       About three times as fast, but the comparison flatters the custom shader. The library handles textures,
-      the full glTF material model, any number of lights, animated meshes and denoising. This page handles
-      what its four scenes need and nothing more, and every feature left out is registers and branches the GPU
+      the full glTF material model, any number of lights and animated meshes. This page handles
+      what its scenes need and nothing more, and every feature left out is registers and branches the GPU
       doesn’t have to carry. The library also spends its samples more cleverly. It draws them from
       blue-noise-dithered Sobol sequences, where this page uses plain random numbers, so it reaches a given
       level of noise in fewer samples than raw speed suggests.

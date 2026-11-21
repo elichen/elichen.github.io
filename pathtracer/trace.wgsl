@@ -59,8 +59,6 @@ const STACK = 40u;
 var<private> rng: u32;
 var<private> visits: u32;
 var<private> rays: u32;
-var<private> primaryMat: u32;
-var<private> primaryGuide: vec4f;
 
 fn hash(v: u32) -> u32 {
   let s = v * 747796405u + 2891336453u;
@@ -363,11 +361,11 @@ fn evalOpaque(M: Material, wo: vec3f, wi: vec3f) -> BsdfEval {
   let Fr = schlick(f0, dot(wo, h));
   let D = ggxD(h.z, a2);
   let g1o = smithG1(wo.z, a2);
-  let spec = Fr * D * g1o * smithG1(wi.z, a2) / (4.0 * wo.z * wi.z);
-  let diff = (1.0 - M.metallic) * (1.0 - Fr) * M.color / PI;
+  let specCos = Fr * D * g1o * smithG1(wi.z, a2) / (4.0 * wo.z);
+  let diffCos = (1.0 - M.metallic) * (1.0 - Fr) * M.color * (wi.z / PI);
   let ps = specularProbability(M, wo.z);
   let pdf = ps * g1o * D / (4.0 * wo.z) + (1.0 - ps) * wi.z / PI;
-  return BsdfEval((spec + diff) * wi.z, pdf);
+  return BsdfEval(specCos + diffCos, pdf);
 }
 
 fn sampleOpaque(M: Material, wo: vec3f) -> vec3f {
@@ -470,6 +468,7 @@ fn sampleLight(p: vec3f) -> LightSample {
   let q = L0.xyz + e1 * a + e2 * b;
   let dv = q - p;
   let dist = length(dv);
+  if (dist < 1e-6) { return LightSample(vec3f(0.0, 1.0, 0.0), vec3f(0.0), 0.0, 0.0); }
   let wi = dv / dist;
   let cosL = dot(-wi, n);
   if (cosL <= 0.0) { return LightSample(wi, vec3f(0.0), 0.0, dist); }
@@ -551,7 +550,6 @@ fn radiance(ro0: vec3f, rd0: vec3f) -> vec3f {
     }
 
     let s = surfaceAt(hit, ro, rd);
-    if (events == 1u) { primaryMat = s.mat; }
     var M = materials[s.mat];
     if (M.projected > 0.5 && F.groundOn > 0.5) { M.color = groundAlbedo(s.p); }
     let wo = -rd;
@@ -574,17 +572,6 @@ fn radiance(ro0: vec3f, rd0: vec3f) -> vec3f {
     let ng = select(-s.ng, s.ng, front);       // both normals on the side the ray came from
     var ns = select(-s.ns, s.ns, front);
     if (dot(ns, wo) <= 1e-4) { ns = ng; }
-    if (events == 1u) {
-      // what the denoiser needs to know about the pixel: facing normal, depth, color, and
-      // how much it may be blurred (sharp reflections and refractions hardly at all)
-      let mirror = M.metallic > 0.5 || (M.transmission > 0.5 && M.scatter <= 0.0);
-      let blur = select(1.0, clamp(M.roughness * 5.0, 0.0, 1.0), mirror);
-      let z = dot(s.p - F.camPos, F.camFwd);
-      let coc = F.lensRadius * abs(z - F.focusDist) / z * f32(F.height) / (2.0 * F.focusDist * F.tanHalfFov);
-      // well out of focus the pixel averages many surfaces, so this one's color would be wrong to divide by
-      let color = mix(M.color, vec3f(1.0), clamp((coc - 1.0) / 2.0, 0.0, 1.0));
-      primaryGuide = vec4f(bitcast<f32>(octEncode(ns)), z, bitcast<f32>(pack4x8unorm(vec4f(color, blur))), coc);
-    }
 
     if (M.transmission > 0.5 && M.scatter > 0.0 && !front) {
       // Leaving a scattering medium: treat the exit as diffuse transmission, as random-walk
@@ -620,21 +607,65 @@ fn radiance(ro0: vec3f, rd0: vec3f) -> vec3f {
       let eta = select(M.ior, 1.0 / M.ior, front);
       let cosI = dot(wo, m);
       let Fr = fresnelDielectric(cosI, eta);
-      var wi: vec3f;
-      if (rand() < Fr) {
-        wi = reflect(-wo, m);
-        if (dot(wi, ng) <= 0.0) { break; }
-        ro = offsetRay(s.p, ng);
-      } else {
-        wi = refract(-wo, m, eta);
-        if (dot(wi, ng) >= 0.0 || all(wi == vec3f(0.0))) { break; }
-        ro = offsetRay(s.p, -ng);
-        if (M.density <= 0.0) { tp *= M.color; }
-        medium = select(NONE, s.mat, front);
+      let reflDir = reflect(-wo, m);
+      let refrDir = refract(-wo, m, eta);
+      let reflOk = dot(reflDir, ng) > 0.0;
+      let refrOk = dot(refrDir, ng) < 0.0 && !all(refrDir == vec3f(0.0));
+      var splitDone = false;
+      // Unbiased Fresnel splitting when the sky branch is directly visible on entry or exit:
+      // eliminates bright coat-reflection / sky-refraction coin-flip speckles at low sample counts.
+      if (F.envIntensity > 0.0 && Fr > 0.0 && Fr < 1.0 && reflOk && refrOk) {
+        if (depth == 1u && front) {
+          let reflRo = offsetRay(s.p, ng);
+          if (intersectScene(reflRo, reflDir, BIG, true).inst == NONE) {
+            var reflW = Fr;
+            if (alpha > 1e-3) { reflW *= smithG1(abs(dot(reflDir, ns)), alpha * alpha); }
+            addLight(&L, tp * reflW * envRadiance(reflDir), depth);
+            tp *= 1.0 - Fr;
+            if (M.density <= 0.0) { tp *= M.color; }
+            if (alpha > 1e-3) { tp *= smithG1(abs(dot(refrDir, ns)), alpha * alpha); }
+            ro = offsetRay(s.p, -ng);
+            rd = refrDir;
+            medium = s.mat;
+            specular = true;
+            splitDone = true;
+          }
+        } else if (depth == 2u && !front && M.scatter <= 0.0) {
+          let refrRo = offsetRay(s.p, -ng);
+          if (intersectScene(refrRo, refrDir, BIG, true).inst == NONE) {
+            var refrW = 1.0 - Fr;
+            if (alpha > 1e-3) { refrW *= smithG1(abs(dot(refrDir, ns)), alpha * alpha); }
+            var refrTp = tp * refrW;
+            if (M.density <= 0.0) { refrTp *= M.color; }
+            addLight(&L, refrTp * envRadiance(refrDir), depth);
+            let q = min(max(Fr, 0.25), 1.0);
+            if (rand() >= q) { break; }
+            tp *= Fr / q;
+            if (alpha > 1e-3) { tp *= smithG1(abs(dot(reflDir, ns)), alpha * alpha); }
+            ro = offsetRay(s.p, ng);
+            rd = reflDir;
+            specular = true;
+            splitDone = true;
+          }
+        }
       }
-      if (alpha > 1e-3) { tp *= smithG1(abs(dot(wi, ns)), alpha * alpha); }
-      rd = wi;
-      specular = true;
+      if (!splitDone) {
+        var wi: vec3f;
+        if (rand() < Fr) {
+          if (!reflOk) { break; }
+          wi = reflDir;
+          ro = offsetRay(s.p, ng);
+        } else {
+          if (!refrOk) { break; }
+          wi = refrDir;
+          ro = offsetRay(s.p, -ng);
+          if (M.density <= 0.0) { tp *= M.color; }
+          medium = select(NONE, s.mat, front);
+        }
+        if (alpha > 1e-3) { tp *= smithG1(abs(dot(wi, ns)), alpha * alpha); }
+        rd = wi;
+        specular = true;
+      }
     } else {
       bounces += 1u;
       let B = basis(ns);
@@ -688,14 +719,14 @@ fn turbo(x0: f32) -> vec3f {
 // X-ray view: how much tree each camera ray had to walk, from blue (little) to red (a lot).
 fn xray(ro: vec3f, rd: vec3f) -> vec3f {
   visits = 0u;
-  let hit = intersectScene(ro, rd, BIG, false);
-  if (hit.inst != NONE) { primaryMat = surfaceAt(hit, ro, rd).mat; }
+  _ = intersectScene(ro, rd, BIG, false);
   return turbo(f32(visits) / 160.0);
 }
 
 // ---------------------------------------------------------------- entry points
 
 struct Ray { o: vec3f, d: vec3f }
+struct Primary { mat: u32, guide: vec4f }
 
 fn cameraRay(px: vec2f, lens: bool) -> Ray {
   let ndc = vec2f(px.x / f32(F.width) * 2.0 - 1.0, 1.0 - px.y / f32(F.height) * 2.0);
@@ -708,6 +739,31 @@ fn cameraRay(px: vec2f, lens: bool) -> Ray {
   return Ray(o, normalize(focus - o));
 }
 
+// Deterministic pinhole primary hit at the pixel center: gives a crisp selection outline
+// and a noise-free guide for the denoiser even when depth of field is enabled.
+fn primaryAt(px: vec2f) -> Primary {
+  let r = cameraRay(px, false);
+  let hit = intersectScene(r.o, r.d, BIG, false);
+  if (hit.inst == NONE) { return Primary(NONE, vec4f(0.0, -1.0, 0.0, 0.0)); }
+  let s = surfaceAt(hit, r.o, r.d);
+  var M = materials[s.mat];
+  if (M.projected > 0.5 && F.groundOn > 0.5) { M.color = groundAlbedo(s.p); }
+  let wo = -r.d;
+  let front = dot(s.ng, wo) > 0.0;
+  let ng = select(-s.ng, s.ng, front);
+  var ns = select(-s.ns, s.ns, front);
+  if (dot(ns, wo) <= 1e-4) { ns = ng; }
+  // what the denoiser needs to know about the pixel: facing normal, depth, color, and
+  // how much it may be blurred (sharp reflections and refractions hardly at all)
+  let mirror = M.metallic > 0.5 || (M.transmission > 0.5 && M.scatter <= 0.0);
+  let blur = select(1.0, clamp(M.roughness * 5.0, 0.0, 1.0), mirror);
+  let z = max(dot(s.p - F.camPos, F.camFwd), 1e-4);
+  let coc = F.lensRadius * abs(z - F.focusDist) / z * f32(F.height) / (2.0 * F.focusDist * F.tanHalfFov);
+  // well out of focus the pixel averages many surfaces, so this one's color would be wrong to divide by
+  let color = mix(M.color, vec3f(1.0), clamp((coc - 1.0) / 2.0, 0.0, 1.0));
+  return Primary(s.mat, vec4f(bitcast<f32>(octEncode(ns)), z, bitcast<f32>(pack4x8unorm(vec4f(color, blur))), coc));
+}
+
 var<workgroup> groupRays: atomic<u32>;
 
 @compute @workgroup_size(8, 4)
@@ -717,23 +773,16 @@ fn trace(@builtin(global_invocation_id) gid: vec3u, @builtin(local_invocation_in
     let idx = gid.y * F.width + gid.x;
     rng = hash(idx ^ hash(F.frame * 0x9e3779b9u));
     var sum = vec3f(0.0);
-    var id = NONE;
-    var g = vec4f(0.0, -1.0, 0.0, 0.0);
     for (var s = 0u; s < F.spp; s++) {
-      // the first sample of a fresh image records which material the pixel shows,
-      // for the selection outline
-      let first = s == 0u && F.accumulate == 0u;
       let r = cameraRay(vec2f(gid.xy) + vec2f(rand(), rand()), true);
-      primaryMat = NONE;
-      primaryGuide = vec4f(0.0, -1.0, 0.0, 0.0);      // sky
       var c: vec3f;
       if (F.mode == 0u) { c = radiance(r.o, r.d); } else { c = xray(r.o, r.d); }
-      if (first) { id = primaryMat; g = primaryGuide; }
       let bits = bitcast<vec3u>(c) & vec3u(0x7f800000u);
       if (!any(bits == vec3u(0x7f800000u))) { sum += c; }    // drop NaN and infinite samples
     }
     if (F.accumulate == 0u) {
-      accum[idx] = Pixel(vec4f(sum, bitcast<f32>(id)), g);
+      let pr = primaryAt(vec2f(gid.xy) + 0.5);
+      accum[idx] = Pixel(vec4f(sum, bitcast<f32>(pr.mat)), pr.guide);
     } else {
       let prev = accum[idx].sum;
       accum[idx].sum = vec4f(prev.xyz + sum, prev.w);
