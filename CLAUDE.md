@@ -413,3 +413,18 @@ Food cues and walking DNs (`tools/intent.py`, brain-only FlyWire, 2026-10-30). S
 - Don't call `d.contact.get` every step (embind copies; 2 GB in minutes): `touching()` reads the touch sensors. Walker limits (`tools/walk_turns.mjs`): 1 cm/s at 4 rad/s falls; 1.5 at 3 and 2 at 4 hold; ramp speed; slow walking 0.5-1 cm/s then rearing noses over, so takeoff from a stand.
 - BANC (`tools/life_brain.mjs`): P9 150 -> oDN1 12.8, + sugar 150 -> 5.2 (MN9 9.4), looms both eyes -> GF 24, left eye 9.6. Older: after looms the model stayed at ~20-32k spikes/s (`tools/life_after.mjs`), and in some runs GF keeps firing: `Day.calm()` clears state 1 s after an object goes (stated, counted on the page). `set_rate` state must be re-applied after reset; `applyEye` early-returns when unchanged, so never overwrite `input` without zeroing the neurons.
 - Swat table (`SWATTEST=20 [NOJUMP=1] node tools/day.mjs body 1 <seed>`): control 240/240; left eye almost never jumps (BANC annotation, likely not biology). Don't tune away. Eye `LOOM_FULL` is 2 rad/s here (6 on flight page). Speed: ~1x on the table, ~0.5x in the air (headless).
+
+## Grokking, Live (`/grokking/`)
+
+Distill-style article plus live in-browser trainer for modular arithmetic (`(a + b) mod 59` and `(a − b) mod 59`), following Nanda et al. (ICLR 2023). Trains a real 1-layer causal ReLU transformer from scratch in a Web Worker using Rust WebAssembly SIMD128 (~165 epochs/s on an Apple M4 Pro; full grokking in ~12–20 s).
+
+- **Architecture (`grok.wasm` from `tools/wasm-trainer/src/lib.rs`):** `p = 59`, vocab 60 (`0..58` plus `=`), `d_model = 64`, 4 heads (`d_head = 16`), `d_mlp = 192`, no LayerNorm, untied `W_U` (49,024 params). Full-batch decoupled AdamW (`lr = 3e-3`, `beta1 = 0.9`, `beta2 = 0.98`). Attention at position 2 (`=`) is algebraically factored over the 59 distinct residues (exact, not an approximation), leaving 3 forward + 6 backward dense GEMMs per epoch (~0.21 GFLOPs).
+- **Live progress measures & ablations:** At each evaluation, picks the top 5 frequencies from current `W_E` and projects the `59 × 59 × 59` logit table onto the 2D `{cos, sin}(ω_k a) × {cos, sin}(ω_k b)` subspace (plus DC) for restricted test loss and excluded train loss. Clicking frequency bars (or *Solo top 5* / *Mute top 5*) projects frequencies out of `W_E` and re-evaluates all 3,481 pairs in ~2 ms.
+- **Defaults & recorded runs (`data/experiments.json`):** Default `a + b` uses 35% train (1,218 pairs), `wd = 2.2`, `seed = 1` (memorizes ~150 at 2.6% test, weight norm peaks 37.7 at ~800, groks to 100% by 1,800, `solo_top5 = 99.9%`, `mute_top5 = 1.4%`). Subtraction button switches to 40% train, `wd = 2.0`, `seed = 42` (<1% until ~1,500, <10% until ~2,500, 100% near 2,900).
+- **Files:** `index.html`, `styles.css`, `main.js`, `worker.js` (keeps up to 121 checkpoints every 50 epochs for time-travel scrubbing), `charts.js`, `grok.wasm`, `data/experiments.json`.
+
+```bash
+grokking/tools/wasm-trainer/build.sh       # rebuild grok.wasm (needs wasm32-unknown-unknown)
+python3 grokking/tools/verify_parity.py    # PyTorch full-seq parity (grads ~2.3e-8, 2D FFT ~1.0e-6) + speed
+node grokking/tools/record_experiments.mjs # regenerate data/experiments.json (4 controlled runs)
+```

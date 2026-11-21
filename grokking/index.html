@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Grokking, Live</title>
+    <meta name="description" content="Watch a one-layer transformer memorize modular arithmetic, sit on a flat plateau, and suddenly grok — live in your browser. Inspect its Fourier clock circuit and ablate frequencies in real time.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%231f5aa6' stroke-width='3'/%3E%3Ccircle cx='25' cy='9' r='3' fill='%23c0392b'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/contrib/auto-render.min.js"
+        onload="renderMathInElement(document.body, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '\\(', right: '\\)', display: false }] })"></script>
+    <script type="module" src="main.js"></script>
+</head>
+<body>
+    <nav class="site"><a href="../index.html">elichen.github.io</a></nav>
+
+    <header class="title">
+        <h1>Grokking, Live</h1>
+        <p class="description">A one-layer transformer trains on modular arithmetic from random weights in your browser. It memorizes the training table in a second, sits flat on held-out pairs, then suddenly snaps to 100% — and you can see the trigonometric circuit forming underneath.</p>
+    </header>
+
+    <section class="demo" id="demo" aria-label="Live grokking trainer">
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <div class="group">
+                    <button type="button" id="btn-toggle" class="primary">Pause</button>
+                    <button type="button" id="btn-reset">Reset</button>
+                    <button type="button" id="btn-seed">New seed</button>
+                </div>
+                <div class="group">
+                    <span class="label">Task</span>
+                    <span class="segmented" role="group" aria-label="Arithmetic task">
+                        <button type="button" data-op="0" aria-pressed="true">(a + b) mod 59</button>
+                        <button type="button" data-op="1" aria-pressed="false">(a − b) mod 59</button>
+                    </span>
+                </div>
+            </div>
+            <div class="toolbar-right">
+                <label class="slider-group" title="Fraction of all 3,481 pairs used for training">
+                    <span class="label">Train split</span>
+                    <input type="range" id="train-frac" min="0.20" max="0.60" step="0.05" value="0.35">
+                    <output id="train-frac-out">35%</output>
+                </label>
+                <label class="slider-group" title="AdamW decoupled weight decay (updates live without resetting)">
+                    <span class="label">Weight decay</span>
+                    <input type="range" id="wd" min="0.0" max="3.5" step="0.1" value="2.2">
+                    <output id="wd-out">2.2</output>
+                </label>
+            </div>
+        </div>
+
+        <div class="status-strip">
+            <div class="status-left">
+                <span class="pill" id="phase-pill">Starting WASM trainer…</span>
+                <button type="button" id="btn-back-live" class="small" hidden>Back to live</button>
+            </div>
+            <span class="rate" id="rate-pill">49,024 params · WASM SIMD</span>
+        </div>
+
+        <!-- Row 1: Training dynamics & readouts -->
+        <div class="card">
+            <div class="card-head">
+                <h2 class="card-title">Training dynamics</h2>
+                <span class="segmented" role="group" aria-label="Chart metric">
+                    <button type="button" class="small" data-chart-mode="acc" aria-pressed="true">Accuracy &amp; weight norm</button>
+                    <button type="button" class="small" data-chart-mode="loss" aria-pressed="false">Loss &amp; progress measures</button>
+                </span>
+            </div>
+            <div class="train-grid">
+                <div>
+                    <div class="legend" id="train-legend"></div>
+                    <div class="chart-wrap">
+                        <canvas id="chart-train" aria-label="Training and test curves over epochs. Drag horizontally to scrub through saved checkpoints."></canvas>
+                    </div>
+                    <p class="scrub-hint">Drag across the chart to inspect any past checkpoint without interrupting AdamW state.</p>
+                </div>
+                <dl class="readouts">
+                    <div><dt>Epoch</dt><dd id="ro-epoch">0</dd></div>
+                    <div><dt>Train / Test</dt><dd id="ro-acc">—</dd></div>
+                    <div><dt>Weight norm</dt><dd id="ro-wnorm">—</dd></div>
+                    <div><dt>Top-5 Fourier</dt><dd id="ro-top5">—</dd></div>
+                    <div><dt>Restricted loss</dt><dd id="ro-res" class="accent-blue">—</dd></div>
+                    <div><dt>Excluded loss</dt><dd id="ro-exc">—</dd></div>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Row 2: Fourier Spectrum + Clock Circle -->
+        <div class="inspect-grid">
+            <div class="card">
+                <div class="card-head">
+                    <div>
+                        <h2 class="card-title">Embedding Fourier spectrum (W<sub>E</sub>)</h2>
+                        <p class="card-sub">Energy per frequency k = 1…29. Click any bar to mute or restore it.</p>
+                    </div>
+                    <span class="segmented" role="group" aria-label="Frequency ablation presets">
+                        <button type="button" class="small" id="btn-abl-all" aria-pressed="true">All 29</button>
+                        <button type="button" class="small" id="btn-abl-solo" aria-pressed="false">Solo top 5</button>
+                        <button type="button" class="small" id="btn-abl-mute" aria-pressed="false">Mute top 5</button>
+                    </span>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="chart-spectrum" aria-label="Bar chart of Fourier frequency energy in the token embedding matrix."></canvas>
+                    <div class="tooltip" id="spectrum-tip" hidden></div>
+                </div>
+                <div class="ablate-banner" id="ablate-bar"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-head">
+                    <div>
+                        <h2 class="card-title">The clock circle</h2>
+                        <p class="card-sub" id="circle-subtitle">2D Fourier plane of W<sub>E</sub></p>
+                    </div>
+                    <div class="chips" id="circle-chips"></div>
+                </div>
+                <canvas id="chart-circle" aria-label="Tokens 0 through 58 projected onto the selected Fourier frequency plane of the embedding matrix."></canvas>
+            </div>
+        </div>
+
+        <!-- Row 3: Interactive Calculator & Wave Interference -->
+        <div class="card probe-card">
+            <div class="card-head">
+                <div>
+                    <h2 class="card-title">Inside one prediction: Fourier wave decomposition</h2>
+                    <p class="card-sub">Top 5 Fourier components of the logits across 0…58, the other 24 frequencies (<code>other</code>), and the full centered logits below.</p>
+                </div>
+                <button type="button" class="small" id="btn-rand-test">Random held-out pair</button>
+            </div>
+            <div class="probe-controls">
+                <label class="num-input">a =
+                    <input type="number" id="probe-a" min="0" max="58" value="17">
+                    <input type="range" id="probe-a-range" min="0" max="58" value="17">
+                </label>
+                <label class="num-input">b =
+                    <input type="number" id="probe-b" min="0" max="58" value="45">
+                    <input type="range" id="probe-b-range" min="0" max="58" value="45">
+                </label>
+                <span class="probe-eq" id="probe-eq">17 + 45 ≡ 3 (mod 59)</span>
+                <span class="split-tag heldout" id="probe-split-badge">Held-out test pair</span>
+                <span class="probe-pred" id="probe-pred">—</span>
+            </div>
+            <canvas id="chart-probe" aria-label="Top five Fourier waves over output classes 0 to 58 and their combined logits."></canvas>
+            <div class="probe-foot">
+                <span>Attention at <code>=</code> across the 4 heads:</span>
+                <span class="attn-strip" id="probe-attn"></span>
+            </div>
+        </div>
+    </section>
+
+    <div class="byline">
+        <div><h3>Published</h3><p>November 20, 2026</p></div>
+        <div><h3>Model</h3><p>1-layer ReLU Transformer (49,024 params)</p></div>
+        <div><h3>Engine</h3><p>Rust WebAssembly SIMD, live in this tab</p></div>
+    </div>
+
+    <article class="prose">
+        <p class="lede">When you train a small neural network on a small table of arithmetic, something strange happens. First it memorizes the training pairs and fails completely on the rest. If you keep training with weight decay, long after training loss has hit zero, test accuracy suddenly jumps from near random to 100%. Power et al. named this delayed generalization <em>grokking</em> <a href="#ref-1" class="cite">[1]</a>.</p>
+
+        <p>The demo above trains a real one-layer transformer from scratch in a Web Worker on your CPU, solving \((a + b) \bmod 59\) from only 35% of the <span style="white-space:nowrap">\(59^2 = 3{,}481\)</span> pairs. Every gradient, weight update, Fourier transform, and frequency knockout runs live in this tab.</p>
+
+        <h2>The clock algorithm</h2>
+        <p>How does a one-layer network with no arithmetic primitives learn modular addition? Nanda et al. <a href="#ref-2" class="cite">[2]</a> reverse-engineered the trained weights and found a trigonometric circuit (Gromov <a href="#ref-4" class="cite">[4]</a> gave a closed-form analytic version). Instead of storing a lookup table, the network picks a handful of key frequencies \(k \in \{1, \dots, 29\}\) (with \(\omega_k = 2\pi k / 59\)) and maps each input residue \(a\) onto circles in its embedding matrix \(W_E\):</p>
+        $$a \longmapsto \big(\cos(\omega_k a),\ \sin(\omega_k a)\big)$$
+        <p>Attention reads both \(a\) and \(b\) into the residual stream at the <code>=</code> token. Then the ReLU MLP mixes them to approximate the angle-addition identities:</p>
+        $$\cos\!\big(\omega_k(a + b)\big) = \cos(\omega_k a)\cos(\omega_k b) - \sin(\omega_k a)\sin(\omega_k b)$$
+        $$\sin\!\big(\omega_k(a + b)\big) = \sin(\omega_k a)\cos(\omega_k b) + \cos(\omega_k a)\sin(\omega_k b)$$
+        <p>Finally, the unembedding matrix \(W_U\) takes the dot product with \((\cos(\omega_k c), \sin(\omega_k c))\) for every candidate answer \(c \in \{0, \dots, 58\}\), producing a cosine wave \(\cos(\omega_k(a + b - c))\) that peaks at \(c \equiv a + b \pmod{59}\).</p>
+        <p>Because \(p = 59\) is prime, a single wave \(\cos(\omega_k(s - c))\) has a unique maximum at \(c = s\), but its closest runner-up is \(\cos(2\pi / 59) \approx 0.994\) — less than 0.6% lower — so any noise flips the prediction. Summing four or five different frequencies pushes their near-peaks onto different wrong residues, where they cancel out and open a wide margin on the true answer. You can see this in the wave panel above: before grokking the <code>other</code> lane carries most of the logits, and after grokking it flattens while the top five waves align on \(c^*\). Once the model has grokked, <button type="button" class="inline" data-action="solo-top5">Solo top 5</button> zeros out the other 24 frequencies in \(W_E\) and test accuracy holds near 100%; <button type="button" class="inline" data-action="mute-top5">Mute top 5</button> removes only those 5 frequencies and test accuracy drops to chance (\(1/59 \approx 1.7\%\)).</p>
+
+        <h2>Three phases, and hidden progress</h2>
+        <p>Watching only test accuracy makes grokking look sudden. Switch the top chart to <button type="button" class="inline" data-action="show-loss">Loss &amp; progress measures</button> to see the circuit form underneath (numbers below are for the default seed 1; click <em>New seed</em> to see how timing varies across runs) <a href="#ref-2" class="cite">[2]</a>:</p>
+        <ul>
+            <li><strong>Memorization</strong> (epochs 0–150): Train accuracy hits 100% while test accuracy stays near 2.6% and test loss climbs past 13. The network fits the 1,218 training pairs with high-norm weights spread across all 29 frequencies.</li>
+            <li><strong>Circuit formation</strong> (epochs 150–1,000): Test accuracy climbs only slowly (2.6% → 14.5%) while test loss remains above 13, yet the <em>restricted test loss</em> — from projecting logits onto only the top 5 Fourier frequencies — drops steadily from 3.3 to 0.6. Weight norm \(\|W\|_2\) peaks around epoch 800 (37.7).</li>
+            <li><strong>Cleanup and generalization</strong> (epochs 1,000–2,000): Weight decay shrinks the high-norm memorizing weights faster than the compact trigonometric circuit. Total weight norm falls from 37.7 down to 25.3, test accuracy climbs to 100% by epoch 1,800, and <em>excluded train loss</em> (the loss with those 5 frequencies subtracted out) peaks above 9 around epoch 1,400 before settling near 5–6 as the lookup table is pruned away.</li>
+        </ul>
+        <p>Drag horizontally across the training chart at any time to scrub back to an earlier checkpoint and watch the clock circle untangle from a random cloud into a 59-gon.</p>
+
+        <h2>What makes grokking happen</h2>
+        <p>Grokking comes from the competition between two solutions: a high-norm lookup table that gradient descent finds quickly, and a low-norm Fourier algorithm that takes longer to organize. Two knobs control which one wins: enough training data to rule out shortcuts, and weight decay to penalize the lookup table <a href="#ref-2" class="cite">[2]</a>, <a href="#ref-3" class="cite">[3]</a>.</p>
+
+        <figure class="exp-fig">
+            <div class="legend">
+                <span class="legend-item"><span class="swatch" style="background:#c0392b"></span>Default (35% data, wd = 2.2)</span>
+                <span class="legend-item"><span class="swatch" style="background:#1f5aa6"></span>Delayed decay (wd 0 → 2.2 at epoch 800)</span>
+                <span class="legend-item"><span class="swatch dashed" style="color:#2b303a"></span>No weight decay (wd = 0)</span>
+                <span class="legend-item"><span class="swatch dotted" style="color:#b86b14"></span>Too little data (25% data, wd = 2.2)</span>
+            </div>
+            <canvas id="chart-compare" aria-label="Comparison of test accuracy across four controlled runs: default, delayed weight decay, zero weight decay, and 25% training data."></canvas>
+            <figcaption><b>Figure 1.</b> Test accuracy over 3,000 epochs across four controlled runs of seed 1 in <code>grok.wasm</code>. With zero weight decay, the network memorizes and stays at 3.1% test accuracy while its weight norm grows to 51.7. With only 25% of pairs, weight decay cannot force generalization (2.9%). Starting at zero weight decay and switching it on at epoch 800 still triggers full grokking (99.5% test accuracy; 99.7% with only its top 5 frequencies).</figcaption>
+        </figure>
+
+        <p>Try it live: run with <button type="button" class="inline" data-action="no-decay">Weight decay = 0</button> and let it sit flat at 100% train / ~3% test. Then drag the weight decay slider up (or click <button type="button" class="inline" data-action="turn-on-decay">Turn weight decay back on</button>) mid-run without resetting to trigger generalization. You can also switch to subtraction <button type="button" class="inline" data-action="task-sub">Try (a − b) mod 59</button> (which uses a 40% train split, wd = 2.0, seed 42): without the \((a,b) \leftrightarrow (b,a)\) symmetry of addition, test accuracy stays below 1% until ~1,500 epochs and under 10% until ~2,500 before jumping to 100% near epoch 2,900.</p>
+    </article>
+
+    <footer class="appendix">
+        <h3>How this works</h3>
+        <p><strong>Architecture:</strong> A one-layer causal transformer with no LayerNorm, following Nanda et al. <a href="#ref-2" class="cite">[2]</a>: vocabulary size 60 (residues <code>0…58</code> plus <code>=</code>), \(d_{\text{model}} = 64\), 4 attention heads (\(d_{\text{head}} = 16\)), a ReLU MLP with \(d_{\text{mlp}} = 192\), and untied unembedding \(W_U\) (49,024 parameters total). Weights are initialized from \(\mathcal{N}(0, 1/\sqrt{\text{fan\_in}})\) with zero MLP biases and trained full-batch with decoupled AdamW (\(\text{lr} = 3\times 10^{-3}\), \(\beta_1 = 0.9\), \(\beta_2 = 0.98\)).</p>
+        <p><strong>Exact factored attention &amp; WASM SIMD:</strong> Because this is a one-layer transformer read only at position 2 (<code>=</code>), keys, values, and \(v W_O\) projections depend only on the 59 distinct residues rather than all \(B\) pairs. Factoring those projections over \(p = 59\) is algebraically identical to full-sequence attention and leaves three dense matrix multiplications forward and six backward per epoch (~0.21 GFLOPs total). Compiled from Rust to a 133 KB WebAssembly module with <code>+simd128</code>, it runs at ~165 epochs/s in a single Web Worker on an Apple M4 Pro — fast enough to train from scratch in ~12–20 seconds in any browser without WebGPU.</p>
+        <p><strong>Progress measures:</strong> Restricted and excluded loss follow the idea of Nanda et al. <a href="#ref-2" class="cite">[2]</a>, adapted for live training: at each evaluation we pick the top 5 frequencies from the current \(W_E\) (rather than fixing them from a finished model) and project the \(59 \times 59 \times 59\) logit table onto the 2D \(\{\cos, \sin\}(\omega_k a) \times \{\cos, \sin\}(\omega_k b)\) subspace for those frequencies (plus DC).</p>
+        <p><strong>Verification:</strong> <code>tools/verify_parity.py</code> compares <code>grok.wasm</code> against a naive full-sequence PyTorch reference on identical initial weights and training pairs. Across all 49,024 parameters, step-1 gradients agree to \(2.3 \times 10^{-8}\) max absolute difference, step-10 AdamW weights agree to \(5.9 \times 10^{-6}\), and restricted/excluded losses agree with PyTorch's 2D FFT to \(1.0 \times 10^{-6}\).</p>
+
+        <h3>References</h3>
+        <ol class="refs">
+            <li id="ref-1">A. Power, Y. Burda, H. Edwards, I. Babuschkin, V. Misra. <a href="https://arxiv.org/abs/2201.02177">Grokking: Generalization Beyond Overfitting on Small Algorithmic Datasets</a>. arXiv:2201.02177 (2022).</li>
+            <li id="ref-2">N. Nanda, L. Chan, T. Lieberum, J. Smith, J. Steinhardt. <a href="https://arxiv.org/abs/2301.05217">Progress measures for grokking via mechanistic interpretability</a>. ICLR (2023).</li>
+            <li id="ref-3">Z. Liu, E. J. Michaud, M. Tegmark. <a href="https://arxiv.org/abs/2210.01117">Omnigrok: Grokking Beyond Algorithmic Data</a>. ICLR (2023).</li>
+            <li id="ref-4">A. Gromov. <a href="https://arxiv.org/abs/2301.02679">Grokking modular arithmetic</a>. arXiv:2301.02679 (2023).</li>
+        </ol>
+    </footer>
+</body>
+</html>
