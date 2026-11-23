@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>World Model Browser Verification</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+    }
+  }
+  </script>
+  <style>
+    body { margin: 16px; background: #151a24; color: #eceff4; font: 13px/1.5 ui-monospace, monospace; }
+    canvas#view { width: 320px; height: 180px; border: 1px solid #333; }
+    .strip { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .pair { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+    .pair .imgs { display: flex; gap: 2px; }
+    .pair img, .pair canvas { width: 112px; height: 112px; }
+    pre { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <div class="strip" id="strip"></div>
+  <canvas id="view" width="320" height="180"></canvas>
+  <pre id="out">Starting verification…</pre>
+
+  <script type="module">
+    import loadMujoco from 'https://cdn.jsdelivr.net/npm/@mujoco/mujoco@3.14.0/mujoco.js';
+    import { CubeEnv, makeRandom } from '../cube-env.js';
+    import { loadWorldModel } from '../model.js';
+    import { loadActionBank, Planner } from '../planner.js';
+    import { SceneRenderer } from '../render.js';
+
+    const params = new URLSearchParams(location.search);
+    const nGoals = parseInt(params.get('goals') || '20', 10);
+    const forceBackend = params.get('backend') || '';
+    const mode = params.get('mode') || 'hyb-cem';
+    const out = document.getElementById('out');
+    const strip = document.getElementById('strip');
+    const log = (s) => { out.textContent += '\n' + s; console.log(s); };
+
+    const median = arr => {
+      const a = [...arr].sort((x, y) => x - y);
+      return a[Math.floor(a.length / 2)];
+    };
+
+    try {
+      const tf = window.tf;
+      let backend = 'webgl';
+      if (forceBackend) {
+        await tf.setBackend(forceBackend);
+        await tf.ready();
+        backend = forceBackend;
+      } else if (navigator.gpu) {
+        try { await tf.setBackend('webgpu'); await tf.ready(); backend = 'webgpu'; }
+        catch { await tf.setBackend('webgl'); await tf.ready(); }
+      } else {
+        await tf.setBackend('webgl'); await tf.ready();
+      }
+      log(`Backend: ${backend}`);
+
+      const manifest = await fetch('../robot/manifest.json').then(r => r.json());
+      const files = {};
+      await Promise.all(manifest.files.map(async f => {
+        const r = await fetch('../robot/' + f);
+        files[f] = f.endsWith('.xml') ? await r.text() : new Uint8Array(await r.arrayBuffer());
+      }));
+      const [mj, wm, ref] = await Promise.all([
+        loadMujoco(),
+        loadWorldModel(tf, '../model'),
+        fetch('../parity/ref.json').then(r => r.json()),
+      ]);
+      const bank = await loadActionBank(wm.actMean, wm.actStd, '../model');
+      const env = new CubeEnv(mj, files, makeRandom(7));
+      const view = new SceneRenderer(document.getElementById('view'), env);
+
+      // -------------------------------------------------------------
+      // 1. Visual Domain-Gap Check: Three.js eyeScene vs Python MuJoCo PNGs
+      // -------------------------------------------------------------
+      log('\n=== 1. VISUAL DOMAIN GAP (16 states: Three.js vs Python MuJoCo) ===');
+      const cubeErrThree = [], handErrThree = [], cubeErrMj = [], handErrMj = [], gapCube = [], pixMaes = [];
+      const tmpC = document.createElement('canvas');
+      tmpC.width = 224; tmpC.height = 224;
+      const tmpCtx = tmpC.getContext('2d', { willReadFrequently: true });
+
+      for (const vc of ref.visual_cases) {
+        env.setState(vc.qpos, vc.qvel, vc.goal);
+        const eyeRgb = view.captureEyePixels(null, true);
+        const { s0 } = await wm.encodeFrame(eyeRgb, 3);
+
+        // Load MuJoCo reference PNG pixels
+        const img = new Image();
+        img.src = `../parity/${vc.png}`;
+        await img.decode();
+        tmpCtx.drawImage(img, 0, 0, 224, 224);
+        const mjRgba = tmpCtx.getImageData(0, 0, 224, 224).data;
+        let mae = 0;
+        for (let i = 0, j = 0; i < eyeRgb.length; i += 3, j += 4) {
+          mae += Math.abs(eyeRgb[i] - mjRgba[j]) + Math.abs(eyeRgb[i + 1] - mjRgba[j + 1]) + Math.abs(eyeRgb[i + 2] - mjRgba[j + 2]);
+        }
+        mae /= eyeRgb.length;
+        pixMaes.push(mae);
+
+        const c3 = Math.hypot(s0[0] - vc.true_cube[0], s0[1] - vc.true_cube[1], s0[2] - vc.true_cube[2]) * 100;
+        const h3 = Math.hypot(s0[3] - vc.true_hand[0], s0[4] - vc.true_hand[1], s0[5] - vc.true_hand[2]) * 100;
+        const cm = Math.hypot(vc.ro_s0[0] - vc.true_cube[0], vc.ro_s0[1] - vc.true_cube[1], vc.ro_s0[2] - vc.true_cube[2]) * 100;
+        const hm = Math.hypot(vc.ro_s0[3] - vc.true_hand[0], vc.ro_s0[4] - vc.true_hand[1], vc.ro_s0[5] - vc.true_hand[2]) * 100;
+        const gc = Math.hypot(s0[0] - vc.ro_s0[0], s0[1] - vc.ro_s0[1], s0[2] - vc.ro_s0[2]) * 100;
+        cubeErrThree.push(c3); handErrThree.push(h3); cubeErrMj.push(cm); handErrMj.push(hm); gapCube.push(gc);
+        log(`  #${String(vc.idx).padStart(2,'0')} ${vc.stage.padEnd(6)} | pixMAE=${mae.toFixed(1).padStart(4)} | Three cube=${c3.toFixed(2)}cm hand=${h3.toFixed(2)}cm | MuJoCo cube=${cm.toFixed(2)}cm hand=${hm.toFixed(2)}cm | gap=${gc.toFixed(2)}cm`);
+
+        if (vc.idx < 6) {
+          const card = document.createElement('div');
+          card.className = 'pair';
+          const imgs = document.createElement('div');
+          imgs.className = 'imgs';
+          const c2 = document.createElement('canvas');
+          c2.width = 224; c2.height = 224;
+          const g2 = c2.getContext('2d');
+          const id = g2.createImageData(224, 224);
+          for (let i = 0, k = 0; i < eyeRgb.length; i += 3, k += 4) {
+            id.data[k] = eyeRgb[i]; id.data[k + 1] = eyeRgb[i + 1]; id.data[k + 2] = eyeRgb[i + 2]; id.data[k + 3] = 255;
+          }
+          g2.putImageData(id, 0, 0);
+          imgs.append(img, c2);
+          const cap = document.createElement('div');
+          cap.textContent = `#${vc.idx} ${vc.stage} c=${c3.toFixed(1)}cm (mj ${cm.toFixed(1)})`;
+          card.append(imgs, cap);
+          strip.append(card);
+        }
+      }
+      log(`SUMMARY VISUAL: pixMAE med=${median(pixMaes).toFixed(1)}/255 | Three.js cube med=${median(cubeErrThree).toFixed(2)}cm (MuJoCo ${median(cubeErrMj).toFixed(2)}cm) | Three.js hand med=${median(handErrThree).toFixed(2)}cm (MuJoCo ${median(handErrMj).toFixed(2)}cm) | Three-vs-MuJoCo cube diff med=${median(gapCube).toFixed(2)}cm`);
+
+      // -------------------------------------------------------------
+      // 2. Live Closed-Loop Browser Evaluation (100% Three.js Pixels!)
+      // -------------------------------------------------------------
+      if (nGoals > 0) {
+        log(`\n=== 2. LIVE BROWSER CLOSED-LOOP EVAL (${nGoals} random goals, mode=${mode}, 100% Three.js pixels) ===`);
+        const planner = new Planner(wm, bank, { RS: 128, NEAR_CEM: 2, BETA: 1.5, REPLAN: 5, mode, seed: 1000 });
+        let succ = 0, carried = 0, pushed = 0, reach = 0, lift = 0;
+        const bests = [], replanTimes = [], encTimes = [], rollTimes = [];
+
+        for (let g = 0; g < nGoals; g++) {
+          env.reset();
+          planner.resetHistory(1000 + g);
+          let best = 9, ok = false, steps = 0, didReach = false, didLift = false;
+          while (steps < 150 && !ok) {
+            const px = view.captureEyePixels(null, true);
+            const plan = await planner.plan(px, env.goal, 3);
+            if (g > 0 || steps > 0) { // exclude shader compile warmup on step 0
+              replanTimes.push(plan.totalMs);
+              encTimes.push(plan.encodeMs);
+              rollTimes.push(plan.rolloutMs);
+            }
+            for (const act of plan.actions) {
+              env.step(act);
+              planner.recordExecutedAction(act);
+              steps++;
+              const c = env.cubePos(), h = env.effectorPos();
+              if (Math.hypot(h[0] - c[0], h[1] - c[1], h[2] - c[2]) < 0.02) didReach = true;
+              if (c[2] > 0.04) didLift = true;
+              const d = env.goalError();
+              if (d < best) best = d;
+              if (d <= 0.04) { ok = true; break; }
+              if (steps >= 150) break;
+            }
+          }
+          if (ok) succ++;
+          if (didReach) reach++;
+          if (didLift) lift++;
+          if (ok && didLift) carried++;
+          if (ok && !didLift) pushed++;
+          bests.push(best * 100);
+          log(`  goal ${String(g + 1).padStart(2)}/${nGoals}: ${ok ? 'OK  ' : 'FAIL'} (${didLift ? 'lift' : 'push'}) steps=${String(steps).padStart(3)} best=${(best * 100).toFixed(1)}cm`);
+        }
+        log(`\nBROWSER_EVAL_SUMMARY: ${succ}/${nGoals} (${(100 * succ / nGoals).toFixed(0)}%) [carried ${carried} + pushed ${pushed}] reach=${reach}/${nGoals} lift=${lift}/${nGoals} med_best=${median(bests).toFixed(1)}cm`);
+        log(`TIMING (${backend}): median replan=${median(replanTimes).toFixed(1)}ms (enc=${median(encTimes).toFixed(1)}ms + roll=${median(rollTimes).toFixed(1)}ms)`);
+      }
+
+      window.__VERIFY_DONE__ = true;
+      log('\nVERIFY_DONE');
+    } catch (e) {
+      log('VERIFY_ERROR: ' + (e.stack || e.message));
+      window.__VERIFY_DONE__ = true;
+    }
+  </script>
+</body>
+</html>

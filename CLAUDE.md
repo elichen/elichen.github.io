@@ -428,3 +428,27 @@ grokking/tools/wasm-trainer/build.sh       # rebuild grok.wasm (needs wasm32-unk
 python3 grokking/tools/verify_parity.py    # PyTorch full-seq parity (grads ~2.3e-8, 2D FFT ~1.0e-6) + speed
 node grokking/tools/record_experiments.mjs # regenerate data/experiments.json (4 controlled runs)
 ```
+
+## Rotating Language Into Robot Control (`/world-model/`)
+
+Client-side **Open-Vocabulary English → Single Orthogonal Rotation `R` → Language-Free Compositional 6-DOF UR5e Robot Control** demo (v5). A frozen pretrained English sentence encoder (`thenlper/gte-small`, 33.5 MB int8, zero robot data) and a 100% language-free compositional UR5e + Robotiq 2F-85 policy (`BehaviorPolicy`, 4.37M params, zero text) connect solely through **one single square orthogonal Procrustes rotation matrix `R ∈ O(112, 112)` (`RRᵀ = I` to `3.1e-8`)**. Runs MuJoCo WebAssembly (`@mujoco/mujoco@3.14.0`, 20 Hz native 7D joint-space delta + gripper control), Three.js dual-pass rendering (studio view + offscreen `224×224` `front_pixels` camera), and TensorFlow.js (WebGPU with WebGL fallback). Cube coordinates come purely from frozen `ViT-tiny + Readout2` on the `224×224` front camera (zero privileged cube state).
+
+- **Strict Zero-Overfitting Protocol (`training/sim_compositional.py`):**
+  - Generates 26,003 physically verified UR5e clips densely spanning factorized physical axes (`height ∈ {low, mid, high, overhead} × lateral × gripper ∈ {open, closed, pulsing} × 10 kinematic axes {still, osc_z, osc_y, osc_x, circle_xy, circle_vert, base_revolve, wrist_pitch, wrist_roll, multi_sway} × speed` + 6 cube primitives).
+  - Enforces `assert_zero_leakage()` on every training caption, banning 80+ user/metaphor test words (`fist`, `pump`, `punch`, `throw`, `yeet`, `toss`, `fling`, `spin`, `360`, `rotate around your base`, `windshield`, `wiper`, `wave`, `hi`, `bow`, `nod`, `clap`, `claw`, `wiggle`, `boop`, `dance`, `party`, `point`, `ceiling`, `sky`, etc.) so prompts like `"pump your hand like fists"`, `"throw cube"`, `"rotate around your base"`, and `"slowly circle down low with your claw closed"` are true zero-shot compositional generalizations.
+- **Weights hosting:** `model/` (`minilm.{json,bin}` 33.5 MB, `arena_policy.{json,bin}` 5.4 MB, `weights.{json,bin}` 11.3 MB) lives on Hugging Face (`eli-aifund/ur5e-language-rotation-tfjs`, public, pinned to a commit in `MODEL` in `main.js`; re-pin after each upload), not on GitHub Pages; `world-model/model/` is gitignored (kept locally for `parity_arena.mjs`).
+- **Pretrained English Encoder (`minilm.js`, `model/minilm.{json,bin}` = 33.53 MB):**
+  - Exact WordPiece tokenizer + 12-layer BERT (`thenlper/gte-small`, `d=384`, 12 heads, `eps=1e-12`, mean pooling + L2 norm) with CPU-resident per-row int8 word table (~6–14 ms/prompt on WebGPU).
+- **Single Orthogonal Rotation & Language-Free Behavior Policy (`behavior-policy.js`, `latent-viz.js`, `model/arena_policy.{json,bin}` = 5.36 MB):**
+  - Unsupervised compositional dynamics manifold (`dyn_feats_comp`, post-startup `t=28..80` kinematic features with cube-moved masking so untouched `c0` never leaks, `112D` gently regularized PCA `reg_t=4.0, reg_v=0.2`).
+  - Ships 6 FP32 orthogonal rotation matrices `R_N` (`N ∈ {30, 100, 300, 1000, 23503, shuffled}`), a 1,600-clip unlabeled manifold cloud for 2D PCA visualization & Nadaraya-Watson denoising (`top-10, beta=18`, zero text/labels), and `BehaviorPolicy` (`GRU(512)` + 3 FiLM-SwiGLU ResBlocks, 33D foveated obs `tanh((cube−eff)/0.04)`, top-4 unsupervised neighbor swapping + 2,200 language-free DAgger rollouts).
+- **Visual Cube Perception (`model.js`, `render.js`, `model/weights.{json,bin}` = 11.35 MB):**
+  - Frozen LeWM `ViT-tiny` (5.50M) + photometric-robust `Readout2` (1.65M, 0.51 cm median Three.js-to-MuJoCo parity) reading live 3D cube pose strictly from the `224×224` offscreen front camera.
+- **Measured (quantized int8 browser weights, strict 80-word zero-leakage ban):**
+  - Held-out alignment (`2,500` val clips + `37` strictly zero-shot prompts): `N=23,503` **95.5% val family / 83.3% gripper / FOSCTTM 0.030 / 25/37 fam (22/37 full multi-factor)** vs `Random-LM` 16/37 (12 full) and `shuffled` **7.8% / FOSCTTM 0.497 / 1/37**.
+  - Closed-loop MuJoCo physics across 24 strictly zero-shot commands (3 random-start trials each): **19/24 (79.2%)** succeeded physically (`pump your hand like fists` 3/3 `z_span=55cm grip=0.98`, `throw cube` 3/3 `3.3 m/s`, `rotate around your base` 3/3 `272°`, `slowly circle down low with your claw closed` 3/3, `twist your wrist fast up high with closed hand` 3/3, `wiggle your claws open and closed` 3/3, `boop the red square` 3/3, `lift & hold` 3/3, `lift & drop` 3/3) vs **3/24 (12.5%)** for `shuffled`.
+
+```bash
+node world-model/tools/parity_arena.mjs           # gte-small (1.3e-4), R orthogonality (3.1e-8), GRU policy (1.8e-3)
+node world-model/tools/chrome_test.mjs comp       # Live Chrome WebGPU physics verification (throw/fist-pump/spin/circle/place)
+```

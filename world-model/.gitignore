@@ -1,0 +1,6 @@
+model/
+node_modules/
+parity/
+__pycache__/
+*.pyc
+robot/scene_arena.xml

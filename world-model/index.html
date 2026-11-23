@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rotating Language Into Robot Control</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f1218'/%3E%3Crect x='7' y='7' width='18' height='18' rx='3' fill='%23f54254'/%3E%3C/svg%3E">
+  <meta name="description" content="Type any natural English command — 'throw cube', 'pump your hand like fists', 'rotate around your base'. A frozen pretrained English encoder and a language-free UR5e policy connect only through one single orthogonal rotation matrix R, live in your browser.">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="main.js"></script>
+</head>
+<body>
+  <nav class="site"><a href="../index.html">elichen.github.io</a></nav>
+
+  <header class="title">
+    <h1>Rotating Language Into Robot Control</h1>
+    <p class="description">A frozen pretrained English encoder and a language-free UR5e robot policy connect solely through <strong>one orthogonal rotation matrix R</strong> (<code>RRᵀ = I</code>). Type any command below—or click an example—and watch the arm act while tracking the red cube purely from its front camera.</p>
+  </header>
+
+  <main class="demo" aria-label="Live open-vocabulary English to rotation to UR5e demo">
+    <div class="viewport">
+      <canvas id="view" aria-label="3D view of the UR5e robot arm and cube. Drag the cube, click the table to place it, or drag elsewhere to orbit."></canvas>
+
+      <div class="eye-pip" id="eye-pip" title="The exact 224×224 front camera fed into frozen ViT-tiny + Readout2 for visual cube tracking">
+        <canvas id="eye" width="224" height="224"></canvas>
+        <div class="eye-caption">
+          <span>Camera</span>
+          <span id="eye-phase">20 Hz</span>
+        </div>
+      </div>
+
+      <div class="status" id="status">Loading MuJoCo physics, English encoder &amp; robot policy…</div>
+      <div class="note" id="note" role="status" aria-live="polite" hidden></div>
+    </div>
+
+    <div class="composer">
+      <form class="prompt-bar" id="prompt-form">
+        <input id="prompt-input" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Try any English command — e.g. throw cube, pump your hand like fists, rotate around your base…"
+               aria-label="English command for the robot">
+        <button type="submit" id="send-prompt" class="primary">Run</button>
+        <button type="button" id="reset-btn" class="ghost" title="Reset arm &amp; cube">Reset</button>
+      </form>
+
+      <div class="samples" id="prompt-chips" aria-label="Sample prompts">
+        <span class="samples-label">Try</span>
+        <button type="button" class="chip" data-prompt="throw cube">throw cube</button>
+        <button type="button" class="chip" data-prompt="pump your hand like fists">pump your hand like fists</button>
+        <button type="button" class="chip" data-prompt="rotate around your base">rotate around your base</button>
+        <button type="button" class="chip" data-prompt="slowly circle down low with your claw closed">low closed circle</button>
+        <button type="button" class="chip" data-prompt="put the cube in the front left corner">front left</button>
+        <button type="button" class="chip" data-prompt="shake and party">dance</button>
+      </div>
+    </div>
+
+    <div class="meta-bar">
+      <div class="seg-group" id="n-toggle" role="group" aria-label="Paired alignment clips N">
+        <span class="seg-label">Rotation R</span>
+        <div class="segmented">
+          <button type="button" class="seg" data-n="30">30</button>
+          <button type="button" class="seg" data-n="100">100</button>
+          <button type="button" class="seg" data-n="300">300</button>
+          <button type="button" class="seg" data-n="1000">1k</button>
+          <button type="button" class="seg active" data-n="10000">23k</button>
+          <button type="button" class="seg warn" data-n="shuffled">Shuffled</button>
+        </div>
+      </div>
+
+      <div class="meta-right">
+        <span class="live-pill" id="active-cmd">Ready · click a prompt or type a command</span>
+        <span class="live-meta"><span id="matched-skill" hidden></span><span id="step-ms"></span></span>
+        <label class="slow-toggle" title="Slow motion playback"><input type="checkbox" id="slow"> Slow</label>
+      </div>
+    </div>
+
+    <details class="inspector" id="inspector">
+      <summary class="inspector-toggle">
+        <span>Inspect orthogonal rotation <code>R</code> &amp; behavior manifold</span>
+        <span class="badge" id="rot-status-badge">Loading…</span>
+      </summary>
+
+      <div class="rot-lab" aria-label="Live orthogonal rotation inspector">
+        <div class="rot-map-wrap">
+          <div class="rot-head">
+            <span>Behavior Manifold (2D PCA)</span>
+            <span class="map-key">
+              <span><i class="dot-k pre"></i>before R</span>
+              <span><i class="dot-k post"></i>after R</span>
+              <span><i class="dot-k nn"></i>nearest</span>
+            </span>
+          </div>
+          <canvas id="latent-canvas" aria-label="2D slice of held-out UR5e behavior embeddings showing the active English sentence rotating through R"></canvas>
+        </div>
+
+        <div class="rot-trace">
+          <div class="rot-head">
+            <span>English &rarr; R &rarr; Robot Control</span>
+            <span class="trace-dim" id="backend-label">WebGPU</span>
+          </div>
+          <div class="steps">
+            <div class="step-card">
+              <div class="step-title"><strong id="trace-lm-title">1. Pretrained gte-small (zero robot data)</strong><span id="trace-enc-ms">–</span></div>
+              <div class="step-val" id="trace-tokens">Run a command to inspect its embedding…</div>
+            </div>
+            <div class="step-card">
+              <div class="step-title"><strong>2. Single Orthogonal Rotation R</strong><span id="trace-ortho">max &Vert;RRᵀ&minus;I&Vert; = –</span></div>
+              <div class="step-val" id="trace-rot">–</div>
+            </div>
+            <div class="step-card">
+              <div class="step-title"><strong>3. Language-Free UR5e Policy (zero text)</strong><span id="trace-nn">–</span></div>
+              <div class="step-val" id="trace-goal">–</div>
+            </div>
+          </div>
+          <p class="rot-footnote">Switch <strong>Rotation R</strong> from <code>23k</code> down to <code>30</code> or <code>Shuffled</code> right on your current sentence: the English encoder and robot policy never change—only the single rigid orthogonal matrix <code>R</code>.</p>
+        </div>
+      </div>
+    </details>
+  </main>
+
+  <article class="prose">
+    <h2>One rigid rotation between open-vocabulary English and robot control</h2>
+    <p>Most vision-language-action (VLA) models train a language backbone and robot action head jointly end-to-end. Here, language and robot control are trained <strong>completely separately</strong> and never share gradients, weights, or labels:</p>
+    <ul>
+      <li><strong>Pretrained English encoder (<span id="prose-lm-name">gte-small</span>)</strong>: an off-the-shelf Transformer sentence encoder running client-side in int8 on WebGPU/WebGL. It already knows real open-vocabulary English—concepts like <em>“pump your hand like fists”</em>, <em>“yeet”</em>, <em>“do a 360”</em>, <em>“windshield wiper”</em>, <em>“boop”</em>—and has never seen a robot joint angle, camera frame, or action.</li>
+      <li><strong>Language-free compositional robot manifold &amp; policy (4.37M params)</strong>: an unsupervised execution-dynamics manifold over 26,003 unlabeled UR5e trajectories densely spanning factorized physical axes (<code>height &times; lateral &times; gripper [open/closed/pulsing] &times; 10 motion axes &times; speed</code> plus 6 cube-interaction primitives—zero text and zero skill labels), paired with a recurrent policy <code>&pi;(a<sub>t</sub> | obs<sub>t</sub>, z<sub>beh</sub>)</code> (GRU + 3 FiLM SwiGLU ResBlocks, 33D foveated visual obs + language-free DAgger). At runtime, the policy sees the robot's 6 joint encoders plus the red cube's 3D position read purely from the 224&times;224 front camera by frozen <code>ViT-tiny + Readout2</code> (zero privileged cube state).</li>
+      <li><strong>One single orthogonal rotation matrix <code>R</code> (zero-leakage protocol)</strong>: given <code>N</code> paired <code>(neutral physical description, robot clip)</code> examples, we solve orthogonal Procrustes (<code>U&Sigma;Vᵀ = AᵀG</code>, <code>R = UVᵀ</code>, satisfying <code>RRᵀ = I</code> to <code>~10⁻⁸</code>). An automated <code>assert</code> bans 80+ user/metaphor test words (<code>fist</code>, <code>pump</code>, <code>punch</code>, <code>throw</code>, <code>yeet</code>, <code>toss</code>, <code>fling</code>, <code>spin</code>, <code>360</code>, <code>rotate around your base</code>, <code>windshield</code>, <code>wiper</code>, <code>wave</code>, <code>hi</code>, <code>bow</code>, <code>nod</code>, <code>clap</code>, <code>claw</code>, <code>wiggle</code>, <code>boop</code>, <code>dance</code>, <code>party</code>, <code>point</code>, <code>ceiling</code>, <code>sky</code>) from <em>every</em> training caption—so prompts like <em>“pump your hand like fists”</em> and <em>“slowly circle down low with your claw closed”</em> are true zero-shot compositional generalizations through <code>R</code>.</li>
+    </ul>
+
+    <h2>Why a factorized motor manifold matters</h2>
+    <p>Earlier tabletop-only controllers clamped the UR5e end-effector inside a tiny 35&times;70 cm box and only accepted a static cube coordinate. Even a discrete 17-skill controller fails on novel combinations like <em>“pump your hand like fists”</em> if no trajectory combines closed gripper + high elevation + vertical oscillation. Removing the invisible cage walls, switching to native 7D joint-space deltas (<code>&Delta;q<sub>0..5</sub></code> + Robotiq gripper at 20 Hz), and densely covering factorized physical axes lets one rigid orthogonal rotation <code>R</code> align independent semantic dimensions (elevation, gripper state, motion axis, tempo, and cube physics) without scripting user prompts. You can also drag the red cube directly or click anywhere on the table to generate a placement command.</p>
+
+    <h2>Measured</h2>
+    <p>All metrics measured on 2,500 held-out clips plus a strictly zero-shot benchmark of 37 held-out human prompts (0% test/metaphor vocabulary overlap with training captions) using the exact int8 browser weights:</p>
+    <table id="results-table">
+      <thead>
+        <tr>
+          <th>Alignment Rotation R</th>
+          <th>Val Family</th>
+          <th>FOSCTTM</th>
+          <th>Zero-Shot 37 (Fam / Full)</th>
+          <th>Place med. xy</th>
+        </tr>
+      </thead>
+      <tbody id="results-tbody">
+        <tr class="highlight"><td>Pretrained English, N = 23,503</td><td id="r-10000-t1">–</td><td id="r-10000-f">–</td><td id="r-10000-u">–</td><td id="r-10000-p">–</td></tr>
+        <tr><td>Pretrained English, N = 1,000</td><td id="r-1000-t1">–</td><td id="r-1000-f">–</td><td id="r-1000-u">–</td><td id="r-1000-p">–</td></tr>
+        <tr><td>Pretrained English, N = 300</td><td id="r-300-t1">–</td><td id="r-300-f">–</td><td id="r-300-u">–</td><td id="r-300-p">–</td></tr>
+        <tr><td>Pretrained English, N = 100</td><td id="r-100-t1">–</td><td id="r-100-f">–</td><td id="r-100-u">–</td><td id="r-100-p">–</td></tr>
+        <tr><td>Pretrained English, N = 30</td><td id="r-30-t1">–</td><td id="r-30-f">–</td><td id="r-30-u">–</td><td id="r-30-p">–</td></tr>
+        <tr><td>Random-weight LM control (same vocab, N = 23.5k)</td><td id="r-rand-t1">–</td><td id="r-rand-f">–</td><td id="r-rand-u">–</td><td id="r-rand-p">–</td></tr>
+        <tr><td>Shuffled pairs control (N = 23,503)</td><td id="r-shuf-t1">–</td><td id="r-shuf-f">–</td><td id="r-shuf-u">–</td><td id="r-shuf-p">–</td></tr>
+      </tbody>
+    </table>
+    <p id="prose-cl-summary">Closed-loop MuJoCo physics verification across 24 strictly zero-shot English commands: measured automatically on export and displayed live above.</p>
+
+    <h2>Limits</h2>
+    <ul>
+      <li><strong>Zero-leakage social idioms</strong>: because all 80+ metaphor and social greeting words (like <em>“say hi”</em> and <em>“wave”</em>) are strictly banned from training captions, purely social prompts that contain no physical kinematics at all cannot be inferred from neutral motion descriptions alone. Phrasing with physical cues (like <em>“swing your open hand side to side up high”</em> or <em>“pump your hand like fists”</em>) maps cleanly onto the factorized manifold.</li>
+      <li><strong>Repertoire boundary</strong>: while the English encoder embeds any sentence in English, the orthogonal rotation can only execute motions spanned by the robot's factorized 6-DOF trajectory manifold (elevation, lateral reach, gripper open/closed/pulsing, X/Y/Z oscillation, horizontal/vertical circles, base revolution, wrist pitch/roll, coupled sway, and 6 cube manipulation primitives).</li>
+      <li><strong>Visual cube tracking range</strong>: cube coordinates come strictly from frozen <code>ViT-tiny + Readout2</code> on the 224&times;224 front camera (0.51 cm median parity on the table). Launching the cube off the table automatically respawns a fresh cube when you run your next command (or click <em>Reset</em>).</li>
+      <li><strong>Single rigid rotation vs. fine-tuning</strong>: constraining the cross-modal bridge to a single orthogonal matrix <code>R</code> keeps the geometry transparent and lets you break/restore alignment live with <code>N</code>, at the cost of higher placement scatter (~9 cm median) than a jointly fine-tuned VLA.</li>
+    </ul>
+    <p class="credits">UR5e + Robotiq 2F-85 models: OGBench (MIT) and MuJoCo Menagerie (Apache 2.0). Physics: MuJoCo WebAssembly. Visual cube encoder: LeWM ViT-tiny + photometric-robust Readout2. Pretrained English encoder + orthogonal Procrustes alignment + language-free recurrent behavior policy run 100% client-side on TensorFlow.js WebGPU/WebGL.</p>
+  </article>
+</body>
+</html>

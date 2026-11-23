@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Node tools for verifying physics, neural model, and browser visual parity (the page itself loads MuJoCo, Three.js, and TensorFlow.js from CDNs)",
+  "devDependencies": {
+    "@mujoco/mujoco": "3.14.0",
+    "@tensorflow/tfjs": "4.22.0"
+  }
+}
