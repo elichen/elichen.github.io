@@ -14,7 +14,7 @@ import { SceneRenderer } from './render.js';
 import { LatentSpaceViz } from './latent-viz.js';
 
 // Weights live on Hugging Face, pinned to an immutable commit (model/ is the local copy, not on Pages).
-const MODEL = 'https://huggingface.co/eli-aifund/ur5e-language-rotation-tfjs/resolve/a481480947229f4fee1b45980636bd2247675b1f';
+const MODEL = 'https://huggingface.co/elichen77/ur5e-language-rotation-tfjs/resolve/a481480947229f4fee1b45980636bd2247675b1f';
 
 const $ = id => document.getElementById(id);
 const statusEl = $('status');

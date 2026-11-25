@@ -6,7 +6,7 @@ import { Gemma } from './gemma.js';
 import { Tokenizer } from './tokenizer.js';
 
 // int8 weights (~280 MB) live on Hugging Face, pinned to a commit; tools/export.py writes them to model/
-const MODEL = 'https://huggingface.co/eli-aifund/gemma-3-270m-scope-steering-int8/resolve/349ab85251693013bf0bf167c705ccd2e46a04fc/';
+const MODEL = 'https://huggingface.co/elichen77/gemma-3-270m-scope-steering-int8/resolve/349ab85251693013bf0bf167c705ccd2e46a04fc/';
 const DATA = new URL('./data/', import.meta.url).href;
 const CACHE = 'concept-steering-v1';
 
