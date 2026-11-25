@@ -36,8 +36,8 @@ async function loadImage(url) {
     await tf.ready();
     log(`backend ${tf.getBackend()}`);
     const [resnet, sae, cases] = await Promise.all([
-        RobustResNet50.load('../../lucid/robust-resnet50/'),
-        ConceptDictionary.load('../model/'),
+        RobustResNet50.load('https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/lucid/robust-resnet50/'),
+        ConceptDictionary.load('https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/concepts/model/'),
         fetch('test/test.json').then(r => r.json())
     ]);
     log(`SAE ${sae.layer}: ${sae.size} concepts, k ${sae.k}`);
