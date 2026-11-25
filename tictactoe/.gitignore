@@ -10,9 +10,8 @@ __pycache__/
 training_*.txt
 *.log
 
-# Models (keep only final)
+# Local model files
 models/*
-!models/ppo_masked.zip
 
 # Temp files
 test_*.html

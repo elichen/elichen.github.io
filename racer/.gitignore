@@ -8,9 +8,6 @@ __pycache__/
 # Training artifacts
 models/ppo_racer_*/
 
-# Keep only the deployed weights
-!models/ppo_weights.json
-
 # System files
 .DS_Store
 *.swp
