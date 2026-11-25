@@ -2,6 +2,8 @@
 // Uses addWeight() for proper save/load serialization.
 // Flattens [B,S,E] to [B*S,E] before matmul with 2D weights to avoid
 // TF.js BatchMatMul gradient shape mismatch bug.
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/gpt/';
+
 class MultiHeadSelfAttention extends tf.layers.Layer {
     static get className() {
         return 'MultiHeadSelfAttention';
@@ -100,7 +102,7 @@ class GPT {
     }
 
     async loadModel() {
-        this.model = await tf.loadLayersModel('./web_model/model.json');
+        this.model = await tf.loadLayersModel(MODEL_FILES + 'web_model/model.json');
         console.log('Model loaded:', this.model.countParams(), 'parameters');
     }
 
@@ -187,7 +189,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('Fetching model_info.json...');
 
     try {
-        const modelInfoResponse = await fetch('./web_model/model_info.json');
+        const modelInfoResponse = await fetch(MODEL_FILES + 'web_model/model_info.json');
         const modelInfo = await modelInfoResponse.json();
         console.log('Model info loaded:', modelInfo.vocabSize, 'vocab,', modelInfo.seqLength, 'seq');
 

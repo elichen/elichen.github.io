@@ -7,7 +7,7 @@ class PPOAgent {
   async loadModel() {
     try {
       console.log('Loading PPO model...');
-      this.model = await tf.loadLayersModel('./tfjs_model/model.json');
+      this.model = await tf.loadLayersModel('https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/tictactoe/tfjs_model/model.json');
       this.isLoaded = true;
       console.log('✅ PPO model loaded successfully!');
       return true;

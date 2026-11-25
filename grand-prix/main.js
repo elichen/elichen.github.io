@@ -50,7 +50,7 @@ export const PALETTES = {
 
 const $ = id => document.getElementById(id);
 const read = async (name, kind) => {
-    const r = await fetch('model/' + name);
+    const r = await fetch('https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/grand-prix/model/' + name);
     if (!r.ok) throw new Error(`${name}: ${r.status}`);
     return kind === 'text' ? r.text() : r.arrayBuffer();
 };

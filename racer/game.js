@@ -28,7 +28,7 @@ let lastPredictionFrame = 0
 async function initAI() {
     try {
         aiAgent = new RacerAgent()
-        await aiAgent.loadModel('models/ppo_weights.json')
+        await aiAgent.loadModel()
         console.log('AI agent ready!')
 
         // Add AI controls to UI

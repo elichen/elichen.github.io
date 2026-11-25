@@ -22,7 +22,7 @@ class RacerAgent {
     /**
      * Load model weights from JSON file
      */
-    async loadModel(weightsPath = 'models/ppo_weights.json') {
+    async loadModel(weightsPath = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/racer/models/ppo_weights.json') {
         try {
             console.log('🤖 Loading racing AI model...');
 

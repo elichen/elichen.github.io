@@ -2,7 +2,7 @@
 // UI never janks while attention is computed.
 import { loadModel, forward } from './gpt2.js';
 
-const MODEL_DIR = './model/';
+const MODEL_DIR = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/attention/model/';
 const CACHE_NAME = 'gpt2-attn-v1';
 
 let model = null;

@@ -6,6 +6,8 @@ import { Walker, WasmPolicy } from './walker.js';
 import { Flyer } from './flyer.js';
 import { addThings } from './things.js';
 
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/fly-brain/';
+
 const BUDGET = 25, STEP = 1e-4, SLOW = 0.02, BLUR = 12, BLUR_EVERY = 2;
 let timeScale = 1, wings = [], ring = null, ringAt = 0, ctrlCount = 0;
 let w = null, day = null, paused = false, dirty = false, clockStart = 0, simStart = 0, samples = [], spikeTotal = 0, spikeRate = 0;
@@ -18,9 +20,9 @@ async function load() {
     const files = {};
     await Promise.all(names.map(async n => { files[n] = new Uint8Array(await get(`body/meshes/${n}`).then(r => r.arrayBuffer())); }));
     const [bin, res, neurons, wm, fm, wp, fp, mujoco] = await Promise.all([
-        get('engine.wasm').then(r => r.arrayBuffer()), get('model/banc.gz'), get('model/neurons.json').then(r => r.json()),
-        get('policy/walk.json').then(r => r.json()), get('policy/fly.json').then(r => r.json()),
-        get('policy/walk.bin').then(r => r.arrayBuffer()), get('policy/fly.bin').then(r => r.arrayBuffer()), loadMujoco(),
+        get('engine.wasm').then(r => r.arrayBuffer()), get(MODEL_FILES + 'model/banc.gz'), get(MODEL_FILES + 'model/neurons.json').then(r => r.json()),
+        get(MODEL_FILES + 'policy/walk.json').then(r => r.json()), get(MODEL_FILES + 'policy/fly.json').then(r => r.json()),
+        get(MODEL_FILES + 'policy/walk.bin').then(r => r.arrayBuffer()), get(MODEL_FILES + 'policy/fly.bin').then(r => r.arrayBuffer()), loadMujoco(),
     ]);
     const total = Number(res.headers.get('content-length')) || 28729403;
     let loaded = 0;

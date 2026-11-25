@@ -14,7 +14,7 @@ class MurmurationAgent {
         this.hiddenDim = 64;
     }
 
-    async load(weightsUrl = 'murmuration_weights.json') {
+    async load(weightsUrl = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/swarm/murmuration_weights.json') {
         const response = await fetch(weightsUrl);
         this.weights = await response.json();
         this.buildModel();

@@ -27,7 +27,7 @@ function toggleMode() {
 }
 
 async function loadModelAndRun() {
-    await agent.loadModel('./model.json');
+    await agent.loadModel('https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/breakout/model.json');
     runEpisode();
 }
 

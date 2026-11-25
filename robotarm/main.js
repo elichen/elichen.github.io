@@ -11,6 +11,8 @@ import { PandaEnv, Throws, SUBSTEPS, CENTER, makeRandom } from './panda-env.js';
 import { Policy } from './policy.js';
 import { SceneRenderer } from './render.js';
 
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/robotarm/';
+
 const $ = id => document.getElementById(id);
 const status = $('status');
 const random = makeRandom();
@@ -42,7 +44,7 @@ const thrown = { count: 0, last: null, best: null };
 
 async function init() {
     try {
-        const [mujoco, files, p, t] = await Promise.all([loadMujoco(), loadFiles(), loadPolicy('model/pick'), loadPolicy('model/throw')]);
+        const [mujoco, files, p, t] = await Promise.all([loadMujoco(), loadFiles(), loadPolicy(MODEL_FILES + 'model/pick'), loadPolicy(MODEL_FILES + 'model/throw')]);
         env = new PandaEnv(mujoco, files, random);
         pick = p;
         thrower = t;

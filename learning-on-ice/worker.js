@@ -7,6 +7,8 @@ import { applyWorld } from './worlds.js';
 import { StreamAC } from './stream-ac.js';
 import { WasmLearner } from './wasm-learner.js';
 
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/learning-on-ice/';
+
 const SPEEDS = { 0.05: 0.05, 1: 1, 10: 10, max: Infinity };  // multiples of real time; 0.05 is slow motion for checking gaits
 let env, learner, pristine, torsoBody = 1;
 let speed = 1, running = false;
@@ -31,8 +33,8 @@ async function init({ world }) {
     const [mujoco, files, meta, bin, wasm] = await Promise.all([
         loadMujoco(),
         loadRobot(),
-        fetch('model/agent.json').then(r => r.json()),
-        fetch('model/agent.bin').then(r => r.arrayBuffer()),
+        fetch(MODEL_FILES + 'model/agent.json').then(r => r.json()),
+        fetch(MODEL_FILES + 'model/agent.bin').then(r => r.arrayBuffer()),
         fetch('stream-ac.wasm').then(r => r.arrayBuffer())
     ]);
     env = new G1Env(mujoco, files);

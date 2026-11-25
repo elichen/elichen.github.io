@@ -1,3 +1,5 @@
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/streaming-rl/';
+
 class CircularBuffer {
     constructor(maxSize) {
         this.maxSize = maxSize;
@@ -60,13 +62,13 @@ class SwingupRunner {
 
         // Load pretrained swingup weights
         try {
-            const weightsResponse = await fetch('trained-weights-swingup.json');
+            const weightsResponse = await fetch(MODEL_FILES + 'trained-weights-swingup.json');
             const weightsJson = await weightsResponse.json();
             await this.agent.network.loadPretrainedWeights(weightsJson);
             this.weightsJson = weightsJson;
 
             // Load normalization stats
-            const normResponse = await fetch('trained-normalization-swingup.json');
+            const normResponse = await fetch(MODEL_FILES + 'trained-normalization-swingup.json');
             const normStats = await normResponse.json();
 
             // Load and freeze normalizer stats

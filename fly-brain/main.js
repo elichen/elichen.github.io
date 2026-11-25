@@ -7,6 +7,8 @@ import { isClear, TABLE } from './day.js';
 import { SWATTER } from './things.js';
 import { WingSound } from './audio.js';
 
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/fly-brain/';
+
 const css = name => getComputedStyle(document.body).getPropertyValue(name).trim();
 if (new URLSearchParams(location.search).get('palette')) document.body.dataset.palette = new URLSearchParams(location.search).get('palette');
 const P = { rest: css('--neuron'), restAlpha: 0.22, fire: css('--accent') };
@@ -362,8 +364,8 @@ function frame() {
     flyView.render();
 }
 if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Tap the table to drop sugar. Drag sideways to turn the view.';
-build(await fetch('model/neurons.json').then(r => r.json()));
-fetch('model/skeletons.bin').then(buildWires).catch(e => console.error(e));
+build(await fetch(MODEL_FILES + 'model/neurons.json').then(r => r.json()));
+fetch(MODEL_FILES + 'model/skeletons.bin').then(buildWires).catch(e => console.error(e));
 requestAnimationFrame(frame);
 setInterval(panel, 200);
 window.flyWorld = { wire: wireMaterial.uniforms, colors(rest, fire, alpha) { material.uniforms.uRest.value.set(rest); material.uniforms.uFire.value.set(fire); material.uniforms.uAlpha.value = alpha; }, worker, flyView, get latest() { return latest; }, get sound() { return sound; } };

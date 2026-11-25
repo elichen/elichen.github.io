@@ -4,6 +4,8 @@
 // food-seeking layer (behavior.rs) between the two. After each batch of steps it
 // posts the mesh, muscles, voltages and what the worm smells to the page.
 
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/worm-sim/';
+
 const CONTROL_DT = 0.1; // body seconds per control step
 const FADE = 10; // control steps over which the muscles fade in after a start
 const FOOD = [3.0, -4.0]; // where the food starts: 8 mm from the worm, ahead and to the dorsal side
@@ -53,10 +55,10 @@ async function load() {
   postMessage({ type: 'progress', text: 'Loading the circuit and body' });
   const [wasm, brainData, body, wout, meta] = await Promise.all([
     WebAssembly.instantiateStreaming(fetch('engine.wasm')),
-    bytes('model/brain.bin'),
-    bytes('model/body_sym.bin'),
-    bytes('model/wout_offline.bin'),
-    fetch('model/brain.json').then((r) => r.json()),
+    bytes(MODEL_FILES + 'model/brain.bin'),
+    bytes(MODEL_FILES + 'model/body_sym.bin'),
+    bytes(MODEL_FILES + 'model/wout_offline.bin'),
+    fetch(MODEL_FILES + 'model/brain.json').then((r) => r.json()),
   ]);
   w = wasm.instance.exports;
   w.init(put(brainData), brainData.length, put(body), body.length, put(wout), put(new Float64Array([...meta.input, ...meta.output])));

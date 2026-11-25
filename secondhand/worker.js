@@ -1,4 +1,6 @@
 // Runs the handwriting network off the main thread and streams pen points back.
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/secondhand/';
+
 importScripts("engine.js?h=2");
 
 let model = null;
@@ -8,8 +10,8 @@ const POST = 64;         // moves per message
 
 const ready = (async () => {
   const [meta, blob] = await Promise.all([
-    fetch("model/hand.json").then((r) => r.json()),
-    fetch("model/hand.bin").then((r) => r.arrayBuffer())
+    fetch(MODEL_FILES + 'model/hand.json').then((r) => r.json()),
+    fetch(MODEL_FILES + 'model/hand.bin').then((r) => r.arrayBuffer())
   ]);
   model = new HandEngine.HandModel(meta, blob);
   postMessage({ type: "ready", spacing: meta.spacing, vocab: meta.vocab });

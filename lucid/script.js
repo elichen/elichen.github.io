@@ -168,7 +168,7 @@ async function selectBackend() {
 async function ensureModelLoaded(modelKey) {
     if (modelKey === 'robust' && !robustModel) {
         updateStatus('Loading robust ResNet-50 (51 MB)...', 'loading');
-        robustModel = await RobustResNet50.load('robust-resnet50/');
+        robustModel = await RobustResNet50.load('https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/lucid/robust-resnet50/');
     }
 
     if (modelKey === 'inception' && !inceptionModel) {

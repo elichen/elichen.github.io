@@ -478,7 +478,7 @@ $('k').addEventListener('input', () => {
   if (state.drum) { drawNotes(); hear(); }
 });
 
-worker.postMessage({ type: 'init', model: new URL('./model/listener.json', import.meta.url).href });
+worker.postMessage({ type: 'init', model: new URL('https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/drum/model/listener.json', import.meta.url).href });
 
 function loop() {
   view.frame();

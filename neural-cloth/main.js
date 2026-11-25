@@ -1,6 +1,8 @@
 import { ClothEngine } from './cloth-engine.js';
 import { ClothRenderer, PALETTE, sub, add, scale, dot, cross, norm } from './cloth-render.js';
 
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/neural-cloth/';
+
 const $ = (id) => document.getElementById(id);
 const REST_Y = 0.0045;          // resting height on the table (barrier offset + half the barrier gap)
 const MAX_GRIP_STEP = 0.03;     // m per frame (1.8 m/s), inside the training range
@@ -592,8 +594,8 @@ async function main() {
     state.device = device;
     ui.status.textContent = 'Loading the trained network…';
     const [meta, weights] = await Promise.all([
-      fetch('model/cloth.json').then((r) => r.json()),
-      fetch('model/cloth.bin').then((r) => r.arrayBuffer()).then((b) => new Float32Array(b)),
+      fetch(MODEL_FILES + 'model/cloth.json').then((r) => r.json()),
+      fetch(MODEL_FILES + 'model/cloth.bin').then((r) => r.arrayBuffer()).then((b) => new Float32Array(b)),
     ]);
     state.engine = await ClothEngine.create(device, meta, weights);
     state.renderer = new ClothRenderer(device, ui.canvas);

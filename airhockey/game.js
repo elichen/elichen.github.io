@@ -102,7 +102,7 @@ function gameLoop(now) {
 document.addEventListener('DOMContentLoaded', async () => {
     initializeGame();
     agent = new PPOAgent();
-    await agent.load('model/policy.bin');
+    await agent.load('https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/airhockey/model/policy.bin');
     updateModeHint();
     requestAnimationFrame(gameLoop);
 });

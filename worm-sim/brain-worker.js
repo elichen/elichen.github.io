@@ -3,6 +3,8 @@
 // steps in front of it; each result is the same as in a strictly serial loop.
 // It starts 3 s in: from v = -65 mV the first seconds swing the head round by 130°.
 
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/worm-sim/';
+
 const AHEAD = 8;
 const SETTLE = 30; // control steps of brain before the body moves
 let w = null;
@@ -27,10 +29,10 @@ function put(a) {
 async function load() {
   const [wasm, brain, body, wout, meta] = await Promise.all([
     WebAssembly.instantiateStreaming(fetch('engine.wasm')),
-    bytes('model/brain.bin'),
-    bytes('model/body_sym.bin'),
-    bytes('model/wout_offline.bin'),
-    fetch('model/brain.json').then((r) => r.json()),
+    bytes(MODEL_FILES + 'model/brain.bin'),
+    bytes(MODEL_FILES + 'model/body_sym.bin'),
+    bytes(MODEL_FILES + 'model/wout_offline.bin'),
+    fetch(MODEL_FILES + 'model/brain.json').then((r) => r.json()),
   ]);
   w = wasm.instance.exports;
   w.init(put(brain), brain.length, put(body), body.length, put(wout), put(new Float64Array([...meta.input, ...meta.output])));

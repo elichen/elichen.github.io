@@ -5,6 +5,8 @@
 // top 20 of them, and example images from the pool at full, half and a fifth of that), data/pool.json +
 // pool/{i}.jpg (6,106 validation images that hold every concept's examples), renders/{i}.jpg.
 
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/concepts/';
+
 const SIZE = 224, GRID = 7, CELL = SIZE / GRID, VIEW = 448;
 const BRUSH_RADIUS = 22;   // image pixels
 const LIST_LENGTH = 15;
@@ -613,7 +615,7 @@ els.reset.addEventListener('click', async () => {
         await selectBackend();
         const json = url => fetch(url).then(r => r.json());
         const [resnet, sae, concepts, pool, labels, names] = await Promise.all([
-            RobustResNet50.load('../lucid/robust-resnet50/'), ConceptDictionary.load('model/'),
+            RobustResNet50.load('https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/lucid/robust-resnet50/'), ConceptDictionary.load(MODEL_FILES + 'model/'),
             json('data/concepts.json'), json('data/pool.json'), json('data/labels.json'),
             json('data/names.json').catch(() => null)
         ]);

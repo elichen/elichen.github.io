@@ -359,7 +359,7 @@ async function main() {
 
     let policy;
     try {
-        const resp = await fetch('trained-weights-double-sac.json');
+        const resp = await fetch('https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/double-pendulum/trained-weights-double-sac.json');
         const weights = await resp.json();
         policy = new SACPolicy(weights);
     } catch (e) {

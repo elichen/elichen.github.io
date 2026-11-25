@@ -35,7 +35,7 @@ export class Policy {
     }
 }
 
-export async function loadPolicy(base = 'model/') {
+export async function loadPolicy(base = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/drone-racing/model/') {
     const [meta, bin] = await Promise.all([
         fetch(base + 'policy.json').then(r => r.json()),
         fetch(base + 'policy.bin').then(r => r.arrayBuffer()),

@@ -43,7 +43,7 @@ let crashText = '';
 
 async function init() {
     say('Loading the policy and the airfield…');
-    [track, policy] = await Promise.all([fetch('model/track.json').then(r => r.json()), loadPolicy('model/')]);
+    [track, policy] = await Promise.all([fetch('model/track.json').then(r => r.json()), loadPolicy()]);
     view = new View($('view'));
     radio = new Transmitter($('radio'));
     telemetry = new Telemetry($('hud'), [['speed', 'Speed'], ['height', 'Height'], ['rpm', 'Motor RPM'],

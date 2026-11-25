@@ -19,7 +19,7 @@ class SnakeAgentV2 {
         this.obsSize = null;
     }
 
-    async load(weightsUrl = 'web_model_v2/weights.bin') {
+    async load(weightsUrl = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/snake/web_model_v2/weights.bin') {
         const response = await fetch(weightsUrl);
         const buffer = await response.arrayBuffer();
         this.loadFromBuffer(buffer);

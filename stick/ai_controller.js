@@ -1,3 +1,5 @@
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/stick/';
+
 /**
  * AI Controller for Stick Balancing using TensorFlow.js
  * Loads a trained PPO model and performs inference
@@ -16,7 +18,7 @@ class AIController {
      * @param {string} modelPath - Path to the model.json file
      * @param {string} normPath - Path to the normalization parameters JSON
      */
-    async loadModel(modelPath = './models/tfjs/model.json', normPath = './models/tfjs/normalization.json') {
+    async loadModel(modelPath = MODEL_FILES + 'models/tfjs/model.json', normPath = MODEL_FILES + 'models/tfjs/normalization.json') {
         try {
             console.log('Loading AI model...');
 

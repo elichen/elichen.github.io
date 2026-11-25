@@ -15,7 +15,7 @@ class SB3Model {
     /**
      * Load model weights from JSON file
      */
-    async load(weightsPath = 'models/sb3_weights.json') {
+    async load(weightsPath = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/mtncar/models/sb3_weights.json') {
         try {
             const response = await fetch(weightsPath);
             if (!response.ok) {
@@ -169,7 +169,7 @@ class SB3Agent {
     /**
      * Load the pre-trained model
      */
-    async loadModel(weightsPath = 'models/sb3_weights.json') {
+    async loadModel(weightsPath = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/mtncar/models/sb3_weights.json') {
         console.log('Loading SB3 pre-trained model...');
         const success = await this.model.load(weightsPath);
 

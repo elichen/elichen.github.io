@@ -27,7 +27,7 @@ async function init() {
     game.draw();
 
     try {
-        await agent.load('web_model_v2/weights.bin');
+        await agent.load();
         agent.reset(game);
         headTrail = [{ ...game.snake[0] }];
         loadingOverlay.classList.add('hidden');

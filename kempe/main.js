@@ -313,7 +313,7 @@ window.addEventListener('keydown', (e) => {
 
 // --- start -------------------------------------------------------------------
 
-worker.postMessage({ type: 'init', base: new URL('./data/', import.meta.url).href });
+worker.postMessage({ type: 'init', base: new URL('https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/kempe/data/', import.meta.url).href });
 setStatus('Loading machines…');
 if (!location.hash) view.setGhost(SHAPES.heart.points, true);
 

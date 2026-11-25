@@ -3,6 +3,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/worm-sim/';
+
 const $ = (id) => document.getElementById(id);
 
 // Palettes sampled from photographs of C. elegans on Wikimedia Commons
@@ -33,7 +35,7 @@ async function f32(url) {
 }
 
 const [bodyData, neuronData, muscleEnds, brainMeta, skinData] = await Promise.all([
-  f64('model/body_sym.bin'), f32('model/neurons.bin'), f64('model/body_sym_muscles.bin'), fetch('model/brain.json').then((r) => r.json()), f32('model/skin.bin'),
+  f64(MODEL_FILES + 'model/body_sym.bin'), f32(MODEL_FILES + 'model/neurons.bin'), f64(MODEL_FILES + 'model/body_sym_muscles.bin'), fetch(MODEL_FILES + 'model/brain.json').then((r) => r.json()), f32(MODEL_FILES + 'model/skin.bin'),
 ]);
 const nv = bodyData[0], nt = bodyData[1], nm = bodyData[2], ntri = bodyData[3];
 const rest = bodyData.subarray(5, 5 + nv * 3);

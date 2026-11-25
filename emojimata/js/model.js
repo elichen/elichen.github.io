@@ -16,7 +16,7 @@ class CAModel {
     }
 
     async loadModel() {
-        const modelPath = './8000.weights.h5.json';
+        const modelPath = 'https://huggingface.co/elichen77/personal-site-models/resolve/e4f7f82c373c5c56b61d21944b77b567f8f1c18a/emojimata/8000.weights.h5.json';
         console.log('Loading model from:', modelPath);
         const response = await fetch(modelPath);
         const modelJSON = await response.json();

@@ -40,7 +40,7 @@ class Game {
     async setupAgent() {
         // Always use pre-trained SB3 model
         this.agent = new SB3Agent(this.env);
-        await this.agent.loadModel('models/sb3_weights.json');
+        await this.agent.loadModel();
         console.log('Using pre-trained SB3 DQN agent');
     }
 
