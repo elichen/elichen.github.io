@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadow Hand Rubik's Cube</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <section class="stage">
+        <canvas id="view"></canvas>
+        <div id="status" class="status-overlay">Loading MuJoCo WebAssembly, Shadow Hand &amp; RL policies...</div>
+        <div id="toast" class="toast" hidden></div>
+
+        <aside class="hud-left">
+            <a href="../index.html" class="back-link">&larr; elichen.github.io</a>
+            <h1 class="hud-title">Shadow Hand Rubik's Cube</h1>
+            <p class="hud-sub">20-DoF dexterous hand solving a physical 26-cubelet Rubik's cube in live MuJoCo WebAssembly.</p>
+
+            <div class="phase-row">
+                <span id="phase-swatch" class="face-swatch" style="background:#f7f7f3"></span>
+                <span id="phase-label" class="phase-label">INITIALIZING</span>
+                <span id="phase-angle" class="phase-angle">&ndash;</span>
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric">
+                    <span class="metric-label">Moves</span>
+                    <span id="m-moves" class="metric-val">0 / 0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Sim Time</span>
+                    <span id="m-time" class="metric-val">0.0s</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Solved</span>
+                    <span id="m-solved" class="metric-val">0</span>
+                </div>
+            </div>
+        </aside>
+
+        <aside class="hud-right">
+            <div class="net-header">
+                <span class="net-title">Live 54-Sticker State</span>
+                <span id="net-solved" class="net-solved">SCRAMBLED</span>
+            </div>
+            <canvas id="cube-net" width="336" height="252"></canvas>
+        </aside>
+
+        <div class="dock">
+            <div class="plan-strip" id="plan-strip">
+                <span class="plan-label">Kociemba</span>
+            </div>
+
+            <div class="controls-row">
+                <div class="btn-group">
+                    <button class="btn scr-btn" id="btn-scr-5" data-scr="5">Scramble 5</button>
+                    <button class="btn scr-btn" id="btn-scr-12" data-scr="12">Scramble 12</button>
+                    <button class="btn scr-btn" id="btn-scr-20" data-scr="20">Full 20</button>
+                    <button class="btn" id="btn-toggle-manual">Manual Move</button>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn" id="btn-pause">Pause</button>
+                    <button class="btn mono speed-btn" data-speed="0.5">0.5&times;</button>
+                    <button class="btn mono speed-btn active" data-speed="1">1&times;</button>
+                    <button class="btn mono speed-btn" data-speed="2">2&times;</button>
+                    <button class="btn mono speed-btn" data-speed="4">4&times;</button>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn cam-btn active" data-cam="studio">Studio</button>
+                    <button class="btn cam-btn" data-cam="closeup">Close</button>
+                    <button class="btn cam-btn" data-cam="top">Top</button>
+                    <button class="btn cam-btn" data-cam="side">Side</button>
+                </div>
+            </div>
+
+            <div class="manual-drawer" id="manual-drawer" hidden>
+                <span class="plan-label">Queue move</span>
+                <button class="btn mono mv-btn" data-mv="U">U</button>
+                <button class="btn mono mv-btn" data-mv="U'">U'</button>
+                <button class="btn mono mv-btn" data-mv="R">R</button>
+                <button class="btn mono mv-btn" data-mv="R'">R'</button>
+                <button class="btn mono mv-btn" data-mv="F">F</button>
+                <button class="btn mono mv-btn" data-mv="F'">F'</button>
+                <button class="btn mono mv-btn" data-mv="D">D</button>
+                <button class="btn mono mv-btn" data-mv="D'">D'</button>
+                <button class="btn mono mv-btn" data-mv="L">L</button>
+                <button class="btn mono mv-btn" data-mv="L'">L'</button>
+                <button class="btn mono mv-btn" data-mv="B">B</button>
+                <button class="btn mono mv-btn" data-mv="B'">B'</button>
+            </div>
+        </div>
+    </section>
+
+    <main class="article">
+        <h2>Real 26-Cubelet Physics, Solved Live in Your Browser</h2>
+        <p>
+            Every move you watch above happens through genuine rigid-body contact physics inside
+            <a href="https://github.com/google-deepmind/mujoco">MuJoCo</a> compiled to WebAssembly.
+            The Rubik's cube is not a rigid block with swapped textures: it is a 27-body articulated puzzle
+            consisting of a free-floating core, 6 center hinges, and 20 edge and corner cubelets mounted on
+            ball joints with beveled collision meshes. The cube itself has zero motors&mdash;only the 20 position
+            actuators of the <a href="https://github.com/google-deepmind/mujoco_menagerie">Shadow Dexterous Hand</a>
+            can push, cradle, flip, and twist its layers.
+        </p>
+
+        <div class="spec-grid">
+            <div class="spec-card">
+                <h3>Physics</h3>
+                <p>MuJoCo 3.14 WASM (250 Hz, 117 DoF)</p>
+            </div>
+            <div class="spec-card">
+                <h3>Robot</h3>
+                <p>Shadow Hand (24 joints, 20 actuators)</p>
+            </div>
+            <div class="spec-card">
+                <h3>Policies</h3>
+                <p>Reorient (140D) &amp; Twist (143D) PPO</p>
+            </div>
+            <div class="spec-card">
+                <h3>Planner</h3>
+                <p>Live Two-Phase Kociemba (JS)</p>
+            </div>
+        </div>
+
+        <h2>Full Cube State &amp; Closed-Loop Manipulation</h2>
+        <p>
+            At 50 Hz, the control loop reads the complete physical state of both the Shadow Hand and the Rubik's cube:
+            24 hand joint angles and velocities, 20 actuator targets, all 5 fingertip positions relative to the cube,
+            the cube's 3D pose and velocities, and all 6 internal face hinge angles and angular velocities.
+            Rather than forcing a single policy to compromise between rotating the whole cube rigidly and clamping the
+            bottom two layers while torqueing the top layer, solving is factored into two specialized PPO policies trained
+            on Google Colab GPU with MuJoCo-Warp:
+        </p>
+        <p>
+            <strong>Reorient</strong> brings any requested face normal straight up (<code>+Z</code>) while keeping all
+            six internal faces locked to multiples of 90&deg; and squaring the cube's yaw with the palm.
+            <strong>Twist</strong> starts from real terminal grasp states collected from <em>Reorient</em> and clamps
+            the bottom two layers with the palm and fingers while rotating the top face by +90&deg; or &minus;90&deg;.
+            <em>Reorient</em> is then fine-tuned on real post-<em>Twist</em> grasp states so handovers between flipping
+            and twisting remain smooth across dozens of consecutive moves.
+        </p>
+
+        <h2>Live Kociemba Re-Planning</h2>
+        <p>
+            A pure-JavaScript two-phase Kociemba solver decodes the exact 54-sticker configuration directly from the
+            20 physical cubelet quaternions in MuJoCo and computes a &le;22-move solution in a few milliseconds.
+            Because planning reads the live physics state rather than an abstract mirror, you can grab and perturb
+            the cube with your mouse mid-solve&mdash;if a layer slips or the cube gets bumped, the hand stabilizes it
+            and Kociemba re-plans from whatever physical state the cube ended up in.
+        </p>
+
+        <h2>Measured Performance (MuJoCo WASM)</h2>
+        <p id="measured-note">
+            Evaluated deterministically in Node.js on the exact same <code>@mujoco/mujoco</code> WebAssembly physics
+            engine and pure-JS neural network evaluator running on this page.
+        </p>
+        <table class="perf-table" id="perf-table">
+            <thead>
+                <tr>
+                    <th>Benchmark</th>
+                    <th>Success Rate</th>
+                    <th>Mean Time / Steps</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Single-move Reorient</td><td class="num" id="stat-reorient">&ndash;</td><td class="num" id="stat-reorient-t">&ndash;</td></tr>
+                <tr><td>Top-Face Twist (&plusmn;90&deg;)</td><td class="num" id="stat-twist">&ndash;</td><td class="num" id="stat-twist-t">&ndash;</td></tr>
+                <tr><td>5-Move Scramble (~6 turns)</td><td class="num" id="stat-solve5">&ndash;</td><td class="num" id="stat-solve5-t">&ndash;</td></tr>
+                <tr><td>12-Move Scramble (~21 turns)</td><td class="num" id="stat-solve12">&ndash;</td><td class="num" id="stat-solve12-t">&ndash;</td></tr>
+                <tr><td>Full 20-Move Scramble (~29 turns)</td><td class="num" id="stat-solve20">&ndash;</td><td class="num" id="stat-solve20-t">&ndash;</td></tr>
+            </tbody>
+        </table>
+    </main>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>

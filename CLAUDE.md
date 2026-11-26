@@ -452,3 +452,24 @@ Client-side **Open-Vocabulary English → Single Orthogonal Rotation `R` → Lan
 node world-model/tools/parity_arena.mjs           # gte-small (1.3e-4), R orthogonality (3.1e-8), GRU policy (1.8e-3)
 node world-model/tools/chrome_test.mjs comp       # Live Chrome WebGPU physics verification (throw/fist-pump/spin/circle/place)
 ```
+
+## Shadow Hand Rubik's Cube (`/rubiks-hand/`)
+
+A 20-actuator Shadow Dexterous Hand (MuJoCo Menagerie) solving a physically articulated 26-cubelet 3×3×3 Rubik's cube (free core + 6 center hinges + 20 ball-joint beveled cubelets, zero cube motors) live in the browser via `@mujoco/mujoco@3.14.0` WebAssembly, Three.js, pure-JS PPO MLP policies, and a zero-dependency pure-JS Two-Phase Kociemba solver.
+
+- **Physics & Full Cube State:** `robot/shadow_rubik.xml` (`nq=117, nv=96, nu=20, dt=0.004, SUBSTEPS=5`, 50 Hz EMA-filtered joint control `alpha=0.4`, `condim=3, priority=1` on hand vs `condim=1, priority=0` on beveled cubelets; ~15× real-time in WASM). `cube-state.js` / `training/cube_state.py` apply exact Singmaster moves to `qpos[31:117]` and decode the live 54-sticker state directly from the 20 physical cubelet quaternions. `kociemba.js` minimizes quarter turns (QTM) in ~11–60 ms (optimal 4.8 HTM / 6.1 QTM on 5-move scrambles).
+- **Two-Policy Canonical-Manifold Decomposition (`rubik-env.js`, `policy.js`, `training/rubik_warp_env.py`, `training/train_ppo.py`):**
+  - Weights live on Hugging Face (`elichen77/personal-site-models/rubiks-hand/model/`, pinned in `MODEL_FILES` in `main.js`; local `policy.{json,bin}` are gitignored and used by `tools/eval.mjs`).
+  - `Reorient` (`140D`, MLP `512-256-128` ELU+tanh, 934 KB `model/reorient/policy.{json,bin}`): rotates any target face normal to `+Z` with a 90°-periodic yaw harmonic while locking all 6 faces (`wrap90 = 0`).
+  - `Twist` (`143D`, MLP `512-256-128` ELU+tanh, 940 KB `model/twist/policy.{json,bin}`): clamps the bottom two layers and turns the top face ±90°.
+  - Trained on Google Colab L4 with `mujoco-warp` (~12–14k ctrl-steps/s). Key training findings: (1) `Twist` needed active fingertip reach (`r_reach`) + automatic angle curriculum (`22°→32°→45°→60°→75°→90°`) to escape a splayed-finger local optimum; (2) pinning **both** policies to exit inside the same compact **canonical handover manifold** (`pos_dist < 4.5 cm`, `cube_angv < 2.2/2.5 rad/s`, `face_vel < 1.8 rad/s`, `max_mis < 7.5°`) eliminated co-adaptation drift (`reorient1` 60M → `twist4` 120M → `reorient2` 35M → `twist5` 35M → `reorient3` 25M → canonical `reorient4` 18M → `twist6` 22M; shipped `reorient4/latest` + `twist6/latest`).
+- **Measured Performance (MuJoCo WASM, `model/metrics.json`):**
+  - Weight/obs parity: `reorient` `1.22e-6` PASS, `twist` `2.03e-6` PASS.
+  - Standalone: Reorient **40/40 (100.0%, 0.35s)**, Twist from Reorient handover **38/40 (95.0%, 0 drops, 0.84s)**.
+  - End-to-end closed-loop solves: 5-move **29/30 (96.7%, 10.3s)**, 12-move **12/20 (60.0%, 33.3s)**, Full 20-move **9/20 (45.0%, 38.1s)**.
+
+```bash
+node rubiks-hand/tools/eval.mjs --parity --reorient 40 --twist 40   # parity + standalone benchmarks
+node rubiks-hand/tools/eval.mjs --solve 20 --scramble 5             # end-to-end multi-move WASM solves
+node rubiks-hand/tools/chrome_test.mjs                              # headless Metal Chrome render & solve test
+```

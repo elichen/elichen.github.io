@@ -1,0 +1,17 @@
+{
+  "files": [
+    "shadow_rubik.xml",
+    "assets/f_distal_pst.obj",
+    "assets/f_knuckle.obj",
+    "assets/f_middle.obj",
+    "assets/f_proximal.obj",
+    "assets/forearm_0.obj",
+    "assets/forearm_1.obj",
+    "assets/lf_metacarpal.obj",
+    "assets/palm.obj",
+    "assets/th_distal_pst.obj",
+    "assets/th_middle.obj",
+    "assets/th_proximal.obj",
+    "assets/wrist.obj"
+  ]
+}

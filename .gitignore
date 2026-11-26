@@ -58,6 +58,10 @@ concept-steering/model/
 /robotarm/model/pick/policy.json
 /robotarm/model/throw/policy.bin
 /robotarm/model/throw/policy.json
+/rubiks-hand/model/reorient/policy.bin
+/rubiks-hand/model/reorient/policy.json
+/rubiks-hand/model/twist/policy.bin
+/rubiks-hand/model/twist/policy.json
 /secondhand/model/hand.bin
 /secondhand/model/hand.json
 /snake/web_model_v2/weights.bin
