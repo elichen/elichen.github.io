@@ -150,17 +150,19 @@
             six internal faces locked to multiples of 90&deg; and squaring the cube's yaw with the palm.
             <strong>Twist</strong> starts from real terminal grasp states collected from <em>Reorient</em> and clamps
             the bottom two layers with the palm and fingers while rotating the top face by +90&deg; or &minus;90&deg;.
-            <em>Reorient</em> is then fine-tuned on real post-<em>Twist</em> grasp states so handovers between flipping
-            and twisting remain smooth across dozens of consecutive moves.
+            Both policies are iteratively co-trained with closed-loop DAgger state harvesting (real post-twist exits,
+            bailout catches, double turns, and skewed-slice straightening) under Sim-to-WASM physics domain randomization
+            so handovers stay tight across dozens of consecutive moves.
         </p>
 
         <h2>Live Kociemba Re-Planning</h2>
         <p>
-            A pure-JavaScript two-phase Kociemba solver decodes the exact 54-sticker configuration directly from the
-            20 physical cubelet quaternions in MuJoCo and computes a &le;22-move solution in a few milliseconds.
-            Because planning reads the live physics state rather than an abstract mirror, you can grab and perturb
-            the cube with your mouse mid-solve&mdash;if a layer slips or the cube gets bumped, the hand stabilizes it
-            and Kociemba re-plans from whatever physical state the cube ended up in.
+            A pure-JavaScript 6-coset two-phase Kociemba solver decodes the exact 54-sticker configuration directly from
+            the 20 physical cubelet quaternions in MuJoCo and searches all 3 rotational axes (forward and inverse) to
+            pick solutions with the fewest cube flips and 180&deg; turns. Because the controller verifies live face
+            alignment after every move&mdash;invoking <em>Twist</em> directly to snap any skewed slice back to 90&deg;
+            before continuing&mdash;you can grab and perturb the cube with your mouse mid-solve and watch the hand
+            recover and re-plan from whatever physical state the cube ended up in.
         </p>
 
         <h2>Measured Performance (MuJoCo WASM)</h2>
@@ -180,8 +182,8 @@
                 <tr><td>Single-move Reorient</td><td class="num" id="stat-reorient">&ndash;</td><td class="num" id="stat-reorient-t">&ndash;</td></tr>
                 <tr><td>Top-Face Twist (&plusmn;90&deg;)</td><td class="num" id="stat-twist">&ndash;</td><td class="num" id="stat-twist-t">&ndash;</td></tr>
                 <tr><td>5-Move Scramble (~6 turns)</td><td class="num" id="stat-solve5">&ndash;</td><td class="num" id="stat-solve5-t">&ndash;</td></tr>
-                <tr><td>12-Move Scramble (~21 turns)</td><td class="num" id="stat-solve12">&ndash;</td><td class="num" id="stat-solve12-t">&ndash;</td></tr>
-                <tr><td>Full 20-Move Scramble (~29 turns)</td><td class="num" id="stat-solve20">&ndash;</td><td class="num" id="stat-solve20-t">&ndash;</td></tr>
+                <tr><td>12-Move Scramble (~15 turns)</td><td class="num" id="stat-solve12">&ndash;</td><td class="num" id="stat-solve12-t">&ndash;</td></tr>
+                <tr><td>Full 20-Move Scramble (~27 turns)</td><td class="num" id="stat-solve20">&ndash;</td><td class="num" id="stat-solve20-t">&ndash;</td></tr>
             </tbody>
         </table>
     </main>

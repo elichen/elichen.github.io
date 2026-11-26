@@ -270,25 +270,76 @@ export class CubeSolverController {
         this.phaseSteps = 0;
         this.settleSteps = 0;
         this.unjamMode = false;
+        this.straightenMode = false;
         this.totalSteps = 0;
         this.replanCount = 0;
+        this.consecutiveBails = 0;
+        this.consecutiveStraightens = 0;
+        this.expectedCenters = null;
         this.replan();
+    }
+
+    _mostSkewedFace() {
+        let faceId = 0, err = 0;
+        for (let i = 0; i < 6; i++) {
+            const e = Math.abs(wrap90(this.env.data.qpos[QPOS_CENTERS + i]));
+            if (e > err) { err = e; faceId = i; }
+        }
+        return { faceId, err };
+    }
+
+    _snapCenters() {
+        const c = new Int32Array(6);
+        const h = Math.PI / 2;
+        for (let i = 0; i < 6; i++) {
+            c[i] = Math.round(this.env.data.qpos[QPOS_CENTERS + i] / h);
+        }
+        return c;
+    }
+
+    _centersDesynced() {
+        if (!this.expectedCenters) return false;
+        const cur = this._snapCenters();
+        for (let i = 0; i < 6; i++) {
+            if (((cur[i] - this.expectedCenters[i]) & 3) !== 0) return true;
+        }
+        return false;
     }
 
     replan() {
         this.phaseSteps = 0;
         this.settleSteps = 0;
         this.unjamMode = false;
+        this.straightenMode = false;
+        const { faceId: skewFace, err: skewErr } = this._mostSkewedFace();
         const fl = this.env.facelets();
-        if (fl.includes('?')) {
-            // Cube is mid-turn/skewed: use Reorient on current top face to straighten all 6 faces first
-            const { faceId } = topFaceFromCoreQuat(this.env.cubeQuat());
-            this.targetFaceId = faceId;
-            this.phase = 'reorient';
+        if (fl.includes('?') || skewErr > 0.22) {
+            // Twist-to-Straighten: bring the jammed/skewed slice to +Z, then use Twist to snap it to round90!
+            this.consecutiveStraightens++;
+            this.expectedCenters = null;
+            if (this.consecutiveStraightens >= 4) {
+                this.consecutiveStraightens = 0;
+                this.targetFaceId = (skewFace + 2) % 6;
+                this.unjamMode = true;
+                this.phase = 'reorient';
+                return false;
+            }
+            this.straightenMode = true;
+            this.targetFaceId = skewFace;
+            const nw = quatRotateVec(this.env.cubeQuat(), FACE_INFO[skewFace].axis);
+            const angv = Math.hypot(this.env.data.qvel[27], this.env.data.qvel[28], this.env.data.qvel[29]);
+            if (nw[2] > 0.93 && this.env.cubePosDist() < 0.050 && angv < 3.0) {
+                this._enterTwist(true);
+            } else {
+                this.phase = 'reorient';
+            }
             return false;
         }
-        const sol = solveCube(fl, { maxTotalMoves: 22, timeoutMs: 80 });
+        this.consecutiveStraightens = 0;
+        const { faceId: curTopId } = topFaceFromCoreQuat(this.env.cubeQuat());
+        const sol = solveCube(fl, { maxTotalMoves: 22, timeoutMs: 180, startTopLetter: FACE_INFO[curTopId].letter });
         this.plan = expandQuarterTurns(sol);
+        this.expectedCenters = this._snapCenters();
         if (this.plan.length === 0) {
             this.phase = 'solved';
             return true;
@@ -307,18 +358,24 @@ export class CubeSolverController {
         this.twistDir = mv.endsWith("'") ? 1.0 : -1.0;
         this.phaseSteps = 0;
         this.settleSteps = 0;
+        this.straightenMode = false;
         const { faceId: topId, dotZ } = topFaceFromCoreQuat(this.env.cubeQuat());
         const aligned = this.env.maxFaceMisalignment() < 0.16;
         if (this.completedMoves.length > 0 && topId === this.targetFaceId && dotZ > 0.955 && aligned) {
-            this._enterTwist();
+            this._enterTwist(false);
         } else {
             this.phase = 'reorient';
         }
     }
 
-    _enterTwist() {
+    _enterTwist(forStraighten = false) {
         const cur = this.env.data.qpos[QPOS_CENTERS + this.targetFaceId];
-        this.goalAngle = round90(cur) + this.twistDir * (Math.PI / 2);
+        if (forStraighten) {
+            this.goalAngle = round90(cur);
+            this.twistDir = wrapPi(this.goalAngle - cur) >= 0 ? 1.0 : -1.0;
+        } else {
+            this.goalAngle = round90(cur) + this.twistDir * (Math.PI / 2);
+        }
         this.phase = 'twist';
         this.phaseSteps = 0;
         this.settleSteps = 0;
@@ -356,6 +413,23 @@ export class CubeSolverController {
 
         if (this.phase === 'reorient') {
             const maxMis = this.env.maxFaceMisalignment();
+            if (this.straightenMode) {
+                if (maxMis < 0.14 && posDist < 0.055) {
+                    this.replan();
+                    return { event: 'replan' };
+                }
+                const dotReq = this.phaseSteps > 80 ? 0.88 : 0.94;
+                const posReq = this.phaseSteps > 80 ? 0.060 : 0.048;
+                if (dotZ > dotReq && posDist < posReq && angv < 3.0) {
+                    this._enterTwist(true);
+                    return { event: 'reoriented', face: FACE_INFO[this.targetFaceId].letter };
+                }
+                if (this.phaseSteps > 160) {
+                    this.replan();
+                    return { event: 'replan' };
+                }
+                return null;
+            }
             if (this.unjamMode) {
                 if (maxMis < 0.14 || this.phaseSteps > 60) {
                     this.replanCount++;
@@ -363,6 +437,11 @@ export class CubeSolverController {
                     return { event: 'replan' };
                 }
                 return null;
+            }
+            // If a slice became heavily skewed mid-reorient (>0.28 rad), switch to Twist-to-Straighten
+            if (maxMis > 0.28 && this.phaseSteps > 40) {
+                this.replan();
+                return { event: 'replan' };
             }
             // Canonical handover manifold: centered (<4.5 cm), upright (<12.8 deg), dead-still (<2.2 rad/s), faces locked (<7.5 deg)
             const dotReq = this.phaseSteps > 120 ? 0.94 : 0.975;
@@ -377,15 +456,24 @@ export class CubeSolverController {
                     this.phase = 'solved';
                     return { event: 'solved' };
                 }
-                this._enterTwist();
+                if (this._centersDesynced()) {
+                    this.replanCount++;
+                    this.replan();
+                    return { event: 'replan' };
+                }
+                this._enterTwist(false);
                 return { event: 'reoriented', face: FACE_INFO[this.targetFaceId].letter };
             }
             if (this.phaseSteps > 200) {
                 if (dotZ > 0.88 && maxMis < 0.24) {
-                    this._enterTwist();
+                    this._enterTwist(false);
                     return { event: 'reoriented', face: FACE_INFO[this.targetFaceId].letter };
                 }
-                // Static grip equilibrium or skewed slice: momentarily tumble an orthogonal face up to re-grasp & straighten
+                if (maxMis > 0.22) {
+                    this.replan();
+                    return { event: 'replan' };
+                }
+                // Static grip equilibrium: momentarily tumble an orthogonal face up to re-grasp
                 this.targetFaceId = (this.targetFaceId + 2) % 6;
                 this.unjamMode = true;
                 this.phaseSteps = 0;
@@ -405,6 +493,25 @@ export class CubeSolverController {
                 const e = Math.abs(wrap90(this.env.data.qpos[QPOS_CENTERS + i]));
                 if (e > otherMax) otherMax = e;
             }
+            if (this.straightenMode) {
+                if ((rem < 0.14 && topVel < 2.5 && posDist < 0.055) || this.phaseSteps > 140) {
+                    this.straightenMode = false;
+                    this.consecutiveBails = 0;
+                    const fl = this.env.facelets();
+                    if (!fl.includes('?') && fl === 'UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB') {
+                        this.plan = [];
+                        this.phase = 'solved';
+                        return { event: 'solved' };
+                    }
+                    this.replan();
+                    return { event: 'replan' };
+                }
+                if (dotZ < 0.65 || posDist > 0.072) {
+                    this.replan();
+                    return { event: 'replan' };
+                }
+                return null;
+            }
             // Canonical handover manifold exit: face settled (<7.5 deg, <1.8 rad/s), cube centered (<4.5 cm) & still (<2.5 rad/s)
             const remReq = this.phaseSteps > 140 ? 0.16 : 0.13;
             const tvReq = this.phaseSteps > 140 ? 2.8 : 1.8;
@@ -413,8 +520,12 @@ export class CubeSolverController {
             const dotReq = this.phaseSteps > 140 ? 0.90 : 0.955;
             if (rem < remReq && topVel < tvReq && angv < angReq && posDist < posReq && otherMax < 0.15 && dotZ > dotReq) {
                 this.settleSteps = 0;
+                this.consecutiveBails = 0;
                 const doneMove = this.plan.shift();
                 this.completedMoves.push(doneMove);
+                if (this.expectedCenters) {
+                    this.expectedCenters[LETTER_TO_FACE[doneMove[0]]] += doneMove.endsWith("'") ? 1 : -1;
+                }
                 // Re-verify live physical cube state from MuJoCo!
                 const fl = this.env.facelets();
                 if (!fl.includes('?') && fl === 'UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB') {
@@ -422,7 +533,7 @@ export class CubeSolverController {
                     this.phase = 'solved';
                     return { event: 'solved', move: doneMove };
                 }
-                if (this.plan.length === 0) {
+                if (this.plan.length === 0 || this._centersDesynced()) {
                     this.replanCount++;
                     this.replan();
                     return { event: 'replan', move: doneMove };
@@ -430,9 +541,20 @@ export class CubeSolverController {
                 this._beginNextMove();
                 return { event: 'twisted', move: doneMove };
             }
-            // Bail out to Reorient before cube tips past recoverable palm grasp
-            if (dotZ < 0.62 || this.phaseSteps > 220) {
+            // Early drift + tilt bailout: hand off to Reorient before cube leaves palm grasp!
+            if (dotZ < 0.62 || posDist > 0.075 || this.phaseSteps > 220) {
                 this.replanCount++;
+                this.consecutiveBails++;
+                if (this.consecutiveBails >= 6) {
+                    // Break rare deterministic bailout loops with a brief orthogonal re-grasp tumble
+                    this.consecutiveBails = 0;
+                    this.targetFaceId = (this.targetFaceId + 2) % 6;
+                    this.unjamMode = true;
+                    this.phase = 'reorient';
+                    this.phaseSteps = 0;
+                    this.settleSteps = 0;
+                    return { event: 'replan' };
+                }
                 this.replan();
                 return { event: 'replan' };
             }

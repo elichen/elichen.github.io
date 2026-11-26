@@ -1,8 +1,8 @@
 {
-  "reorient": { "rate": "40/40 (100.0%)", "time": "0.35s (17.3 steps)" },
-  "twist": { "rate": "38/40 (95.0%)", "time": "0.84s (41.8 steps)" },
-  "solve5": { "rate": "29/30 (96.7%)", "time": "10.3s sim" },
-  "solve12": { "rate": "12/20 (60.0%)", "time": "33.3s sim" },
-  "solve20": { "rate": "9/20 (45.0%)", "time": "38.1s sim" },
-  "parity": { "reorientMaxErr": 1.22e-6, "twistMaxErr": 2.03e-6 }
+  "reorient": { "rate": "40/40 (100.0%)", "time": "0.35s (17.7 steps)" },
+  "twist": { "rate": "40/40 (100.0%)", "time": "0.77s (38.7 steps)" },
+  "solve5": { "rate": "46/50 (92.0%)", "time": "7.1s sim" },
+  "solve12": { "rate": "27/30 (90.0%)", "time": "20.6s sim" },
+  "solve20": { "rate": "81/100 (81.0%)", "time": "32.4s sim" },
+  "parity": { "reorientMaxErr": 1.11e-6, "twistMaxErr": 1.49e-6 }
 }

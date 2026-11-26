@@ -6,7 +6,7 @@ import { FACE_INFO, QPOS_CENTERS, SOLVED_FACELETS, wrapPi } from './cube-state.j
 import { Policy } from './policy.js';
 import { RubikSceneRenderer, STICKER_HEX } from './render.js';
 
-const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/9dc168fec06a922fbc17fc97638cd252c0cac9b0/rubiks-hand/';
+const MODEL_FILES = 'https://huggingface.co/elichen77/personal-site-models/resolve/96825dcc4909c4b799e75a77e71050857c5b15e6/rubiks-hand/';
 
 const $ = id => document.getElementById(id);
 const statusEl = $('status');
